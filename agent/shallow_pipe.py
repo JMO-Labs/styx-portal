@@ -47,7 +47,7 @@ def trace_steer(server_cls, wm, steer_cls) -> None:
 
 
 OWNER_LAG_S = 0.1      # queue past the round trip the controlling tab may build
-GATED_SELKIES = "2.1.0"
+GATED_SELKIES = "2.2.0"
 
 
 def owner_gate(relay_cls, wm, version: str) -> None:
@@ -57,7 +57,7 @@ def owner_gate(relay_cls, wm, version: str) -> None:
     OWNER_LAG_S of queue a delta is left out the way a page's is: the encoder
     predicts past it (`_lose` -> `_repair`). Anchors and frame_num-wrap frames
     always go.
-    ponytail: copy of upstream _forward (selkies 2.1.0); drop when selkies
+    ponytail: copy of upstream _forward (selkies 2.1.0, identical in 2.2.0); drop when selkies
     gates the owner (issue TBD). Another version keeps upstream's."""
     if version != GATED_SELKIES:
         log.warning(f"shallow pipe: selkies {version} != {GATED_SELKIES}; owner gate off")

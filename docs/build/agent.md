@@ -17,7 +17,7 @@ troubleshoot) are in the Operate section.
 | `gateway.py`, `gateway_html.py`, `viewers.py`, `refit.py` | The gateway and its per-tab bookkeeping |
 | `seat_gnome.py`, `seat_portal.py`, `seat_systemd.py`, `seat_scale.py`, `seat_clipboard.py`, `seat_thumb*.py` | Headless GNOME seat |
 | `seat_labwc.py`, `clipboard_bridge.py` | labwc fallback seat |
-| `shallow_pipe.py`, `bundle_patch.py` | Runtime patches applied to selkies 2.1 |
+| `shallow_pipe.py` | Runtime patches applied to selkies 2.2 |
 | `health.py`, `portal_api.py`, `favicon.py` | Health readers, portal HTTP helpers, favicon relay |
 | `uninstall.sh` | Standalone removal |
 
@@ -135,7 +135,6 @@ by env, never argv. Highlights:
 * **Audio**: the seat uses a null sink `styx-seat` so seat audio never reaches host speakers; its monitor is the capture device.
 * **Stream override hook**: `apply_stream_override()` appends flags from `<install>/stream-override.json` (`{"args": [...]}`) to selkies' argv; argparse keeps the last value. The A/B harness uses it to swap encoder and bitrate without touching the seat. Dev only; production settings still come from the portal.
 * `seat_selkies_main()` (`python engine.py <selkies args>`) wraps selkies for the GNOME seat: routes clipboard calls to `seat_clipboard`, and installs the `shallow_pipe` patches (owner lag gate, congestion tracing) when `selkies.__version__` is the one they were written for.
-* `bundle_patch.apply()` re-applies the AV1 crop to selkies' web bundle at each agent start (lost on reinstall). See [Upstream](upstream.md).
 
 ## Seats
 
