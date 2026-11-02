@@ -81,6 +81,7 @@ def build_launch_script(sink: str, bus_file: str, portal_dir: str, x11: bool = T
 
 
 STRIKES = 3   # consecutive failed main-loop probes before the Xwayland fallback
+HELPER_STRIKES = 3   # seat starts in a row whose helper never came up with Xwayland on
 
 
 def gnome_version() -> str:
@@ -162,6 +163,7 @@ class GnomeSeat:
         self._x11 = False        # Xwayland on for the running/last-started shell
         self._fell_back = False
         self._strikes = 0
+        self._helper_fails = 0   # across starts: start() must not reset it
 
     def _gnome_version(self) -> str:
         if self._version is None:
@@ -181,10 +183,10 @@ class GnomeSeat:
         except OSError:
             return False
 
-    def _mark_fallback(self) -> None:
-        """Main loop dead with Xwayland on: next start runs --no-x11."""
+    def _mark_fallback(self, why: str = "GNOME main loop stopped answering") -> None:
+        """Seat broken with Xwayland on: next start runs --no-x11."""
         self._fell_back = True
-        print("seat: GNOME main loop stopped answering with Xwayland on; "
+        print(f"seat: {why} with Xwayland on; "
               "falling back to --no-x11 (X11 apps disabled on this host)", flush=True)
         self.marker.write_text(self._marker_text() + "\n")
 
@@ -248,12 +250,25 @@ class GnomeSeat:
                 self.bus = self.bus_file.read_text().strip() or None
             if (self.bus and Path(self.runtime_dir, SOCKET).exists()
                     and self._shell_answers()):
-                return self._start_helper(*self.size)
+                return self._helper_up()
             time.sleep(0.1)
         # Only a shell that got its bus + socket up and then stopped answering is
         # the Xwayland deadlock; a slow first start (GPU init) is not.
         if self._x11 and self.alive() and self.bus and Path(self.runtime_dir, SOCKET).exists():
             self._mark_fallback()
+        return False
+
+    def _helper_up(self) -> bool:
+        """Start the helper; a shell that answers while its helper never reports
+        the monitor, start after start, is broken by Xwayland too (AMD 780M on
+        Mutter 50.1 with eager Xwayland): fall back rather than loop forever."""
+        if self._start_helper(*self.size):
+            self._helper_fails = 0
+            return True
+        if self._x11:
+            self._helper_fails += 1
+            if self._helper_fails >= HELPER_STRIKES and not self._fell_back:
+                self._mark_fallback("seat helper never came up")
         return False
 
     def healthy(self) -> bool:
