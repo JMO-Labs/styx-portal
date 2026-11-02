@@ -249,15 +249,9 @@ def _seat_scale() -> float:
 
 
 def rd_eis(self, session_handle, app_id, options):
-    # pixelflux sends libei absolute motion in stream (physical) px, but libei
-    # regions are logical: at scale 2 the pointer ran 2x ahead. Refused, it
-    # falls back to Notify*, which Mutter divides by the stream's scale.
-    # The scale is fixed per session: a scale change restarts selkies.
-    scale = sessions[str(session_handle)].scale
-    if scale != 1.0:
-        log("ConnectToEIS refused at scale", scale, "-> portal notify input")
-        raise dbus.exceptions.DBusException("libei disabled on a scaled seat",
-                                            name="org.freedesktop.DBus.Error.NotSupported")
+    # libei absolute motion is logical; pixelflux >= 2.2.2 maps it into the
+    # stream's logical region (pixelflux#55), so a scaled seat no longer needs
+    # the Notify fallback. Notify still gets its x scale in _abs below.
     return sessions[str(session_handle)].rd.ConnectToEIS(dbus.Dictionary({}, signature="sv"))
 
 
