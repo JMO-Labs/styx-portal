@@ -393,6 +393,43 @@ def test_ready_timeout_with_x11_writes_marker(tmp_path, monkeypatch):
     assert (tmp_path / "seat-no-x11").exists()
 
 
+def test_helper_failing_with_x11_falls_back_after_strikes(tmp_path, monkeypatch, capsys):
+    # The shell answers, but the seat helper never reports its monitor (AMD 780M,
+    # Mutter 50.1, eager Xwayland): without a fallback the agent restarts the seat forever.
+    seat = _seat_with_version(tmp_path, monkeypatch)
+    monkeypatch.setattr(seat_gnome.os, "killpg", lambda *a: None)
+    monkeypatch.setattr(seat, "_shell_answers", lambda: True)
+    monkeypatch.setattr(seat, "_start_helper", lambda w, h: False)
+    for i in range(seat_gnome.HELPER_STRIKES):
+        seat.start(1920, 1080)
+        assert seat.x11_on
+        seat._proc = _P()
+        seat._helper = None
+        seat.bus_file.write_text("unix:path=/x")
+        (tmp_path / seat_gnome.SOCKET).touch()
+        assert seat.ready(timeout=0.2) is False
+        assert (tmp_path / "seat-no-x11").exists() == (i == seat_gnome.HELPER_STRIKES - 1)
+    assert "falling back to --no-x11" in capsys.readouterr().out
+    seat.start(1920, 1080)
+    assert not seat.x11_on
+
+
+def test_helper_success_resets_helper_strikes(tmp_path, monkeypatch):
+    seat = _seat_with_version(tmp_path, monkeypatch)
+    monkeypatch.setattr(seat_gnome.os, "killpg", lambda *a: None)
+    monkeypatch.setattr(seat, "_shell_answers", lambda: True)
+    results = iter([False] * (seat_gnome.HELPER_STRIKES - 1) + [True, False])
+    monkeypatch.setattr(seat, "_start_helper", lambda w, h: next(results))
+    for _ in range(seat_gnome.HELPER_STRIKES + 1):
+        seat.start(1920, 1080)
+        seat._proc = _P()
+        seat._helper = None
+        seat.bus_file.write_text("unix:path=/x")
+        (tmp_path / seat_gnome.SOCKET).touch()
+        seat.ready(timeout=0.2)
+    assert not (tmp_path / "seat-no-x11").exists()
+
+
 def test_stop_escalates_to_sigkill_within_seconds(tmp_path, monkeypatch):
     waits = []
     seat = seat_gnome.GnomeSeat(tmp_path, str(tmp_path), log=subprocess.DEVNULL)
