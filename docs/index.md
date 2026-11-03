@@ -95,4 +95,4 @@ hide:
 ## Quick links
 
 - [Settings reference](operate/settings.md) · [Streaming tuning](operate/streaming-tuning.md) · [Troubleshooting](use/troubleshooting.md)
-- [Decisions (ADRs)](decisions/index.md) · [Changelog](https://github.com/sgtslaughta/styx-portal/blob/main/CHANGELOG.md)
+- [Decisions (ADRs)](decisions/index.md) · [Changelog](https://github.com/JMO-Labs/styx-portal/blob/main/CHANGELOG.md)
