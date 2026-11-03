@@ -4,7 +4,7 @@ hide:
   - toc
 ---
 
-# Styx Portal
+<h1><video class="styx-brand" src="assets/brand/styx-hero.webm" poster="assets/brand/styx-hero.jpg" autoplay loop muted playsinline aria-label="Styx Portal"></video></h1>
 
 !!! quote "Built on Selkies"
     [![Selkies](https://raw.githubusercontent.com/selkies-project/selkies/main/docs/assets/logo/selkies.svg){ width="48" align=left }](https://github.com/selkies-project)

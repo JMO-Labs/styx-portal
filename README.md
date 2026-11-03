@@ -1,4 +1,4 @@
-<h1 align="center">Styx Portal</h1>
+<h1 align="center"><img src="docs/assets/brand/styx-square.gif" alt="Styx Portal" width="360"></h1>
 
 <p align="center">
   <img src="docs/assets/screens/hero-dashboard.png" alt="Styx Portal dashboard with running desktops and workstations" width="900">

@@ -1,3 +1,5 @@
+<video class="styx-brand" src="../assets/brand/styx-header.webm" poster="../assets/brand/styx-header.jpg" autoplay loop muted playsinline aria-label="Styx Portal"></video>
+
 # Build
 
 Engineering documentation for Styx Portal contributors and anyone who wants to
