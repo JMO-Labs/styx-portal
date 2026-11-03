@@ -39,7 +39,7 @@ describe("WorkstationsPanel agent update", () => {
   test("row shows em dash meters without data and Manage opens the dialog", async () => {
     render(<WorkstationsPanel />);
     expect(await screen.findByText("Enroll a workstation")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Manage" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Manage" }));
     expect(await screen.findByRole("button", { name: "Revoke" })).toBeTruthy();
   });
 });

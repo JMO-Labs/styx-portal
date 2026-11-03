@@ -416,6 +416,9 @@ def run(cfg: dict) -> int:
                 procs["selkies"] = None
                 if not (gseat.resize_live(*req) or gseat.refit(*req)):
                     last_error = f"refit to {req[0]}x{req[1]} failed — kept previous size"
+                # A transport pick since the last pass leaves a standby in the old
+                # mode; promoting it would undo the switch (WebRTC -> WebSockets).
+                stream_mode = sync_stream_mode(gw_state_path(cfg), procs, stream_mode)
                 standby = procs["standby"]
                 if standby is not None and standby.poll() is None:
                     procs["selkies"], procs["standby"] = standby, None
