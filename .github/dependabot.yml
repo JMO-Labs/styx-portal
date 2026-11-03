@@ -17,6 +17,11 @@ updates:
     groups:
       npm-minor:
         update-types: [minor, patch]
+    ignore:
+      # ponytail: preset 10 needs conventional-changelog-writer@9; release-notes-generator
+      # 14.x still ships writer@8. Drop once release-notes-generator moves to writer@9.
+      - dependency-name: conventional-changelog-conventionalcommits
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: pip
     directory: /backend
     schedule:
