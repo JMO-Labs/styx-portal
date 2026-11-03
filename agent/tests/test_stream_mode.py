@@ -17,8 +17,7 @@ def _mode(cmd):
 
 
 def _build(cfg):
-    with mock.patch.object(engine.bundle_patch, "apply"):
-        return engine.build_selkies_cmd(cfg, 1, {"socket": "s", "bus": "b"})[0]
+    return engine.build_selkies_cmd(cfg, 1, {"socket": "s", "bus": "b"})[0]
 
 
 def test_file_overrides_transport(tmp_path):

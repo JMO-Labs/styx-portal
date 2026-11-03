@@ -165,7 +165,6 @@ AGENT_UPDATE_FILES = [
     ("favicon.py", "favicon.py"),
     ("seat_thumb.py", "seat_thumb.py"),
     ("seat_thumb_grab.py", "seat_thumb_grab.py"),
-    ("bundle_patch.py", "bundle_patch.py"),
 ]
 
 

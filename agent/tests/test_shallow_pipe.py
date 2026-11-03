@@ -109,7 +109,7 @@ class _Relay:
 
 def _gated(**kw):
     cls = type("R", (_Relay,), {})
-    shallow_pipe.owner_gate(cls, SimpleNamespace(FRAME_NUM_WRAP=WRAP), "2.1.0")
+    shallow_pipe.owner_gate(cls, SimpleNamespace(FRAME_NUM_WRAP=WRAP), shallow_pipe.GATED_SELKIES)
     return cls(**kw)
 
 
@@ -152,5 +152,5 @@ def test_missing_reference_still_repairs():
 
 def test_version_mismatch_skips_patch():
     cls = type("R", (_Relay,), {})
-    shallow_pipe.owner_gate(cls, SimpleNamespace(FRAME_NUM_WRAP=WRAP), "2.2.0")
+    shallow_pipe.owner_gate(cls, SimpleNamespace(FRAME_NUM_WRAP=WRAP), "9.9.9")
     assert cls()._forward(8, 7) == "upstream"

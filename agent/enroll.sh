@@ -265,7 +265,7 @@ for pair in "agent.py styx_agent.py" "engine.py engine.py" \
             "gateway.py gateway.py" "gateway_html.py gateway_html.py" "gamemode.py gamemode.py" "gateway_ws.py gateway_ws.py" "gateway_webrtc.py gateway_webrtc.py" "agent_procs.py agent_procs.py" "seat_systemd.py seat_systemd.py" "seat_gnome.py seat_gnome.py" "xwl_eager.py xwl_eager.py" "codecpref.py codecpref.py" \
             "seat_labwc.py seat_labwc.py" "health.py health.py" \
             "refit.py refit.py" "seat_scale.py seat_scale.py" "shallow_pipe.py shallow_pipe.py" "viewers.py viewers.py" "seat_portal.py seat_portal.py" "seat_clipboard.py seat_clipboard.py" "portal_api.py portal_api.py" \
-            "clipboard_bridge.py clipboard_bridge.py" "favicon.py favicon.py" "seat_thumb.py seat_thumb.py" "seat_thumb_grab.py seat_thumb_grab.py" "bundle_patch.py bundle_patch.py" \
+            "clipboard_bridge.py clipboard_bridge.py" "favicon.py favicon.py" "seat_thumb.py seat_thumb.py" "seat_thumb_grab.py seat_thumb_grab.py" \
             "agent_update.py agent_update.py" "agent_updater.py agent_updater.py" "uninstall uninstall.sh"; do
   read -r remote local_name <<<"$pair"
   fetch "$SERVER/api/enroll/$remote" -o "$INSTALL_DIR/$local_name" \
@@ -290,7 +290,7 @@ python3 -m venv "$INSTALL_DIR/venv" \
   || fail E01 "venv creation failed — check python3-venv is installed and $HOME has free space."
 "$INSTALL_DIR/venv/bin/pip" -q install --no-index \
   --find-links "$INSTALL_DIR/wheelhouse" \
-  selkies==2.1.0 pixelflux==2.2.1 pcmflux==2.2.0 setuptools aiohttp pulsectl \
+  selkies==2.2.0 pixelflux==2.2.2 pcmflux==2.2.1 setuptools aiohttp pulsectl \
   || fail E03 "Wheel install failed — likely an unsupported python version ($(python3 -V)). The wheelhouse covers python 3.10–3.14; rebuild it on the server (scripts/build_agent_artifacts.sh) if your python is newer."
 
 # Seat-only, OPTIONAL: nwg-drawer (app grid) + nwg-dock binaries, server-built

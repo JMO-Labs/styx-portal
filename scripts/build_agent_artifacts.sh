@@ -28,7 +28,7 @@ docker run --rm -v "$WORK:/out" -v "$(realpath "$EXTRA"):/extra:ro" "$MANYLINUX_
   for PY in cp310-cp310 cp311-cp311 cp312-cp312 cp313-cp313 cp314-cp314; do
     PIP="/opt/python/$PY/bin/pip"
     "$PIP" -q wheel --wheel-dir /out/wheelhouse --find-links /extra \
-      selkies==2.1.0 pixelflux==2.2.1 pcmflux==2.2.0 \
+      selkies==2.2.0 pixelflux==2.2.2 pcmflux==2.2.1 \
       setuptools=='"$SETUPTOOLS_VER"' aiohttp=='"$AIOHTTP_VER"' pulsectl=='"$PULSECTL_VER"'
   done
 '

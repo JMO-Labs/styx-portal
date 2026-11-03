@@ -7,9 +7,9 @@ in `docs/upstream/`, and carry a guarded runtime copy until upstream merges.
 
 | # | Target | Problem | Our patch | Downstream carrier |
 |---|--------|---------|-----------|--------------------|
-| 01 | selkies `src/selkies/websockets_mode.py` (2.1.0) | The page that owns the display is exempt from the video lag gate, so on a jittery link frames pile up (up to the 2 s relay budget) and the congestion controller cuts bitrate hard | [write-up](../upstream/01-selkies-owner-lag-gate.md), [patch](../upstream/01-selkies-owner-lag-gate.patch): owner gets a 100 ms lag threshold and reuses the existing `_lose` / `_repair` path | `agent/shallow_pipe.py::owner_gate`, only on selkies 2.1.0 |
-| 02a | pixelflux `src/encoders/vaapi/av1.rs` | VA-API AV1 on pre-VCN-5 AMD pads the coded frame and the AV1 header carries no render size | [patch](../upstream/02a-pixelflux-av1-render-size.patch): write `render_and_frame_size_different = 1` with the real size | wheel build (see [Agent](agent.md#seats)) |
-| 02b | selkies web client (`selkies-core.js` video worker) | Chromium ignores the AV1 render size, so the picture is squeezed or stretched | [patch](../upstream/02b-selkies-av1-crop-client.patch), [write-up](../upstream/02-selkies-av1-crop.md): crop each decoded frame with `visibleRect` | `agent/bundle_patch.py`, re-applied on every agent start |
+| 01 | selkies `src/selkies/websockets_mode.py` (2.1.0) | The page that owns the display is exempt from the video lag gate, so on a jittery link frames pile up (up to the 2 s relay budget) and the congestion controller cuts bitrate hard | [write-up](../upstream/01-selkies-owner-lag-gate.md), [patch](../upstream/01-selkies-owner-lag-gate.patch): owner gets a 100 ms lag threshold and reuses the existing `_lose` / `_repair` path | `agent/shallow_pipe.py::owner_gate`, guarded to selkies 2.2.0 (`_forward` unchanged since 2.1.0) |
+| 02a | pixelflux `src/encoders/vaapi/av1.rs` | VA-API AV1 on pre-VCN-5 AMD pads the coded frame and the AV1 header carries no render size | [patch](../upstream/02a-pixelflux-av1-render-size.patch): write `render_and_frame_size_different = 1` with the real size | merged upstream (pixelflux#58), in 2.2.2 |
+| 02b | selkies web client (`selkies-core.js` video worker) | Chromium ignores the AV1 render size, so the picture is squeezed or stretched | [patch](../upstream/02b-selkies-av1-crop-client.patch), [write-up](../upstream/02-selkies-av1-crop.md): crop each decoded frame with `visibleRect` | merged upstream (selkies#496), in 2.2.0; downstream copy removed |
 
 ## Evidence summary
 
@@ -18,9 +18,9 @@ in `docs/upstream/`, and carry a guarded runtime copy until upstream merges.
 
 ## Related, tracked upstream
 
-* Still-screen bitrate raise (the "poor connection" sawtooth): selkies#489, worked around by `engine.cap_still_raise`.
-* AV1 crop in the web client: selkies#496 (referenced from `bundle_patch.py`).
-* Scale/pointer mapping on a scaled seat: pixelflux#55.
+* Still-screen bitrate raise (the "poor connection" sawtooth): selkies#489, fixed in selkies 2.2.0; our `cap_still_raise` wrapper is removed.
+* Scale/pointer mapping on a scaled seat: pixelflux#55, fixed in pixelflux 2.2.2 (libei). Portal Notify still needs the backend's x scale (`seat_portal.py`), see GNOME/xdg-desktop-portal-gnome#179.
+* Host pointer echo under portal capture: pixelflux#61, merged after 2.2.2; shipped as the `2.2.2+styx5` wheel (2.2.2 + #61) until a release carries it.
 
 ## How to add one
 
