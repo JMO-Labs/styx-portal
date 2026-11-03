@@ -11,6 +11,6 @@ Code: `e2e/tests/docs-shots.spec.ts` (captures), `e2e/docs-shots/seed.ts` (demo 
 | --- | --- |
 | `ui-login`, `ui-login-2fa` | real page; 2FA challenge answered by a mocked login response |
 | `ui-desktops`, `ui-workstations`, `ui-dashboard-light`, `hero-dashboard` | real UI; instances are mocked (no container runtime images offline); workstations are real rows (enroll, heartbeat, thumbnail via the API) with self-rendered desktop thumbnails |
-| `ui-desktop-launch`, `ui-templates` | real |
+| `ui-desktop-launch` (New container drawer), `ui-templates` (Images and setups), `ui-monitoring` (Admin overview; Relay cost card uses dummy Cloudflare settings and a mocked stats response) | real UI |
 | `ui-services`, `ui-service-form`, `ui-shell-dock`, `hero-services` | real UI; dock icons and the framed app content are stand-ins |
 | `ui-admin-users`, `-groups`, `-settings`, `-sso`, `ui-health`, `ui-workstation-settings`, `ui-enroll`, `hero-admin` | real (enroll token, pin and address are replaced by placeholders before capture) |
