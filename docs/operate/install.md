@@ -13,7 +13,7 @@ You will have a working Styx portal and an admin account.
 1. **Clone and configure**
 
     ```bash
-    git clone https://github.com/sgtslaughta/styx-portal.git
+    git clone https://github.com/JMO-Labs/styx-portal.git
     cd styx-portal
     cp .env.example .env
     ```

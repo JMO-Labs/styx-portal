@@ -18,15 +18,15 @@
 
 
 <!-- Status -->
-[![CI](https://github.com/sgtslaughta/styx-portal/actions/workflows/ci.yml/badge.svg)](https://github.com/sgtslaughta/styx-portal/actions/workflows/ci.yml)
-[![Release](https://github.com/sgtslaughta/styx-portal/actions/workflows/release.yml/badge.svg)](https://github.com/sgtslaughta/styx-portal/actions/workflows/release.yml)
-[![Docs](https://github.com/sgtslaughta/styx-portal/actions/workflows/docs.yml/badge.svg)](https://sgtslaughta.github.io/styx-portal/)
+[![CI](https://github.com/JMO-Labs/styx-portal/actions/workflows/ci.yml/badge.svg)](https://github.com/JMO-Labs/styx-portal/actions/workflows/ci.yml)
+[![Release](https://github.com/JMO-Labs/styx-portal/actions/workflows/release.yml/badge.svg)](https://github.com/JMO-Labs/styx-portal/actions/workflows/release.yml)
+[![Docs](https://github.com/JMO-Labs/styx-portal/actions/workflows/docs.yml/badge.svg)](https://jmo-labs.github.io/styx-portal/)
 [![GitLab pipeline](https://gitlab.com/sgtslaughta/styx-portal/badges/main/pipeline.svg)](https://gitlab.com/sgtslaughta/styx-portal/-/pipelines)
 
 <!-- Project -->
-[![Latest tag](https://img.shields.io/github/v/tag/sgtslaughta/styx-portal?sort=semver&label=release)](https://github.com/sgtslaughta/styx-portal/tags)
-[![License](https://img.shields.io/github/license/sgtslaughta/styx-portal)](LICENSE)
-[![Last commit](https://img.shields.io/github/last-commit/sgtslaughta/styx-portal)](https://github.com/sgtslaughta/styx-portal/commits/main)
+[![Latest tag](https://img.shields.io/github/v/tag/JMO-Labs/styx-portal?sort=semver&label=release)](https://github.com/JMO-Labs/styx-portal/tags)
+[![License](https://img.shields.io/github/license/JMO-Labs/styx-portal)](LICENSE)
+[![Last commit](https://img.shields.io/github/last-commit/JMO-Labs/styx-portal)](https://github.com/JMO-Labs/styx-portal/commits/main)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org)
 [![semantic-release](https://img.shields.io/badge/semantic--release-e10079?logo=semantic-release&logoColor=white)](https://github.com/semantic-release/semantic-release)
 
@@ -82,32 +82,32 @@ Users, invites, groups, OIDC/OAuth2 SSO, printable sign-in cards for 2FA, brute-
 You need Docker with Compose v2, a domain, and a [Cloudflare Tunnel token](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/).
 
 ```bash
-git clone https://github.com/sgtslaughta/styx-portal.git
+git clone https://github.com/JMO-Labs/styx-portal.git
 cd styx-portal
 cp .env.example .env          # set DOMAIN and CF_TUNNEL_TOKEN
 docker compose up -d
 ```
 
-Open `https://<your domain>`, enter the setup code from `docker compose logs backend | grep "setup code"`, and create the admin account. No domain? See the [install guide](https://sgtslaughta.github.io/styx-portal/operate/install/) for direct TLS and local options.
+Open `https://<your domain>`, enter the setup code from `docker compose logs backend | grep "setup code"`, and create the admin account. No domain? See the [install guide](https://jmo-labs.github.io/styx-portal/operate/install/) for direct TLS and local options.
 
 > [!CAUTION]
-> Do not leave it bare on the internet. Put it behind a Cloudflare Access application or another second factor. See [Security](https://sgtslaughta.github.io/styx-portal/operate/security/).
+> Do not leave it bare on the internet. Put it behind a Cloudflare Access application or another second factor. See [Security](https://jmo-labs.github.io/styx-portal/operate/security/).
 
 ## How it fits together
 
-Browser, Traefik (TLS, rate limits, forwardAuth), FastAPI backend and React frontend, then Docker (or Kubernetes) for desktops and proxied apps, and a small agent on each enrolled workstation running Selkies behind an authenticated gateway. Details: [architecture](https://sgtslaughta.github.io/styx-portal/build/architecture/).
+Browser, Traefik (TLS, rate limits, forwardAuth), FastAPI backend and React frontend, then Docker (or Kubernetes) for desktops and proxied apps, and a small agent on each enrolled workstation running Selkies behind an authenticated gateway. Details: [architecture](https://jmo-labs.github.io/styx-portal/build/architecture/).
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/diagrams/readme-1-dark.svg"><img src="docs/assets/diagrams/readme-1-light.svg" alt="Styx architecture: browser, edge with Traefik, portal and workstations"></picture>
 
 ## Documentation
 
-The site at **<https://sgtslaughta.github.io/styx-portal/>** has three paths:
+The site at **<https://jmo-labs.github.io/styx-portal/>** has three paths:
 
 | | |
 |---|---|
-| [**Use**](https://sgtslaughta.github.io/styx-portal/use/) | Sign in, desktops, workstations, apps, troubleshooting |
-| [**Operate**](https://sgtslaughta.github.io/styx-portal/operate/) | Install, production, Kubernetes, enrolling, users and SSO, settings, streaming tuning |
-| [**Build**](https://sgtslaughta.github.io/styx-portal/build/) | Architecture, backend, frontend, agent, testing, CI/CD, ADRs |
+| [**Use**](https://jmo-labs.github.io/styx-portal/use/) | Sign in, desktops, workstations, apps, troubleshooting |
+| [**Operate**](https://jmo-labs.github.io/styx-portal/operate/) | Install, production, Kubernetes, enrolling, users and SSO, settings, streaming tuning |
+| [**Build**](https://jmo-labs.github.io/styx-portal/build/) | Architecture, backend, frontend, agent, testing, CI/CD, ADRs |
 
 ## FAQ
 
@@ -119,7 +119,7 @@ The site at **<https://sgtslaughta.github.io/styx-portal/>** has three paths:
 
 ## Contributing
 
-Start with [CLAUDE.md](CLAUDE.md) for the project layout and commands, and the [contributing guide](https://sgtslaughta.github.io/styx-portal/build/contributing/). Commits follow **Conventional Commits** (enforced by commitlint), which drives automated releases and the changelog, for example `feat(agent): add reconnect backoff`.
+Start with [CLAUDE.md](CLAUDE.md) for the project layout and commands, and the [contributing guide](https://jmo-labs.github.io/styx-portal/build/contributing/). Commits follow **Conventional Commits** (enforced by commitlint), which drives automated releases and the changelog, for example `feat(agent): add reconnect backoff`.
 
 
 ## Standing on the shoulders of giants
@@ -130,7 +130,7 @@ Styx is glue around other people's outstanding work, and it could not exist with
 - **[LinuxServer.io](https://www.linuxserver.io/)** — the `baseimage-selkies` desktop images (and the move
   to Selkies that inspired this project).
 - **GNOME/Mutter, PipeWire, Traefik, FastAPI, React** and many more — see
-  [Acknowledgements](https://sgtslaughta.github.io/styx-portal/acknowledgements/).
+  [Acknowledgements](https://jmo-labs.github.io/styx-portal/acknowledgements/).
 
 ## License
 

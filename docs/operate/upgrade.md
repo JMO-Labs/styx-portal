@@ -45,4 +45,4 @@ Roll back with `styx_agent.py rollback` ([details](workstations-enroll.md#upgrad
 
 ## Versions
 
-Releases follow semantic versioning and are published by semantic-release; the [changelog](https://github.com/sgtslaughta/styx-portal/blob/main/CHANGELOG.md) lists every change.
+Releases follow semantic versioning and are published by semantic-release; the [changelog](https://github.com/JMO-Labs/styx-portal/blob/main/CHANGELOG.md) lists every change.
