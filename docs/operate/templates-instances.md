@@ -131,7 +131,7 @@ fields that shape an instance:
 
 ## Create a template
 
-1. Open **Template gallery** and choose **New Template**.
+1. Open **Admin → Infrastructure → Images and setups** and choose **New setup**. Setups are the shared templates; they appear in users' **New container** drawer under **Your setups**.
 2. Fill the editor sections: **Basics** (name, image), **Resources** (memory, CPU, shared memory, restart policy, GPU passthrough), **Ports and network**, **Storage** (read-only root filesystem), **Environment**, **Security** and **Raw Docker** (entrypoint, command, extra Docker args).
 3. Save. Security and Raw Docker fields are admin-only. On Kubernetes the Docker-only fields are hidden.
 
@@ -154,6 +154,6 @@ Templates with Docker-in-Docker must:
 
 ## Quotas and overrides
 
-- **Per-user limit:** `MAX_INSTANCES_PER_USER` (default 3, 0 = unlimited, admins exempt). Change it live in **Settings → Administration → Settings → Quotas** ([reference](settings.md#quotas)). Non-admins who hit the cap see an error and must stop an instance first.
+- **Per-user limit:** `MAX_INSTANCES_PER_USER` (default 3, 0 = unlimited, admins exempt). Change it live in **Admin → Settings → Security and limits → Quotas** ([reference](settings.md#quotas)). Non-admins who hit the cap see an error and must stop an instance first.
 - **Rate limit:** instance creation is also limited per user (`RATE_LIMIT_INSTANCE_CREATE`, default 10 per hour).
 - **Resource overrides (admin):** on launch, admins can override memory, CPU, shared memory, environment variables and, if the template allows, capabilities.

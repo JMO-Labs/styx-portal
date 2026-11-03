@@ -8,9 +8,11 @@ Admins can put internal apps (Jellyfin, the \*arr stack, Nextcloud, Home Assista
 
 ![Services tiles](../assets/screens/ui-services.png)
 
-1. Go to **Home → Apps**. Tiles show a health dot; unhealthy tiles stay clickable.
+1. On **Home**, find the **Apps** row. Tiles show a health dot; unhealthy tiles stay clickable.
 2. Click a tile. The app opens in the **Styx shell**, a full-window frame at `/_styx/app/<slug>/` that follows the app's address and title, so reloads and deep links work.
 3. Apps flagged **Open without overlay** skip the shell and open on their own.
+
+The **Opening** preference in the account menu chooses a new tab, this tab or a prompt. Admins also see an add-app tile at the end of the row, and tiles for apps that still need setup say **Set up**. **Add app** opens Admin → Infrastructure → Apps.
 
 ## The dock
 

@@ -6,7 +6,7 @@ Check that the portal is healthy and review what happened.
 
 ![Health page](../assets/screens/ui-health.png)
 
-**Settings → Monitoring → Health** shows each diagnostic check with latency and a remediation hint for failures: Docker engine (or Kubernetes) status and version, database writability, Traefik routes volume, disk usage and GPU availability. Press **Run checks** for an on-demand run. History is kept in memory at 60-second resolution, with 1 h, 6 h and 24 h views; it resets when the backend restarts.
+**Admin → Monitoring → Health** shows each diagnostic check with latency and a remediation hint for failures: Docker engine (or Kubernetes) status and version, database writability, Traefik routes volume, disk usage and GPU availability. Press **Run checks** for an on-demand run. History is kept in memory at 60-second resolution, with 1 h, 6 h and 24 h views; it resets when the backend restarts.
 
 API: `GET /api/system/diagnostics` (admin).
 
@@ -14,10 +14,14 @@ API: `GET /api/system/diagnostics` (admin).
 
 | Panel | Shows |
 |---|---|
-| Overview | Aggregate CPU and RAM, instance counts, host info |
+| Overview | A rollup: CPU, memory, disk, live sessions and health tiles; server load, sessions per day and streaming time charts; a **Needs a look** list, relay cost and **Active now** |
 | Sessions | Running instances and lifecycle actions |
-| Resources | CPU, memory, disk and GPU over time |
+| Relay cost | Relay data and projected cost (shown when Cloudflare analytics credentials are set) |
 | Logs | Recent system and session events |
+
+Offline workstations, out-of-date agents and containers in error appear in **Needs a look**, each with a link to its admin section.
+
+![Monitoring overview](../assets/screens/ui-monitoring.png)
 
 ## Audit log
 

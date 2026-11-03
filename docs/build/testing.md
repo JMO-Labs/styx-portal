@@ -72,6 +72,14 @@ KEEP=1 e2e/run.sh             # leave the stack running for debugging
 
 On failure, stack logs are saved to `e2e/test-results/stack.log`.
 
+**e2e is not in CI**, so UI rewrites can break it unnoticed: after the Glance UI
+(#94) the suite failed on its first test. Selectors follow the Glance names:
+the `Admin` header button (not Settings), admin sections *Apps*, *Users and
+groups*, *Security and limits*, and containers opening at `/desktop/<sub>`.
+
+The selectors were updated for Glance in #108 (53 passed locally, 6.8 min),
+after the phone layout (#106, stacked users list).
+
 !!! warning
     The e2e stack builds images and needs Docker; do not run it on a workstation
     you cannot afford to load.

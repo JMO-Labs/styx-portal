@@ -14,7 +14,9 @@ troubleshoot) are in the Operate section.
 | `styx_agent.py` | Supervisor: heartbeat, config, restarts, `run`/`status`/`doctor`/`rollback`/`uninstall` |
 | `agent_procs.py` | Child-process helpers, restart planning, gateway command/env |
 | `engine.py` | Pure builders for the selkies command, encoder probe, audio/sink helpers |
-| `gateway.py`, `gateway_html.py`, `viewers.py`, `refit.py` | The gateway and its per-tab bookkeeping |
+| `gateway.py`, `gateway_html.py`, `gateway_ws.py`, `gateway_webrtc.py`, `viewers.py`, `refit.py` | The gateway, WebSocket pass-through, WebRTC session tracking, per-tab bookkeeping |
+| `gamemode.py`, `codecpref.py` | Game-mode size pin (`POST /styx/gamemode`); WebRTC hardware-codec-first page shim |
+| `xwl_eager.c`, `xwl_eager.py` | LD_PRELOAD shim (built by `scripts/build_xwl_eager.sh`, shipped base64) that makes mutter start Xwayland eagerly |
 | `seat_gnome.py`, `seat_portal.py`, `seat_systemd.py`, `seat_scale.py`, `seat_clipboard.py`, `seat_thumb*.py` | Headless GNOME seat |
 | `seat_labwc.py`, `clipboard_bridge.py` | labwc fallback seat |
 | `shallow_pipe.py` | Runtime patches applied to selkies 2.2 |
@@ -81,9 +83,12 @@ Key behaviours:
 
 * **Heartbeat** (`POST /api/agent/heartbeat`, bearer token, ~30 s): reports status, last error, health (connections, idle, GPU/host tuning) and receives resolved `stream_settings`, `heartbeat_interval_s`, a `disconnect_clients` one-shot and a `revoked` state (agent stops and prints the uninstall command).
 * **stream_settings** are resolved server-side (`ws_settings.resolve_stream_settings`): per-workstation override over system default, plus idle timeout, seat shell and seat size. Config is rewritten to `~/.config/styx-agent/config.json`.
-* **Deferred apply** (`agent_procs.settings_restart_keys`, `restart_plan`, `merge_pending`): a settings push restarts the affected processes only when no viewer is connected, so a change never kills a live session. Idle-timeout keys (`IMMEDIATE_KEYS`) apply immediately. A framerate change relaunches only the capture helper (`portal`); seat shell or size changes restart the seat.
+* **Deferred apply** (`agent_procs.settings_restart_keys`, `restart_plan`, `merge_pending`): a settings push restarts the affected processes only when no viewer is connected, so a change never kills a live session. Idle-timeout keys (`IMMEDIATE_KEYS`) apply immediately. A framerate change relaunches only the capture helper (`portal`); seat shell or size changes restart the seat. The supervisor's wait also ends as soon as settings are pending and the viewer count reaches zero (`deferred_apply_stop`, `sleep_or_kill(stop=)`), so deferred changes apply within about a second of the last viewer leaving instead of waiting for the next heartbeat.
 * **Watchdog**: a viewer connected with no video for `FRAME_START_TIMEOUT_S` (15 s) restarts selkies. `Escalation` (3 restarts in 10 minutes) restarts the whole GNOME seat only if it no longer answers D-Bus.
 * **Standby selkies**: on the GNOME seat a second, idle selkies is kept booted; a refit promotes it to avoid a process start inside the viewer's hold.
+* **Sidebar transport**: the selkies sidebar can switch a viewer to WebRTC in place (`POST /api/switch`). The gateway records a successful switch in the `stream-mode` file, the engine starts selkies in that mode, and the agent respawns the standby when the file changes (the live selkies is untouched). A portal transport change clears the file.
+
+* **Stale standby** (agent 0.9.41): the refit wakes the loop before `sync_stream_mode` runs, so a warm standby started in the old transport could be promoted and kill a freshly switched WebRTC selkies. The supervisor now calls `sync_stream_mode` right before the standby is promoted, so a stale standby is dropped first.
 * **Backoff**: selkies crash restarts back off 2 s doubling to 60 s.
 * `doctor` prints pass/fail checks (config, venv, selkies, GPU node, audio monitor, service, gateway port, TLS pin, server reachability) plus advisory host tuning.
 
@@ -91,6 +96,16 @@ Key behaviours:
 
 ![Sequence: the agent supervisor reads gateway state and posts heartbeats to the backend every 30 seconds](../assets/diagrams/build-agent-2-light.svg#only-light)
 ![Sequence: the agent supervisor reads gateway state and posts heartbeats to the backend every 30 seconds](../assets/diagrams/build-agent-2-dark.svg#only-dark)
+
+## Page shims and WebRTC
+
+Besides the shims listed under the gateway, both transports get:
+
+* **`styx-lockcursor`** (`gateway_html.py`): selkies' embedded-cursor switch (`SET_NATIVE_CURSOR_RENDERING`) is dropped, because GNOME's portal then draws no cursor on the headless monitor. While the pointer is locked the shim draws selkies' own cursor sprite client-side, positioned from selkies' **pointer echo** (the server's true pointer) plus the relative moves sent after the echo's sequence number; without an echo it sums deltas. The echo needs the patched pixelflux ([Upstream](upstream.md#patched-wheels-extra_wheels)).
+* **Game mode** (`gamemode.py`, `POST /styx/gamemode`): pins the seat at screen resolution, swallows `r,` resizes and WebRTC `/styx/refit` so entering fullscreen does not refit and restart selkies mid pointer-lock. The pin clears when game mode ends or the last viewer leaves. Keyboard Lock state and Esc/pointer-lock/fullscreen transitions are logged as `gamemode diag:`.
+* **`codecpref.py`** (`CODECPREF_JS`): wraps `RTCPeerConnection.createAnswer`, probes each offered video codec with `mediaCapabilities.decodingInfo` (`powerEfficient` = hardware) and calls `setCodecPreferences` so hardware-decoded codecs come first. Without it a browser lacking AV1 hardware decode answers AV1 (software listed) and stutters. selkies then moves the display to the answer's first codec. One encoder per display: with two different browsers the last to connect picks the codec.
+
+**Transport rules.** The portal transport is the default; the sidebar may override it per browser. The gateway answers 409 on WebRTC signalling only while the TURN budget is reached (selkies' own "server serves WebSockets" signal, so the client flips back once). The WebRTC shim arms when a signalling socket opens and gives sidebar sessions refit, idle and max-session cuts and relay metering. TURN is offered on any transport while under budget, and selkies' public demo relay is blanked in every mode.
 
 ## Gateway (`gateway.py`)
 
@@ -138,6 +153,17 @@ by env, never argv. Highlights:
 
 ## Seats
 
+### Xwayland on the GNOME 50 seat
+
+Mutter 50 starts Xwayland **on demand** whenever `sd_pid_get_user_unit()` succeeds, and the seat always runs inside `styx-agent.service`. On-demand Xwayland deadlocks gnome-shell (seen at startup and when a Steam game launched), after which selkies blocks on the full Wayland accept queue and never answers.
+
+* **Eager Xwayland**: `xwl_eager` is an `LD_PRELOAD` shim that makes that call return `-ENODATA` for the seat's gnome-shell, so mutter takes the standard mandatory path. It unsets `LD_PRELOAD` in a constructor so apps do not inherit it.
+* **Detection** (`seat_gnome.py`): the shell probe is `Properties.Get org.gnome.Shell ShellVersion`, which the main loop must dispatch (`Peer.Ping` is answered by a GDBus thread even when the loop is dead). With Xwayland on, `STRIKES` (3) consecutive failed probes, or a ready-timeout after bus and socket are up, count as the deadlock.
+* **Fallback**: write the `seat-no-x11` marker under the install dir (`<gnome-shell --version>|eager`, so a GNOME upgrade or a switch from on-demand retries X11 once) and restart the seat with `--no-x11`. `stop()` always SIGKILLs the process group because a hung shell ignores SIGTERM (stuck-shell kill after 5 s).
+* **Setting**: `seat_x11` (`auto` | `off`) in workstation stream settings ("X11 apps (Xwayland)"); health reports `seat_x11: on | off | fallback`.
+
+* **Helper strikes** (agent 0.9.40): probes only catch a shell that stops answering. If the shell is up but the seat helper never reports its monitor (ScreenCast `CreateSession` fails), `ready()` returned False and the seat restarted every ~10.6 s (`HELPER_READY_S`) forever, never starting selkies. `GnomeSeat._helper_up()` now counts: with Xwayland on, `HELPER_STRIKES` (3) seat starts in a row whose helper fails write the `seat-no-x11` marker ("seat helper never came up"); the count resets when a helper comes up.
+
 ### GNOME seat (default)
 
 ![Seat stack from browser through selkies, xdg-desktop-portal and Mutter to headless GNOME and Wayland apps](../assets/diagrams/build-agent-4-light.svg#only-light)
@@ -170,7 +196,7 @@ labwc's by polling.
 Design decisions that still matter:
 
 * **Config isolation**: the seat runs as the user, so `XDG_CONFIG_HOME` is never set; labwc gets `-C <install>/labwc` and waybar gets explicit `-c/-s`.
-* **Server-built artifacts**: workstations never compile or add third-party apt sources. `scripts/build_agent_artifacts.sh` (needs only Docker, run on the portal host) builds `wheelhouse-x86_64.tar.gz` (selkies, pixelflux, pcmflux wheels for cp310-cp314 in a manylinux container) and `nwg-shell-x86_64.tar.gz` (`nwg-drawer`, via a golang + GTK3 container). They are registered in `services/artifacts.py::ARTIFACTS`, served at `/api/enroll/artifacts/{name}` and extracted by `enroll.sh`. `<install>/bin` is prepended to `PATH` by the agent.
+* **Server-built artifacts**: workstations never compile or add third-party apt sources. `scripts/build_agent_artifacts.sh` (needs only Docker, run on the portal host) builds `wheelhouse-x86_64.tar.gz` (selkies, pixelflux, pcmflux wheels for cp310-cp314 in a manylinux container; `EXTRA_WHEELS=<dir>` makes pip prefer patched local wheels over PyPI's, see [Upstream](upstream.md#patched-wheels-extra_wheels)) and `nwg-shell-x86_64.tar.gz` (`nwg-drawer`, via a golang + GTK3 container). They are registered in `services/artifacts.py::ARTIFACTS`, served at `/api/enroll/artifacts/{name}` and extracted by `enroll.sh`. `<install>/bin` is prepended to `PATH` by the agent.
 * **nwg-drawer pinned to v0.5.2**: v0.6+ is GTK4, whose layer-shell libs are missing on Ubuntu 24.04. `fuzzel` is the fallback launcher, then the labwc root menu.
 * **Bottom waybar dock instead of nwg-dock**: nwg-dock speaks sway IPC and fatals under labwc.
 * **Dark mode three ways**: `GTK_THEME=Adwaita-dark`, `gsettings color-scheme prefer-dark`, and `xdg-desktop-portal(+gtk)` launched from `/usr/libexec` so browsers read `color-scheme`.
@@ -192,8 +218,10 @@ follows the controlling tab:
 
 1. The gateway watches `r,` messages (clamped to 640x480 - 4096x2304, 16 px tolerance). Once a size has held `SETTLE_S` and differs from `<install>/seat-size`, it writes `<install>/refit-request` and aborts every client socket (browser sees 1006). A minimum interval (3 s) prevents thrash and `REFIT_HOLD_S` blocks handoffs right after a refit.
 2. The supervisor wakes on the request, kills selkies (SIGKILL; it has nothing to flush), resizes the virtual monitor in place (`resize_live`) or rebuilds it (`refit`), promotes the standby selkies, and clears the request. The gateway holds new upgrades until then (`REFIT_WAIT_S`).
-3. selkies 2.1 reconnects in place; a full page reload is covered by a hold page.
-4. **Scale** (`seat_scale.py`): HiDPI browsers send device pixels, and DPI maps to a shared scale from `SCALES = (1.0, 1.5, 2.0, 3.0)` (ties round up). The scale is applied to GNOME through Mutter DisplayConfig (`apply_scale`), and selkies uses the same value so pointer mapping (`_abs` x scale) agrees. On a scaled seat the portal refuses `ConnectToEIS` so input falls back to portal `Notify*` calls (libei regions are logical, pixelflux sends physical pixels). A scale change restarts selkies once panel clicks settle (`SCALE_SETTLE_S`).
+3. selkies reconnects in place (2.1+); a full page reload is covered by a hold page.
+4. **Scale** (`seat_scale.py`): HiDPI browsers send device pixels, and DPI maps to a shared scale from `SCALES = (1.0, 1.5, 2.0, 3.0)` (ties round up). The scale is applied to GNOME through Mutter DisplayConfig (`apply_scale`), and selkies uses the same value so pointer mapping (`_abs` x scale) agrees. Since agent 0.10.0 libei is used on a scaled seat too: pixelflux 2.2.2 maps libei absolute motion into the stream's logical region (pixelflux#55). The portal `Notify*` path keeps its x scale. A scale change restarts selkies once panel clicks settle (`SCALE_SETTLE_S`).
+
+Agent 0.10.0 removed `bundle_patch.py` and `engine.cap_still_raise` (both fixed upstream in selkies 2.2.0) and keeps `shallow_pipe.owner_gate`, guarded to 2.2.0.
 
 ![Sequence: a browser tab resize request flows through the gateway and agent to the seat and selkies](../assets/diagrams/build-agent-5-light.svg#only-light)
 ![Sequence: a browser tab resize request flows through the gateway and agent to the seat and selkies](../assets/diagrams/build-agent-5-dark.svg#only-dark)

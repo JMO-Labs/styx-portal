@@ -8,7 +8,7 @@ You will invite users, set roles, group them for app access, connect an SSO prov
 
 ![Users panel](../assets/screens/ui-admin-users.png)
 
-1. Go to **Settings → Administration → Users**.
+1. Go to **Admin → People → Users and groups**.
 2. Press **Generate invite**.
 3. Copy the single-use link (valid 72 hours) and share it securely. The recipient chooses a username and password and joins the portal.
 
@@ -23,7 +23,7 @@ In the Users panel, a user's **More actions** menu offers: **Make admin** / demo
 
 ![Groups panel](../assets/screens/ui-admin-groups.png)
 
-Create groups under **Settings → Administration → Groups** and assign users. Groups control who can open proxied services: a service lists allowed groups by **name**. An empty list means every signed-in user; admins can always open everything. Deleting a group removes it from every service, and a service left with no groups becomes **disabled** (fail closed). See [Proxied services](services.md#groups).
+Create groups under **Admin → People → Users and groups** and assign users. Groups control who can open proxied services: a service lists allowed groups by **name**. An empty list means every signed-in user; admins can always open everything. Deleting a group removes it from every service, and a service left with no groups becomes **disabled** (fail closed). See [Proxied services](services.md#groups).
 
 ## SSO providers
 
@@ -31,7 +31,7 @@ Create groups under **Settings → Administration → Groups** and assign users.
 
 Styx supports OIDC and OAuth2 (Authentik, Keycloak, Google, GitHub, any compatible provider).
 
-1. Open **Settings → Administration → SSO Providers** and press **Add provider**.
+1. Open **Admin → People → Sign-in providers** and press **Add provider**.
 2. Enter **Name**, **Issuer URL** (the OIDC discovery base, for example `https://accounts.google.com`), **Client ID** and **Client Secret**. Secrets are stored encrypted (Fernet, key derived from `JWT_SECRET`).
 3. Set the options:
     - **Trust email:** if on, an unverified IdP email is accepted only for subjects already linked or for brand-new self-signup. It never links to an existing account or matches an invite. Enable only for IdPs you control.
@@ -47,7 +47,7 @@ Styx supports OIDC and OAuth2 (Authentik, Keycloak, Google, GitHub, any compatib
 
 Identity details come from the provider's userinfo endpoint (no id_token or JWKS parsing). Provisioning is pre-authorized only: the verified email must match an existing user or an open invite.
 
-**Account linking:** signed-in users link and unlink providers under **Settings → Account → Connected accounts**. Linking always needs a verified email regardless of `trust_email`. An only login method cannot be unlinked. SSO sign-in never auto-links to an admin account.
+**Account linking:** signed-in users link and unlink providers under **Admin → My account → Connected accounts**. Linking always needs a verified email regardless of `trust_email`. An only login method cannot be unlinked. SSO sign-in never auto-links to an admin account.
 
 ## Sign-in cards (2FA)
 

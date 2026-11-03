@@ -107,7 +107,9 @@ test("dashboard, desktops, workstations", async ({ browser }) => {
     await p.getByText("studio-pc").first().waitFor();
     await p.waitForTimeout(1500);
     await shot(p, browser, "ui-desktops");
-    await p.getByText("studio-pc").first().click();
+    await p.getByRole("button", { name: "More actions for studio-pc" }).click();
+    await p.getByRole("menuitem", { name: "Details" }).click();
+    await p.getByRole("dialog").waitFor();
     await p.waitForTimeout(1200);
     await shot(p, browser, "ui-workstations", "hero-dashboard");
   });
@@ -121,10 +123,9 @@ test("dashboard, desktops, workstations", async ({ browser }) => {
   });
   await step("template picker", async () => {
     await p.goto("/");
-    await p.getByText("Template gallery", { exact: true }).click();
-    await p.waitForTimeout(1200);
-    await p.getByRole("button", { name: "Launch" }).first().click();
+    await p.getByRole("button", { name: "New container" }).first().click();
     await p.getByRole("dialog").waitFor();
+    await p.waitForTimeout(1200);
     await shot(p, browser, "ui-desktop-launch");
   });
   await p.close();
@@ -171,14 +172,25 @@ test("services + shell", async ({ browser }) => {
 test("admin", async ({ browser }) => {
   const p = await themed(browser, "dark");
   for (const [section, name, hero] of [["Users and groups", "ui-admin-users"], ["Users and groups", "ui-admin-groups"], ["Security and limits", "ui-admin-settings", "hero-admin"],
-    ["SSO Providers", "ui-admin-sso"], ["Health", "ui-health"], ["Workstations", "ui-workstation-settings"]] as const) {
+    ["Sign-in providers", "ui-admin-sso"], ["Health", "ui-health"], ["Streaming", "ui-workstation-settings"]] as const) {
     await step(name, async () => {
       await openSettings(p, section);
       await p.waitForTimeout(2200);
-      if (name === "ui-workstation-settings") await p.getByText("Stream settings").first().click();
       await shot(p, browser, name, hero);
     });
   }
+  await step("ui-monitoring", async () => {
+    // Relay cost card needs Cloudflare analytics: set dummy creds and mock the stats response (demo numbers).
+    await apiCall(admin, "PATCH", "/api/system-settings", { CLOUDFLARE_ACCOUNT_ID: "demo-account", CLOUDFLARE_ANALYTICS_TOKEN: "demo-token" });
+    await p.route((u) => u.pathname === "/api/admin/stats/relay", (r) => r.fulfill({ json: {
+      used_gb: 182.4, free_gb: 1000, projected_gb: 410, est_usd: 0, budget_usd: 25, budget_gb: null, relayed_pct: 18,
+      daily: [], monthly: [], by_user: [{ name: "alice", gb: 120 }, { name: "bob", gb: 62.4 }], by_workstation: [{ name: "studio-pc", gb: 140 }], reasons: [] } }));
+    await openSettings(p, "Overview");
+    await p.waitForTimeout(2500);
+    await p.mouse.wheel(0, 2000);
+    await shot(p, browser, "ui-monitoring");
+    await apiCall(admin, "PATCH", "/api/system-settings", { CLOUDFLARE_ACCOUNT_ID: "", CLOUDFLARE_ANALYTICS_TOKEN: "" });
+  });
   await step("ui-enroll", async () => {
     await openSettings(p, "Workstations");
     await p.getByRole("button", { name: /enroll|add workstation|new workstation/i }).first().click();
@@ -195,8 +207,7 @@ test("admin", async ({ browser }) => {
     await shot(p, browser, "ui-enroll");
   });
   await step("ui-templates", async () => {
-    await p.goto("/");
-    await p.getByText("Template gallery", { exact: true }).click();
+    await openSettings(p, "Images and setups");
     await p.waitForTimeout(1500);
     await shot(p, browser, "ui-templates");
   });

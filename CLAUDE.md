@@ -6,6 +6,8 @@
 agent/             Workstation enrollment and agent daemon
   enroll.sh        Enrollment script (preflight E01–E08, install, register)
   styx_agent.py    Agent daemon (selkies supervision, heartbeat, doctor, uninstall)
+  engine.py, gateway*.py, seat_*.py, codecpref.py, gamemode.py   see docs/build/agent.md
+  xwl_eager.c/.py  LD_PRELOAD shim: eager Xwayland on the GNOME seat
   uninstall.sh     Standalone removal script
   tests/           Agent unit tests
 backend/           FastAPI application
@@ -40,9 +42,13 @@ backend/           FastAPI application
   security/
     page_style.py      Styx-styled HTML pages (title escaped; body trusted)
   tests/           pytest test suite
-frontend/          React app (Vite)
+frontend/          React app (Vite, "Glance" UI)
+  src/pages/       Routed pages (Login, Setup, Desktop, Connecting, ...)
+  src/components/  home/ launch/ settings/ system/ charts/ common/ layout/ auth/ effects/ ui/
   src/shell/       Styx shell: framed app, edge tab, dock (second build, shell.html)
-e2e/               Playwright full-stack suite (real Sonarr/Jellyfin, shell, screenshots)
+e2e/               Playwright full-stack suite (real Sonarr/Jellyfin, shell, screenshots); stream-ab/ = latency harness
+scripts/           build_agent_artifacts.sh (wheelhouse, EXTRA_WHEELS), build_xwl_eager.sh, build-docs.sh, ...
+docs/              Zensical docs: use/ operate/ build/ (this guide), upstream/ patches
 docker-compose.yml Infrastructure services
 traefik/           Traefik static config
 templates/         Default JSON templates (seeded on first run); services/ = proxy presets

@@ -6,7 +6,7 @@ You will put internal apps behind the portal's single hostname with SSO and grou
 
 Styx can proxy any internal HTTP service (Jellyfin, the *arr stack, Nextcloud, GitLab,
 Unraid, Audiobookshelf, anything at `ip:port`) through the single Styx hostname.
-Admins add services under **Settings → Administration → Services**; users see tiles
+Admins add services under **Admin → Infrastructure → Apps**; users see tiles
 on the home page for the services their groups allow.
 
 ## One hostname, two mount modes
@@ -50,7 +50,7 @@ credential (API key, token) protects bypassed requests.
 
 ## Groups
 
-Create groups under Settings → Administration → Groups, assign users, then pick allowed groups on a
+Create groups under Admin → People → Users and groups, assign users, then pick allowed groups on a
 service by **name**. Empty allowed-groups means every logged-in user. Admins can always
 open everything. Unknown group names are rejected (422). Deleting a group removes it from
 every service; a service left with no groups is **disabled** (fail closed, since an empty

@@ -4,7 +4,7 @@ Every admin setting, generated from `backend/app/services/settings_store.py`. Al
 
 ![Settings tab](../assets/screens/ui-admin-settings.png)
 
-**Where:** **Settings → Administration → Settings**. Settings are grouped; edit values and press the group's **Save**. A row's reset action returns it to the default.
+**Where:** **Admin → Settings**, in the left-hand section list. **Security and limits** holds Brute-force protection, Rate limits, Password policy and Quotas. **Sessions and timeouts** holds Sessions and tokens, Timeouts and Workstation features. Edit values and press **Save**; a dot in the list marks unsaved changes. A row's reset action returns it to the default. Use **Find a setting** to jump to a section. Rows flow into two or three columns on wide screens.
 
 **How they work**
 

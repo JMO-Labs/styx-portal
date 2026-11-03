@@ -27,9 +27,13 @@ Symptoms first, fixes after. Admin-side causes link to the [Operate](../operate/
 |---|---|
 | Card says **Offline** | The agent has not sent a heartbeat for 90 seconds. Ask the admin to run `doctor` on the machine ([Enroll workstations](../operate/workstations-enroll.md#diagnostics)). |
 | Black screen or "Waiting for stream" | Refresh the tab. If it persists the engine may be restarting; the admin should check `selkies.log`. |
+| Choppy video, high CPU in the browser, many freezes | The browser may be decoding AV1 in software. Agent 0.9.39+ prefers a hardware codec on WebRTC; on WebSockets ask the admin to set the codec to HEVC. |
 | Laggy, blocky or stuttering | Lower bitrate and framerate in the panel; shrink the window or turn **HiDPI off**; see [Streaming tuning](../operate/streaming-tuning.md). |
 | 401 or 403 on `/w/...` | Not signed in (401) or not assigned to this workstation (403). |
 | "Session timed out due to inactivity" | Idle timeout. Press **Reconnect**. |
+| Stream never loads after a GNOME or agent update | The seat's Xwayland can deadlock GNOME 50. The agent detects it and restarts the seat without X11 on its own. Tell the admin if it persists ([Enroll workstations](../operate/workstations-enroll.md#gnome-50-xwayland-deadlock)). |
+| Picked WebRTC in the sidebar and it fell back to WebSockets | The relay budget is used up (the admin can raise it), or you are on an agent older than 0.9.36. |
+| Cursor missing in Gaming mode | Needs agent 0.9.35 or newer; the browser then draws the cursor itself while the pointer is locked. |
 | Clipboard does not paste | Allow the site's Clipboard permission (Chromium) or use the sidebar clipboard panel (Firefox). |
 
 ## Apps

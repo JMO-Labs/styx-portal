@@ -611,13 +611,13 @@
    "customData": {
     "styx": 1
    },
-   "text": "selkies 2.1 and\npixelflux",
+   "text": "selkies 2.2 and\npixelflux",
    "fontSize": 20,
    "fontFamily": 5,
    "textAlign": "center",
    "verticalAlign": "middle",
    "containerId": "sk",
-   "originalText": "selkies 2.1 and\npixelflux",
+   "originalText": "selkies 2.2 and\npixelflux",
    "autoResize": true,
    "lineHeight": 1.25
   },

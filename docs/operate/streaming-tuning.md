@@ -1,12 +1,12 @@
 # Streaming tuning
 
-You will choose sensible video settings for a workstation, understand which codec it streams, and tune idle behaviour. Based on agent 0.9.x (Selkies 2.1, pixelflux 2.2, pcmflux 2.2).
+You will choose sensible video settings for a workstation, understand which codec it streams, and tune idle behaviour. Based on agent 0.9.x (Selkies 2.1, pixelflux 2.2, pcmflux 2.2); Selkies 2.2 arrives with agent 0.10.0 (see the note at the end).
 
 **Prerequisites:** an [enrolled workstation](workstations-enroll.md) and admin rights.
 
 ![Workstation stream settings](../assets/screens/ui-workstation-settings.png)
 
-Settings live at **Settings → Administration → Workstations**, in a workstation's **Stream settings**. They are defaults per workstation; viewers can adjust most of them from the stream panel. Changes apply the next time nobody is connected, so they never interrupt a live session.
+Settings live at **Admin → Infrastructure → Workstations**, in a workstation's **Stream settings**. They are defaults per workstation; viewers can adjust most of them from the stream panel. Changes apply as soon as nobody is connected (within about a second of the last viewer leaving), so they never interrupt a live session.
 
 ## Encoders {#encoders}
 
@@ -28,7 +28,7 @@ The agent offers codecs in this order and the viewer's browser uses the first it
 | AMD/Intel with HEVC encode only | HEVC, H.264 |
 | No GPU or no render node | H.264 on CPU (x264) |
 
-Why AV1 first: the 2026-10-30 harness run on a Radeon 780M measured settled text about 35% sharper at 30 Mbps AV1 than at 16 Mbps H.264, with similar latency (p50 about 51 ms on a fast link) and no crashes over a 60-minute soak. AMD GPUs before VCN 5 pad the coded AV1 frame; the agent re-applies a client-side crop at start so the picture is not stretched.
+Why AV1 first: the 2026-10-30 harness run on a Radeon 780M measured settled text about 35% sharper at 30 Mbps AV1 than at 16 Mbps H.264, with similar latency (p50 about 51 ms on a fast link) and no crashes over a 60-minute soak. AMD GPUs before VCN 5 pad the coded AV1 frame; the agent re-applies a client-side crop at start so the picture is not stretched (agent 0.10.0 drops this, as Selkies 2.2 ships the crop).
 
 ### Codec selection flow
 
@@ -43,6 +43,8 @@ AV1 is the best picture, but the *viewer* must decode it. Consider HEVC or H.264
 - you see high CPU on the viewer with a smooth host: the decode, not the network, is the bottleneck.
 
 Admins pick the codec in the portal: open the workstation's **Stream settings** and set **Codec** (Auto, HEVC, AV1 or H.264). Pick HEVC for viewers without AV1 hardware decode. Viewers cannot change the codec from the stream panel.
+
+Over WebRTC (agent 0.9.39+) the browser's answer already prefers a codec it decodes in hardware, probed with `mediaCapabilities`, so a viewer without AV1 hardware decode gets HEVC automatically. WebSockets streams still use the codec order above, so set HEVC there.
 
 !!! warning "Advanced: `stream-override.json`"
     An unsupported escape hatch for testing, not the normal way to set a codec. The file `~/.local/share/styx-agent/stream-override.json` on the workstation holds `args` that are appended to the Selkies command line (the last value wins). It is read whenever the engine starts or restarts, so remove it when you are done:
@@ -113,3 +115,12 @@ Instances use the template's `session_config` (idle timeout and grace period, se
 - **Slow uplinks:** keep Full colour (4:4:4) off and lower the bitrate ceiling.
 - **Game seats:** turn on Gaming mode, use CRF 15–20, 60 FPS (120 with headroom).
 - **Measuring changes:** the repo ships a stream A/B harness (`e2e/stream-ab/`) that drives headless Chromium through simulated network profiles; see [Build: Testing](../build/testing.md).
+
+## Selkies 2.2 (agent 0.10.0)
+
+Agent 0.10.0 pins selkies 2.2.0, pixelflux 2.2.2 (`2.2.2+styx5` wheel) and pcmflux 2.2.1. Operator-visible effects:
+
+- The still-screen bitrate raise that caused the "poor connection" sawtooth is fixed upstream (selkies#489); the agent's `cap_still_raise` wrapper is gone.
+- The AV1 render-size crop ships in selkies 2.2.0 and pixelflux 2.2.2; the agent no longer patches the web bundle.
+- libei pointer input works on scaled GNOME seats (pixelflux#55).
+- Upgrade steps: update the portal, rebuild the wheelhouse with `scripts/build_agent_artifacts.sh ./data/artifacts`, then upgrade agents ([Upgrade](upgrade.md#workstation-agents)). Restarting the agent closes apps in the seat.

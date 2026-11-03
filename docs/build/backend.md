@@ -28,6 +28,7 @@ backend/app/
 | `services`, `service_mounts`, `service_icons`, `services_auth` | `/api/services`, `/internal`, `/_styx` | Proxied services, managed mounts, forwardAuth, cookie-root enter/exit |
 | `instance_auth` | `/internal/instances` | forwardAuth for `/i/` routes |
 | `system_settings`, `audit`, `oauth_admin` | `/api/...` | Admin settings, audit log, SSO provider admin |
+| `stats`, `turn_usage` | `/api/admin/stats/{overview,streaming,relay}` | Admin charts: hourly metric rollups, stream sessions, TURN relay cost |
 
 `/internal/*` is never routed by Traefik to the public; only Traefik's
 forwardAuth addresses (`BACKEND_INTERNAL_URL`) reach it.
@@ -45,6 +46,7 @@ forwardAuth addresses (`BACKEND_INTERNAL_URL`) reach it.
 | `abuse.py`, `login_flow.py`, `matrix_card.py`, `federation.py`, `token_denylist.py` | Brute-force layers, login steps, 2FA card, SSO |
 | `mount_edit.py`, `mount_jobs.py`, `service_health.py`, `service_favicon.py` | Managed mounts, health loop, favicons |
 | `diagnostics.py`, `health_store.py`, `metrics_store.py` | Health page data |
+| `metric_rollup.py`, `host_metrics.py`, `stream_sessions.py`, `turn_usage.py`, `cf_turn_usage.py`, `turn_check.py` | Glance admin data: `MetricHour` (hourly, 90 days), `StreamSession`, `TurnUsageDay` tables; host CPU/RAM from `/proc`; Cloudflare relay analytics; TURN/Cloudflare setup check |
 
 ## Startup (lifespan)
 

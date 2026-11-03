@@ -37,9 +37,9 @@ You will have a working Styx portal and an admin account.
 
 4. **Finish setup**
 
-    Open `https://styx.example.com`. You are redirected to `/setup`. Enter the **setup code** (`docker compose logs backend | grep "setup code"`, or `docker compose exec backend cat data/setup-token`) and create the admin account. The **Environment Check** panel shows Docker, database and network status; green lights mean you are ready.
+    Open `https://styx.example.com`. You are redirected to `/setup`. Enter the **setup code** (`docker compose logs backend | grep "setup code"`, or `docker compose exec backend cat data/setup-token`) and create the admin account. The **Environment check** panel shows Docker, database and network status; green lights mean you are ready.
 
-5. **Invite people.** In **Settings → Administration → Users**, press **Generate invite**.
+5. **Invite people.** In **Admin → People → Users and groups**, press **Generate invite**.
 
 ## What gets deployed
 

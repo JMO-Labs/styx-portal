@@ -39,6 +39,8 @@ Upgrade in place with no enrollment token and no package installs:
 curl -fsSL https://styx.example.com/api/enroll/script | bash -s -- --upgrade --server https://styx.example.com
 ```
 
+Agents 0.9.33 to 0.9.39 added game-mode pointer lock, transport persistence, deferred settings and Xwayland fallbacks; see [Enroll workstations](workstations-enroll.md#gnome-seat). Agent 0.10.0 moves to Selkies 2.2 and needs a rebuilt wheelhouse (see [Streaming tuning](streaming-tuning.md#selkies-22-agent-0100)).
+
 Roll back with `styx_agent.py rollback` ([details](workstations-enroll.md#upgrade-and-rollback)). Restarting the agent closes apps running in the workstation's seat, so schedule upgrades when nobody is connected.
 
 ## Versions
