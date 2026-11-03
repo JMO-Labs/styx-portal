@@ -34,6 +34,16 @@ deliberately never touches it, or every workstation would appear outdated.
 ![CI pipeline: quality, test and security gates, then semantic-release and docs publishing on the default branch](../assets/diagrams/build-releases-1-light.svg#only-light)
 ![CI pipeline: quality, test and security gates, then semantic-release and docs publishing on the default branch](../assets/diagrams/build-releases-1-dark.svg#only-dark)
 
+### Runners
+
+GitHub workflows run on the self-hosted `homelab` runner scale set
+(`runs-on: homelab`, PR #79), not `ubuntu-latest`: ephemeral ARC pods running as
+Kata micro-VMs on the homelab k3s cluster, up to 9 vCPU and about 27 GiB each,
+with Docker (dind) and sudo, internet-only egress. Limits: Docker data is a
+12 GiB RAM disk per job and at most 3 jobs run at once (the rest queue). To fall
+back to GitHub-hosted runners, revert #79. Root npm tooling (commitlint, semantic-release) uses Node 24 (`setup-node`
+`node-version: "24"`, PR #105); the frontend build uses the `setup-node` composite action (Node 20).
+
 ### Why parity, and how it is kept
 
 GitHub is canonical and GitLab is a push mirror. Instead of a cross-platform
@@ -79,6 +89,7 @@ Each build is tagged `X.Y.Z` and `latest`.
 **Desktop image (~4.5 GB).** Hosted runners are tight on disk, so the desktop
 build is an isolated job (backend and frontend still publish if it fails) with a
 free-disk step on GitHub; prefer a self-hosted runner with ample disk
+(the `homelab` runners have a 12 GiB Docker RAM disk, so watch this job)
 (ADR [0005](../decisions/0005-desktop-image-isolation.md)). Its Trivy scan uses
 `--pkg-types os` because most findings are vendored inside browsers and IDEs, not
 fixable from our Dockerfile; the image runs `apt-get upgrade` at build time.
@@ -86,7 +97,7 @@ fixable from our Dockerfile; the image runs `apt-get upgrade` at build time.
 ## Security gates and supply chain
 
 * **bandit** over `app/` at medium+ severity and confidence (`-ll -ii`); **Trivy fs** (vulns + secrets) on every push; **Trivy image** after each build. All fail only on HIGH/CRITICAL with `--ignore-unfixed`.
-* Third-party GitHub Actions are pinned to **full commit SHAs** with a version comment; Dependabot (`.github/dependabot.yml`) raises bump PRs for actions, npm and pip.
+* Third-party GitHub Actions are pinned to **full commit SHAs** with a version comment; Dependabot (`.github/dependabot.yml`) raises weekly bump PRs for actions, npm and pip. Minor and patch bumps are grouped per ecosystem. Backend deps are `>=` floors, so the pip entry uses `versioning-strategy: increase-if-necessary` (PR #105): a PR opens only when a release falls outside the declared range, not to raise a floor.
 * The privileged Pages job uses a pinned Zensical (`scripts/build-docs.sh`, `zensical==0.0.45`). `id-token: write` is required by `actions/deploy-pages`.
 * Follow-up: hash-pinned docs install (`pip install --require-hashes`). See ADR [0006](../decisions/0006-supply-chain-hardening.md).
 

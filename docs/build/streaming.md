@@ -17,7 +17,13 @@ The streaming engine is the [Selkies Project](../acknowledgements.md) (selkies, 
 | **Styx gateway** | Auth, idle, busy gate, size ownership, injected shims (see [Agent](agent.md)) |
 
 Versions are pinned in `agent/enroll.sh` (selkies 2.1.0, pixelflux 2.2.1, pcmflux 2.2.0) and the wheelhouse built by
-`scripts/build_agent_artifacts.sh`.
+`scripts/build_agent_artifacts.sh`. The wheelhouse currently carries the patched `pixelflux 2.2.1+styx4`, which pip prefers over PyPI's 2.2.1 through `EXTRA_WHEELS` ([Upstream](upstream.md#patched-wheels-extra_wheels)).
+
+!!! note "Pending: selkies 2.2 (branch `feat/selkies-2.2`, no PR yet)"
+    Pins become selkies 2.2.0, pixelflux 2.2.2 (shipped as the fork wheel
+    `2.2.2+styx5`, which is 2.2.2 plus pixelflux#61), pcmflux 2.2.1; agent 0.10.0.
+    The AV1 client crop (`bundle_patch.py`) and `cap_still_raise` are removed
+    because 2.2 carries those fixes, and scaled GNOME seats use libei again.
 
 ## Codec choice
 
@@ -49,6 +55,21 @@ ceiling. Paint-over re-sharpens text when the screen settles.
     A TURN budget (default 900 GB) falls back to WebSockets when reached, and a
     WebRTC session ends after *WebRTC max session* hours (default 8). The idle
     cutoff is the workstation idle timeout. See [WebRTC and TURN](../operate/webrtc-turn.md).
+
+### Codec preference on WebRTC
+
+selkies offers codecs in its own order and takes the first one the browser's
+answer lists, and browsers list software decoders too. `agent/codecpref.py`
+reorders the answer (`setCodecPreferences`) so codecs the browser reports as
+hardware-decoded (`mediaCapabilities.decodingInfo`, `powerEfficient`) come first.
+A client without AV1 hardware decode (measured: Chrome 156 on a work PC, ~35 fps,
+43 freezes with software AV1) then gets HEVC; a client with AV1 hardware keeps AV1.
+
+### Sidebar transport, pointer lock and the cursor
+
+* The selkies sidebar may switch one browser to WebRTC; the gateway keeps that choice across selkies restarts and refits (`stream-mode` file), returning 409 only while the TURN budget is reached. See [Agent](agent.md#supervision-loop-styx_agentrun).
+* In Gaming Mode the seat size is pinned and fullscreen takes pointer and keyboard lock (hold Esc to exit); see [Agent](agent.md#page-shims-and-webrtc).
+* While the pointer is locked the cursor is drawn client-side by the `styx-lockcursor` shim, because GNOME's portal draws no embedded cursor on a headless monitor. It follows selkies' pointer echo, which needs a pixelflux that reports the host cursor (the `+styx` wheel).
 
 ## Congestion control and the shallow pipe
 
@@ -146,5 +167,5 @@ Source: `e2e/stream-ab/RESULTS-2026-10-30.md`.
 * **4:4:4 chroma** is opt-in: no AMD/Intel VA-API driver encodes H.264 4:4:4, so selkies would fall back to CPU x264.
 * **Software AV1/HEVC are never offered**; a host without a hardware encoder streams H.264 only.
 * Browser decode support varies: HEVC availability depends on the browser and OS; AV1 is not available everywhere.
-* AV1 on pre-VCN-5 AMD needs the crop patch; Intel, NVIDIA and other AMD generations are untested for padding.
+* AV1 on pre-VCN-5 AMD needs the crop patch (carried by `bundle_patch.py` until selkies 2.2); Intel, NVIDIA and other AMD generations are untested for padding.
 * Selkies 2.1 reserves close codes: `4001` (final, no reconnect) is used for idle timeout and a close reason containing "superseded" disables auto-reconnect.

@@ -1,7 +1,8 @@
 # Frontend
 
 React 19 + TypeScript + Vite, Tailwind CSS 4, Radix UI primitives, TanStack
-Query for server state, React Router 7. Lives in `frontend/`.
+Query for server state, React Router 7. Lives in `frontend/`. The UI is the
+"Glance" design (PR #94; spec in `docs/superpowers/specs/2026-11-01-ui-rework-glance-design.md`).
 
 ## Structure
 
@@ -13,15 +14,15 @@ frontend/
   nginx.conf                  production server (serves dist, proxies /api)
   src/
     main.tsx                  providers + routes (main app)
-    App.tsx                   authenticated home (tabs: instances, templates, settings, ...)
+    App.tsx                   authenticated app: header tabs Home and Admin
     api/client.ts             typed fetch wrapper + api object
     auth/                     AuthContext, ProtectedRoute
     pages/                    Login, Setup, ChangePassword, AcceptInvite, Connecting, Desktop
-    components/               feature folders + ui/ (shadcn-style primitives)
+    components/               feature folders (see below) + ui/ (shadcn-style primitives)
     hooks/                    TanStack Query hooks (use-instances, use-templates, ...)
-    lib/                      pure helpers and shared types
+    lib/                      pure helpers and shared types; lib/effects/ = canvas login effects
     theme/                    ThemeProvider, resolve.ts
-    styles/                   globals.css, tokens.ts
+    styles/                   globals.css, tokens.ts, glass.css, settings-grid.css, admin-table.css, ...
     shell/                    the Styx shell (second build)
     test/setup.ts             vitest setup
 ```
@@ -29,6 +30,26 @@ frontend/
 Routes (`main.tsx`): `/login`, `/change-password`, `/setup`,
 `/accept-invite/:token`, `/connecting` are public; `/desktop/:sub` and `/*` are
 wrapped in `ProtectedRoute`.
+
+### Glance components
+
+| Folder | Contents |
+|--------|----------|
+| `layout/` | `header.tsx` (gold diagonal lines, Home/Admin tabs), `status-rail.tsx` (admin status panel pinned right, collapses to a strip), `opening-menu.tsx` |
+| `home/` | `home-page.tsx`: Recent strip (live thumbnails), desktops, apps, containers; `details-sheet.tsx`, `row-menu.tsx` |
+| `launch/` | `new-container-drawer.tsx`: LinuxServer catalog first, shared setups one-click, Light/Standard/Heavy size presets |
+| `settings/` | Admin side nav with "Find a setting" filter, dense settings grid, per-row undo, floating `save-pill.tsx`; nothing saves until **Save changes** and `unsaved-context.tsx` asks before leaving |
+| `system/` | Admin panels: users and groups table, health, metrics (overview, sessions), OAuth providers, image manager, update chip, check-setup dialog |
+| `charts/` | Chart components (line, bar, hbar-stack, sparkline, tooltip); colours were checked for colour blindness |
+| `common/` | `data-table`, `stat-tile`, `confirm-dialog`, `thumbnail`, ... |
+| `auth/`, `effects/` | Session dialogs and the login brand panel; wave transition provider |
+
+The accent colour is gold (`--obol`) only. Every animation shows a still frame
+under reduced motion. Home has no Apps/Workspaces tabs (containers open at
+`/desktop/<sub>`, which frames `/i/<sub>/`). Admin-only data comes from
+`/api/admin/stats/*`, `/api/system/size-presets` and `/api/users/invites`
+([Backend](backend.md)). Streaming defaults are `WORKSTATION_DEFAULT_*`
+settings: workstation override, then system default, then built-in.
 
 ## API client
 
