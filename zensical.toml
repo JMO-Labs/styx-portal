@@ -5,6 +5,8 @@ site_name = "Styx Portal"
 site_description = "Self-hosted remote-desktop platform"
 docs_dir = "docs"
 site_dir = "site"
+extra_css = ["assets/brand/brand.css"]
+extra_javascript = ["assets/brand/brand.js"]
 
 # Navigation structure
 nav = [

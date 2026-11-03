@@ -1,3 +1,5 @@
+<video class="styx-brand" src="../assets/brand/styx-header.webm" poster="../assets/brand/styx-header.jpg" autoplay loop muted playsinline aria-label="Styx Portal"></video>
+
 # Use Styx
 
 For people who have an account on a Styx portal and want to get work done: sign in, open a desktop, connect to a workstation, or launch a proxied app.

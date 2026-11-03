@@ -1,3 +1,5 @@
+<video class="styx-brand" src="../assets/brand/styx-header.webm" poster="../assets/brand/styx-header.jpg" autoplay loop muted playsinline aria-label="Styx Portal"></video>
+
 # Operate Styx
 
 For admins and self-hosters: install the portal, run it in production, enroll workstations, manage users and apps, and tune streaming.

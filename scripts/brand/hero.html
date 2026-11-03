@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Styx Portal — animated hero GIF mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Commissioner:wght@500;800&display=swap" rel="stylesheet">
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 32px clamp(16px, 4vw, 56px) 64px; background: #081216; color: #DCE7E8; font: 15px/1.5 Commissioner, system-ui, sans-serif; }
+  h1 { font-weight: 800; letter-spacing: .04em; margin: 0 0 4px; font-size: 22px; }
+  p.lead { margin: 0 0 20px; color: #9DB5B8; max-width: 70ch; }
+  .controls { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; margin-bottom: 28px; padding: 12px 16px; border: 1px solid #1E3A42; border-radius: 10px; background: #0C1A1F; }
+  .controls label { color: #9DB5B8; font-size: 13px; margin-right: 6px; }
+  .seg { display: inline-flex; border: 1px solid #2A4A52; border-radius: 8px; overflow: hidden; }
+  .seg button { background: none; border: 0; color: #CFE0E2; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: #2A767C; color: #fff; }
+  .seg button:focus-visible { outline: 2px solid #C9A04E; outline-offset: -2px; }
+  section { margin-bottom: 40px; }
+  h2 { font-size: 15px; font-weight: 800; letter-spacing: .06em; margin: 0 0 2px; color: #EED08A; }
+  .meta { font-size: 13px; color: #8AA3A6; margin: 0 0 10px; }
+  canvas { display: block; max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,.45); }
+  .sq { max-width: 420px; }
+</style></head><body>
+<h1>STYX PORTAL — animated GIF mockups</h1>
+<p class="lead">Login-screen wave field (same wave math, metal gradient, dithered sun) with the main logo redrawn as vector. Every variant loops seamlessly every 12 s, so the exported GIF has no visible seam. Pick a layout and logo colour.</p>
+<div class="controls">
+  <span><label>Logo colour</label><span class="seg" data-k="pal"><button data-v="blue" aria-pressed="true">Blue (brand)</button><button data-v="teal">Teal (login)</button><button data-v="gold">Gold (waves)</button></span></span>
+  <span><label>Intro</label><span class="seg" data-k="intro"><button data-v="1" aria-pressed="true">Reveal</button><button data-v="0">Static logo</button></span></span>
+  <span><label>Theme</label><span class="seg" data-k="theme"><button data-v="dark" aria-pressed="true">Dark</button><button data-v="light">Light</button></span></span>
+</div>
+
+<section><h2>A · Hero banner</h2><p class="meta">1200 × 400 — README top, docs home. Logo centred in calm water above the horizon.</p><canvas id="hero" width="1200" height="400"></canvas></section>
+<section><h2>B · Slim header</h2><p class="meta">1200 × 240 — docs page header / smaller file. Logo left, waves run under it.</p><canvas id="slim" width="1200" height="240"></canvas></section>
+<section><h2>C · Wide cinematic</h2><p class="meta">1280 × 640 — GitHub social preview / release notes. Waves fill lower half, tagline under logo.</p><canvas id="wide" width="1280" height="640"></canvas></section>
+<section><h2>D · Square</h2><p class="meta">600 × 600 — avatar / org icon / social. Icon stacked over wordmark.</p><canvas id="sq" class="sq" width="600" height="600"></canvas></section>
+
+<script>
+const L = 12, TAU = Math.PI * 2, w = TAU / L; // loop length; all motion uses integer cycles of w
+const wave = (x, i, t) => Math.sin(x*2.1 + i*.37 + t*w) * .55 + Math.sin(x*4.3 - i*.21 + t*2*w) * .28
+  + Math.sin(x*7.7 + i*.83 - t*w) * .12 + Math.sin(x*1.3 - i*.11 + t*w) * .4;
+const METAL = ["#8A6420","#D6AE58","#F6E2A8","#B88A35","#EED08A","#9C7228","#E3C070","#FBEBC0","#A97C2E"];
+const PAL = {
+  blue: { stops: ["#1D4ED8","#2F8CF0","#4FD6D2"], glow: "rgba(56,170,248,.85)" },
+  teal: { stops: ["#1F5F64","#2A767C","#8FD0D4"], glow: "rgba(111,183,188,.8)" },
+  gold: { stops: METAL, glow: "rgba(238,208,138,.6)" },
+};
+const ICON = ["M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1",
+  "M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1",
+  "M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"].map(d => new Path2D(d));
+const S = { pal: "blue", intro: "1", theme: "dark" };
+
+// Bayer-dithered sun (from dither-sun.ts), cached per size/theme.
+const BAYER=[0,32,8,40,2,34,10,42,48,16,56,24,50,18,58,26,12,44,4,36,14,46,6,38,60,28,52,20,62,30,54,22,3,35,11,43,1,33,9,41,51,19,59,27,49,17,57,25,15,47,7,39,13,45,5,37,63,31,55,23,61,29,53,21];
+const hash=(x,y)=>{let h=(x*374761393+y*668265263)^0x5bd1e995;h=Math.imul(h^(h>>>13),1274126177);return((h^(h>>>16))>>>0)/4294967296;};
+const sunCache = new Map();
+function sun(W, H, dark, hy) {
+  const k = `${W}x${H}${dark}${hy|0}`; if (sunCache.has(k)) return sunCache.get(k);
+  const c = Object.assign(document.createElement("canvas"), { width: W, height: H }), x = c.getContext("2d"), px = 5;
+  const cx0 = W*.72, cy0 = H*.2, R = Math.max(W,H)*.55; x.fillStyle = dark ? "rgba(170,222,224,.38)" : "rgba(30,96,102,.32)";
+  for (let y = 0, r = 0; y < hy; y += px, r++) for (let X = 0, cc = 0; X < W; X += px, cc++) {
+    const d = Math.hypot((X-cx0)*.85, (y-cy0)*1.2)/R; if (d >= 1) continue;
+    const v = Math.pow(1-d,1.4)*Math.min(1,(hy-y)/36)*((.55*hash(X/30|0,y/30|0)+.45*hash((X/70|0)+97,(y/70|0)+31))*1.6-.25);
+    if (v > (BAYER[(r%8)*8+cc%8]+.5)/64) { x.beginPath(); x.arc(X+px/2, y+px/2, 1.1, 0, TAU); x.fill(); }
+  }
+  sunCache.set(k, c); return c;
+}
+
+function waves(cx, W, H, t, dark, topF, N, calm) {
+  const bg = cx.createLinearGradient(0, H, W, 0);
+  bg.addColorStop(0, dark ? "#0B171C" : "#E9EEEC"); bg.addColorStop(1, dark ? "#16323A" : "#A9C9CA");
+  cx.fillStyle = bg; cx.fillRect(0, 0, W, H);
+  const g = cx.createRadialGradient(W*.8, H*.15, 0, W*.8, H*.15, W*.6);
+  g.addColorStop(0, dark ? "rgba(111,183,188,.16)" : "rgba(42,118,124,.2)"); g.addColorStop(1, "transparent");
+  cx.fillStyle = g; cx.fillRect(0, 0, W, H);
+  const top = H*topF; cx.drawImage(sun(W, H, dark, top - 18), 0, 0);
+  const metal = cx.createLinearGradient(0, 0, W, 0); METAL.forEach((c, k, a) => metal.addColorStop(k/(a.length-1), c));
+  const sx = ((((t/L)+.55)%1)*2-.5)*W, spec = cx.createLinearGradient(sx-W*.5, 0, sx+W*.5, 0); // off-screen at wrap → seamless
+  if (dark) { spec.addColorStop(0,"rgba(255,236,190,.6)"); spec.addColorStop(.5,"rgba(255,250,232,1)"); spec.addColorStop(1,"rgba(255,236,190,.6)"); }
+  else { spec.addColorStop(0,"rgba(110,76,22,.55)"); spec.addColorStop(.5,"rgba(70,46,10,.95)"); spec.addColorStop(1,"rgba(110,76,22,.55)"); }
+  const sc = Math.max(H, 420)/520; // amplitude: short banners keep visible swell
+  for (let i = 0; i < N; i++) {
+    const d = i/(N-1), y0 = top + (H-top)*Math.pow(d, 1.6), amp = (10+46*d)*sc, lw = .7+1.5*d, a = .45+(dark?.55:.5)*Math.pow(d,.8);
+    const pts = []; for (let s = 0; s <= 90; s++) { const u = s/90; pts.push(u*W, y0 + wave(u, i, t)*amp); }
+    const path = o => { cx.beginPath(); cx.moveTo(pts[0]+o, pts[1]+o);
+      for (let k = 2; k < pts.length-2; k += 2) cx.quadraticCurveTo(pts[k]+o, pts[k+1]+o, (pts[k]+pts[k+2])/2+o, (pts[k+1]+pts[k+3])/2+o);
+      cx.lineTo(pts.at(-2)+o, pts.at(-1)+o); };
+    cx.globalAlpha = a*(dark?.6:.75); cx.strokeStyle = dark ? "#000" : "rgba(45,30,8,.85)"; cx.lineWidth = lw; path(lw*.8); cx.stroke();
+    cx.globalAlpha = a; cx.strokeStyle = metal; path(0); cx.stroke();
+    cx.globalCompositeOperation = dark ? "lighter" : "source-over"; cx.globalAlpha = Math.min(1, a*1.1);
+    cx.strokeStyle = spec; cx.lineWidth = lw*.45; path(-lw*.3); cx.stroke(); cx.globalCompositeOperation = "source-over";
+  }
+  cx.globalAlpha = 1;
+  if (calm) { // calm water behind the logo (login's calmRect)
+    const [hx, hy, r] = calm, base = dark ? "11,23,28" : "226,234,232", c = cx.createRadialGradient(hx, hy, 0, hx, hy, r);
+    c.addColorStop(0, `rgba(${base},.92)`); c.addColorStop(.55, `rgba(${base},.7)`); c.addColorStop(1, `rgba(${base},0)`);
+    cx.save(); cx.translate(0, hy); cx.scale(1, .55); cx.translate(0, -hy); cx.fillStyle = c; cx.fillRect(0, -H, W, H*3); cx.restore();
+  }
+}
+
+const ease = x => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
+// Reveal timeline in seconds: icon draws 0.3–1.5, text 0.9–1.9, hold, fade out 11.3–12.
+function reveal(t) { if (S.intro === "0") return { draw: 1, text: 1, out: 1 };
+  return { draw: ease((t-.3)/1.2), text: ease((t-.9)/1), out: 1 - ease((t-11.3)/.6) }; }
+
+function icon(cx, x, y, s, dark, r, t) {
+  const p = PAL[S.pal], gr = cx.createLinearGradient(2, 20, 22, 4); // icon-local 24-unit space
+  p.stops.forEach((c, k, a) => gr.addColorStop(k/(a.length-1), c));
+  cx.save(); cx.translate(x, y); cx.scale(s/24, s/24); cx.lineCap = cx.lineJoin = "round"; cx.lineWidth = 2.6;
+  cx.globalAlpha = r.out; cx.strokeStyle = gr;
+  // ponytail: line-dash draw-on; 26 units ≈ path length of one lucide wave
+  ICON.forEach((P, k) => { const prog = ease(r.draw*1.4 - k*.2);
+    cx.setLineDash([26*prog, 40]); cx.shadowColor = dark ? p.glow : "rgba(0,0,0,.25)"; cx.shadowBlur = (dark ? 14 : 4)*(0.75+.25*Math.sin(t*w)); cx.stroke(P); });
+  cx.restore();
+}
+
+function word(cx, txt, x, y, size, dark, r, weight = 800, spacing = .08, color) {
+  cx.save(); cx.font = `${weight} ${size}px Commissioner, system-ui, sans-serif`; cx.letterSpacing = `${spacing*(1+(1-r.text)*.6)}em`;
+  cx.textBaseline = "middle"; cx.globalAlpha = r.text * r.out; cx.fillStyle = color || (dark ? "#F4F7F8" : "#14232A");
+  cx.shadowColor = dark ? "rgba(0,0,0,.6)" : "rgba(255,255,255,.7)"; cx.shadowBlur = 10; cx.shadowOffsetY = 2;
+  cx.fillText(txt, x, y + (1-r.text)*size*.25); const m = cx.measureText(txt).width; cx.restore(); return m;
+}
+function measure(cx, txt, size, weight = 800, spacing = .08) { cx.save(); cx.font = `${weight} ${size}px Commissioner, system-ui, sans-serif`; cx.letterSpacing = `${spacing}em`; const m = cx.measureText(txt).width; cx.restore(); return m; }
+
+// Layout: logo row (icon + wordmark) at centre cx,cy.
+function logoRow(cx, mid, cy, s, fs, dark, r, t) {
+  const gap = s*.28, tw = measure(cx, "STYX PORTAL", fs), x0 = mid - (s + gap + tw)/2;
+  icon(cx, x0, cy - s/2, s, dark, r, t); word(cx, "STYX PORTAL", x0 + s + gap, cy + fs*.04, fs, dark, r);
+}
+const VARIANTS = {
+  hero: (cx, W, H, t, d, r) => { waves(cx, W, H, t, d, .5, 26, [W/2, H*.42, 470]); logoRow(cx, W/2, H*.4, 84, 66, d, r, t); },
+  slim: (cx, W, H, t, d, r) => { waves(cx, W, H, t, d, .3, 22, [300, H*.48, 420]); logoRow(cx, 300, H*.46, 64, 48, d, r, t); },
+  wide: (cx, W, H, t, d, r) => { waves(cx, W, H, t, d, .52, 28, [W/2, H*.38, 560]); logoRow(cx, W/2, H*.33, 104, 84, d, r, t);
+    const tag = "Self-hosted remote desktops, apps & services"; cx.save(); cx.font = "500 26px Commissioner, system-ui"; const tw = cx.measureText(tag).width; cx.restore();
+    word(cx, tag, (W - tw)/2, H*.45, 26, d, { text: ease(r.text*1.4 - .4), out: r.out }, 500, 0, d ? "#9FC7CA" : "#2A4A52"); },
+  sq: (cx, W, H, t, d, r) => { waves(cx, W, H, t, d, .64, 20, [W/2, H*.42, 330]); icon(cx, W/2 - 85, H*.12, 170, d, r, t);
+    const tw = measure(cx, "STYX PORTAL", 52); word(cx, "STYX PORTAL", (W - tw)/2, H*.53, 52, d, r); },
+};
+
+const cans = Object.keys(VARIANTS).map(id => ({ id, el: document.getElementById(id), cx: document.getElementById(id).getContext("2d") }));
+const t0 = performance.now(); let visible = new Set();
+const io = new IntersectionObserver(es => es.forEach(e => e.isIntersecting ? visible.add(e.target.id) : visible.delete(e.target.id)));
+cans.forEach(c => io.observe(c.el));
+const still = matchMedia("(prefers-reduced-motion: reduce)");
+function frame(now) {
+  const t = still.matches ? 4 : ((now - t0)/1000) % L, dark = S.theme === "dark", r = reveal(t);
+  cans.forEach(c => visible.has(c.id) && VARIANTS[c.id](c.cx, c.el.width, c.el.height, t, dark, r));
+  requestAnimationFrame(frame);
+}
+document.querySelectorAll(".seg").forEach(seg => seg.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  seg.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  S[seg.dataset.k] = b.dataset.v;
+}));
+// Hook for the GIF exporter: render frame at time t into variant id.
+window.renderAt = (id, t) => { const c = cans.find(c => c.id === id); VARIANTS[id](c.cx, c.el.width, c.el.height, t, S.theme === "dark", reveal(t)); };
+document.fonts.load("800 40px Commissioner").finally(() => requestAnimationFrame(frame));
+</script>
+</body></html>

@@ -2,6 +2,8 @@
 
 You will sign in, optionally add a second factor, and find your way around the portal.
 
+<video class="styx-brand" src="../assets/brand/styx-wide.webm" poster="../../assets/brand/styx-wide.jpg" autoplay loop muted playsinline aria-label="Styx Portal: self-hosted remote desktops, apps & services"></video>
+
 **Prerequisites:** the portal address (for example `https://styx.example.com`) and either an invite link from an admin or an SSO account.
 
 ## The ways in
