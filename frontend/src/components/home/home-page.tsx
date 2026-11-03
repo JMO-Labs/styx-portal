@@ -46,7 +46,7 @@ export function HomePage({ onNewContainer, onOpenSettings }: { onNewContainer: (
   }
 
   return (
-    <div className="mx-auto max-w-[1200px] space-y-6 pb-16 md:space-y-9">
+    <div data-glyph-keepout className="mx-auto max-w-[1200px] space-y-6 pb-16 md:space-y-9">
       <section aria-label="Recent">
         <SectionHead title="Recent" />
         <RecentStrip items={recents} onAct={actOnRecent} />

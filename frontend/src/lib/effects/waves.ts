@@ -3,7 +3,8 @@ import { isDark, runLoop, type Effect } from "./types";
 import { HORIZON_GAP, renderDitherSun } from "./dither-sun";
 
 export type { Effect };
-export interface WavesOptions { lines?: number; top?: number; calmRect?: () => DOMRect | null }
+/** still: draw one frozen frame (redrawn only on resize/theme change), for static backdrops. */
+export interface WavesOptions { lines?: number; top?: number; calmRect?: () => DOMRect | null; still?: boolean }
 
 const wave = (x: number, i: number, t: number) =>
   Math.sin(x * 2.1 + i * 0.37 + t * 0.55) * 0.55 + Math.sin(x * 4.3 - i * 0.21 + t * 0.9) * 0.28 +
@@ -20,7 +21,7 @@ export function createWaves(canvas: HTMLCanvasElement, opts: WavesOptions = {}):
   const host = canvas.parentElement ?? canvas;
 
   function draw(ms: number) {
-    const t = still?.matches ? 0 : ms / 1000, dark = isDark();
+    const t = opts.still || still?.matches ? 0 : ms / 1000, dark = isDark();
     const bg = cx!.createLinearGradient(0, H, W, 0);
     bg.addColorStop(0, dark ? "#0B171C" : "#E9EEEC"); bg.addColorStop(1, dark ? "#16323A" : "#A9C9CA");
     cx!.fillStyle = bg; cx!.fillRect(0, 0, W, H);
@@ -63,5 +64,6 @@ export function createWaves(canvas: HTMLCanvasElement, opts: WavesOptions = {}):
       cx!.save(); cx!.scale(1, 0.55); cx!.translate(0, hy / 0.55 - hy); cx!.fillStyle = calm; cx!.fillRect(0, 0, W, H / 0.55); cx!.restore();
     }
   }
-  return runLoop(host, canvas, { onSize: (w, h, d) => { W = w; H = h; dpr = d; }, draw });
+  // ponytail: still = ~1 day minDelta; runLoop's resize kick (last=-1e9) passes it, so only resize redraws (not a mid-load theme flip).
+  return runLoop(host, canvas, { onSize: (w, h, d) => { W = w; H = h; dpr = d; }, draw, minDelta: opts.still ? 1e8 : 0 });
 }

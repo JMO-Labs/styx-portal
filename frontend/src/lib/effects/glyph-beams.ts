@@ -19,7 +19,14 @@ export function calmFactor(x: number, y: number, r: { cx: number; cy: number; rx
   return Math.min(1, Math.max(0, Math.hypot((x - r.cx) / r.rx, (y - r.cy) / r.ry) - inner) * k);
 }
 
-export function createGlyphBeams(canvas: HTMLCanvasElement, opts: { calmRects: () => DOMRect[] }): Effect {
+/** 0 inside the full-height column [left, right], ramping linearly to 1 at `fade` px either side of it. */
+export function keepOutFactor(x: number, _y: number, b: { left: number; right: number }, fade: number) {
+  const d = Math.max(b.left - x, x - b.right);
+  return Math.min(1, Math.max(0, d / fade));
+}
+
+/** calmRects: login card/logo ellipses. keepOut: its horizontal span is a glyph-free column (glyphs only in the side gutters). */
+export function createGlyphBeams(canvas: HTMLCanvasElement, opts: { calmRects?: () => DOMRect[]; keepOut?: () => DOMRect | null }): Effect {
   const g = canvas.getContext("2d");
   if (!g) return { destroy() {} };
   const host = canvas.parentElement ?? canvas;
@@ -36,7 +43,8 @@ export function createGlyphBeams(canvas: HTMLCanvasElement, opts: { calmRects: (
     g!.clearRect(0, 0, W, H);
     g!.font = `${12 * dpr}px "IBM Plex Mono", monospace`; g!.textAlign = "center"; g!.textBaseline = "middle";
     const fr = host.getBoundingClientRect();
-    const [card, logo] = opts.calmRects();
+    const [card, logo] = opts.calmRects?.() ?? [];
+    const k = opts.keepOut?.(), ko = k && { left: (k.left - fr.left) * dpr, right: (k.right - fr.left) * dpr };
     const ell = (r: DOMRect | undefined, sx: number, sy: number, ax: number, ay: number) => r
       ? { cx: (r.left - fr.left + r.width / 2) * dpr, cy: (r.top - fr.top + r.height / 2) * dpr, rx: (r.width * sx + ax) * dpr, ry: (r.height * sy + ay) * dpr } : null;
     const ce = ell(card, 0.95, 1.05, 0, 0), le = ell(logo, 0.8, 1, 24, 26);
@@ -49,7 +57,9 @@ export function createGlyphBeams(canvas: HTMLCanvasElement, opts: { calmRects: (
       const beam = Math.min(1, b1 * shimmer + b2);
       const calm0 = ce ? calmFactor(x, y, ce, 0.62, 1.5) : 1;
       const calm = calm0 * (le ? calmFactor(x, y, le, 0.7, 1.6) : 1);
-      const edge = Math.min(1, x / (60 * dpr), (W - x) / (60 * dpr), y / (60 * dpr), (H - y) / (60 * dpr));
+      // With a keep-out rect the glyphs live at the canvas edges, so fade toward the content instead.
+      const edge = ko ? keepOutFactor(x, y, ko, 80 * dpr) : Math.min(1, x / (60 * dpr), (W - x) / (60 * dpr), y / (60 * dpr), (H - y) / (60 * dpr));
+      if (edge === 0) continue;
       const a = (0.06 + beam * 0.6) * calm * edge;
       if (a < 0.02) continue;
       if (!reduce?.matches && Math.random() < b1 * 0.18) grid[i] = pick();
