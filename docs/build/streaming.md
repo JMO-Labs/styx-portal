@@ -13,17 +13,11 @@ The streaming engine is the [Selkies Project](../acknowledgements.md) (selkies, 
 |-----------|--------------|
 | **pixelflux** | Rust capture and encode library: Wayland compositor mode, portal/PipeWire capture, VA-API (AMD/Intel) and NVENC encoders; software fallbacks (SVT-AV1, x264/x265) exist but Styx avoids advertising them |
 | **pcmflux** | Audio capture/encode |
-| **selkies 2.1** | Python server + web client: sessions, congestion control, input, clipboard, file transfer, the browser bundle |
+| **selkies 2.2** | Python server + web client: sessions, congestion control, input, clipboard, file transfer, the browser bundle |
 | **Styx gateway** | Auth, idle, busy gate, size ownership, injected shims (see [Agent](agent.md)) |
 
-Versions are pinned in `agent/enroll.sh` (selkies 2.1.0, pixelflux 2.2.1, pcmflux 2.2.0) and the wheelhouse built by
-`scripts/build_agent_artifacts.sh`. The wheelhouse currently carries the patched `pixelflux 2.2.1+styx4`, which pip prefers over PyPI's 2.2.1 through `EXTRA_WHEELS` ([Upstream](upstream.md#patched-wheels-extra_wheels)).
-
-!!! note "Pending: selkies 2.2 (branch `feat/selkies-2.2`, no PR yet)"
-    Pins become selkies 2.2.0, pixelflux 2.2.2 (shipped as the fork wheel
-    `2.2.2+styx5`, which is 2.2.2 plus pixelflux#61), pcmflux 2.2.1; agent 0.10.0.
-    The AV1 client crop (`bundle_patch.py`) and `cap_still_raise` are removed
-    because 2.2 carries those fixes, and scaled GNOME seats use libei again.
+Versions are pinned in `agent/enroll.sh` (selkies 2.2.0, pixelflux 2.2.2, pcmflux 2.2.1) and the wheelhouse built by
+`scripts/build_agent_artifacts.sh`. The wheelhouse currently carries the patched `pixelflux 2.2.2+styx5` (2.2.2 plus pixelflux#61), which pip prefers over PyPI's 2.2.2 through `EXTRA_WHEELS` ([Upstream](upstream.md#patched-wheels-extra_wheels)).
 
 ## Codec choice
 
@@ -36,8 +30,8 @@ ceiling. Paint-over re-sharpens text when the screen settles.
 !!! note "AV1 on AMD VCN"
     radeonsi pads coded AV1 frames (width to x64) and Chromium ignores the render
     size, so text looked squeezed. Fixed by a pixelflux render-size patch plus a
-    client-side crop that `bundle_patch.py` re-applies at every agent start. See
-    [Upstream](upstream.md).
+    client-side crop. Both are merged upstream (pixelflux 2.2.2, selkies 2.2.0), so
+    the agent no longer patches the bundle. See [Upstream](upstream.md).
 
 ## Transports
 
@@ -75,11 +69,11 @@ A client without AV1 hardware decode (measured: Chrome 156 on a work PC, ~35 fps
 
 On the WebSocket transport selkies steers the bitrate to the link: it estimates
 path capacity from acknowledgements and the standing queue above the round-trip
-floor. Two Styx runtime patches (`agent/shallow_pipe.py`, `engine.cap_still_raise`)
-address behaviour we measured on jittery links:
+floor. One Styx runtime patch (`agent/shallow_pipe.py`) addresses behaviour we measured
+on jittery links:
 
-* **Owner lag gate** (`shallow_pipe.owner_gate`): upstream skips delta frames only for pages that do not own the display; the owner's frames can queue up to the 2 s relay budget, so a Wi-Fi hiccup becomes seconds of late video and the congestion controller overreacts. The patch gives the owner a 100 ms lag threshold (`OWNER_LAG_S`) and reuses the existing reference-invalidation recovery. It is **version-gated** to selkies 2.1.0 and logs a warning and turns itself off otherwise. Measured on hotel Wi-Fi: bitrate cuts over 30% per 5 min 6.45 -> 0, max extra queue 735 -> 42 ms. See [Upstream](upstream.md).
-* **Still-screen raise cap** (`cap_still_raise`): selkies raised the CBR target 15% per second on every clean tick, including a still screen's trickle, so after a backoff it climbed to the ceiling without testing the path and the next burst built a queue (the "poor connection" sawtooth). The patch remembers the last measured capacity and only lets motion raise past it. Tracked upstream as selkies#489.
+* **Owner lag gate** (`shallow_pipe.owner_gate`): upstream skips delta frames only for pages that do not own the display; the owner's frames can queue up to the 2 s relay budget, so a Wi-Fi hiccup becomes seconds of late video and the congestion controller overreacts. The patch gives the owner a 100 ms lag threshold (`OWNER_LAG_S`) and reuses the existing reference-invalidation recovery. It is **version-gated** to selkies 2.2.0 and logs a warning and turns itself off otherwise. Measured on hotel Wi-Fi: bitrate cuts over 30% per 5 min 6.45 -> 0, max extra queue 735 -> 42 ms. See [Upstream](upstream.md).
+* **Still-screen raise cap** (removed in agent 0.10.0): selkies 2.1 raised the CBR target 15% per second on every clean tick, even on a still screen, so after a backoff it climbed to the ceiling untested and the next burst built a queue (the "poor connection" sawtooth). Fixed upstream in selkies 2.2.0 (selkies#489).
 * **Tracing**: `STYX-CC` lines in `selkies.log` (queue, RTT floor, delivered rate, target rate) feed `docs/spikes/2026-10-30-shallow-pipe/cc_report.py`.
 
 ![Congestion control loop: encoder, network, browser acknowledgements and selkies adjusting the target bitrate](../assets/diagrams/build-streaming-2-light.svg#only-light)
@@ -167,5 +161,5 @@ Source: `e2e/stream-ab/RESULTS-2026-10-30.md`.
 * **4:4:4 chroma** is opt-in: no AMD/Intel VA-API driver encodes H.264 4:4:4, so selkies would fall back to CPU x264.
 * **Software AV1/HEVC are never offered**; a host without a hardware encoder streams H.264 only.
 * Browser decode support varies: HEVC availability depends on the browser and OS; AV1 is not available everywhere.
-* AV1 on pre-VCN-5 AMD needs the crop patch (carried by `bundle_patch.py` until selkies 2.2); Intel, NVIDIA and other AMD generations are untested for padding.
-* Selkies 2.1 reserves close codes: `4001` (final, no reconnect) is used for idle timeout and a close reason containing "superseded" disables auto-reconnect.
+* AV1 on pre-VCN-5 AMD needs the AV1 render-size fix and client crop (upstream since pixelflux 2.2.2 and selkies 2.2.0); Intel, NVIDIA and other AMD generations are untested for padding.
+* Selkies reserves close codes: `4001` (final, no reconnect) is used for idle timeout and a close reason containing "superseded" disables auto-reconnect.

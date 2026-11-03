@@ -128,9 +128,8 @@ Gaming mode (0.9.36), and clears it when you change the portal transport. WebRTC
 sessions started this way still get refit, idle cutoffs and relay metering. Only a
 reached TURN budget refuses WebRTC.
 
-!!! note "Coming in agent 0.9.41 (PR #110)"
-    A refit no longer promotes a warm standby that was started in the old transport, which
-    made a sidebar WebRTC switch snap back to WebSockets.
+Since agent 0.9.41, a refit does not promote a warm standby that was started in the old
+transport, so a sidebar WebRTC switch no longer snaps back to WebSockets.
 
 ## Verify a connection
 

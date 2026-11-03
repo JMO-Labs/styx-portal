@@ -19,17 +19,14 @@ suffix (`+styxN`). `EXTRA_WHEELS=<dir> scripts/build_agent_artifacts.sh` adds
 PyPI's `X.Y.Z`; the `==X.Y.Z` pin in `enroll.sh` still matches. Python versions
 without a patched wheel fall back to PyPI's. Fork: `JMO-Labs/pixelflux`.
 
-* `2.2.1+styx4` (branch `styx/2.2.1`, current): offers the cursor metadata size GNOME/mutter 50 uses (384x384; pixelflux capped at 256x256, so no cursor meta arrived) and makes `pointer_location()` return the host cursor. Feeds the pointer echo behind the locked-pointer cursor ([Agent](agent.md#page-shims-and-webrtc)).
+* `2.2.1+styx4` (branch `styx/2.2.1`, superseded by `2.2.2+styx5`): offers the cursor metadata size GNOME/mutter 50 uses (384x384; pixelflux capped at 256x256, so no cursor meta arrived) and makes `pointer_location()` return the host cursor. Feeds the pointer echo behind the locked-pointer cursor ([Agent](agent.md#page-shims-and-webrtc)).
 
-!!! note "Pending: selkies 2.2 (branch `feat/selkies-2.2`, no PR yet)"
-    Moves to selkies 2.2.0, pixelflux 2.2.2+styx5 (2.2.2 plus pixelflux#61, host
-    pointer echo under portal capture, until a release carries it), pcmflux 2.2.1,
-    agent 0.10.0. Upstream merged our work, so the carriers go away:
+* `2.2.2+styx5` (current, agent 0.10.0): pixelflux 2.2.2 plus pixelflux#61 (host pointer echo under portal capture) until a release carries it. Upstream merged the rest of our work, so those carriers are gone:
 
     * 02a: merged as pixelflux#58, in 2.2.2.
     * 02b: merged as selkies#496, in 2.2.0; `bundle_patch.py` deleted.
     * selkies#489 (still-screen raise): fixed in 2.2.0; `cap_still_raise` deleted.
-    * pixelflux#55 (scaled-seat pointer): fixed in 2.2.2, libei used on scaled seats again. Portal Notify still needs the backend's x scale, see GNOME/xdg-desktop-portal-gnome#179.
+    * pixelflux#55 (scaled-seat pointer): fixed in 2.2.2, libei used on scaled seats. Portal Notify still needs the backend's x scale, see GNOME/xdg-desktop-portal-gnome#179.
     * 01 (owner lag gate) stays, guarded to selkies 2.2.0 (`_forward` unchanged since 2.1.0).
 
 ## Evidence summary

@@ -75,5 +75,4 @@ What the stream does when you go idle, open it on a second device, or resize the
 
 Having trouble? See [Troubleshooting](troubleshooting.md).
 
-!!! note "Coming in agent 0.10.0"
-    The Selkies 2.2 upgrade (selkies 2.2.0, pixelflux 2.2.2) removes the still-screen "poor connection" bitrate sawtooth and fixes pointer mapping on scaled GNOME seats. Nothing changes in the panel. Not yet released; no PR yet.
+Since agent 0.10.0 (Selkies 2.2), the still-screen "poor connection" bitrate sawtooth is gone and pointer mapping works on scaled GNOME seats. Nothing changes in the panel.

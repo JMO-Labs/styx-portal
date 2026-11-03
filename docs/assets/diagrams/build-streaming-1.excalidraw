@@ -1161,13 +1161,13 @@
    "customData": {
     "styx": 1
    },
-   "text": "selkies 2.1\nstream server",
+   "text": "selkies 2.2\nstream server",
    "fontSize": 20,
    "fontFamily": 5,
    "textAlign": "center",
    "verticalAlign": "middle",
    "containerId": "sk",
-   "originalText": "selkies 2.1\nstream server",
+   "originalText": "selkies 2.2\nstream server",
    "autoResize": true,
    "lineHeight": 1.25
   },

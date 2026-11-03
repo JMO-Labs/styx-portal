@@ -9,7 +9,7 @@ config:
     padding: 16
 ---
 flowchart TD
-    b("browser"):::ext --- sk("selkies 2.1 and pixelflux"):::run
+    b("browser"):::ext --- sk("selkies 2.2 and pixelflux"):::run
     sk --- p("xdg-desktop-portal<br/>ScreenCast / RemoteDesktop"):::core
     p --- sp("seat_portal.py backend<br/>Mutter D-Bus APIs"):::core
     sp --- gs("headless gnome-shell<br/>wayland-70, private D-Bus"):::run

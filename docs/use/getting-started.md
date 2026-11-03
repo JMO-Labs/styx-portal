@@ -60,7 +60,6 @@ Admins also see a status panel pinned to the right of Home (CPU, memory, disk). 
 
 ![Home dashboard](../assets/screens/ui-dashboard-light.png)
 
-!!! note "Coming soon: phone layout (PR #106)"
-    A mobile layout pass adds a one-line header with **Log out** and the theme toggle in the account menu, a compact Home, full-screen drawers and larger touch targets. The status panel is hidden on narrow screens.
+On a phone the layout is compact: a one-line header with **Log out** and the theme toggle in the account menu, a compact Home, full-screen drawers and larger touch targets. The status panel is hidden on narrow screens.
 
 Next: [Desktops](desktops.md) or [Workstations](workstations.md).

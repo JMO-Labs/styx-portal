@@ -116,12 +116,11 @@ Instances use the template's `session_config` (idle timeout and grace period, se
 - **Game seats:** turn on Gaming mode, use CRF 15–20, 60 FPS (120 with headroom).
 - **Measuring changes:** the repo ships a stream A/B harness (`e2e/stream-ab/`) that drives headless Chromium through simulated network profiles; see [Build: Testing](../build/testing.md).
 
-## Coming in agent 0.10.0: Selkies 2.2
+## Selkies 2.2 (agent 0.10.0)
 
-!!! note "Selkies 2.2 upgrade (branch `feat/selkies-2.2`, no PR yet)"
-    Pins selkies 2.2.0, pixelflux 2.2.2 (`2.2.2+styx5` wheel) and pcmflux 2.2.1. Operator-visible effects:
+Agent 0.10.0 pins selkies 2.2.0, pixelflux 2.2.2 (`2.2.2+styx5` wheel) and pcmflux 2.2.1. Operator-visible effects:
 
-    - The still-screen bitrate raise that caused the "poor connection" sawtooth is fixed upstream (selkies#489); the agent's `cap_still_raise` wrapper is gone.
-    - The AV1 render-size crop ships in selkies 2.2.0 and pixelflux 2.2.2; the agent no longer patches the web bundle.
-    - libei pointer input works again on scaled GNOME seats (pixelflux#55).
-    - Upgrade steps: update the portal, rebuild the wheelhouse with `scripts/build_agent_artifacts.sh ./data/artifacts`, then upgrade agents ([Upgrade](upgrade.md#workstation-agents)). Restarting the agent closes apps in the seat.
+- The still-screen bitrate raise that caused the "poor connection" sawtooth is fixed upstream (selkies#489); the agent's `cap_still_raise` wrapper is gone.
+- The AV1 render-size crop ships in selkies 2.2.0 and pixelflux 2.2.2; the agent no longer patches the web bundle.
+- libei pointer input works on scaled GNOME seats (pixelflux#55).
+- Upgrade steps: update the portal, rebuild the wheelhouse with `scripts/build_agent_artifacts.sh ./data/artifacts`, then upgrade agents ([Upgrade](upgrade.md#workstation-agents)). Restarting the agent closes apps in the seat.

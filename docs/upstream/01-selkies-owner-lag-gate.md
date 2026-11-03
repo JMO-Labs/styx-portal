@@ -47,7 +47,7 @@ Caveat: the gated run started at 5894 kbps (the page's last held rate) and the b
 - Behavior change only for the owning page, and only once its queue passes 100 ms past the round trip. On a clean link `_lag()` stays near 0 and nothing is skipped.
 - Skipped deltas are recovered by the same reference-invalidation path non-owners use. If `_repair` returns None the caller falls back to a key frame, as today.
 - The constant is a module-level default; it could be made a setting if you prefer.
-- Our downstream copy is gated on `selkies.__version__ == "2.1.0"` and does nothing on other versions, since `_forward` is a whole-function replacement. Upstream would not need that.
+- Our downstream copy is gated on `selkies.__version__ == "2.2.0"` (`_forward` is identical in 2.1.0 and 2.2.0) and does nothing on other versions, since `_forward` is a whole-function replacement. Upstream would not need that.
 - Not checked: owners behind a very slow link, where 100 ms may skip many frames and lean on key-frame recovery. Seat-mode multi-viewer handoff (owner changes mid-run) was used but not stress-tested.
 
 ## Testing

@@ -88,11 +88,7 @@ Key behaviours:
 * **Standby selkies**: on the GNOME seat a second, idle selkies is kept booted; a refit promotes it to avoid a process start inside the viewer's hold.
 * **Sidebar transport**: the selkies sidebar can switch a viewer to WebRTC in place (`POST /api/switch`). The gateway records a successful switch in the `stream-mode` file, the engine starts selkies in that mode, and the agent respawns the standby when the file changes (the live selkies is untouched). A portal transport change clears the file.
 
-!!! note "Pending: PR #110 (agent 0.9.41)"
-    The refit wakes the loop before `sync_stream_mode` runs, so a warm standby
-    started in the old transport could be promoted and kill a freshly switched
-    WebRTC selkies. #110 calls `sync_stream_mode` right before the standby is
-    promoted so a stale standby is dropped first. Merge after #109.
+* **Stale standby** (agent 0.9.41): the refit wakes the loop before `sync_stream_mode` runs, so a warm standby started in the old transport could be promoted and kill a freshly switched WebRTC selkies. The supervisor now calls `sync_stream_mode` right before the standby is promoted, so a stale standby is dropped first.
 * **Backoff**: selkies crash restarts back off 2 s doubling to 60 s.
 * `doctor` prints pass/fail checks (config, venv, selkies, GPU node, audio monitor, service, gateway port, TLS pin, server reachability) plus advisory host tuning.
 
@@ -166,14 +162,7 @@ Mutter 50 starts Xwayland **on demand** whenever `sd_pid_get_user_unit()` succee
 * **Fallback**: write the `seat-no-x11` marker under the install dir (`<gnome-shell --version>|eager`, so a GNOME upgrade or a switch from on-demand retries X11 once) and restart the seat with `--no-x11`. `stop()` always SIGKILLs the process group because a hung shell ignores SIGTERM (stuck-shell kill after 5 s).
 * **Setting**: `seat_x11` (`auto` | `off`) in workstation stream settings ("X11 apps (Xwayland)"); health reports `seat_x11: on | off | fallback`.
 
-!!! note "Pending: PR #109 (agent 0.9.40)"
-    Probes only catch a shell that stops answering. If the shell is up but the
-    seat helper never reports its monitor (ScreenCast `CreateSession` fails),
-    `ready()` just returned False and the seat restarted every ~10.6 s
-    (`HELPER_READY_S`) forever, never starting selkies. #109 adds
-    `GnomeSeat._helper_up()`: with Xwayland on, `HELPER_STRIKES` (3) seat starts
-    in a row whose helper fails write the `seat-no-x11` marker ("seat helper
-    never came up"); the count resets when a helper comes up.
+* **Helper strikes** (agent 0.9.40): probes only catch a shell that stops answering. If the shell is up but the seat helper never reports its monitor (ScreenCast `CreateSession` fails), `ready()` returned False and the seat restarted every ~10.6 s (`HELPER_READY_S`) forever, never starting selkies. `GnomeSeat._helper_up()` now counts: with Xwayland on, `HELPER_STRIKES` (3) seat starts in a row whose helper fails write the `seat-no-x11` marker ("seat helper never came up"); the count resets when a helper comes up.
 
 ### GNOME seat (default)
 
@@ -229,15 +218,10 @@ follows the controlling tab:
 
 1. The gateway watches `r,` messages (clamped to 640x480 - 4096x2304, 16 px tolerance). Once a size has held `SETTLE_S` and differs from `<install>/seat-size`, it writes `<install>/refit-request` and aborts every client socket (browser sees 1006). A minimum interval (3 s) prevents thrash and `REFIT_HOLD_S` blocks handoffs right after a refit.
 2. The supervisor wakes on the request, kills selkies (SIGKILL; it has nothing to flush), resizes the virtual monitor in place (`resize_live`) or rebuilds it (`refit`), promotes the standby selkies, and clears the request. The gateway holds new upgrades until then (`REFIT_WAIT_S`).
-3. selkies 2.1 reconnects in place; a full page reload is covered by a hold page.
-4. **Scale** (`seat_scale.py`): HiDPI browsers send device pixels, and DPI maps to a shared scale from `SCALES = (1.0, 1.5, 2.0, 3.0)` (ties round up). The scale is applied to GNOME through Mutter DisplayConfig (`apply_scale`), and selkies uses the same value so pointer mapping (`_abs` x scale) agrees. On a scaled seat the portal refuses `ConnectToEIS` so input falls back to portal `Notify*` calls (libei regions are logical, pixelflux sends physical pixels). A scale change restarts selkies once panel clicks settle (`SCALE_SETTLE_S`).
+3. selkies reconnects in place (2.1+); a full page reload is covered by a hold page.
+4. **Scale** (`seat_scale.py`): HiDPI browsers send device pixels, and DPI maps to a shared scale from `SCALES = (1.0, 1.5, 2.0, 3.0)` (ties round up). The scale is applied to GNOME through Mutter DisplayConfig (`apply_scale`), and selkies uses the same value so pointer mapping (`_abs` x scale) agrees. Since agent 0.10.0 libei is used on a scaled seat too: pixelflux 2.2.2 maps libei absolute motion into the stream's logical region (pixelflux#55). The portal `Notify*` path keeps its x scale. A scale change restarts selkies once panel clicks settle (`SCALE_SETTLE_S`).
 
-!!! note "Pending: selkies 2.2 branch (`feat/selkies-2.2`, agent 0.10.0, no PR yet)"
-    pixelflux 2.2.2 maps libei absolute motion into the stream's logical region
-    (pixelflux#55), so the `ConnectToEIS` refusal is dropped and scaled GNOME
-    seats use libei again; the Notify path keeps its x scale. The branch also
-    deletes `bundle_patch.py` and `engine.cap_still_raise` (both fixed upstream
-    in selkies 2.2.0) and keeps `shallow_pipe.owner_gate`, guarded to 2.2.0.
+Agent 0.10.0 removed `bundle_patch.py` and `engine.cap_still_raise` (both fixed upstream in selkies 2.2.0) and keeps `shallow_pipe.owner_gate`, guarded to 2.2.0.
 
 ![Sequence: a browser tab resize request flows through the gateway and agent to the seat and selkies](../assets/diagrams/build-agent-5-light.svg#only-light)
 ![Sequence: a browser tab resize request flows through the gateway and agent to the seat and selkies](../assets/diagrams/build-agent-5-dark.svg#only-dark)

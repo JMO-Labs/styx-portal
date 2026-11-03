@@ -77,9 +77,8 @@ On failure, stack logs are saved to `e2e/test-results/stack.log`.
 the `Admin` header button (not Settings), admin sections *Apps*, *Users and
 groups*, *Security and limits*, and containers opening at `/desktop/<sub>`.
 
-!!! note "Pending: PR #108"
-    Updates the e2e selectors for Glance (53 passed locally, 6.8 min). Merge
-    #106 (phone layout, stacked users list) first.
+The selectors were updated for Glance in #108 (53 passed locally, 6.8 min),
+after the phone layout (#106, stacked users list).
 
 !!! warning
     The e2e stack builds images and needs Docker; do not run it on a workstation
