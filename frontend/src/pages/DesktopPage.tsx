@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
+import { useCanvasEffect } from "@/hooks/use-canvas-effect";
+import { createWaves } from "@/lib/effects/waves";
 import { Link, useParams } from "react-router";
 import { Loader2 } from "lucide-react";
 import { useInstances, useKeepalive } from "@/hooks/use-instances";
@@ -17,10 +19,15 @@ export function faviconHref(icon: string | null | undefined): string | null {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
+/** Loading/status splash over a frozen frame of the login wave field. */
 function Notice({ children }: { children: React.ReactNode }) {
+  const cv = useRef<HTMLCanvasElement>(null);
+  const body = useRef<HTMLDivElement>(null);
+  useCanvasEffect(cv, (c) => createWaves(c, { still: true, top: 0.58, calmRect: () => body.current?.getBoundingClientRect() ?? null }), []);
   return (
-    <main className="flex h-dvh w-screen flex-col items-center justify-center gap-3 bg-black p-4 text-center text-sm text-white/80">
-      {children}
+    <main className="relative flex h-dvh w-screen items-center justify-center bg-background p-4 text-center text-sm text-foreground/80">
+      <canvas ref={cv} aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full" />
+      <div ref={body} className="relative flex flex-col items-center gap-3">{children}</div>
     </main>
   );
 }

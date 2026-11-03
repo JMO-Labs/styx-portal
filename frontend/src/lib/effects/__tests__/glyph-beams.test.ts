@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { beamIntensity, calmFactor } from "../glyph-beams";
+import { beamIntensity, calmFactor, keepOutFactor } from "../glyph-beams";
 
 describe("beamIntensity", () => {
   it("is periodic (230px) along the 45deg axis", () => {
@@ -23,5 +23,21 @@ describe("calmFactor", () => {
   it("is 0 (calm, alpha 0) inside the rect ellipse and ramps to 1 outside", () => {
     expect(calmFactor(100, 100, r, 0.62, 1.5)).toBe(0);
     expect(calmFactor(500, 500, r, 0.62, 1.5)).toBe(1);
+  });
+});
+
+describe("keepOutFactor", () => {
+  const r = { left: 100, right: 300 };
+  it("is 0 inside the keep-out column at any height", () => {
+    expect(keepOutFactor(200, 250, r, 80)).toBe(0);
+    expect(keepOutFactor(200, 5000, r, 80)).toBe(0);
+  });
+  it("ramps linearly over the fade distance outside the rect", () => {
+    expect(keepOutFactor(60, 250, r, 80)).toBeCloseTo(0.5, 6);
+    expect(keepOutFactor(340, 250, r, 80)).toBeCloseTo(0.5, 6);
+  });
+  it("is 1 beyond the fade distance", () => {
+    expect(keepOutFactor(0, 250, r, 80)).toBe(1);
+    expect(keepOutFactor(400, 9, r, 80)).toBe(1);
   });
 });

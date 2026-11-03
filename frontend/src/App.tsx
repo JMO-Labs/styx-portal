@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
 import { Header, type HeaderTab } from "@/components/layout/header";
@@ -8,6 +8,8 @@ import { NewContainerDrawer } from "@/components/launch/new-container-drawer";
 import { SettingsLayout } from "@/components/settings/settings-layout";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
+import { useCanvasEffect } from "@/hooks/use-canvas-effect";
+import { createGlyphBeams } from "@/lib/effects/glyph-beams";
 import { AdminActiveContext } from "@/hooks/use-admin-poll";
 
 export default function App() {
@@ -15,6 +17,11 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<HeaderTab>("home");
   const [launchOpen, setLaunchOpen] = useState(false);
   const [railPad, setRailPad] = useState(0);
+  const glyphCv = useRef<HTMLCanvasElement>(null);
+  // Login glyph shimmer in the gutters around the home content column; Home tab, md+ only (no gutters on phones).
+  useCanvasEffect(glyphCv, (c) => activeTab === "home" ? createGlyphBeams(c, {
+    keepOut: () => c.parentElement?.querySelector("[data-glyph-keepout]")?.getBoundingClientRect() ?? null,
+  }) : null, [activeTab]);
 
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
@@ -44,7 +51,9 @@ export default function App() {
     <TooltipProvider>
     <div className="flex h-dvh flex-col bg-background styx-app-bg">
       <Header activeTab={activeTab} onTabChange={setActiveTab} />
-      <main className="min-h-0 flex-1 overflow-y-auto p-6 md:pr-[var(--rail-pad)] transition-[padding] motion-reduce:transition-none" style={{ "--rail-pad": `${24 + railPad}px` } as CSSProperties}>
+      <div className="relative min-h-0 flex-1">
+      <canvas ref={glyphCv} aria-hidden="true" className={`pointer-events-none absolute inset-0 hidden h-full w-full ${activeTab === "home" ? "md:block" : ""}`} />
+      <main className="relative h-full overflow-y-auto p-6 md:pr-[var(--rail-pad)] transition-[padding] motion-reduce:transition-none" style={{ "--rail-pad": `${24 + railPad}px` } as CSSProperties}>
         <div className={activeTab === "home" ? "" : "hidden"}>
           <HomePage onNewContainer={() => setLaunchOpen(true)} onOpenSettings={() => setActiveTab("admin")} />
         </div>
@@ -52,6 +61,7 @@ export default function App() {
           <AdminActiveContext.Provider value={activeTab === "admin"}><SettingsLayout /></AdminActiveContext.Provider>
         </div>
       </main>
+      </div>
       <StatusRail forceCollapsed={activeTab === "admin"} onOpenAdmin={() => setActiveTab("admin")} onWidthChange={setRailPad} />
       <NewContainerDrawer open={launchOpen} onClose={() => setLaunchOpen(false)} />
     </div>
