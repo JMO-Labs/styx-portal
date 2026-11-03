@@ -3,7 +3,7 @@
 // Then per variant v (shared palette + no dither keeps frames diffable; per-frame dither ~3x size):
 //   magick $v/f0000.png $v/f0060.png $v/f0120.png +append -colors 96 -unique-colors pal.png
 //   magick -delay 1x15 -loop 0 $v/f*.png +dither -remap pal.png -layers OptimizeTransparency $v.gif
-// README uses the GIF (sq→styx-square.gif). Docs use VP9 WebM + JPEG poster (frame 90) per variant
+// README uses hero frames resized to 900x300 as GIF (styx-banner.gif). Docs use VP9 WebM + JPEG poster (frame 90) per variant
 // (hero→styx-hero, slim→styx-header, wide→styx-wide). Playwright's bundled ffmpeg only decodes MJPEG:
 //   for f in $v/f*.png; do magick $f -quality 97 jpg:-; done | ffmpeg-linux -f image2pipe -c:v mjpeg \
 //     -framerate 15 -i pipe:0 -c:v libvpx-vp9 -b:v 0 -crf 34 -pix_fmt yuv420p -row-mt 1 -an $name.webm

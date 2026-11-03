@@ -1,8 +1,4 @@
-<h1 align="center"><img src="docs/assets/brand/styx-square.gif" alt="Styx Portal" width="360"></h1>
-
-<p align="center">
-  <img src="docs/assets/screens/hero-dashboard.png" alt="Styx Portal dashboard with running desktops and workstations" width="900">
-</p>
+<h1 align="center"><img src="docs/assets/brand/styx-banner.gif" alt="Styx Portal" width="900"></h1>
 
 <p align="center">
   <a href="https://github.com/selkies-project"><img src="https://raw.githubusercontent.com/selkies-project/selkies/main/docs/assets/logo/selkies.svg" alt="Selkies" height="64"></a>
@@ -50,6 +46,10 @@ I routinely need to reach things running at home, from somewhere else, with noth
 The spark was [LinuxServer.io](https://www.linuxserver.io/) moving from Kasm Workspaces to `project selkies`-based images. Once I saw the performance, I wanted the whole platform around it.
 
 ## What you get
+
+<p align="center">
+  <img src="docs/assets/screens/hero-dashboard.png" alt="Styx Portal dashboard with running desktops and workstations" width="900">
+</p>
 
 ### Stream a real workstation
 
