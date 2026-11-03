@@ -16,7 +16,7 @@ You will enroll a physical Linux machine with the Styx agent, check that it is h
 - Enrollment script (`enroll.sh`) performs 8-step preflight (server reachability verified **before** any sudo package install), downloads agent daemon and prebuilt wheels from the portal, and registers the workstation with a one-time hardware/OS report (distro, kernel, CPU model/cores, RAM, disk, GPU model) shown in the admin Workstations panel.
 - Agent daemon (`styx_agent.py`) runs as a systemd `--user` service, supervises the Selkies streaming engine (pixelflux + pcmflux), and sends heartbeats every 30 seconds.
 - Traefik routes `/w/{subdomain}` traffic to the workstation's LAN IP on port 8443, where Selkies listens over WebSocket.
-- Admin Workstations panel in **Settings → Administration → Workstations** controls access, stream settings, and enrollment status.
+- Admin Workstations panel in **Admin → Infrastructure → Workstations** controls access, stream settings, and enrollment status.
 
 ---
 
@@ -24,7 +24,7 @@ You will enroll a physical Linux machine with the Styx agent, check that it is h
 
 ### Quick Start
 
-1. **In the Styx Portal UI:** Navigate to **Settings → Administration → Workstations** and click **Enroll workstation**.
+1. **In the Styx Portal UI:** Navigate to **Admin → Infrastructure → Workstations** and click **Enroll workstation**.
 2. **Copy the one-liner** from the enrollment token popup.
 3. **On the workstation:** Log in to a graphical session and paste the command in a terminal.
 
@@ -72,7 +72,10 @@ scripts/build_agent_artifacts.sh ./data/artifacts
 ```
 
 This generates:
-- `wheelhouse-x86_64.tar.gz` — pinned upstream wheels (selkies 2.1.0, pixelflux 2.2.1, pcmflux 2.2.0) and dependencies (covers Python 3.10–3.14). Wheels are built on the server; nothing is compiled on enrolled boxes.
+- `wheelhouse-x86_64.tar.gz` — pinned upstream wheels (selkies 2.1.0, pixelflux 2.2.1+styx4, pcmflux 2.2.0) and dependencies (covers Python 3.10–3.14). Wheels are built on the server; nothing is compiled on enrolled boxes.
+
+!!! note "Coming in agent 0.10.0: Selkies 2.2"
+    The next agent pins selkies 2.2.0, pixelflux 2.2.2 (`2.2.2+styx5` wheel) and pcmflux 2.2.1. **Rebuild the wheelhouse before upgrading agents**, or enrolled boxes cannot fetch the new wheels: rerun `scripts/build_agent_artifacts.sh ./data/artifacts` on the server after updating the portal. Operator-visible changes: the still-screen bitrate sawtooth ("poor connection") is fixed upstream, the AV1 crop patch is no longer applied, and libei pointer input works again on scaled GNOME seats. No new settings. Not yet released; no PR yet.
 
 Rerun this after portal upgrades to sync agent versions.
 
@@ -115,7 +118,7 @@ Enrollment runs 8 preflight checks. If any fail, the script prints an error code
 
 ### Connecting
 
-Users connect from **Home → Workspaces** ([Use: Workstations](../use/workstations.md)). Online cards show a green badge and a **Connect** button.
+Users connect from the **Desktops** row on **Home** ([Use: Workstations](../use/workstations.md)). Online tiles show a status and a **Connect** button.
 
 ### Checking workstation status
 
@@ -138,7 +141,7 @@ tail -f $AGENT/logs/seat.log       # seat compositor / shell (GNOME or labwc)
 
 Use the venv interpreter — the system `python3` lacks the agent's audio/display helpers, so `doctor` under-reports.
 
-**From the admin panel:** **Settings → Administration → Workstations** shows:
+**From the admin panel:** **Admin → Infrastructure → Workstations** shows:
 - **Status badge** (online / offline / pending / revoked)
 - **Last heartbeat** timestamp
 - **Last error** (if any)
@@ -146,7 +149,7 @@ Use the venv interpreter — the system `python3` lacks the agent's audio/displa
 
 ### Changing stream settings
 
-In **Settings → Administration → Workstations**, open a workstation's **Stream settings** to set framerate, quality (CRF), max bitrate, Gaming mode, Sharpen static screen and Full colour (4:4:4). Changes apply the next time nobody is connected. The full list, defaults and encoder behaviour are in [Streaming tuning](streaming-tuning.md).
+In **Admin → Infrastructure → Workstations**, open a workstation's **Stream settings** to set framerate, quality (CRF), max bitrate, Gaming mode, Sharpen static screen and Full colour (4:4:4). Changes apply the next time nobody is connected. The full list, defaults and encoder behaviour are in [Streaming tuning](streaming-tuning.md).
 
 ### Clipboard, files, audio
 
@@ -247,12 +250,12 @@ bash ~/.local/share/styx-agent/uninstall.sh
 ### From the Admin Panel
 
 **Revoke (soft):**
-1. **Settings → Administration → Workstations** → select the machine.
+1. **Admin → Infrastructure → Workstations** → select the machine.
 2. Click **Revoke**.
 3. The agent receives the revocation on the next heartbeat, stops streaming, and shows the uninstall command to the operator.
 
 **Purge (hard):**
-1. **Settings → Administration → Workstations** → select the machine.
+1. **Admin → Infrastructure → Workstations** → select the machine.
 2. Click **Delete** (trash icon) to purge it from the database.
 3. The workstation is immediately unreachable and removed from all users' access lists.
 4. **Note:** The agent on the machine must still be uninstalled manually (or will fail to deregister and leave files behind).
@@ -266,13 +269,13 @@ bash ~/.local/share/styx-agent/uninstall.sh
 
 ## GNOME seat
 
-Agent 0.9.0 runs upstream selkies 2.1.0 + pixelflux 2.2.1 + pcmflux 2.2.0 (0.5.0–0.8.x ran selkies 2.0.0). In seat mode the default `seat_shell: gnome` starts a real headless GNOME Shell on a private D-Bus session and captures it through xdg-desktop-portal.
+Agents 0.9.x run upstream selkies 2.1.0 + pixelflux 2.2.1 + pcmflux 2.2.0 (0.5.0–0.8.x ran selkies 2.0.0). In seat mode the default `seat_shell: gnome` starts a real headless GNOME Shell on a private D-Bus session and captures it through xdg-desktop-portal.
 
 - **Requirement:** GNOME Shell >= 46 on the box. If GNOME is unavailable the agent automatically falls back to `seat_shell: labwc` (the previous labwc/waybar seat). Changing `seat_shell` restarts the agent.
-- **Resolution:** follows the browser. The first viewer to connect owns the seat size; when its window changes size the seat monitor is resized in place (Mutter keeps the monitor, windows reflow) and the stream restarts from a warm standby selkies: the gateway cuts the stream socket and selkies 2.1 reconnects in place, holding the last frame for ~0.1-0.4 s with no page reload. Other viewers see the owner's size scaled to fit and take over when the owner leaves. `seat_width` / `seat_height` (system defaults 2560x1440 in **Settings -> Workstation features**) only size the seat before the first viewer connects. The standby costs one extra idle selkies process (~190 MB).
+- **Resolution:** follows the browser. The first viewer to connect owns the seat size; when its window changes size the seat monitor is resized in place (Mutter keeps the monitor, windows reflow) and the stream restarts from a warm standby selkies: the gateway cuts the stream socket and selkies 2.1 reconnects in place, holding the last frame for ~0.1-0.4 s with no page reload. Other viewers see the owner's size scaled to fit and take over when the owner leaves. `seat_width` / `seat_height` (system defaults 2560x1440 in **Admin → Settings → Sessions and timeouts**) only size the seat before the first viewer connects. The standby costs one extra idle selkies process (~190 MB).
 - **Stream connection:** selkies 2.1 adapts the bitrate to the path (congestion control, CBR) up to the configured bitrate. The gateway pings every 30 s so a background tab's quiet socket is not dropped by proxies, and logs `ws stall` lines when a browser goes silent for more than 1 s while video plays (network jitter shows up there).
 - **Chroma:** streams are 4:2:0 (hardware encoded). **Full colour (4:4:4)** in the workstation's stream settings gives crisp text, but VA-API GPUs cannot encode H.264 4:4:4, so it switches to software x264: more CPU, larger frames, and audio can stutter on a slow uplink.
-- **Cursor:** the GNOME seat always embeds the cursor in the video (Mutter cursor-mode 1); the `cursor_workaround` setting was removed.
+- **Cursor:** the browser draws the cursor itself. While the pointer is locked (Gaming mode) the gateway drops selkies' embedded-cursor switch, because GNOME's headless monitor draws no embedded cursor, and the client overlay follows the seat's real pointer (agent 0.9.35+, 0.9.38 for pointer echo). The `cursor_workaround` setting was removed.
 - **Shared profile:** the seat runs as the same Linux user as the physical login, so dconf settings, extensions, wallpaper and keyring are shared with the local session.
 - **Watchdog:** a stream stall restarts only selkies (apps survive); 3 stalls in 10 minutes restart the GNOME session and report the workstation degraded.
 
@@ -286,7 +289,25 @@ The selkies sidebar display controls work on the seat:
 - **UI scaling / HiDPI:** switches the seat between GNOME scale 1 and 2 without restarting the stream.
 - **Ownership:** the connected controller owns the seat size (selkies allows one controller; a new one replaces the old). Shared viewers (`#shared` links) watch at the controller's size.
 - **Admin defaults:** the workstation's stream settings (framerate, CRF, etc.) are defaults that viewers can change from the panel. Bitrate is a ceiling: the admin value is the default and the maximum; viewers may lower it (floor 1000 kbps). Codec and CPU encode are locked.
-- **Applying changes:** admin changes apply when nobody is connected, so they never kick an active session. The exception is idle-timeout changes, which apply at once (connected viewers reconnect). A viewer that reconnects after a resize already gets the new stream settings.
+- **Transport:** the portal's transport is the default per workstation. A viewer can switch to WebRTC or WebSockets in the sidebar; the gateway handles both with refit, idle cuts and relay metering (agent 0.9.34+). Only the TURN budget being reached blocks WebRTC (the gateway answers 409 and the client falls back once). The choice is stored in a `stream-mode` file, so selkies restarts and the warm standby keep it (0.9.36); a portal transport change clears it.
+- **Gaming mode:** the gateway pins the seat at the viewer's screen resolution and ignores resizes while it is on, so the browser can hold pointer lock (0.9.33). Keyboard Lock diagnostics land in the gateway log as `gamemode diag:` lines (0.9.38).
+- **WebRTC codec:** a page shim picks a hardware-decoded codec in the browser's answer when the first offered one is software-decoded (0.9.39).
+- **Applying changes:** admin changes apply when nobody is connected, so they never kick an active session. Deferred changes apply within about a second of the last viewer leaving (0.9.39). The exception is idle-timeout changes, which apply at once (connected viewers reconnect). A viewer that reconnects after a resize already gets the new stream settings.
+
+### GNOME 50 Xwayland deadlock {#gnome-50-xwayland-deadlock}
+
+On GNOME 50 (Mutter 50), Xwayland that starts on demand can deadlock the headless shell: selkies blocks on connect and the stream never loads, while D-Bus pings still answer.
+
+- **Eager Xwayland (agent 0.9.37):** a small `LD_PRELOAD` shim makes the seat's gnome-shell start Xwayland at launch instead of on demand. It is not inherited by apps.
+- **Detection (0.9.32):** the shell probe reads `ShellVersion`, which needs the main loop. Three failed probes in a row, or a ready-timeout after the bus and socket are up, count as the deadlock.
+- **Fallback:** the agent writes a `seat-no-x11` marker (keyed to the `gnome-shell --version` string and shim version, so a GNOME upgrade retries) and restarts the seat with `--no-x11`. X11-only apps then do not run in the seat. A hung shell is killed before the restart.
+- **Recover:** delete `seat-no-x11` in the agent's install directory and restart the agent to try Xwayland again.
+
+!!! note "Coming in agent 0.9.40 (PR #109)"
+    The fallback also triggers when the shell answers but the seat helper never reports its monitor (`ScreenCast.CreateSession` fails). Without it the agent restarted the seat about every 10 seconds forever. After 3 such starts in a row it writes `seat-no-x11` (reason "seat helper never came up").
+
+!!! note "Coming in agent 0.9.41 (PR #110)"
+    Choosing WebRTC in the sidebar no longer reverts to WebSockets when your window size differs from the seat: the agent now drops a warm standby that was started in the old transport before it promotes one for the refit.
 
 ### Upgrade and rollback
 

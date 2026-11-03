@@ -6,7 +6,21 @@ inside its free tier.
 
 !!! info "Requires"
     Styx Portal 2.11+ and workstation agent 0.9.30+. All settings live in
-    **Admin → Settings → WebRTC / TURN**; the in-app guide in that card repeats these steps.
+    **Admin → Infrastructure → Streaming**; the in-app guide in that card repeats these steps.
+
+## Check your setup
+
+In **Admin → Infrastructure → Streaming**, the **Cloudflare / TURN status** card has a **Check setup** button. It runs `GET /api/admin/turn-check`:
+
+| Check | OK when |
+|---|---|
+| TURN credentials | Cloudflare issues credentials for the key (the same call selkies makes), or the generic host accepts TCP |
+| WebRTC in use | At least one workstation's effective transport is WebRTC |
+| Cloudflare analytics | The analytics token works; shows this month's egress |
+| Other TURN keys | No relay traffic under a different key (warns about old or rotated keys still in use) |
+| Monthly budget | Under budget |
+
+Secrets never leave the server; key IDs show only their last 4 characters.
 
 ## When to use it
 
@@ -36,7 +50,7 @@ Measured on a LAN with an RTX 4090 seat, input-to-screen p95 was 42 / 45 / 33 ms
         Copy it straight into Styx. Treat it like a password. If it leaks (for example by
         being pasted into a chat), delete the key in Cloudflare and create a new one.
 
-3. In Styx, open **Admin → Settings → WebRTC / TURN**:
+3. In Styx, open **Admin → Infrastructure → Streaming**:
     - **TURN provider** → `cloudflare`
     - **Cloudflare TURN token ID** → the Turn Token ID
     - **Cloudflare TURN API token** → the API Token (stored encrypted, never shown again)
@@ -105,6 +119,19 @@ Three guards keep the cost bounded:
     With provider `none`, WebRTC uses direct and STUN connections only. Styx deliberately
     blanks the public demo relay that Selkies would otherwise fall back to.
 
+## Sidebar transport choice
+
+The portal's **Default stream transport** applies to every viewer, but a viewer can
+switch WebRTC or WebSockets in the Selkies sidebar. The agent honours that choice for
+that browser (0.9.34+), keeps it across selkies restarts such as a resize or entering
+Gaming mode (0.9.36), and clears it when you change the portal transport. WebRTC
+sessions started this way still get refit, idle cutoffs and relay metering. Only a
+reached TURN budget refuses WebRTC.
+
+!!! note "Coming in agent 0.9.41 (PR #110)"
+    A refit no longer promotes a warm standby that was started in the old transport, which
+    made a sidebar WebRTC switch snap back to WebSockets.
+
 ## Verify a connection
 
 1. Open `chrome://webrtc-internals` in another tab, then open the workstation.
@@ -114,7 +141,8 @@ Three guards keep the cost bounded:
 3. Under `inbound-rtp (kind=video)`, `decoderImplementation` tells you whether the
    browser decodes in hardware. If it doesn't, pick a codec the viewer's GPU decodes. For
    example, choose HEVC for GPUs without AV1 decode, under the workstation's
-   **Stream settings → Codec**.
+   **Stream settings → Codec**. Agent 0.9.39 and newer already answer WebRTC offers
+   with the browser's hardware-decoded codec first, so this is only needed on WebSockets.
 
 ## Troubleshooting
 

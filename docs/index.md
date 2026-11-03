@@ -33,7 +33,7 @@ hide:
 
 -   :lucide-container: **Disposable desktops**
 
-    Launch persistent containerized desktops from templates, with GPU passthrough and idle auto-stop.
+    Launch persistent containerized desktops from setups or the LinuxServer catalog, with GPU passthrough and idle auto-stop.
 
     [:octicons-arrow-right-24: Desktops](use/desktops.md)
 
@@ -51,7 +51,7 @@ hide:
 
 -   :lucide-sliders-horizontal: **Admin from the UI**
 
-    Users, groups, OIDC/OAuth2, live-tunable settings, health history.
+    Users, groups, OIDC/OAuth2, live-tunable settings, monitoring and health history.
 
     [:octicons-arrow-right-24: Settings reference](operate/settings.md)
 

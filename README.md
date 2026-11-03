@@ -57,7 +57,7 @@ Enroll a Linux machine with one command and open its desktop in the browser. A p
 
 ### Launch disposable desktops
 
-Pick a template (XFCE, developer, gaming, or your own Selkies image), and get a persistent containerized desktop at its own address. Idle desktops pause themselves; GPU passthrough is one switch.
+Pick a saved setup or a LinuxServer Selkies image from the New container drawer (or type your own), and get a persistent containerized desktop at its own address. Idle desktops pause themselves; GPU passthrough is one switch.
 
 ### One front door for your apps
 
@@ -67,7 +67,7 @@ Put Jellyfin, the \*arr stack, Nextcloud, Home Assistant and friends behind one 
 
 ### Administer it from the UI
 
-Users, invites, groups, OIDC/OAuth2 SSO, printable sign-in cards for 2FA, brute-force protection, live-tunable settings, and a health page with history.
+Users, invites, groups, OIDC/OAuth2 SSO, printable sign-in cards for 2FA, brute-force protection, live-tunable settings, and a monitoring overview with health history.
 
 ![Admin settings and health](docs/assets/screens/hero-admin.png)
 

@@ -30,7 +30,7 @@ You will sign in, optionally add a second factor, and find your way around the p
 
 A sign-in card is a printed grid of codes used as a second step after your password.
 
-1. Open **Settings → Account → Sign-in card** and choose **Generate card**. Enter your account password.
+1. Open **My account → Sign-in card** (the **Settings** tab, or **Admin** for admins) and choose **Generate card**. Enter your account password.
 2. The 10 × 5 card (columns A–E, rows 1–10) is shown **once**. Download the PNG or print it.
 3. Enter the cell the portal asks for (for example `C7`) to activate the card.
 
@@ -44,18 +44,23 @@ From then on, password sign-in asks for three random cells.
 
 ## Link an SSO account
 
-Under **Settings → Account → Connected accounts** you can link or unlink a provider to your account. Linking always needs a verified email. You cannot unlink your only way to sign in. Admins link providers while signed in; SSO sign-in never auto-links to an admin account.
+Under **My account → Connected accounts** you can link or unlink a provider to your account. Linking always needs a verified email. You cannot unlink your only way to sign in. Admins link providers while signed in; SSO sign-in never auto-links to an admin account.
 
 ## Find your way around
 
 | Place | What it is |
 |---|---|
-| **Home → Workspaces** | Your desktops and the workstations you may use, with live thumbnails |
+| **Home → Recent** | Live thumbnails of what you opened lately; click one to resume |
+| **Home → Desktops** | Workstations you may use, with live previews and **Connect** |
 | **Home → Apps** | Tiles for the proxied apps your groups allow |
-| **My instances** | List of your containerized desktops |
-| **Template gallery** | Start a new desktop from a template |
-| **Settings** | Your account (connected accounts, sign-in card, profiles); admins also see Monitoring and Administration |
+| **Home → Containers** | Your containerized desktops, plus the **New container** button |
+| **Account menu** (top right) | The **Opening** preference (new tab, this tab or ask) for desktops and apps |
+| **Settings** tab | Your account: sign-in card, connected accounts, profiles. Admins see this tab as **Admin**, with the portal's own sections too |
+Admins also see a status panel pinned to the right of Home (CPU, memory, disk). It collapses to a strip.
 
 ![Home dashboard](../assets/screens/ui-dashboard-light.png)
+
+!!! note "Coming soon: phone layout (PR #106)"
+    A mobile layout pass adds a one-line header with **Log out** and the theme toggle in the account menu, a compact Home, full-screen drawers and larger touch targets. The status panel is hidden on narrow screens.
 
 Next: [Desktops](desktops.md) or [Workstations](workstations.md).
