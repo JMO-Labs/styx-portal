@@ -402,3 +402,21 @@ async def test_auth_check_login_redirect_drops_encoded_next(session):
             "Sec-Fetch-Mode": "navigate"})
         assert r.status_code == 302
         assert r.headers["location"] == "https://localhost/login"
+
+
+@pytest.mark.asyncio
+async def test_webrtc_signaling_records_occupant(client, session):
+    """WebRTC mode has no /websocket upgrade, only /api/webrtc/signaling/.
+    It must record the occupant too, else in_use_self stays false and the
+    portal idle timer logs the streaming user out."""
+    ws, user = await _seed(session)
+    session.add(WorkstationAccess(workstation_id=ws.id, user_id=user.id))
+    await session.commit()
+    await client.get("/api/auth/csrf")
+    assert (await client.post("/api/auth/login",
+            json={"username": "carol", "password": "x"})).status_code == 200
+    r = await client.get(f"/internal/workstations/{ws.id}/auth-check", headers={
+        "X-Forwarded-Uri": f"/w/{ws.subdomain}/api/webrtc/signaling/?sid=abc"})
+    assert r.status_code == 200
+    await session.refresh(ws)
+    assert ws.occupied_by == user.id

@@ -251,7 +251,8 @@ async def auth_check(ws_id: str, request: Request,
         return no_access(request, "No access")
     # A websocket upgrade passing auth = someone is (re)taking the desktop.
     # Record who; the agent's connection count decides whether it's live.
-    if "/websocket" in uri:
+    # WebRTC mode has no /websocket(s) upgrade, only the signaling socket.
+    if "/websocket" in uri or "/api/webrtc/signaling" in uri:
         # Takeover lock: another user's live seat needs /connect?force=true,
         # which hands the seat over; opening the URL directly is refused.
         # Not popped: a parallel websocket must pass too; the grant simply expires.
