@@ -6,6 +6,7 @@ seat:   pixelflux's own Wayland compositor; host apps join via WAYLAND_DISPLAY.
 """
 import base64
 import glob
+import importlib.util
 import json
 import os
 import socket
@@ -327,12 +328,21 @@ def apply_stream_override(argv: list, path: Path = STREAM_OVERRIDE) -> list:
     return argv + extra
 
 
+def packaged_web_root() -> str:
+    """selkies' web client inside the installed package, found without importing it."""
+    spec = importlib.util.find_spec("selkies")
+    return str(Path(spec.submodule_search_locations[0]) / "selkies_web")
+
+
 def seat_selkies_main() -> None:
     """selkies for the GNOME seat (`python engine.py <selkies args>`). Mutter
     has no wlr/ext data-control, so selkies' clipboard calls aimed at the seat
     socket fail; route them to seat_clipboard.py, which serves the seat's
     clipboard (all flavours) from Mutter's RemoteDesktop clipboard API."""
     sys.argv = apply_stream_override(sys.argv)     # before selkies parses its settings on import
+    # Otherwise each selkies extracts its own /tmp/selkies_web*, and a refit's
+    # SIGKILL skips the cleanup: ~2000 inodes leaked per resize until /tmp is full.
+    os.environ.setdefault("SELKIES_WEB_ROOT", packaged_web_root())
     from pixelflux import ScreenCapture
     from selkies import input_handler
     from selkies.__main__ import main
