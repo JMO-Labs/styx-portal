@@ -256,6 +256,11 @@ def create_app(user: str, password: str,
             rec.timer and rec.timer.cancel()
             rec.timer = asyncio.get_running_loop().call_later(refit.SETTLE_S, fire_refit, rec)
 
+    def submit_dpi(rec, dpi):
+        rec.dpi = dpi
+        if size_owner.owner == rec.vid:
+            publish_scale(rec)
+
     def _write_state():
         if not state_file:
             return
@@ -612,7 +617,7 @@ def create_app(user: str, password: str,
         hold_s=idle_timeout_s if idle_enabled and idle_timeout_s > 0 else BUSY_HOLD_S,
         viewers=viewers, seat=bool(seat_dir), live_port=live_port,
         write_state=_write_state, touch=lambda ts: last_input.update(ts=ts),
-        kill_path=state_file and state_file + KILL_SUFFIX, attach=attach, detach=detach, submit_size=submit_size, log=log)
+        kill_path=state_file and state_file + KILL_SUFFIX, attach=attach, detach=detach, submit_size=submit_size, submit_dpi=submit_dpi, log=log)
     gm = wrtc.gamemode = GameMode(viewers, size_owner, submit_size, bool(seat_dir), log)
     _write_state()   # reset any stale count from a previous gateway run
 

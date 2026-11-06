@@ -44,7 +44,7 @@ class Session:
 class WebRTCGateway:
     def __init__(self, *, transport: str, idle_s: int, idle_enabled: bool, max_session_s: int,
                  hold_s: float, viewers, seat: bool, live_port, write_state, touch, kill_path,
-                 attach, detach, submit_size, log=print, webrtc_off: bool = False):
+                 attach, detach, submit_size, submit_dpi, log=print, webrtc_off: bool = False):
         self.transport = transport if transport == "webrtc" else "websockets"
         self.idle_s = idle_s if idle_enabled and idle_s > 0 else 0
         self.max_s, self.hold_s = max_session_s, hold_s
@@ -53,6 +53,7 @@ class WebRTCGateway:
         self.viewers, self.seat = viewers, seat
         self.live_port, self.write_state, self.touch, self.kill_path = live_port, write_state, touch, kill_path
         self.attach, self.detach, self.submit_size, self.log = attach, detach, submit_size, log
+        self.submit_dpi = submit_dpi
         self.gamemode = None
         self.webrtc_off = webrtc_off   # TURN budget reached: no WebRTC at all
 
@@ -151,6 +152,9 @@ class WebRTCGateway:
             rec = self.viewers.by_vid.get(self.viewers.newest())
         if rec is not None and self.seat and not (self.gamemode and self.gamemode.pin):
             self.submit_size(rec, req)
+            dpi = d.get("dpi")
+            if type(dpi) in (int, float) and 0 < dpi <= 960:
+                self.submit_dpi(rec, dpi)
         return web.Response(status=204)
 
     # -- signaling WebSocket -------------------------------------------------

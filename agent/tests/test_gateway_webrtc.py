@@ -197,6 +197,26 @@ async def test_refit_beacon_feeds_size_owner_path(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_refit_dpi_publishes_owner_scale(tmp_path):
+    """Phone left seat-scale at 3: a WebRTC laptop's DPI (never seen on the data
+    channel) must reach the seat, or it stays zoomed."""
+    (tmp_path / "seat-size").write_text("1920x1080")
+    (tmp_path / "seat-scale").write_text("3")
+    up, client, _ = await _pair(tmp_path, seat_dir=str(tmp_path))
+    try:
+        await _sig(client, "A")
+        body = {"sid": "A", "w": 1280, "h": 647, "dpr": 2}
+        for bad in ("96", True, 0, -96, 100000):
+            assert (await client.post("/styx/refit", json={**body, "dpi": bad}, headers=HDR)).status == 204
+            assert (tmp_path / "seat-scale").read_text() == "3"
+        assert (await client.post("/styx/refit", json={**body, "dpi": 96}, headers=HDR)).status == 204
+        assert (tmp_path / "seat-scale").read_text() == "1"
+    finally:
+        await client.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
 async def test_refit_without_seat_is_a_noop(tmp_path):
     up, client, _ = await _pair(tmp_path)
     try:
