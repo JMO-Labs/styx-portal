@@ -427,3 +427,12 @@ def test_cmd_uses_portal_encoder(tmp_path, monkeypatch):
     cfg["stream_settings"] = {"encoder": "hevc"}
     cmd, _ = engine.build_selkies_cmd(cfg, 9000)
     assert "--encoder=h265enc,av1enc,h264enc" in cmd
+
+
+def test_packaged_web_root_points_into_the_package(tmp_path, monkeypatch):
+    web = tmp_path / "selkies" / "selkies_web"
+    web.mkdir(parents=True)
+    (tmp_path / "selkies" / "__init__.py").write_text("raise RuntimeError('must not import')")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.delitem(sys.modules, "selkies", raising=False)
+    assert engine.packaged_web_root() == str(web)
