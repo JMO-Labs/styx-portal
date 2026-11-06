@@ -101,15 +101,16 @@ def inject_idle_watchdog(html: str, timeout_s: int, lead_s: int,
 # the client received (cumulative: per-pair peaks summed over every selected
 # candidate pair of every peer connection, so it never goes backwards). Every
 # 30 s a bytes-only report (active:false) keeps TURN metering honest while idle.
-# Resize/fullscreen -> styx/refit {w,h,dpr} (the "r," message rides the data
-# channel, which the gateway cannot see). Relative URLs: pages live under /w/<sub>/.
+# Resize/fullscreen/DPI change -> styx/refit {w,h,dpr,dpi} (the "r,", "s," and
+# SETTINGS messages ride the data channel, which the gateway cannot see). Relative URLs: pages live under /w/<sub>/.
 WEBRTC_JS = r"""<script id="styx-webrtc">(function(){
 var sid;try{sid=crypto.randomUUID()}catch(e){sid=Math.random().toString(36).slice(2)+Date.now().toString(36)}
 var rtc=false,pcs=[],RP=window.RTCPeerConnection;
 if(RP){window.RTCPeerConnection=class extends RP{constructor(){super(...arguments);pcs.push(this)}}}
 function post(path,body){try{fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),keepalive:true}).catch(function(){})}catch(e){}}
-function refit(){if(rtc)post('styx/refit',{sid:sid,w:innerWidth,h:innerHeight,dpr:devicePixelRatio||1})}
+var dpi;function refit(){if(rtc)post('styx/refit',{sid:sid,w:innerWidth,h:innerHeight,dpr:devicePixelRatio||1,dpi:dpi})}
 var rt;function refitSoon(){clearTimeout(rt);rt=setTimeout(refit,300)}
+var DC=window.RTCDataChannel;if(DC){var ds=DC.prototype.send;DC.prototype.send=function(m){try{if(typeof m==='string'){var v=m.indexOf('s,')===0?parseFloat(m.slice(2)):m.indexOf('SETTINGS,')===0?parseFloat(JSON.parse(m.slice(9)).scaling_dpi):0;if(v>0&&v!==dpi){dpi=v;refitSoon()}}}catch(e){}return ds.apply(this,arguments)}}
 addEventListener('resize',refitSoon);document.addEventListener('fullscreenchange',refitSoon);
 var W=window.WebSocket;
 function SW(u,p){var s=String(u),sig=s.indexOf('/api/webrtc/signaling')>=0;
