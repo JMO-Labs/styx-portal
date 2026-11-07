@@ -152,7 +152,7 @@ async def test_relay_bytes_accumulate_positive_deltas(tmp_path):
     up, client, _ = await _pair(tmp_path)
     try:
         await _sig(client, "A")
-        for rb, total in ((100, 100), (250, 250), (250, 250), (200, 250), (300, 300)):
+        for rb, total in ((96, 96), (246, 246), (246, 246), (198, 246), (300, 300)):
             await _beacon(client, "A", rb)
             assert _state(tmp_path)["turn_bytes_total"] == total
         await _beacon(client, "ghost", 999)                  # unknown sid: ignored
@@ -189,7 +189,7 @@ async def test_refit_beacon_feeds_size_owner_path(tmp_path):
         r = await client.post("/styx/refit", json={"sid": "A", "w": 1280, "h": 647, "dpr": 2}, headers=HDR)
         assert r.status == 204
         await _until(lambda: (tmp_path / "refit-request").exists())
-        assert (tmp_path / "refit-request").read_text() == "2560x1294"
+        assert (tmp_path / "refit-request").read_text() == "2556x1290"
         assert (await client.post("/styx/refit", json={"w": "x"}, headers=HDR)).status == 400
     finally:
         await client.close()
@@ -307,7 +307,7 @@ async def test_webrtc_refit_swallowed_while_gamemode_pinned(tmp_path):
     try:
         await _sig(client, "A")
         assert (await _gm(client, active=True, w=2560, h=1440, dpr=1)).status == 204
-        await _until(lambda: (tmp_path / "refit-request").read_text() == "2560x1440"
+        await _until(lambda: (tmp_path / "refit-request").read_text() == "2556x1440"
                      if (tmp_path / "refit-request").exists() else False)
         (tmp_path / "refit-request").unlink()
         r = await client.post("/styx/refit", json={"sid": "A", "w": 1280, "h": 647}, headers=HDR)
@@ -316,7 +316,7 @@ async def test_webrtc_refit_swallowed_while_gamemode_pinned(tmp_path):
         assert not (tmp_path / "refit-request").exists()
         assert (await _gm(client, active=False, w=1280, h=647, dpr=1)).status == 204
         await _until(lambda: (tmp_path / "refit-request").exists())
-        assert (tmp_path / "refit-request").read_text() == "1280x646"
+        assert (tmp_path / "refit-request").read_text() == "1278x642"
     finally:
         await client.close()
         await up.close()

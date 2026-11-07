@@ -716,34 +716,34 @@ async def test_first_resize_mismatch_requests_refit_and_aborts_socket(tmp_path):
     try:
         ws = await client.ws_connect("/websocket", headers={"Authorization": _basic("styx", "pw")})
         await ws.send_str("SETTINGS,{}")
-        await ws.send_str("r,2552x1294,primary")
+        await ws.send_str("r,2550x1290,primary")
         await _aborted(ws)
         await asyncio.sleep(0.1)
     finally:
         await client.close()
         await up.close()
-    assert (tmp_path / "refit-request").read_text() == "2552x1294"
+    assert (tmp_path / "refit-request").read_text() == "2550x1290"
     assert "SETTINGS,{}" in received
     # Refit-bound size is swallowed: selkies would restart capture at it (black).
-    assert "r,2552x1294,primary" not in received
+    assert "r,2550x1290,primary" not in received
 
 
 @pytest.mark.asyncio
 async def test_matching_resize_is_swallowed(tmp_path):
     """selkies cannot resize a GNOME host: every seat `r,` stays with the gateway."""
     import asyncio
-    (tmp_path / "seat-size").write_text("2552x1294")
+    (tmp_path / "seat-size").write_text("2550x1290")
     received = []
     up, client = await _refit_pair(tmp_path, received, str(tmp_path))
     try:
         ws = await client.ws_connect("/websocket", headers={"Authorization": _basic("styx", "pw")})
-        await ws.send_str("r,2560x1300,primary")
+        await ws.send_str("r,2556x1296,primary")
         await asyncio.sleep(0.6)                 # past the settle window
         await ws.close()
     finally:
         await client.close()
         await up.close()
-    assert "r,2560x1300,primary" not in received
+    assert "r,2556x1296,primary" not in received
     assert not (tmp_path / "refit-request").exists()
 
 
@@ -756,15 +756,15 @@ async def test_refit_uses_last_size_after_settle(tmp_path):
     up, client = await _refit_pair(tmp_path, received, str(tmp_path))
     try:
         ws = await client.ws_connect("/websocket", headers={"Authorization": _basic("styx", "pw")})
-        await ws.send_str("r,1000x700,primary")
+        await ws.send_str("r,996x696,primary")
         await asyncio.sleep(0.1)
-        await ws.send_str("r,2552x1294,primary")
+        await ws.send_str("r,2550x1290,primary")
         assert not (tmp_path / "refit-request").exists()     # still settling
         await _aborted(ws)
     finally:
         await client.close()
         await up.close()
-    assert (tmp_path / "refit-request").read_text() == "2552x1294"
+    assert (tmp_path / "refit-request").read_text() == "2550x1290"
 
 
 @pytest.mark.asyncio
@@ -774,13 +774,13 @@ async def test_resize_untouched_without_seat_dir(tmp_path):
     up, client = await _refit_pair(tmp_path, received, "")
     try:
         ws = await client.ws_connect("/websocket", headers={"Authorization": _basic("styx", "pw")})
-        await ws.send_str("r,2552x1294,primary")
+        await ws.send_str("r,2550x1290,primary")
         await asyncio.sleep(0.2)
         await ws.close()
     finally:
         await client.close()
         await up.close()
-    assert "r,2552x1294,primary" in received
+    assert "r,2550x1290,primary" in received
 
 
 @pytest.mark.asyncio
@@ -793,7 +793,7 @@ async def test_index_holds_while_refit_pending_and_injects_seat_shims(tmp_path):
     await client.start_server()
     h = {"Authorization": _basic("styx", "pw")}
     try:
-        (tmp_path / "refit-request").write_text("2552x1294")
+        (tmp_path / "refit-request").write_text("2550x1290")
         r = await client.get("/", headers=h)
         # 200, never 5xx: Traefik swaps 5xx for the portal's unavailable page.
         assert r.status == 200 and 'id="styx-hold"' in await r.text()
@@ -849,26 +849,26 @@ async def test_refit_announces_to_every_viewer_and_hands_owner_over(tmp_path):
         owner = await client.ws_connect("/websocket?styx_vid=own1", headers=hdr)
         shared = await client.ws_connect("/websocket?role=viewer&styx_vid=sh1", headers=hdr)
         await owner.send_str("r,1920x1080,primary")          # claims, no change
-        await other.send_str("r,1280x720,primary")           # not the owner
+        await other.send_str("r,1278x720,primary")           # not the owner
         await asyncio.sleep(0.6)
         assert not (tmp_path / "refit-request").exists()
-        await owner.send_str("r,2552x1294,primary")
+        await owner.send_str("r,2550x1290,primary")
         for ws in (owner, other, shared):
             await _aborted(ws)
-        assert (tmp_path / "refit-request").read_text() == "2552x1294"
+        assert (tmp_path / "refit-request").read_text() == "2550x1290"
         # Seat rebuilt at the owner's size; the owner leaves, the other takes over.
         (tmp_path / "refit-request").unlink()
-        (tmp_path / "seat-size").write_text("2552x1294")
+        (tmp_path / "seat-size").write_text("2550x1290")
         await asyncio.sleep(0.5)                         # old viewers' grace lapses
         other2 = await client.ws_connect("/websocket?styx_vid=oth2", headers=hdr)
         owner2 = await client.ws_connect("/websocket?styx_vid=own2", headers=hdr)
-        await owner2.send_str("r,2552x1294,primary")     # claims, no change
-        await other2.send_str("r,1280x720,primary")
+        await owner2.send_str("r,2550x1290,primary")     # claims, no change
+        await other2.send_str("r,1278x720,primary")
         await asyncio.sleep(0.6)
         assert not (tmp_path / "refit-request").exists()
         await owner2.close()
         await _aborted(other2)
-        assert (tmp_path / "refit-request").read_text() == "1280x720"
+        assert (tmp_path / "refit-request").read_text() == "1278x720"
     finally:
         gateway.refit.MIN_INTERVAL_S, gateway.REFIT_HOLD_S, gateway.OWNER_GRACE_S = saved
         await client.close()
