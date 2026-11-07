@@ -6,36 +6,36 @@ import refit  # noqa: E402
 
 
 def test_clamp_bounds_and_even():
-    assert refit.clamp(320, 200) == (640, 480)
-    assert refit.clamp(7680, 4320) == (4096, 2304)
-    assert refit.clamp(2553, 1295) == (2552, 1294)
+    assert refit.clamp(320, 200) == (642, 480)
+    assert refit.clamp(7680, 4320) == (4092, 2304)
+    assert refit.clamp(2553, 1295) == (2550, 1290)
 
 
 def test_parse_resize():
-    assert refit.parse_resize("r,2552x1294,primary") == (2552, 1294)
+    assert refit.parse_resize("r,2550x1290,primary") == (2550, 1290)
     assert refit.parse_resize("r,1920x1080") == (1920, 1080)
     for bad in ("r,1920,1080", "r,axb", "kd,65", "r,99999999x1", b"r,1x1", None):
         assert refit.parse_resize(bad) is None
 
 
 def test_decide_tolerance_and_unknown_current():
-    assert refit.decide((2560, 1300), (2552, 1294), 0, 100) is None      # within 16 px
-    assert refit.decide((2552, 1294), (1920, 1080), 0, 100) == (2552, 1294)
-    assert refit.decide((2552, 1294), None, 0, 100) == (2552, 1294)       # no seat-size yet
-    assert refit.decide((100, 100), (640, 480), 0, 100) is None           # clamps to current
+    assert refit.decide((2560, 1300), (2550, 1290), 0, 100) is None      # within 16 px
+    assert refit.decide((2550, 1290), (1920, 1080), 0, 100) == (2550, 1290)
+    assert refit.decide((2550, 1290), None, 0, 100) == (2550, 1290)       # no seat-size yet
+    assert refit.decide((100, 100), (642, 480), 0, 100) is None           # clamps to current
 
 
 def test_decide_rate_limited():
-    assert refit.decide((2552, 1294), (1920, 1080), 98, 100) == 1.0       # 2 s after last: wait 1 s
-    assert refit.decide((2552, 1294), (1920, 1080), 96, 100) == (2552, 1294)
+    assert refit.decide((2550, 1290), (1920, 1080), 98, 100) == 1.0       # 2 s after last: wait 1 s
+    assert refit.decide((2550, 1290), (1920, 1080), 96, 100) == (2550, 1290)
     assert refit.decide((1920, 1080), (1920, 1080), 98, 100) is None       # same size: nothing
 
 
 def test_size_file_roundtrip_and_request(tmp_path):
     f = tmp_path / "seat-size"
     assert refit.read_size(f) is None
-    refit.write_size(f, 2552, 1294)
-    assert refit.read_size(f) == (2552, 1294)
+    refit.write_size(f, 2550, 1290)
+    assert refit.read_size(f) == (2550, 1290)
     r = tmp_path / "refit-request"
     assert not refit.pending(r)
     refit.request(r, 1920, 1080)
@@ -78,9 +78,9 @@ def test_inject_reload():
 
 
 def test_differs():
-    assert refit.differs((2552, 1294), (1920, 1080)) is True
-    assert refit.differs((2560, 1300), (2552, 1294)) is False
-    assert refit.differs((2552, 1294), None) is True
+    assert refit.differs((2550, 1290), (1920, 1080)) is True
+    assert refit.differs((2560, 1300), (2550, 1290)) is False
+    assert refit.differs((2550, 1290), None) is True
 
 
 def test_hold_page_waits_instead_of_blind_reload():
@@ -115,3 +115,10 @@ def test_size_owner_first_viewer_wins_until_it_leaves():
 def test_reload_js_has_viewer_id_and_no_takeover():
     assert "styx_vid" in refit.RELOAD_JS
     assert "styx-takeover" not in refit.RELOAD_JS and "Fit to my window" not in refit.RELOAD_JS
+
+
+def test_sizes_land_on_the_scale_grid():
+    assert refit.clamp(4096, 2304) == (4092, 2304)  # Mutter offers 1.5x here, not at 4096
+    assert refit.clamp(3344, 2304) == (3342, 2304)
+    assert refit.differs((4096, 2304), (4096, 2304))  # a seat left off-grid gets refit
+    assert not refit.differs((4096, 2304), (4092, 2304))  # and then stays put

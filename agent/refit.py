@@ -12,7 +12,10 @@ import time
 from pathlib import Path
 
 BUSY_CODE = 4003     # gateway refused: another tab holds the seat
-MIN_W, MIN_H, MAX_W, MAX_H = 640, 480, 4096, 2304   # HiDPI browsers send device px
+MIN_W, MIN_H, MAX_W, MAX_H = 642, 480, 4096, 2304   # HiDPI browsers send device px
+# Even for the encoder, multiple of 3 for Mutter: it offers 1.5x and 3x (the
+# seat's SCALES) only when both sides divide exactly, e.g. not at 4096x2304.
+GRID_PX = 6
 TOLERANCE_PX = 16
 MIN_INTERVAL_S = 3.0
 SETTLE_S = 0.25         # browser size must hold this long before a refit (client debounces 500 ms first)
@@ -48,7 +51,7 @@ HOLD_HTML = ('<!doctype html><html><head><title>Resizing desktop</title></head>'
 def clamp(w: int, h: int) -> tuple[int, int]:
     w = min(max(w, MIN_W), MAX_W)
     h = min(max(h, MIN_H), MAX_H)
-    return w // 2 * 2, h // 2 * 2
+    return w // GRID_PX * GRID_PX, h // GRID_PX * GRID_PX
 
 
 def parse_resize(msg) -> tuple[int, int] | None:
@@ -72,7 +75,8 @@ def decide(req, current, last_refit_ts: float, now: float):
 def differs(req, current) -> bool:
     """Whether the (clamped) browser size is off the live seat size by > 16 px."""
     w, h = clamp(*req)
-    return not current or abs(w - current[0]) > TOLERANCE_PX or abs(h - current[1]) > TOLERANCE_PX
+    return (not current or current[0] % GRID_PX != 0 or current[1] % GRID_PX != 0
+            or abs(w - current[0]) > TOLERANCE_PX or abs(h - current[1]) > TOLERANCE_PX)
 
 
 def read_size(path) -> tuple[int, int] | None:
