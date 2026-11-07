@@ -5,8 +5,11 @@ WORKDIR /app
 COPY backend/pyproject.toml .
 RUN pip install --no-cache-dir .
 
-# System deps for chromium need root
-RUN playwright install-deps chromium
+# System deps for chromium need root; upgrade picks up Debian security fixes
+# released after the base image was cut (Trivy gates the release on them).
+RUN playwright install-deps chromium \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
 
 # Non-root runtime user. Pre-create every named-volume mountpoint so a fresh
 # (empty) Docker volume inherits appuser ownership on first mount — otherwise it
