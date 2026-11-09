@@ -1,6 +1,7 @@
 # ADR-0002: Keep Styx and Selkies as the product; no Kasm or Citrix
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D02
 - Related controls: SA-4, SA-9, SC-7

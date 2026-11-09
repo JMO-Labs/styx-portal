@@ -1,6 +1,7 @@
 # ADR-0003: One codebase, two deployment profiles; never fork
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D03
 - Related controls: CM-2, CM-3, SA-10, SI-2

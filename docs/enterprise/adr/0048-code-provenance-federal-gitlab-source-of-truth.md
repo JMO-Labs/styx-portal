@@ -1,6 +1,7 @@
 # ADR-0048: Code provenance: federal GitLab is the source of truth
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D48
 - Related controls: CM-3, SA-10, SR-4

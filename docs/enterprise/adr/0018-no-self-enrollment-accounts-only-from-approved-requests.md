@@ -1,6 +1,7 @@
 # ADR-0018: No self-enrollment; accounts only from approved requests
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D18
 - Related controls: AC-2, IA-4, IA-12

@@ -1,6 +1,7 @@
 # ADR-0038: DLP defaults with per-group override
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D38
 - Related controls: AC-4, SC-7, AU-2, AU-12, MP-7
@@ -11,9 +12,13 @@ CUI must not leave through unlogged channels.
 
 Source: docs/enterprise/design.md section 5.
 
+Amendment source: Owner approval Rounds 1-5, 2026-11-09 (issue #1).
+
 ## Decision
 
 Allow clipboard text both ways; allow file upload in; disable download out and local printing; apply user+time watermark. Clipboard and file events are logged as metadata only (user, time, direction, size, type, filename hash), never content. Elastic is not a CUI store. Groups may override.
+
+Owner amendment: any per-group DLP override needs written approval from the security officer and is recorded.
 
 ## Alternatives considered
 

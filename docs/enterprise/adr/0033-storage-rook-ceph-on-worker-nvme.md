@@ -1,6 +1,7 @@
 # ADR-0033: Storage: Rook-Ceph on worker NVMe
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D33
 - Related controls: CP-9, SC-28, SC-5
@@ -11,9 +12,13 @@ Homes, volumes and S3 are needed with one free system.
 
 Source: docs/enterprise/design.md section 5.
 
+Amendment source: Owner approval Rounds 1-5, 2026-11-09 (issue #1).
+
 ## Decision
 
 Run Rook-Ceph on worker NVMe providing CephFS (homes and profiles), RBD (volumes) and RGW (S3, including cold archive). OSDs get per-node CPU/memory reservations (ADR-0055).
+
+Owner amendment: approved; every Ceph OSD is also encrypted at rest with dm-crypt, keys in OpenBao (ADR-0061).
 
 ## Alternatives considered
 

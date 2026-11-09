@@ -1,6 +1,7 @@
 # ADR-0031: CPU tier caps: 1080p, 30 fps, HiDPI off; ~3 cores and 4 GB per desktop
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D31
 - Related controls: SC-5, SC-6, CM-6
@@ -11,9 +12,13 @@ CPU-only encoding is expensive; capacity must be bounded until GPUs are funded.
 
 Source: docs/enterprise/design.md section 5.
 
+Amendment source: Owner approval Rounds 1-5, 2026-11-09 (issue #1).
+
 ## Decision
 
 Cap CPU-tier desktops at 1080p, 30 fps, HiDPI off, roughly 3 cores and 4 GB per concurrent desktop, with per-group override.
+
+Owner amendment: CPU caps become final only after the D47 load test (ADR-0047). No GPU hardware is bought until the SR-IOV proof of concept passes.
 
 ## Alternatives considered
 

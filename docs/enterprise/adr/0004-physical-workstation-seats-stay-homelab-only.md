@@ -1,6 +1,7 @@
 # ADR-0004: Physical workstation seats stay homelab-only
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D04
 - Related controls: AC-17, CM-7

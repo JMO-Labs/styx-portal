@@ -1,6 +1,7 @@
 # ADR-0021: Request form fields
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D21
 - Related controls: AC-2, IA-4, PS-4
@@ -11,9 +12,13 @@ The form must link a request to a card and support automatic offboarding.
 
 Source: docs/enterprise/design.md section 5.
 
+Amendment source: Owner approval Rounds 1-5, 2026-11-09 (issue #1).
+
 ## Decision
 
 Collect first name, last name, email, card type (CAC/PIV/PIV-I), EDIPI (CAC only), groups, approving manager and end date (required for contractors).
+
+Owner amendment: M365 form data (request submissions) is retained for 90 days.
 
 ## Alternatives considered
 

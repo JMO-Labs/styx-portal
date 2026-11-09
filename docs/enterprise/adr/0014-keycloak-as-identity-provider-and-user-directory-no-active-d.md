@@ -1,6 +1,7 @@
 # ADR-0014: Keycloak as identity provider and user directory; no Active Directory
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D14
 - Related controls: IA-2, IA-4, IA-5, AC-2

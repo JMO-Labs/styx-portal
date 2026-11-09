@@ -1,6 +1,7 @@
 # ADR-0054: Profiles on CephFS subvolumes
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D54
 - Related controls: CP-9, CP-10, CM-12
@@ -11,9 +12,13 @@ RBD volumes are RWO and slow to reattach after node loss.
 
 Source: docs/enterprise/design.md section 5.
 
+Amendment source: Owner approval Rounds 1-5, 2026-11-09 (issue #1).
+
 ## Decision
 
 Per-app profiles move from RBD to CephFS subvolumes (RWX) that reattach after node loss. Non-graceful node-shutdown handling is automated. (Builder call.)
+
+Owner amendment: approved; every Ceph OSD is also encrypted at rest with dm-crypt, keys in OpenBao (ADR-0061).
 
 ## Alternatives considered
 

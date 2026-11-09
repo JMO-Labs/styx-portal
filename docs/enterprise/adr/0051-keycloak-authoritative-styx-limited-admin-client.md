@@ -1,6 +1,7 @@
 # ADR-0051: Keycloak is authoritative; Styx admin client is limited
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D51
 - Related controls: AC-2, AC-3, AC-5, AC-6

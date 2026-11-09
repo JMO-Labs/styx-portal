@@ -1,6 +1,7 @@
 # ADR-0053: Enterprise profile hard-disables homelab features
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D53
 - Related controls: CM-7, CM-6, IA-2, AC-3

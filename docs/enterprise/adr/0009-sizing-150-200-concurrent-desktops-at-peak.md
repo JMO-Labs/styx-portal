@@ -1,6 +1,7 @@
 # ADR-0009: Sizing: 150-200 concurrent desktops at peak
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D09
 - Related controls: CP-2, SC-5

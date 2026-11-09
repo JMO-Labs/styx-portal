@@ -1,6 +1,7 @@
 # ADR-0020: Webhook hardening
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D20
 - Related controls: AC-3, AC-17, IA-3, IA-5, SC-7, SC-8, SI-10, AU-2
@@ -11,9 +12,13 @@ The webhook is the only door into account creation and therefore a high-value ta
 
 Source: docs/enterprise/design.md section 5.
 
+Amendment source: Owner approval Rounds 1-5, 2026-11-09 (issue #1).
+
 ## Decision
 
 Require mTLS (OpenBao-issued client cert, rotated yearly) plus bearer token (90-day), GCC High IP allowlist at the DMZ for the provision host only, approval-ID check, approver validation, strict schema, idempotency, non-admin groups only, and audit of every call. Approver validation means Styx checks that the asserted approver is a known group manager; it cannot verify the M365 approval itself. The real control is the human review in D23 (R04).
+
+Owner amendment: M365 form data (request submissions) is retained for 90 days.
 
 ## Alternatives considered
 

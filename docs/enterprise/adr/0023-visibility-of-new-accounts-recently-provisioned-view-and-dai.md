@@ -1,6 +1,7 @@
 # ADR-0023: Visibility of new accounts: Recently provisioned view and daily digest
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D23
 - Related controls: AC-2(4), AU-6, AU-12
@@ -11,9 +12,13 @@ A human should see every new account quickly to catch fraudulent provisioning.
 
 Source: docs/enterprise/design.md section 5.
 
+Amendment source: Owner approval Rounds 1-5, 2026-11-09 (issue #1).
+
 ## Decision
 
 Show new accounts in an admin 'Recently provisioned' view, send a daily digest (portal and Matrix) to the security officer, and offer one-click suspend.
+
+Owner amendment (R04): the security officer is the named owner of the daily review of new accounts (ADR-0023). New accounts left unreviewed for 2 business days are auto-suspended.
 
 ## Alternatives considered
 

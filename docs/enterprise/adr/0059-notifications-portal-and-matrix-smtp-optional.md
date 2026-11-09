@@ -1,6 +1,7 @@
 # ADR-0059: Notifications via portal and Matrix; SMTP optional
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D59
 - Related controls: AU-6, IR-4, SI-4

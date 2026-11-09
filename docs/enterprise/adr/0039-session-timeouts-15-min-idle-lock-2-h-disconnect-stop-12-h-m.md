@@ -1,6 +1,7 @@
 # ADR-0039: Session timeouts: 15 min idle lock, 2 h disconnect stop, 12 h max
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D39
 - Related controls: AC-11, AC-12, SC-10

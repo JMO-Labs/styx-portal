@@ -1,6 +1,7 @@
 # ADR-0007: Kubernetes distribution: RKE2 with Cilium CNI
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D07
 - Related controls: CM-6, CM-7, SC-7, AC-4, SI-2

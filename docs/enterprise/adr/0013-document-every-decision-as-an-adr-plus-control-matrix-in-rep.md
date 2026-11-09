@@ -1,6 +1,7 @@
 # ADR-0013: Document every decision as an ADR plus control matrix in repo
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D13
 - Related controls: CA-2, PL-2, SA-5

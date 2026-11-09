@@ -1,6 +1,7 @@
 # ADR-0047: Rollout gated by evidence: pilot 25, pilot 100, then all users
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D47
 - Related controls: CA-2, CA-7, CP-4, SA-11, SC-5

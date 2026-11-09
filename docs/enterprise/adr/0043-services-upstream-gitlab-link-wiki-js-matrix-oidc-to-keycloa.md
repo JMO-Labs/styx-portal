@@ -1,6 +1,7 @@
 # ADR-0043: Services: upstream GitLab link, Wiki.js, Matrix; OIDC to Keycloak
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D43
 - Related controls: IA-2, AC-3, SC-23

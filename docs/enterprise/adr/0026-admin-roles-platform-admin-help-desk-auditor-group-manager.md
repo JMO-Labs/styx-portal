@@ -1,6 +1,7 @@
 # ADR-0026: Admin roles: platform admin, help desk, auditor, group manager
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D26
 - Related controls: AC-2, AC-5, AC-6, AU-9
