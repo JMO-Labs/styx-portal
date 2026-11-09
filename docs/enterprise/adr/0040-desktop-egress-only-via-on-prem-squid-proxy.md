@@ -1,6 +1,7 @@
 # ADR-0040: Desktop egress via on-prem Squid with category blocking
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D40
 - Related controls: SC-7, SC-7(5), AU-2, AU-12, AC-4

@@ -1,6 +1,7 @@
 # ADR-0005: Prefer low/no-cost open-source components; paid items require an ADR
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D05
 - Related controls: SA-4, SA-9, SR-3

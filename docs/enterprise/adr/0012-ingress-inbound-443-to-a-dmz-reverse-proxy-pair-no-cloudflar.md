@@ -1,6 +1,7 @@
 # ADR-0012: Ingress: inbound 443 to a DMZ reverse-proxy pair; no Cloudflare or overlay
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D12
 - Related controls: SC-7, SC-8, SC-23, AC-17
@@ -11,9 +12,13 @@ CAC mutual TLS must terminate on-prem, and the stream path should be as short as
 
 Source: docs/enterprise/design.md section 5.
 
+Amendment source: Owner approval Rounds 1-5, 2026-11-09 (issue #1).
+
 ## Decision
 
 Expose inbound TCP 443 to a pair of DMZ HAProxy reverse proxies that terminate TLS (ADR-0050). No Cloudflare or overlay network.
+
+Owner amendment: approved as written. The certificate source (org/DoD CA preferred, ACME only if allowed) is confirmed with the organisation during Phase 1.
 
 ## Alternatives considered
 

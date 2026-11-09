@@ -1,6 +1,7 @@
 # ADR-0028: Golden images: 3-5 Ubuntu-based images built in CI
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D28
 - Related controls: CM-2, CM-3, CM-6, SA-10
@@ -11,11 +12,15 @@ Desktops must be consistent, patched and small in number. Upstream federal GitLa
 
 Source: docs/enterprise/design.md section 5.
 
+Amendment source: Owner approval Rounds 1-5, 2026-11-09 (issue #1).
+
 ## Decision
 
 Maintain 3-5 Ubuntu-based golden images (base-office, developer, browser-only, GPU later) built in CI on upstream federal GitLab with on-prem runners.
 
 Images are designed around M365 GCC High web apps (Outlook, Teams, Office, OneDrive) used from the in-desktop browser (owner-confirmed workflow); local office suites only where web apps fall short.
+
+Owner amendment: high-severity CVEs have a fix deadline of 7 days.
 
 ## Alternatives considered
 
@@ -38,3 +43,4 @@ Negative:
 Follow-up work:
 
 - Image bill of materials in phase 3.
+- Phase 3 ADR: cosign key custody (OpenBao, CI-only) and the medium/low CVE fix deadlines.

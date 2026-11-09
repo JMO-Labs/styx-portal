@@ -1,6 +1,7 @@
 # ADR-0050: DMZ proxy is an HAProxy pair forwarding the client cert
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D50
 - Related controls: SC-7, SC-8, SC-23, AC-17

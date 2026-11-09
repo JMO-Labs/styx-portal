@@ -1,6 +1,6 @@
 # ADR-0045: Help-desk shadowing with consent
 
-- Status: Proposed
+- Status: Superseded by ADR-0060
 - Date: 2026-10-28
 - Decision ID: D45
 - Related controls: AC-2, AC-6, AU-2, AC-17
@@ -10,6 +10,8 @@
 Help desk needs to assist users while preserving privacy and accountability.
 
 Source: docs/enterprise/design.md section 5.
+
+Superseded by ADR-0060 (Owner approval Rounds 1-5, 2026-11-09, issue #1): consent-free view/take-control by platform admin and help desk, with banner, required reason, logging and monthly review.
 
 ## Decision
 

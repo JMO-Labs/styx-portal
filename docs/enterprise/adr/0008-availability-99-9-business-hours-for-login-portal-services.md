@@ -1,6 +1,7 @@
 # ADR-0008: Availability: 99.9% business hours for login/portal/services
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D08
 - Related controls: CP-2, CP-10, SI-13

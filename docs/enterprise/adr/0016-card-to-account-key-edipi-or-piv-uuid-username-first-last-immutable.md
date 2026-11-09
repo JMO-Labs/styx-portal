@@ -1,6 +1,7 @@
 # ADR-0016: Card-to-account key is EDIPI (CAC) or card UUID (PIV/PIV-I); username first.last, immutable
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D16
 - Related controls: IA-4, IA-5, AU-3
@@ -11,9 +12,13 @@ Audit records need readable identities and a stable key tying card to account.
 
 Source: docs/enterprise/design.md section 5.
 
+Amendment source: Owner approval Rounds 1-5, 2026-11-09 (issue #1).
+
 ## Decision
 
-Link card to account with a hidden attribute: EDIPI for CAC, or the card UUID (urn:uuid in the SAN of the PIV Authentication certificate) for PIV and PIV-I. Binding happens at first login: an approved request (name, email, card type, EDIPI if CAC) is matched by the first card login whose certificate name/email matches it, which binds the card id; a mismatch is held for admin review. Card reissue is a help-desk rebind (logged). Visible username is first.last (digit appended on collision), display name 'Last, First M.', and the username never changes.
+Link card to account with a hidden attribute: EDIPI for CAC, or the card UUID (urn:uuid in the SAN of the PIV Authentication certificate) for PIV and PIV-I. Binding happens at first login: an approved request (name, email, card type, EDIPI if CAC) is bound to the first card login with an exact key match (see the amendment below), which binds the card id; anything else is held for admin review. Card reissue is a help-desk rebind (logged). Visible username is first.last (digit appended on collision), display name 'Last, First M.', and the username never changes.
+
+Owner amendment: first-login binding needs an exact key match: for CAC the card EDIPI equals the request EDIPI; for PIV/PIV-I the certificate email equals the request email. A partial or name-only match never binds automatically and goes to admin review.
 
 ## Alternatives considered
 

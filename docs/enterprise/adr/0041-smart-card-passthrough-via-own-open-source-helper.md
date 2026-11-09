@@ -1,6 +1,7 @@
 # ADR-0041: Smart-card passthrough via own open-source helper (phase 4)
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D41
 - Related controls: IA-2(12), SA-8, SA-11, SC-12

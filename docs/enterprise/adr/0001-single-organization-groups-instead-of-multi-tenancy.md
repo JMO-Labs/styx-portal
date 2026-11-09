@@ -1,6 +1,7 @@
 # ADR-0001: Single organization, groups instead of multi-tenancy
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D01
 - Related controls: AC-2, AC-3, AC-6

@@ -1,6 +1,7 @@
 # ADR-0025: Break-glass: two local Keycloak admins with password and TOTP
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D25
 - Related controls: AC-2, IA-2, IA-5, AU-6, AC-2(2)

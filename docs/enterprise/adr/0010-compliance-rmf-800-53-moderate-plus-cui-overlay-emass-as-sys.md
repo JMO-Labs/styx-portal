@@ -1,6 +1,7 @@
 # ADR-0010: Compliance: RMF, 800-53 Moderate plus CUI overlay, eMASS as system of record
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D10
 - Related controls: CA-1, CA-2, CA-6, PL-2, RA-3

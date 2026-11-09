@@ -1,6 +1,7 @@
 # ADR-0036: Styx database: SQLite to PostgreSQL via CloudNativePG
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D36
 - Related controls: CP-9, CP-10, SC-28, SC-5

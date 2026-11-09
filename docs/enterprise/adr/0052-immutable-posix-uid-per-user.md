@@ -1,6 +1,7 @@
 # ADR-0052: Immutable POSIX UID per user
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D52
 - Related controls: AC-3, AC-2, IA-4

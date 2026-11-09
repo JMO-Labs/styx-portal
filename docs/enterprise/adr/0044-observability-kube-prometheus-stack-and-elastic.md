@@ -1,6 +1,7 @@
 # ADR-0044: Observability: kube-prometheus-stack and Elastic
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D44
 - Related controls: AU-2, AU-3, AU-6, AU-11, SI-4, IR-4

@@ -1,6 +1,7 @@
 # ADR-0042: Secrets: OpenBao with External Secrets, auto-unseal and offline escrow
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D42
 - Related controls: SC-12, SC-13, SC-28, IA-5, SC-17

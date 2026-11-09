@@ -1,6 +1,7 @@
 # ADR-0006: On-prem GPU-ready hardware: 3 control plane, 8 workers, 2 DMZ proxies
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D06
 - Related controls: CP-2, PE-3, SC-7, SA-4

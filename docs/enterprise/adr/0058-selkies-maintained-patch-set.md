@@ -1,6 +1,7 @@
 # ADR-0058: Selkies maintained patch set
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D58
 - Related controls: SA-10, SI-7, AU-2, AC-11
@@ -11,9 +12,13 @@ Audit events, lock overlay and watermark need hooks in Selkies.
 
 Source: docs/enterprise/design.md section 5.
 
+Amendment source: Owner approval Rounds 1-5, 2026-11-09 (issue #1).
+
 ## Decision
 
 Maintain a patch set against Selkies (upstream where possible) for audit events, lock-overlay hook and encoder-burned watermark. The 'never fork' rule (ADR-0003) applies to Styx. (Builder call.)
+
+Owner amendment: the desktop namespace Pod Security Admission exception is recorded in control-matrix.md (CM-6/CM-7). Each Selkies patch is offered upstream before it is kept locally.
 
 ## Alternatives considered
 

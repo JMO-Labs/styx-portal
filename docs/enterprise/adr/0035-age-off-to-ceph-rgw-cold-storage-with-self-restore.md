@@ -1,6 +1,7 @@
 # ADR-0035: Age-off to Ceph RGW cold storage with user self-restore
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D35
 - Related controls: MP-6, SI-12, CM-12, SC-28
@@ -11,9 +12,13 @@ Limited storage requires lifecycle handling of stale data while retaining CUI pr
 
 Source: docs/enterprise/design.md section 5.
 
+Amendment source: Owner approval Rounds 1-5, 2026-11-09 (issue #1).
+
 ## Decision
 
 Home files untouched 90 days get a 14-day notice, then move automatically to on-prem Ceph RGW cold storage (object lock, lifecycle); users self-restore from the portal. Users may move files to OneDrive (GCC High) themselves from the browser inside their desktop; egress allows GCC High OneDrive. There is no automatic OneDrive transfer (no service account, no live token). Profiles unused 60 days are deleted after notice. With the daily stop, per-instance scratch volumes are reclaimed after 7 days stopped; persistent data belongs in home/profile. Users may archive anytime.
+
+Owner amendment: a departed user's home is frozen read-only at disable. The group manager may request a handoff during the 90 days before deletion (ADR-0022). The home is then deleted with the account.
 
 ## Alternatives considered
 

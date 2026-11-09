@@ -1,6 +1,7 @@
 # ADR-0046: Enterprise UX standard
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D46
 - Related controls: AT-2, SA-8, AU-2, AC-6

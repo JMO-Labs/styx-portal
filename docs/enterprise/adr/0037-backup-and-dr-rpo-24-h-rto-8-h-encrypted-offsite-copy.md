@@ -1,6 +1,7 @@
 # ADR-0037: Backup and DR: RPO 24 h, RTO 8 h; encrypted offsite copy
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D37
 - Related controls: CP-9, CP-10, CP-6, CP-7, SC-28

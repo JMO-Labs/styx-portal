@@ -1,6 +1,7 @@
 # ADR-0015: Smart-card-only authentication (CAC, PIV, PIV-I); no fallback factors
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D15
 - Related controls: IA-2, IA-2(12), IA-5(2), IA-8
@@ -11,9 +12,13 @@ Phishing-resistant authentication and a simple policy are priorities. A named an
 
 Source: docs/enterprise/design.md section 5.
 
+Amendment source: Owner approval Rounds 1-5, 2026-11-09 (issue #1).
+
 ## Decision
 
 Authenticate users with a smart card only. Accepted: DoD CAC, federal PIV and PIV-I. Trust anchors: DoD roots, the Federal Common Policy CA, and FBCA cross-certified PIV-I issuers. Only the PIV Authentication certificate is accepted (not signing or encryption certificates). No FIDO2, TOTP or password fallback. Only break-glass accounts (D25, R06) are excepted.
+
+Owner amendment: smart card only (CAC, PIV, PIV-I), no fallback factors; break-glass accounts are the only exception (R06).
 
 ## Alternatives considered
 

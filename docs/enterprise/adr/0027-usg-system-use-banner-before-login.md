@@ -1,6 +1,7 @@
 # ADR-0027: USG system-use banner before login
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D27
 - Related controls: AC-8
