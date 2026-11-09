@@ -7,6 +7,7 @@ oomd, which kills whole cgroups, takes the desktop down with it (2026-11-06,
 2026-11-08). The agent moves each app gnome-shell launched (plus its whole
 process tree) into app-styx-<comm>-<pid>.scope on the real user manager.
 """
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -59,6 +60,10 @@ def plan(kids: dict[int, list[int]], comm: dict[int, str],
 
 
 def sweep() -> None:
+    # Pin the real user bus: a process started from a seat terminal inherits the
+    # seat's private bus, where systemd1 is absent ("Access denied").
+    env = {**os.environ, "DBUS_SESSION_BUS_ADDRESS": "unix:path=" + os.environ.get(
+        "XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}") + "/bus"}
     kids, comm = _proc_table()
     for name, pids in plan(kids, comm):
         subprocess.run(
@@ -67,7 +72,7 @@ def sweep() -> None:
              "StartTransientUnit", "ssa(sv)a(sa(sv))", name, "fail", "2",
              "PIDs", "au", str(len(pids)), *map(str, pids),
              "CollectMode", "s", "inactive-or-failed", "0"],
-            capture_output=True, timeout=10)
+            env=env, capture_output=True, timeout=10)
 
 
 def protect_agent() -> None:
