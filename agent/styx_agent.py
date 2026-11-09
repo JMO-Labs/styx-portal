@@ -16,7 +16,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-AGENT_VERSION = "0.10.3"
+AGENT_VERSION = "0.10.4"
 HOME = Path.home()
 INSTALL_DIR = HOME / ".local/share/styx-agent"
 CONFIG_PATH = HOME / ".config/styx-agent/config.json"
@@ -31,6 +31,7 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import agent_update  # noqa: E402
 import favicon  # noqa: E402
+import seat_scopes  # noqa: E402
 import seat_thumb  # noqa: E402
 import refit  # noqa: E402
 import engine  # noqa: E402  (installed next to this file by enroll.sh)
@@ -80,6 +81,7 @@ def _write_state(d: dict) -> None:
 
 def run(cfg: dict) -> int:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
+    seat_scopes.protect_agent()
     # Server-built binaries the distro lacks (nwg-drawer/nwg-dock) are pulled
     # into INSTALL_DIR/bin at enroll. Put it on PATH so both pick_launcher
     # (this process) and the seat shell_env (derived from os.environ) find them.
@@ -377,6 +379,7 @@ def run(cfg: dict) -> int:
             agent_update.on_heartbeat(cfg, hb)
             selkies_ok and gateway_ok and agent_update.confirm(AGENT_VERSION)
             gseat and seat_thumb.on_heartbeat(cfg)
+            gseat and seat_scopes.sweep()
             if hb.get("disconnect_clients"):
                 print("server requested client disconnect (logout); "
                       "restarting gateway", flush=True)
