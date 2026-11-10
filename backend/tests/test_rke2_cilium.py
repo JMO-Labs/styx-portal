@@ -70,8 +70,17 @@ def test_kpr_on_uses_localhost():
     assert v["k8sServiceHost"] not in _vars("all")["rke2_additional_sans"]
 
 
-def test_kpr_off_omits_service_host():
-    _, v = _render(cilium_kube_proxy_replacement=False)
+@pytest.mark.parametrize("on", ["true", "yes", "1", "on"])
+def test_kpr_on_accepts_ansible_truthy_strings(on):
+    _, v = _render(cilium_kube_proxy_replacement=on)
+    assert v["kubeProxyReplacement"] is True
+    assert v["k8sServiceHost"] == "localhost"
+
+
+# Strings from `-e key=false` must match the role's `disable_kube_proxy | bool`.
+@pytest.mark.parametrize("off", [False, "false", "False", "no", "0", "off"])
+def test_kpr_off_omits_service_host(off):
+    _, v = _render(cilium_kube_proxy_replacement=off)
     assert v["kubeProxyReplacement"] is False
     assert "k8sServiceHost" not in v
     assert "k8sServicePort" not in v
