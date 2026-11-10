@@ -2,6 +2,7 @@
 
 ### Features
 
+* **deploy:** opt-in Kopia offsite export of CephFS snapshots (ADR-0037): `deploy/k8s/offsite-export/` component with nightly `styx-offsite-export` and daily `styx-offsite-verify` CronJobs (Kopia 0.23.1, client-side AES-256-GCM or ChaCha20-Poly1305, S3 Object Lock COMPLIANCE with lock extension, retention 30/8/12, RPO guard, orphaned-source purge after `OFFSITE_ORPHAN_DAYS`), ExternalSecret from OpenBao `backup/offsite/kopia`, read-only ceph-csi PV, own `styx-backup` namespace, CiliumNetworkPolicy and 4 Prometheus alerts; not in the base kustomization, not deployed (styx-portal#13)
 * **enterprise:** protected branches, tags and merge checks on the federal GitLab as code (ADR-0048): stdlib `protect_bootstrap.py` (`enterprise`/`release/*` push and merge Maintainers, no force push, `v*` tags, pipeline must succeed, external `ci_config_path`, optional Premium approvals with `GITLAB_APPROVALS=native`), Free-tier `approval-gate` job (`approval_gate.py` in an external `ci-policy` config: non-author approval after the latest push), GitHub push-lock ruleset `github_lock.py` (not applied), shared `gitlab-common/glapi.py`, OpenBao JWT role `gitlab-protect`, CI jobs `gitlab-protect-iac`, manual `gitlab-protect-apply` and scheduled `gitlab-protect-drift`; not deployed (`deploy/enterprise/gitlab-protect/`, styx-portal#16)
 * **enterprise:** DMZ HAProxy pair IaC: HAProxy 3.4.7 LTS + keepalived unicast VIP, crt-list client-cert policy per host, strip-and-set `Client-Cert`/`Client-Cert-Chain` for the Keycloak `haproxy` lookup, TLS resumption disabled, SNI=Host 421, Host normalised (trailing dot) and fail-closed to the four served names, all `X-Forwarded-*` stripped, provision CIDR allowlist, peered rate limits, mTLS re-encrypt to Traefik, not deployed; runbook `docs/enterprise/runbooks/dmz-haproxy.md` (`deploy/enterprise/dmz-haproxy/`, styx-portal#7)
 * **enterprise:** GitLab -> GitHub push mirror as code (ADR-0048): stdlib `mirror_bootstrap.py` (protected branches only, `keep_divergent_refs`, pinned GitHub host keys, GitLab-generated SSH key as GitHub write deploy key `federal-gitlab-mirror`, `--dry-run`), OpenBao JWT role `gitlab-mirror` for GitLab CI `id_tokens`, CI jobs `gitlab-mirror-iac` and manual `gitlab-mirror-apply`; not deployed (`deploy/enterprise/gitlab-mirror/`, styx-portal#10)
@@ -15,6 +16,7 @@
 
 ### Documentation
 
+* **operate:** offsite backup runbook (`docs/operate/offsite-backup.md`): bucket lifecycle rule prerequisite, escrow and one-page restore, key rotation with an explicit delete date and destruction of the old password, deleted-user data bound per whole pack, known issues (CI gap, sticky failed-job alert, byte-length password check, escaped orphan names); ADR-0037 consequences and CP-6/CP-9/SC-28 rows (styx-portal#13)
 * **enterprise:** GitLab protect runbook: Free/CE cannot PATCH protected-branch levels (re-protect by hand), runner tags have no access control (restrict project-runner creation); enterprise IaC layout and OpenBao `gitlab-protect` role (styx-portal#16)
 
 ## 1.0.0 (2026-06-15)
