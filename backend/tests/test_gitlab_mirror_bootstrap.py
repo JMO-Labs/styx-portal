@@ -326,4 +326,4 @@ def test_stdlib_only_and_short():
     assert len(src.splitlines()) < 300
     imports = {ln.split()[1].split(".")[0] for ln in src.splitlines()
                if ln.startswith(("import ", "from "))}
-    assert imports <= set(sys.stdlib_module_names), imports
+    assert imports <= set(sys.stdlib_module_names) | {"glapi"}, imports

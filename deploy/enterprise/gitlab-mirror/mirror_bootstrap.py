@@ -10,16 +10,14 @@ Exit: 0 ok / in sync, 2 drift (--dry-run), 1 error.
 """
 
 import argparse
-import http.client
-import json
 import os
 import re
-import ssl
 import sys
-import urllib.error
-import urllib.request
 from pathlib import Path
-from urllib.parse import quote, urlsplit
+from urllib.parse import urlsplit
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "gitlab-common"))
+from glapi import ApiError, Client, guard, project_path, require_https, ssl_context  # noqa: E402
 
 KEY_TITLE = "federal-gitlab-mirror"
 KNOWN_HOSTS = Path(__file__).resolve().parent / "github_known_hosts"
@@ -28,64 +26,18 @@ FLAGS = {"enabled": True, "only_protected_branches": True, "keep_divergent_refs"
 REQUIRED = ("GITLAB_URL", "GITLAB_TOKEN", "GITLAB_PROJECT", "GITHUB_REPO", "GITHUB_TOKEN")
 
 
-class MirrorError(Exception):
-    def __init__(self, msg, code=None):
-        super().__init__(msg)
-        self.code = code
-
-
-def redact(msg, secrets):
-    """The one place error text passes through before it is printed."""
-    for s in secrets:
-        if s:
-            msg = msg.replace(s, "***")
-    return msg
-
-
-class Client:
-    def __init__(self, base, headers, ctx=None):
-        self.base, self.headers, self.ctx = base.rstrip("/"), headers, ctx
-
-    def call(self, method, path, body=None):
-        data = json.dumps(body).encode() if body is not None else None
-        req = urllib.request.Request(self.base + path, data=data, method=method,
-                                     headers=dict(self.headers))
-        if data is not None:
-            req.add_header("Content-Type", "application/json")
-        what = f"{method} {urlsplit(self.base).netloc}{path}"
-        try:
-            with urllib.request.urlopen(req, context=self.ctx, timeout=30) as resp:
-                raw = resp.read()
-        except urllib.error.HTTPError as e:
-            raise MirrorError(f"{what} -> HTTP {e.code}", e.code) from None
-        except urllib.error.URLError as e:
-            raise MirrorError(f"{what} -> {e.reason}") from None
-        except (OSError, http.client.HTTPException) as e:  # timeout, reset, short body
-            raise MirrorError(f"{what} -> {e!r}") from None
-        try:
-            return json.loads(raw) if raw else {}
-        except ValueError:
-            raise MirrorError(f"{what} -> response is not JSON (proxy or login page?)") from None
-
-
 def config(env):
     missing = [v for v in REQUIRED if not env.get(v)]
     if missing:
-        raise MirrorError(f"missing env var {', '.join(missing)}")
-    for var in ("GITLAB_URL", "GITHUB_API_URL"):
-        if var in env and not env[var].startswith("https://"):
-            raise MirrorError(f"{var} must start with https:// (tokens are never sent in clear)")
+        raise ApiError(f"missing env var {', '.join(missing)}")
+    require_https(env, "GITLAB_URL", "GITHUB_API_URL")
     if not REPO_RE.match(env["GITHUB_REPO"]) or ".." in env["GITHUB_REPO"]:
-        raise MirrorError("GITHUB_REPO must be owner/repo")
+        raise ApiError("GITHUB_REPO must be owner/repo")
     return env
 
 
 def clients(env):
-    try:
-        ca = env.get("GITLAB_CA_FILE")
-        gl_ctx = ssl.create_default_context(cafile=ca) if ca else None
-    except (OSError, ssl.SSLError) as e:
-        raise MirrorError(f"cannot read GITLAB_CA_FILE {ca}: {e}") from None
+    gl_ctx = ssl_context(env.get("GITLAB_CA_FILE"))
     gl = Client(env["GITLAB_URL"] + "/api/v4", {"PRIVATE-TOKEN": env["GITLAB_TOKEN"],
                                                 "Accept": "application/json"}, gl_ctx)
     gh = Client(env.get("GITHUB_API_URL") or "https://api.github.com",
@@ -108,17 +60,17 @@ def key_parts(key):
 def plan(gl, gh, env):
     """Return (mirrors path, mirror or None, field diff, public key, stale keys, key in sync)."""
     url = f"ssh://git@github.com/{env['GITHUB_REPO']}.git"
-    mirrors_path = f"/projects/{quote(env['GITLAB_PROJECT'], safe='')}/remote_mirrors"
+    mirrors_path = project_path(env['GITLAB_PROJECT']) + "/remote_mirrors"
     mirrors = gl.call("GET", mirrors_path)
     if not isinstance(mirrors, list):
-        raise MirrorError(f"GET {mirrors_path} did not return a list")
+        raise ApiError(f"GET {mirrors_path} did not return a list")
     matches = [m for m in mirrors if host_path(m.get("url")) == host_path(url)]
     if len(matches) > 1:
-        raise MirrorError(f"{len(matches)} mirrors point at {url}; remove the extras by hand "
+        raise ApiError(f"{len(matches)} mirrors point at {url}; remove the extras by hand "
                           "in GitLab (Settings > Repository > Mirroring repositories)")
     mirror = matches[0] if matches else None
     if mirror and mirror.get("auth_method") != "ssh_public_key":
-        raise MirrorError(f"mirror {mirror.get('id')} to {url} uses auth_method="
+        raise ApiError(f"mirror {mirror.get('id')} to {url} uses auth_method="
                           f"{mirror.get('auth_method')}; remove it manually in GitLab "
                           "(Settings > Repository > Mirroring repositories) and rerun")
     diff = {k: v for k, v in FLAGS.items() if mirror and mirror.get(k) != v}
@@ -126,7 +78,7 @@ def plan(gl, gh, env):
     keys = gh.call("GET", f"/repos/{env['GITHUB_REPO']}/keys?per_page=100")
     # shortcut: first 100 deploy keys only; page through if a repo ever has more.
     if not isinstance(keys, list):
-        raise MirrorError("GitHub deploy key list is not a list")
+        raise ApiError("GitHub deploy key list is not a list")
     titled = [k for k in keys if k.get("title") == KEY_TITLE]
     in_sync = (pub is not None and len(titled) == 1 and titled[0].get("read_only") is False
                and key_parts(titled[0].get("key")) == key_parts(pub))
@@ -136,14 +88,14 @@ def plan(gl, gh, env):
 def public_key(gl, mirrors_path, mirror_id):
     try:
         pub = gl.call("GET", f"{mirrors_path}/{mirror_id}/public_key").get("public_key")
-    except MirrorError as e:
+    except ApiError as e:
         if e.code == 404:
-            raise MirrorError("GitLab has no public_key endpoint (needs GitLab >= 17.9): copy "
+            raise ApiError("GitLab has no public_key endpoint (needs GitLab >= 17.9): copy "
                               "the mirror's SSH public key from the GitLab UI and add it on "
                               f"GitHub as write deploy key {KEY_TITLE}") from None
         raise
     if not pub or len(key_parts(pub)) != 2:
-        raise MirrorError(f"mirror {mirror_id} has no SSH public key")
+        raise ApiError(f"mirror {mirror_id} has no SSH public key")
     return pub
 
 
@@ -172,9 +124,9 @@ def ensure_mirror(gl, env, mirrors_path, mirror, diff):
                 "auth_method": "ssh_public_key", **FLAGS, "host_keys": hosts}
         try:
             mirror = gl.call("POST", mirrors_path, body)
-        except MirrorError as e:
+        except ApiError as e:
             if e.code == 403:
-                raise MirrorError("GitLab refused to create the mirror (HTTP 403): push "
+                raise ApiError("GitLab refused to create the mirror (HTTP 403): push "
                                   "mirroring is disabled on the instance or mirror_available="
                                   "false limits it to admins; ask a GitLab admin") from None
             raise
@@ -190,30 +142,26 @@ def main(argv=None):
     ap.add_argument("--dry-run", action="store_true", help="GET only; print planned actions")
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
     secrets = [os.environ.get("GITLAB_TOKEN"), os.environ.get("GITHUB_TOKEN")]
-    try:
-        env = config(dict(os.environ))
-        gl, gh = clients(env)
-        mirrors_path, mirror, diff, pub, stale, key_ok = plan(gl, gh, env)
-        actions = report(env, mirror, diff, stale, key_ok)
-        if args.dry_run or not actions:
-            return 2 if actions else 0
-        mirror = ensure_mirror(gl, env, mirrors_path, mirror, diff)
-        if not key_ok:
-            pub = pub or public_key(gl, mirrors_path, mirror["id"])
-            repo = env["GITHUB_REPO"]
-            for k in stale:  # deploy keys cannot be edited: replace them
-                gh.call("DELETE", f"/repos/{repo}/keys/{int(k['id'])}")
-                print(f"deleted deploy key {k['id']}")
-            gh.call("POST", f"/repos/{repo}/keys",
-                    {"title": KEY_TITLE, "key": pub, "read_only": False})
-            print(f"added write deploy key {KEY_TITLE}")
-    except MirrorError as e:
-        print(f"error: {redact(str(e), secrets)}", file=sys.stderr)
-        return 1
-    except Exception as e:  # noqa: BLE001 - no traceback: it could carry a token
-        print(f"error: unexpected {type(e).__name__}: {redact(str(e), secrets)}",
-              file=sys.stderr)
-        return 1
+    return guard(lambda: apply(args), secrets)
+
+
+def apply(args):
+    env = config(dict(os.environ))
+    gl, gh = clients(env)
+    mirrors_path, mirror, diff, pub, stale, key_ok = plan(gl, gh, env)
+    actions = report(env, mirror, diff, stale, key_ok)
+    if args.dry_run or not actions:
+        return 2 if actions else 0
+    mirror = ensure_mirror(gl, env, mirrors_path, mirror, diff)
+    if not key_ok:
+        pub = pub or public_key(gl, mirrors_path, mirror["id"])
+        repo = env["GITHUB_REPO"]
+        for k in stale:  # deploy keys cannot be edited: replace them
+            gh.call("DELETE", f"/repos/{repo}/keys/{int(k['id'])}")
+            print(f"deleted deploy key {k['id']}")
+        gh.call("POST", f"/repos/{repo}/keys",
+                {"title": KEY_TITLE, "key": pub, "read_only": False})
+        print(f"added write deploy key {KEY_TITLE}")
     return 0
 
 
