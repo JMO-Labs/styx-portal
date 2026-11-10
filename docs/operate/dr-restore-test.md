@@ -105,8 +105,9 @@ and the read-only keys below are the primary control.
    `styx.io/dr-scratch=true` and `styx.io/dr-run=<run-id>`. It refuses an existing
    namespace that lacks its own run label.
 3. **Velero.** `--include-cluster-resources=false` always. `--namespace-mappings` must
-   cover every included namespace (Velero restores unmapped namespaces in place); `*` is
-   refused. The backup's BSL must be `accessMode: ReadOnly` and must not be `prod_bsl`:
+   cover every included namespace (Velero restores unmapped namespaces in place). Every
+   included namespace must be a literal DNS-1123 label: globs (`*`, `?`, `[...]`) are
+   refused, because Velero expands them and the mappings match literally. The backup's BSL must be `accessMode: ReadOnly` and must not be `prod_bsl`:
    create a separate ReadOnly BSL on the same bucket, never patch the production one.
 4. **CNPG.** The `Cluster` has `bootstrap.recovery`, **no** `spec.plugins` and **no**
    `spec.backup` (it must never archive WAL into the production store). Its name differs
@@ -189,6 +190,34 @@ The ISSO signs `report.md` before it is filed in eMASS.
 
 Which option counts as the R03 evidence is an owner decision (with #14). It changes only
 the config, not the code.
+
+## Known issues
+
+Found in testing (issue #15) and left open on purpose. Follow-up tickets track them.
+
+- **Velero restore of 0 items passes.** The Velero check needs only phase `Completed`
+  and 0 errors. A mapped namespace that is not in the backup (a typo such as `stxy`)
+  restores nothing and still passes. Check `items` in the restore detail before filing.
+- **SIGTERM or SIGHUP leaves no report.** Only Ctrl-C (SIGINT) after the first write
+  writes a failing report. A killed run (SSH drop, Job timeout) leaves only
+  `steps.jsonl`, and a re-run of that `run_id` is allowed and mixes both runs into one
+  report. Run long drills in `tmux` or `screen`; after a kill, run `teardown` and use a
+  new `run_id`.
+- **A moved evidence dir reopens the namespace.** If the run dir is filed away or
+  `evidence_root` changes, `run` accepts the still-labelled namespace and reports a
+  near-zero RTO. Run `teardown` before moving the evidence.
+- **No `--context` pinning.** Guard 1 reads the current kubeconfig context once. Do not
+  switch context during a run; use a kubeconfig that holds only the scratch context.
+- **Check targets are not proven scratch.** `cnpg.restored` and `health_url` can point
+  at production, and the health check follows redirects. Point them at
+  `*.styx-drtest-*.svc` hosts.
+- **Velero after #6.** A namespace-mapped restore of `styx` also restores any CNPG
+  `Cluster`, `ScheduledBackup` and `ObjectStore` in it. Once #6 lands, add
+  `--exclude-resources` for the CNPG and barman CRDs (the CNPG restorer covers the DB).
+- **Minor:** userinfo in `health_url`/`endpoint_url` is printed as is (do not put
+  credentials in URLs); `cnpg.target_time` is checked by suffix only; secret values
+  shorter than 4 characters are not redacted; `kopia.sample` < 0 aborts (exit 3) instead
+  of being refused; `report.md` cells are escaped before redaction.
 
 ## Not in scope yet
 
