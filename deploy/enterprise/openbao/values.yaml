@@ -1,0 +1,145 @@
+# Helm values for openbao/openbao chart 0.30.7 (OpenBao v2.7.2), issue #4, ADR-0042.
+# Render: helm template openbao charts/openbao-0.30.7.tgz --skip-tests -n openbao -f values.yaml
+# The release name must be "openbao": pod DNS (openbao-N.openbao-internal), the TLS SANs
+# and the ClusterSecretStore URL all depend on it.
+global:
+  tlsDisable: false
+
+injector:
+  enabled: false
+
+ui:
+  enabled: false
+
+server:
+  image:
+    registry: harbor.example.internal
+    repository: openbao/openbao
+    # Mirror of ghcr.io/openbao/openbao:2.7.2 (multi-arch index digest).
+    tag: "2.7.2@sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f"
+
+  authDelegator:
+    enabled: true  # system:auth-delegator for Kubernetes auth TokenReview
+
+  # Chart defaults, written out because the Ansible playbook chowns the host dirs to them.
+  uid: 100
+  gid: 1000
+
+  statefulSet:
+    securityContext:
+      pod:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      container:
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+        seccompProfile:
+          type: RuntimeDefault
+
+  # HTTPS health check instead of the chart's exec probe, which uses -tls-skip-verify.
+  readinessProbe:
+    enabled: true
+    path: "/v1/sys/health?standbyok=true"
+
+  extraEnvironmentVars:
+    BAO_CACERT: /openbao/tls/ca.crt
+
+  # Control plane only: Raft lives on control-plane NVMe, never on Ceph (ADR-0061 deadlock).
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: "true"
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+    - key: CriticalAddonsOnly  # RKE2 server taint set by #2 (deploy/rke2)
+      operator: Exists
+      effect: NoExecute
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: openbao
+              app.kubernetes.io/instance: openbao
+              component: server
+          topologyKey: kubernetes.io/hostname
+
+  dataStorage:
+    enabled: true
+    size: 10Gi
+    storageClass: openbao-local
+
+  # The seal key directory is the only hostPath (PSA exception in namespace.yaml).
+  volumes:
+    - name: tls
+      secret:
+        secretName: openbao-tls
+    - name: seal
+      hostPath:
+        path: /etc/openbao/seal
+        type: Directory
+  volumeMounts:
+    - name: tls
+      mountPath: /openbao/tls
+      readOnly: true
+    - name: seal
+      mountPath: /openbao/seal
+      readOnly: true
+
+  ha:
+    enabled: true
+    replicas: 3
+    raft:
+      enabled: true
+      setNodeId: true
+      config: |
+        ui = false
+
+        listener "tcp" {
+          address = "[::]:8200"
+          cluster_address = "[::]:8201"
+          tls_cert_file = "/openbao/tls/tls.crt"
+          tls_key_file = "/openbao/tls/tls.key"
+          tls_min_version = "tls12"
+        }
+
+        storage "raft" {
+          path = "/openbao/data"
+          retry_join {
+            leader_api_addr = "https://openbao-0.openbao-internal:8200"
+            leader_ca_cert_file = "/openbao/tls/ca.crt"
+          }
+          retry_join {
+            leader_api_addr = "https://openbao-1.openbao-internal:8200"
+            leader_ca_cert_file = "/openbao/tls/ca.crt"
+          }
+          retry_join {
+            leader_api_addr = "https://openbao-2.openbao-internal:8200"
+            leader_ca_cert_file = "/openbao/tls/ca.crt"
+          }
+        }
+
+        # Key id and file must match the escrowed key and ansible/seal-key.yml.
+        seal "static" {
+          current_key_id = "20261110-1"
+          current_key = "file:///openbao/seal/20261110-1.key"
+          # Rotation only, see docs/enterprise/runbooks/openbao.md (static seal key rotation):
+          # previous_key_id = "<old-key-id>"
+          # previous_key = "file:///openbao/seal/<old-key-id>.key"
+        }
+
+        # Audit to container stdout, declared here: OpenBao 2.7 refuses API-created audit devices.
+        audit "file" "stdout" {
+          description = "audit log to stdout, shipped by the node log collector (#11)"
+          options {
+            file_path = "stdout"
+          }
+        }
+
+        service_registration "kubernetes" {}

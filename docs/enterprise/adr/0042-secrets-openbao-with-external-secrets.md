@@ -38,3 +38,5 @@ Negative:
 Follow-up work:
 
 - Auto-unseal design, rotation policy and escrow custody in phase 1.
+- Auto-unseal is a `seal "static"` key file, escrowed in both escrow sets (C1, #14).
+- Static seal implemented in #4 (`deploy/enterprise/openbao/`, runbook `runbooks/openbao.md`), recovery threshold 2-of-3 (owner to confirm with escrow custody).

@@ -1,0 +1,5 @@
+expect: never Ceph
+patch:
+  server:
+    dataStorage:
+      storageClass: ceph-block

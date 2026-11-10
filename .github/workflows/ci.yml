@@ -87,6 +87,22 @@ jobs:
           STYX_TEST_DATABASE_URL: postgresql+asyncpg://styx:styx-ci@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/styx_test
         run: .venv/bin/python -m pytest -q
 
+  rke2-iac:
+    runs-on: homelab
+    defaults:
+      run:
+        working-directory: deploy/rke2
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -q ansible-core==2.21.6 ansible-lint==26.11.0 yamllint==1.38.0
+      - run: ansible-galaxy install -r requirements.yml
+      - run: yamllint .
+      - run: ansible-lint
+      - run: ansible-playbook -i inventory/hosts.example.yml site.yml --syntax-check
+
   plugin-test:
     runs-on: homelab
     steps:

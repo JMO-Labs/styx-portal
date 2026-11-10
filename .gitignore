@@ -18,3 +18,8 @@ traefik/dynamic.yml
 /site/
 /.release-version
 /.cache/
+
+# license register scans (issue #17)
+/repo.cdx.json
+/venv.cdx.json
+/.trivy-bin/

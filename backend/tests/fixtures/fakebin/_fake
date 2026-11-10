@@ -1,0 +1,18 @@
+#!/bin/sh
+# Generic fake CLI for backend/tests/drtest (issue #15). Appends its name and argv to
+# $FAKE_LOG (one item per line, record ends with \036). $FAKE_RULES is a file of lines
+# "<ERE>\t<exit code>\t<stdout file>": the first ERE that matches "<name> <argv>" wins,
+# its file (if any) is printed and its code returned; no match exits 0 with no output.
+# Lives in the repo, not tmp_path, so it still runs where /tmp is mounted noexec.
+name=${FAKE_NAME:-$(basename "$0")}
+{ printf '%s\n' "$name"; for a in "$@"; do printf '%s\n' "$a"; done; printf '\036\n'; } >> "$FAKE_LOG"
+[ -n "${FAKE_RULES:-}" ] || exit 0
+tab=$(printf '\t')
+while IFS="$tab" read -r re code out; do
+  [ -n "$re" ] || continue
+  if printf '%s\n' "$name $*" | grep -Eq -- "$re"; then
+    [ -n "$out" ] && cat "$out"
+    exit "$code"
+  fi
+done < "$FAKE_RULES"
+exit 0

@@ -1,0 +1,5 @@
+expect: replicas must be 3
+patch:
+  server:
+    ha:
+      replicas: 2

@@ -1,0 +1,53 @@
+# One PDB per HA component; selectors match the chart pod labels.
+# harbor-db uses the PDBs CNPG creates (spec.enablePDB defaults to true).
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: harbor-portal
+  namespace: harbor
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: harbor
+      release: harbor
+      component: portal
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: harbor-core
+  namespace: harbor
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: harbor
+      release: harbor
+      component: core
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: harbor-jobservice
+  namespace: harbor
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: harbor
+      release: harbor
+      component: jobservice
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: harbor-registry
+  namespace: harbor
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: harbor
+      release: harbor
+      component: registry

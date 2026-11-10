@@ -1,0 +1,38 @@
+# Static, read-only ceph-csi volume on the CephFS "volumes" root (subvolume groups live
+# below it). Mounted with a separate cephx user that has only `r` caps; its Secret
+# (userID/userKey) is created out of band, see docs/operate/offsite-backup.md.
+# clusterID/fsName are placeholders until Rook-Ceph (#3) is deployed.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: styx-offsite-snapshots
+spec:
+  accessModes: [ReadOnlyMany]
+  capacity: {storage: 1Ti}
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  volumeMode: Filesystem
+  mountOptions: [ro]
+  csi:
+    driver: cephfs.csi.ceph.com
+    volumeHandle: styx-offsite-snapshots
+    readOnly: true
+    nodeStageSecretRef:
+      name: styx-offsite-cephx-ro
+      namespace: styx-backup
+    volumeAttributes:
+      clusterID: CHANGE-ME-ceph-cluster-id
+      fsName: CHANGE-ME-cephfs-name
+      staticVolume: "true"
+      rootPath: /volumes
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: styx-offsite-snapshots
+spec:
+  accessModes: [ReadOnlyMany]
+  storageClassName: ""
+  volumeName: styx-offsite-snapshots
+  resources:
+    requests: {storage: 1Ti}

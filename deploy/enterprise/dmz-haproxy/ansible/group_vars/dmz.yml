@@ -1,0 +1,17 @@
+---
+# Site values for the DMZ pair. Placeholders: RFC 5737 / RFC 2606 documentation values.
+dmz_domain: styx.example.org
+dmz_vip: 192.0.2.100/24
+
+# GCC High egress ranges allowed to reach provision.<domain> (D20). Replace with the org's list.
+dmz_provision_allowed_cidrs:
+  - 198.51.100.0/24
+
+dmz_traefik_servers:
+  - name: traefik1
+    addr: 10.0.10.21:8443
+  - name: traefik2
+    addr: 10.0.10.22:8443
+
+# keepalived auth_pass (max 8 chars). Keep it in ansible-vault, never in this file.
+dmz_vrrp_auth_pass: "{{ vault_dmz_vrrp_auth_pass }}"

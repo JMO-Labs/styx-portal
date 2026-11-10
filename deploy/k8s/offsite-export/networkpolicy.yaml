@@ -1,0 +1,22 @@
+# Job pods may reach only DNS and the bucket endpoint (443). Replace the placeholder
+# FQDN with OFFSITE_S3_ENDPOINT; for virtual-hosted S3 add "<bucket>.<endpoint>" too.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: styx-offsite-egress
+spec:
+  endpointSelector:
+    matchLabels: {app: styx-offsite}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports: [{port: "53", protocol: ANY}]
+          rules:
+            dns: [{matchPattern: "*"}]
+    - toFQDNs:
+        - matchName: s3.example.invalid
+      toPorts:
+        - ports: [{port: "443", protocol: TCP}]

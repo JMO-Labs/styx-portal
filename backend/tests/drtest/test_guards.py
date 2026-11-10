@@ -1,0 +1,148 @@
+"""Hard guards refuse non-scratch targets before the first write (issue #15)."""
+
+import os
+
+import pytest
+
+from .conftest import NS, RUN, UID
+
+
+def refused(h):
+    r = h.cli("run", "--confirm", RUN)
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "REFUSED" in r.stderr
+    assert h.writes() == []
+    assert h.only_reads()
+    assert not (h.tmp / "evidence").exists()
+    return r
+
+
+def test_refuses_prod_cluster_uid(h):
+    h.cfg["prod_cluster_uids"] = [UID]
+    assert "production" in refused(h).stderr
+
+
+def test_refuses_unreadable_cluster_uid(h):
+    h.on(r"^kubectl get namespace kube-system", code=1)
+    refused(h)
+
+
+def test_full_site_requires_scratch_uid(h):
+    h.cfg["mode"] = "full-site"
+    refused(h)
+    h.cfg["scratch_cluster_uids"] = [UID]
+    assert h.cli("plan").returncode == 0
+
+
+DENY = ["styx", "default", "kube-system", "kube-public", "cnpg-system", "velero", "openbao",
+        "rook-ceph", "styx-backup", "STYX-DRTEST-x", "styx-drtest-", "styx-drtest-a;rm",
+        "styx-drtest-a\n", "styx-drtest-../x"]
+
+
+@pytest.mark.parametrize("ns", DENY)
+def test_refuses_namespace_styx(h, ns):
+    h.cfg["namespace"] = ns
+    h.cfg["velero"]["namespace_mappings"] = {"styx": ns}
+    refused(h)
+
+
+@pytest.mark.parametrize("ns", DENY)
+def test_refuses_velero_mapping_target(h, ns):
+    h.cfg["velero"]["namespace_mappings"] = {"styx": ns}
+    refused(h)
+
+
+def test_refuses_existing_namespace_without_run_label(h):
+    h.on(rf"^kubectl get namespace {NS}",
+         out='{"metadata":{"labels":{"styx.io/dr-run":"other","styx.io/dr-scratch":"true"}}}')
+    refused(h)
+
+
+def test_accepts_existing_namespace_with_own_run_label(h):
+    h.on(rf"^kubectl get namespace {NS}",
+         out='{"metadata":{"labels":{"styx.io/dr-run":"t1","styx.io/dr-scratch":"true"}}}')
+    r = h.cli("plan")
+    assert r.returncode == 0, r.stderr
+    assert "kubectl create" not in r.stdout  # namespace already ours, not re-created
+
+
+def test_velero_mapping_must_cover_all_namespaces(h):
+    h.cfg["velero"]["include_namespaces"] = ["styx", "keycloak"]
+    assert "keycloak" in refused(h).stderr
+
+
+@pytest.mark.parametrize("inc", [[], ["*"], [""]])
+def test_velero_refuses_empty_or_wildcard_include(h, inc):
+    h.cfg["velero"]["include_namespaces"] = inc
+    refused(h)
+
+
+def test_velero_refuses_readwrite_bsl(h):
+    h.on(r"^kubectl get backupstoragelocations", out='{"spec":{"accessMode":"ReadWrite"}}')
+    refused(h)
+
+
+def test_velero_refuses_prod_bsl_name(h):
+    h.on(r"^velero backup get", out='{"spec":{"storageLocation":"default"}}')
+    refused(h)
+
+
+def test_kopia_target_dotdot_escape(h):
+    root = h.cfg["kopia"]["scratch_mount_root"]
+    h.cfg["kopia"]["sources"][0]["target"] = f"{root}/../escape"
+    refused(h)
+
+
+def test_kopia_target_symlink_escape(h):
+    root = h.cfg["kopia"]["scratch_mount_root"]
+    (h.tmp / "outside").mkdir()
+    os.symlink(h.tmp / "outside", f"{root}/link")
+    h.cfg["kopia"]["sources"][0]["target"] = f"{root}/link/x"
+    refused(h)
+
+
+def test_kopia_target_root_itself_refused(h):
+    h.cfg["kopia"]["sources"][0]["target"] = h.cfg["kopia"]["scratch_mount_root"]
+    refused(h)
+
+
+def test_cnpg_plugin_in_cluster_is_refused(h):
+    h.cfg["cnpg"]["cluster_name"] = "styx-db"  # same as serverName
+    refused(h)
+
+
+SCENARIOS = {
+    "prod-uid": lambda h: h.cfg.update(prod_cluster_uids=[UID]),
+    "full-site": lambda h: h.cfg.update(mode="full-site"),
+    "ns-styx": lambda h: h.cfg.update(namespace="styx"),
+    "ns-foreign": lambda h: h.on(rf"^kubectl get namespace {NS}", out='{"metadata":{}}'),
+    "velero-map": lambda h: h.cfg["velero"].update(include_namespaces=["styx", "kc"]),
+    "velero-rw": lambda h: h.on(r"^kubectl get backupstorage", out='{"spec":{}}'),
+    "velero-prod": lambda h: h.on(r"^velero backup get",
+                                  out='{"spec":{"storageLocation":"default"}}'),
+    "kopia-escape": lambda h: h.cfg["kopia"]["sources"][0].update(target="/etc"),
+    "cnpg-tz": lambda h: h.cfg["cnpg"].update(target_time="2026-11-09T03:00:00"),
+}
+
+
+@pytest.mark.parametrize("name", SCENARIOS)
+def test_guards_run_before_any_write(h, name):
+    SCENARIOS[name](h)
+    refused(h)
+
+
+CONFIG_ERRORS = {
+    "bad-table": lambda h: h.cfg["cnpg"].update(tables={"users; drop": "id"}),
+    "bad-pk": lambda h: h.cfg["cnpg"].update(tables={"users": "id) --"}),
+    "no-kopia-s3": lambda h: h.cfg["kopia"].pop("s3"),
+    "no-velero-backup": lambda h: h.cfg["velero"].pop("backup"),
+    "naive-incident": lambda h: h.cfg.update(incident_time="2026-11-09T03:00:00"),
+}
+
+
+@pytest.mark.parametrize("name", CONFIG_ERRORS)
+def test_config_errors_refused_before_any_write(h, name):
+    CONFIG_ERRORS[name](h)
+    r = h.cli("run", "--confirm", RUN)
+    assert r.returncode == 2, r.stderr
+    assert h.writes() == []

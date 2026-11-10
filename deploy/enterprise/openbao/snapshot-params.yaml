@@ -1,0 +1,11 @@
+# Offsite target for Raft snapshots (A1 OpenBao prefix). Placeholders: set per site.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openbao-snapshot-params
+  namespace: openbao
+data:
+  BUCKET: styx-offsite-example
+  PREFIX: openbao/
+  S3_ENDPOINT: https://s3.example.invalid
+  S3_REGION: us-gov-west-1

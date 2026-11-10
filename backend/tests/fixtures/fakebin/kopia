@@ -1,0 +1,15 @@
+#!/bin/sh
+# Fake kopia for test_offsite_export_script.py: appends argv to $FAKE_LOG (one arg per
+# line, record ends with \036) and exits 1 when the joined argv matches ERE $FAKE_FAIL.
+# Prints file $FAKE_LIST for `snapshot list --all --json`.
+# With $FAKE_RULES set (drtest, issue #15) it delegates to the generic ./_fake instead.
+# Lives in the repo, not tmp_path, so it still runs where /tmp is mounted noexec.
+if [ -n "${FAKE_RULES:-}" ]; then FAKE_NAME=kopia exec "$(dirname "$0")/_fake" "$@"; fi
+{ for a in "$@"; do printf '%s\n' "$a"; done; printf '\036\n'; } >> "$FAKE_LOG"
+if [ -n "${FAKE_FAIL:-}" ] && printf '%s\n' "$*" | grep -Eq -- "$FAKE_FAIL"; then
+  exit 1
+fi
+if [ "$*" = "snapshot list --all --json" ] && [ -n "${FAKE_LIST:-}" ]; then
+  cat "$FAKE_LIST"
+fi
+exit 0

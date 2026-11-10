@@ -1,0 +1,39 @@
+# {{ ansible_managed | default('Managed by Ansible') }} - DMZ VIP, active/passive (issue #7).
+global_defs {
+    router_id {{ inventory_hostname }}
+    enable_script_security
+    script_user root
+}
+
+# Holds the VIP only while HAProxy answers its local /healthz.
+vrrp_script chk_haproxy {
+    script "/usr/bin/curl -fsS -m 2 -o /dev/null http://{{ dmz_healthz_bind }}/healthz"
+    interval 2
+    fall 2
+    rise 2
+}
+
+vrrp_instance dmz_vip {
+    state {{ dmz_vrrp_state }}
+    interface {{ dmz_vrrp_interface }}
+    virtual_router_id {{ dmz_vrrp_router_id }}
+    priority {{ dmz_vrrp_priority }}
+    advert_int 1
+    # DMZ switches often drop multicast: unicast to the other node only.
+    unicast_src_ip {{ dmz_peer_addr }}
+    unicast_peer {
+{% for h in groups['dmz'] if h != inventory_hostname %}
+        {{ hostvars[h].dmz_peer_addr }}
+{% endfor %}
+    }
+    authentication {
+        auth_type PASS
+        auth_pass {{ dmz_vrrp_auth_pass }}
+    }
+    virtual_ipaddress {
+        {{ dmz_vip }}
+    }
+    track_script {
+        chk_haproxy
+    }
+}

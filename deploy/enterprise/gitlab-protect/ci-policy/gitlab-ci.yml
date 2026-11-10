@@ -1,0 +1,55 @@
+# External CI config for the federal styx-portal project (issue #16, docs/operate/gitlab-protect.md).
+# Lives in the separate ci-policy project; the product project points at it with
+# ci_config_path=gitlab-ci.yml@<group>/ci-policy, so an MR cannot remove the gate.
+#
+# The main file wins over included files, but GitLab deep-merges a same-named job: an MR could
+# add keys this job does not set. So every key that could run code or pick the runner is pinned
+# here, defaults and global variables are not inherited, and the gate's inputs are literals in
+# the script (job and manual-run variables override YAML variables, not script text).
+include:
+  - project: $CI_PROJECT_PATH
+    ref: $CI_COMMIT_SHA
+    file: .gitlab-ci.yml
+
+# Pinned here so an included workflow: cannot drop MR pipelines (and the gate with them).
+# Push pipelines step aside while an MR is open, so the MR's pipeline is the gated one.
+# Only pushes: schedule (drift), web and api (apply) pipelines must never be dropped. Pushes to
+# protected branches are not exempt either, so a protected MR source still has one head pipeline.
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"'
+      when: never
+    - when: always
+
+approval-gate:
+  stage: .post
+  image: python:3.12
+  # Runner tag that only instance or ci-policy admins can register; Maintainers cannot.
+  tags: [ci-policy-trusted]
+  services: []
+  inherit:
+    default: false
+    variables: false
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && ($CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "enterprise" || $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^release\//)'
+      when: manual
+      allow_failure: false
+  needs: []
+  dependencies: []
+  cache: []
+  hooks:
+    pre_get_sources_script: []
+  before_script: []
+  after_script: []
+  variables:
+    GIT_STRATEGY: none
+  # Set the literals before use: federal API URL, URL-encoded ci-policy path, reviewed commit
+  # SHA of approval_gate.py in it, that file's sha256, and the numeric product project id.
+  # The job token needs access to ci-policy (job token allowlist). The MR comes from the job
+  # token. MR job variables deep-merge in, so curl ignores proxy/CA env and the gate runs under
+  # env -i (an internal CA must be in the image's system store, not GITLAB_CA_FILE).
+  script:
+    - 'curl -sSfL --noproxy ''*'' --proto ''=https'' --cacert /etc/ssl/certs/ca-certificates.crt -H "JOB-TOKEN: $CI_JOB_TOKEN" -o /tmp/approval_gate.py "https://gitlab.example.internal/api/v4/projects/group%2Fci-policy/repository/files/approval_gate.py/raw?ref=0000000000000000000000000000000000000000"'
+    - echo "0000000000000000000000000000000000000000000000000000000000000000  /tmp/approval_gate.py" | sha256sum -c -
+    - env -i PATH=/usr/local/bin:/usr/bin:/bin CI_JOB_TOKEN="$CI_JOB_TOKEN" APPROVAL_GATE_TOKEN="$APPROVAL_GATE_TOKEN" CI_MERGE_REQUEST_IID="$CI_MERGE_REQUEST_IID" CI_API_V4_URL=https://gitlab.example.internal/api/v4 CI_PROJECT_ID=0 python3 -I /tmp/approval_gate.py

@@ -24,6 +24,7 @@ os.environ.setdefault("SECRETS_FILE", os.path.join(_test_tmpdir, "secrets.json")
 
 from app.main import app  # noqa: E402
 from tests.helpers_setup import st  # noqa: E402
+from tests.gitlab_stub import serve, stub_cert  # noqa: E402,F401 - shared HTTPS stub fixtures
 from app.database import get_session  # noqa: E402
 from app.routers.instances import get_docker_manager, get_screenshot_service  # noqa: E402
 

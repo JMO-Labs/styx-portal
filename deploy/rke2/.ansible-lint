@@ -1,0 +1,7 @@
+---
+profile: production
+exclude_paths:
+  - roles/
+  - collections/
+  - .ansible/
+offline: true  # deps come from `ansible-galaxy install -r requirements.yml`

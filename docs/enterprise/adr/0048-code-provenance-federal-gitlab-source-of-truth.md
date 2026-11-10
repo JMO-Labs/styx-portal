@@ -35,4 +35,7 @@ Negative:
 
 Follow-up work:
 
-- Set up mirroring and protected-branch approvals in phase 1.
+- Set up mirroring and protected-branch approvals in phase 1. Mirroring:
+  [GitLab mirror](../../operate/gitlab-mirror.md). Protected branches, approvals and the
+  GitHub push-lock: [GitLab protected branches](../../operate/gitlab-protect.md)
+  (`docs/operate/gitlab-protect.md`).

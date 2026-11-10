@@ -33,8 +33,15 @@ Negative:
 
 - No alternate processing site (CP-7); risk acceptance R03.
 - Recovery within 8 h is unproven until the phase 1 restore test.
+- The restore test harness `deploy/dr/restore-test/` (issue #15) restores into a scratch target, measures RTO/RPO and writes the CP-4/CP-9/CP-10 evidence report; built and unit-tested, not run yet (docs/operate/dr-restore-test.md).
 - Recurring cloud cost.
+- SC-13 gap: the offsite copy uses Kopia (AES256-GCM-HMAC-SHA256 or CHACHA20-POLY1305-HMAC-SHA256). The algorithms are approved, but Kopia is not a FIPS-validated module, and its password KDF is scrypt (the only KDF Kopia supports). This stays open debt under the R05 waiver (ADR-0011).
+
+Implementation:
+
+- The offsite export tool is Kopia (chosen over restic, rclone crypt, Velero and Ceph-native mirroring because only Kopia makes the cipher configurable and manages S3 Object Lock itself). It ships as the opt-in component `deploy/k8s/offsite-export/` (issue #13): a nightly export of CephFS subvolume snapshots to one client-side-encrypted repository in an Object Lock bucket, a daily verify, alerts for failure and RPO breach, and keys from OpenBao (ADR-0042) with offline escrow. IaC done, not deployed. See docs/operate/offsite-backup.md.
 
 Follow-up work:
 
 - Full-site restore test (phase 1 exit); record CP-6/CP-7 in eMASS.
+- Full-site restore runbook: [runbooks/full-site-restore.md](../runbooks/full-site-restore.md), applying A1 (offsite scope), B1 (two escrow sets) and D1 (RTO clock) from #14.

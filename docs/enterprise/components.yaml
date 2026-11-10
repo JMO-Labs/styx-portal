@@ -1,0 +1,136 @@
+# Hand-kept part of the component register (issue #17): what no scanner sees.
+# scripts/license_register.py merges this with the Trivy CycloneDX scans.
+# Keys: ecosystem, name, version, license (SPDX), source_url, cost (free|paid),
+# scope (enterprise|build-only|service|homelab|external), adr (required when cost: paid), note.
+# Scopes: enterprise/build-only/service are gated, homelab only warns, external is not checked.
+
+# Our own packages (GPL-2.0, see LICENSE): skipped in the scans, this is a third-party register.
+first_party:
+  - styx-portal-backend
+  - styx-portal
+  - styx-e2e
+  - github.com/styx-portal/styxlocation
+
+components:
+  # ---- vendored Helm charts (deploy/enterprise/*/charts) -------------------------------------
+  - {ecosystem: helm, name: external-secrets, version: 2.14.0, license: Apache-2.0,
+     source_url: https://github.com/external-secrets/external-secrets, cost: free, scope: enterprise}
+  - {ecosystem: helm, name: harbor, version: 1.19.4, license: Apache-2.0,
+     source_url: https://github.com/goharbor/harbor-helm, cost: free, scope: enterprise}
+  - {ecosystem: helm, name: openbao, version: 0.30.7, license: MPL-2.0,
+     source_url: https://github.com/openbao/openbao-helm, cost: free, scope: enterprise}
+
+  # ---- enterprise images (deploy/enterprise/**, digest-pinned via Harbor) ---------------------
+  - {ecosystem: image, name: external-secrets/external-secrets, version: v2.14.0, license: Apache-2.0,
+     source_url: https://github.com/external-secrets/external-secrets, cost: free, scope: enterprise}
+  - {ecosystem: image, name: openbao/openbao, version: 2.7.2, license: MPL-2.0,
+     source_url: https://github.com/openbao/openbao, cost: free, scope: enterprise}
+  - {ecosystem: image, name: rclone/rclone, version: 1.76.0, license: MIT,
+     source_url: https://github.com/rclone/rclone, cost: free, scope: enterprise}
+  - {ecosystem: image, name: cloudnative-pg/postgresql, version: 17.11-202611090810-standard-trixie,
+     license: PostgreSQL, source_url: https://github.com/cloudnative-pg/postgres-containers,
+     cost: free, scope: enterprise}
+  - {ecosystem: image, name: goharbor/harbor-core, version: v2.15.4, license: Apache-2.0,
+     source_url: https://github.com/goharbor/harbor, cost: free, scope: enterprise}
+  - {ecosystem: image, name: goharbor/harbor-db, version: v2.15.4, license: Apache-2.0,
+     source_url: https://github.com/goharbor/harbor, cost: free, scope: enterprise}
+  - {ecosystem: image, name: goharbor/harbor-exporter, version: v2.15.4, license: Apache-2.0,
+     source_url: https://github.com/goharbor/harbor, cost: free, scope: enterprise}
+  - {ecosystem: image, name: goharbor/harbor-jobservice, version: v2.15.4, license: Apache-2.0,
+     source_url: https://github.com/goharbor/harbor, cost: free, scope: enterprise}
+  - {ecosystem: image, name: goharbor/harbor-portal, version: v2.15.4, license: Apache-2.0,
+     source_url: https://github.com/goharbor/harbor, cost: free, scope: enterprise}
+  - {ecosystem: image, name: goharbor/harbor-registryctl, version: v2.15.4, license: Apache-2.0,
+     source_url: https://github.com/goharbor/harbor, cost: free, scope: enterprise}
+  - {ecosystem: image, name: goharbor/nginx-photon, version: v2.15.4, license: Apache-2.0,
+     source_url: https://github.com/goharbor/harbor, cost: free, scope: enterprise}
+  - {ecosystem: image, name: goharbor/registry-photon, version: v2.15.4, license: Apache-2.0,
+     source_url: https://github.com/goharbor/harbor, cost: free, scope: enterprise}
+  - {ecosystem: image, name: goharbor/trivy-adapter-photon, version: v2.15.4, license: Apache-2.0,
+     source_url: https://github.com/goharbor/harbor, cost: free, scope: enterprise}
+  - {ecosystem: image, name: goharbor/valkey-photon, version: v2.15.4, license: Apache-2.0,
+     source_url: https://github.com/goharbor/harbor, cost: free, scope: enterprise}
+
+  # ---- Styx image bases (backend/Dockerfile, frontend/Dockerfile) -----------------------------
+  - {ecosystem: image, name: python, version: 3.12-slim, license: PSF-2.0,
+     source_url: https://github.com/docker-library/python, cost: free, scope: enterprise}
+  - {ecosystem: image, name: node, version: 22-alpine, license: MIT,
+     source_url: https://github.com/nodejs/docker-node, cost: free, scope: build-only,
+     note: "frontend build stage only"}
+  - {ecosystem: image, name: nginx, version: alpine, license: BSD-2-Clause,
+     source_url: https://github.com/nginx/docker-nginx, cost: free, scope: enterprise}
+
+  # ---- CI images (.gitlab-ci.yml) -------------------------------------------------------------
+  - {ecosystem: image, name: python, version: "3.12", license: PSF-2.0,
+     source_url: https://github.com/docker-library/python, cost: free, scope: build-only}
+  - {ecosystem: image, name: node, version: "20", license: MIT,
+     source_url: https://github.com/nodejs/docker-node, cost: free, scope: build-only}
+  - {ecosystem: image, name: node, version: "22", license: MIT,
+     source_url: https://github.com/nodejs/docker-node, cost: free, scope: build-only}
+  - {ecosystem: image, name: golang, version: "1.22", license: BSD-3-Clause,
+     source_url: https://github.com/docker-library/golang, cost: free, scope: build-only}
+  - {ecosystem: image, name: haproxy, version: 3.4.7, license: GPL-2.0-or-later,
+     source_url: https://github.com/docker-library/haproxy, cost: free, scope: build-only}
+  - {ecosystem: image, name: aquasec/trivy, version: 0.58.0, license: Apache-2.0,
+     source_url: https://github.com/aquasecurity/trivy, cost: free, scope: build-only}
+  - {ecosystem: image, name: docker, version: "27", license: Apache-2.0,
+     source_url: https://github.com/docker-library/docker, cost: free, scope: build-only,
+     note: "also 27-dind"}
+  - {ecosystem: binary, name: trivy, version: 0.76.2, license: Apache-2.0,
+     source_url: https://github.com/aquasecurity/trivy, cost: free, scope: build-only,
+     note: "license-register job, sha256-pinned"}
+  - {ecosystem: binary, name: uv, version: 0.13.7, license: MIT OR Apache-2.0,
+     source_url: https://github.com/astral-sh/uv, cost: free, scope: build-only,
+     note: "installs backend/uv.lock in CI"}
+
+  # ---- compose stack (homelab) ----------------------------------------------------------------
+  - {ecosystem: image, name: linuxserver/socket-proxy, version: latest, license: GPL-3.0,
+     source_url: https://github.com/linuxserver/docker-socket-proxy, cost: free, scope: homelab}
+  - {ecosystem: image, name: traefik, version: v3.4, license: MIT,
+     source_url: https://github.com/traefik/traefik, cost: free, scope: homelab}
+  - {ecosystem: image, name: cloudflare/cloudflared, version: latest, license: Apache-2.0,
+     source_url: https://github.com/cloudflare/cloudflared, cost: free, scope: homelab}
+  - {ecosystem: image, name: busybox, version: "1.36", license: GPL-2.0,
+     source_url: https://github.com/docker-library/busybox, cost: free, scope: homelab}
+
+  # ---- desktop image (images/desktop/Dockerfile, homelab) ------------------------------------
+  - {ecosystem: image, name: linuxserver/baseimage-selkies, version: ubunturesolute, license: GPL-3.0,
+     source_url: https://github.com/linuxserver/docker-baseimage-selkies, cost: free, scope: homelab}
+  - {ecosystem: apt, name: google-chrome-stable, version: stable, license: LicenseRef-proprietary-Google-Chrome,
+     source_url: https://www.google.com/chrome/terms/, cost: free, scope: homelab,
+     note: "no-cost proprietary; use Chromium/Firefox in enterprise images"}
+  - {ecosystem: apt, name: code, version: stable, license: LicenseRef-proprietary-Microsoft-VS-Code,
+     source_url: https://code.visualstudio.com/license, cost: free, scope: homelab,
+     note: "Microsoft build; use VSCodium in enterprise images"}
+  - {ecosystem: apt, name: nodejs, version: 22.x, license: MIT,
+     source_url: https://github.com/nodesource/distributions, cost: free, scope: homelab,
+     note: "NodeSource repository"}
+  - {ecosystem: apt, name: firefox, version: mozillateam-ppa, license: MPL-2.0,
+     source_url: https://launchpad.net/~mozillateam/+archive/ubuntu/ppa, cost: free, scope: homelab}
+
+  # ---- DMZ hosts (deploy/enterprise/dmz-haproxy, org mirror of the HAProxy LTS packages) -----
+  - {ecosystem: apt, name: haproxy, version: 3.4.7, license: GPL-2.0-or-later,
+     source_url: https://www.haproxy.org/, cost: free, scope: enterprise}
+
+  # ---- first-party Go plugin (traefik/plugins-local) -----------------------------------------
+  - {ecosystem: golang, name: github.com/styx-portal/styxlocation, version: local, license: GPL-2.0,
+     source_url: https://github.com/JMO-Labs/styx-portal, cost: free, scope: homelab,
+     note: "first-party Traefik plugin, no dependencies"}
+
+  # ---- external: the organisation's SIEM, not shipped by Styx (ADR-0044) ---------------------
+  - {ecosystem: external, name: elastic-stack, version: org-managed,
+     license: Elastic-2.0 OR SSPL-1.0 OR AGPL-3.0-only, source_url: https://www.elastic.co/licensing,
+     cost: free, scope: external}
+
+# Packages whose scanned license is missing or wrong. PyPI names in PEP 503 form.
+overrides:
+  - {name: qrcode-terminal, version: 0.12.0, license: Apache-2.0,
+     source_url: https://github.com/gtanner/qrcode-terminal/blob/master/LICENSE}
+  - {name: fuzzy, version: 0.1.3, license: MIT,
+     source_url: https://github.com/mattyork/fuzzy/blob/master/LICENSE-MIT}
+  - {name: khroma, version: 2.1.0, license: MIT,
+     source_url: https://github.com/fabiospampinato/khroma/blob/master/license}
+  - {name: colorama, version: 0.4.6, license: BSD-3-Clause,
+     source_url: https://github.com/tartley/colorama/blob/master/LICENSE.txt}
+  - {name: pywin32, version: "312", license: PSF-2.0,
+     source_url: https://github.com/mhammond/pywin32/blob/main/Pythonwin/License.txt}

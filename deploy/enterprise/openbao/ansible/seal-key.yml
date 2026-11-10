@@ -1,0 +1,72 @@
+---
+# Place the OpenBao static seal key on every control-plane node (issue #4, C1, ADR-0042).
+# Generate the key by hand (docs/enterprise/runbooks/openbao.md) and escrow it in BOTH escrow sets
+# BEFORE running this. The playbook never generates a key.
+# Run: ansible-playbook -i <inventory> seal-key.yml \
+#   -e openbao_seal_key_src=/media/escrow/<key-id>.key -e openbao_seal_key_id=<key-id>
+# openbao_uid/openbao_gid default to the openbao/openbao 0.30.7 chart's server.uid/gid (100/1000);
+# override them in inventory group_vars if the chart changes.
+- name: Place the OpenBao static seal key
+  hosts: masters
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Require the key source and key id
+      ansible.builtin.assert:
+        that:
+          - openbao_seal_key_src is defined
+          - openbao_seal_key_src | length > 0
+          - openbao_seal_key_id is defined
+          - openbao_seal_key_id is match('^[A-Za-z0-9._-]+$')
+        fail_msg: set -e openbao_seal_key_src=<controller path> -e openbao_seal_key_id=<key id>
+      no_log: true
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Stat the key on the controller
+      ansible.builtin.stat:
+        path: "{{ openbao_seal_key_src }}"
+        follow: true
+      register: openbao_seal_key_stat
+      no_log: true
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Require exactly 32 bytes
+      ansible.builtin.assert:
+        that:
+          - openbao_seal_key_stat.stat.exists
+          - openbao_seal_key_stat.stat.isreg
+          - openbao_seal_key_stat.stat.size == 32
+        fail_msg: the seal key file must exist and be exactly 32 bytes
+      no_log: true
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Create the seal key directory
+      ansible.builtin.file:
+        path: /etc/openbao/seal
+        state: directory
+        owner: "{{ openbao_uid | default(100) }}"
+        group: "{{ openbao_gid | default(1000) }}"
+        mode: "0500"
+
+    - name: Create the Raft data directory for the local PV
+      ansible.builtin.file:
+        path: /var/lib/openbao/raft
+        state: directory
+        owner: "{{ openbao_uid | default(100) }}"
+        group: "{{ openbao_gid | default(1000) }}"
+        mode: "0700"
+
+    - name: Copy the seal key
+      ansible.builtin.copy:
+        src: "{{ openbao_seal_key_src }}"
+        dest: /etc/openbao/seal/{{ openbao_seal_key_id }}.key
+        owner: "{{ openbao_uid | default(100) }}"
+        group: "{{ openbao_gid | default(1000) }}"
+        mode: "0400"
+      no_log: true

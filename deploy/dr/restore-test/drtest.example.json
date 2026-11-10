@@ -1,0 +1,49 @@
+{
+  "run_id": "2026-q4-drill",
+  "mode": "data-only",
+  "namespace": "styx-drtest-2026-q4-drill",
+  "prod_cluster_uids": ["<kube-system UID of every cluster the harness must never write to>"],
+  "scratch_cluster_uids": ["<kube-system UID of the scratch cluster (full-site mode)>"],
+  "operator": "<name>",
+  "witness": "<name>",
+  "rto_clock_start": "harness start (data-only); see #14 D1 for full-site",
+  "incident_time": null,
+  "evidence_root": "evidence/dr",
+  "alembic_head": "<expected Alembic head revision>",
+  "health_url": "http://styx-backend.styx-drtest-2026-q4-drill.svc:8000/api/health",
+  "health_attempts": 60,
+  "health_interval_s": 10,
+  "cnpg": {
+    "server_name": "styx-db",
+    "cluster_name": "styx-drtest-db",
+    "object_store": {
+      "destination_path": "s3://styx-cnpg/",
+      "endpoint_url": "https://s3.example.invalid"
+    },
+    "target_time": null,
+    "storage_size": "20Gi",
+    "wait_timeout": "4h",
+    "source": {"host": "localhost", "port": 5432, "user": "styx_ro", "dbname": "styx"},
+    "restored": {"host": "styx-drtest-db-rw.styx-drtest-2026-q4-drill.svc", "port": 5432,
+                 "user": "styx", "dbname": "styx"},
+    "tables": {"users": "id", "groups": "id", "templates": "id", "alembic_version": "version_num"},
+    "fingerprint": "fingerprint.json"
+  },
+  "velero": {
+    "namespace": "velero",
+    "backup": "<velero backup name>",
+    "prod_bsl": "default",
+    "include_namespaces": ["styx"],
+    "namespace_mappings": {"styx": "styx-drtest-2026-q4-drill"}
+  },
+  "kopia": {
+    "s3": {"bucket": "styx-offsite", "endpoint": "s3.example.invalid", "prefix": "styx/",
+           "region": "us-gov-west-1"},
+    "scratch_mount_root": "/mnt/drtest",
+    "sample": 20,
+    "sources": [
+      {"source": "styx@offsite:/export/homes/canary",
+       "target": "/mnt/drtest/2026-q4-drill/homes-canary"}
+    ]
+  }
+}

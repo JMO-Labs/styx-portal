@@ -1,0 +1,11 @@
+# Mini curated manifest for backend/tests/test_license_register.py
+first_party: [styx-portal-backend]
+components:
+  - ecosystem: helm
+    name: openbao
+    version: 0.30.7
+    license: MPL-2.0 OR Apache-2.0
+    source_url: https://github.com/openbao/openbao-helm
+    cost: free
+    scope: enterprise
+overrides: []
