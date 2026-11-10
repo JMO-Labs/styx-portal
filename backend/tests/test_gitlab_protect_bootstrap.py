@@ -296,3 +296,20 @@ def test_numeric_project_and_trailing_slash_url(gl, monkeypatch):
 def test_protect_stdlib_only():
     assert stdlib_only(SCRIPT) <= {"glapi"}
     assert len(SCRIPT.read_text().splitlines()) < 300
+
+
+def test_gate_mode_write_403_fails_even_if_project_path_says_approval(serve, monkeypatch):
+    """Regression: a 403 on a write must not be swallowed because the path contains 'approval'."""
+    proj = "/api/v4/projects/sec%2Fapproval-svc"
+
+    def route(method, path, query, body):
+        if method == "GET":
+            return (200, {"id": 7}) if path == proj else (404, {"message": "404"})
+        return 403, {"message": "403 Forbidden"}
+
+    stub = serve(route)
+    for k, v in {"GITLAB_URL": stub.base, "GITLAB_TOKEN": TOK, "GITLAB_PROJECT": "sec/approval-svc",
+                 "GITLAB_CI_CONFIG_PATH": CFG}.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.delenv("GITLAB_APPROVALS", raising=False)
+    assert run() == 1
