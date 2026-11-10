@@ -185,3 +185,36 @@ def test_error_after_writes_aborts_with_report(h, health):
     rep = json.loads((h.run_dir() / "report.json").read_text())
     assert rep["pass"] is False
     assert (h.run_dir() / "report.md").exists()
+
+
+def test_oserror_after_writes_aborts_with_report(fake_env, health, monkeypatch, capsys):
+    # e.g. a restored file kopia left unreadable (mode 000) for the harness user.
+    from drtest import checks, cli
+
+    def unreadable(*a, **k):
+        raise PermissionError(13, "Permission denied", "a.txt")
+
+    full_run_setup(fake_env, health)
+    fake_env.apply()
+    monkeypatch.setattr(checks, "sha256_sample", unreadable)
+    cfg = fake_env.tmp / "drtest.json"
+    cfg.write_text(json.dumps(fake_env.cfg))
+    assert cli.main(["-c", str(cfg), "run", "--confirm", RUN]) == 3
+    assert "ABORTED" in capsys.readouterr().err
+    assert json.loads((fake_env.run_dir() / "report.json").read_text())["pass"] is False
+    assert (fake_env.run_dir() / "report.md").exists()
+
+
+def test_non_executable_tool_is_a_failed_step(tmp_path):
+    from drtest import run
+
+    tool = tmp_path / "pg_amcheck"
+    tool.write_text("#!/bin/sh\nexit 0\n")  # no x bit: PermissionError, even as root
+    p = run.Runner(run.Sink({}))([str(tool)], step="amcheck")
+    assert p.returncode == 126
+
+
+def test_config_without_data_sources_refused(h):
+    for k in ("cnpg", "velero", "kopia"):
+        h.cfg.pop(k)
+    refused(h)
