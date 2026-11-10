@@ -1,9 +1,7 @@
 """offsite-export.sh against a fake kopia that logs argv (issue #13)."""
 
-import json
 import os
 import subprocess
-import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -11,14 +9,7 @@ import pytest
 
 SCRIPT = Path(__file__).resolve().parents[2] / "deploy/k8s/offsite-export/offsite-export.sh"
 PASSWORD = "p" * 31 + "-SeCrEt"
-FAKE = f"""#!{sys.executable}
-import json, os, re, sys
-args = sys.argv[1:]
-with open(os.environ["FAKE_LOG"], "a") as f:
-    f.write(json.dumps(args) + "\\n")
-pat = os.environ.get("FAKE_FAIL")
-sys.exit(1 if pat and re.search(pat, " ".join(args)) else 0)
-"""
+FAKEBIN = Path(__file__).resolve().parent / "fixtures" / "fakebin"
 
 
 def day(offset=0):
@@ -34,15 +25,10 @@ def snap(root, group, subvol, name):
 
 @pytest.fixture
 def env(tmp_path):
-    bindir = tmp_path / "bin"
-    bindir.mkdir()
-    fake = bindir / "kopia"
-    fake.write_text(FAKE)
-    fake.chmod(0o755)
     root = tmp_path / "snapshots"
     root.mkdir()
     return {
-        "PATH": f"{bindir}:{os.environ['PATH']}",
+        "PATH": f"{FAKEBIN}:{os.environ['PATH']}",
         "FAKE_LOG": str(tmp_path / "kopia.log"),
         "KOPIA_PASSWORD": PASSWORD,
         "OFFSITE_CIPHER": "AES256-GCM-HMAC-SHA256",
@@ -68,7 +54,9 @@ def run(env, mode, **over):
 
 def calls(env):
     p = Path(env["FAKE_LOG"])
-    return [json.loads(line) for line in p.read_text().splitlines()] if p.exists() else []
+    if not p.exists():
+        return []
+    return [rec.split("\n")[:-1] for rec in p.read_text().split("\036\n")[:-1]]
 
 
 def creates(env):
