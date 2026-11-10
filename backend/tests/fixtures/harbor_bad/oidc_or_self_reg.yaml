@@ -1,2 +1,2 @@
 core:
-  configureUserSettings: '{"auth_mode": "db_auth", "self_registration": true, "project_creation_restriction": "adminonly", "audit_log_forward_endpoint": "syslog.example.internal:514"}'
+  configureUserSettings: '{"auth_mode": "db_auth", "self_registration": true, "project_creation_restriction": "adminonly"}'

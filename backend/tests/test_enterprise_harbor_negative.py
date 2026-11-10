@@ -30,6 +30,7 @@ def merge(base, over):
     ("default_admin_password.yaml", "existingSecretAdminPassword must be harbor-admin"),
     ("oidc_or_self_reg.yaml", "self_registration must be false"),
     ("filesystem_storage.yaml", "imageChartStorage.type must be s3"),
+    ("audit_forward_on.yaml", "audit_log_forward_endpoint must be unset"),
     ("chart_generated_secret.yaml", "core.existingSecret must be harbor-core-secret"),
 ])
 def test_bad_values_rejected(fixture, message):

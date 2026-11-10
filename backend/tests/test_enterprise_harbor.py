@@ -107,6 +107,8 @@ def test_auth_settings():
     assert hc.check_auth(values()) == []
     cfg = json.loads(values()["core"]["configureUserSettings"])
     assert cfg["auth_mode"] == "db_auth" and cfg["self_registration"] is False
+    # Harbor 2.15.4 dials it at startup and fatals if unreachable; deferred to #11.
+    assert "audit_log_forward_endpoint" not in cfg
 
 
 def test_ingress_internal_only():
