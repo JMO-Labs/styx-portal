@@ -193,3 +193,16 @@ def test_readme_pins_versions():
     text = (OPENBAO / "README.md").read_text()
     for item in ("openbao-0.30.7", "v2.7.2", "external-secrets 2.14.0", "v2.14.0"):
         assert item in text, item
+
+
+def test_helm_test_pod_never_rendered():
+    # The chart's test hook pod copies server.volumes (the seal hostPath) with no CP pinning.
+    files = [ROOT / ".gitlab-ci.yml", OPENBAO / "README.md", OPENBAO / "values.yaml",
+             OPENBAO / "kustomization.yaml"]
+    renders = [ln for f in files for ln in f.read_text().splitlines()
+               if "helm template openbao" in ln]
+    assert renders
+    assert all("--skip-tests" in ln for ln in renders), renders
+    ci = (ROOT / ".gitlab-ci.yml").read_text()
+    assert 'grep -c "path: /etc/openbao/seal"' in ci  # CI asserts one seal hostPath rendered
+    assert "never run `helm test`" in (ROOT / "docs/enterprise/runbooks/openbao.md").read_text()

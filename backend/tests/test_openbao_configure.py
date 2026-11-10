@@ -129,3 +129,38 @@ def test_stdlib_only_and_short():
     imports = {ln.split()[1].split(".")[0] for ln in src.splitlines()
                if ln.startswith(("import ", "from "))}
     assert imports <= set(sys.stdlib_module_names) | {"__future__"}, imports
+
+
+def test_roles_cap_token_max_ttl(tmp_path):
+    # Without token_max_ttl a role token renews up to the system max (768h by default).
+    res, calls = run(tmp_path)
+    assert res.returncode == 0, res.stderr
+    for r in json.loads((OPENBAO / "auth-roles.json").read_text()):
+        call = next(c for c in calls if c.startswith(f"write auth/kubernetes/role/{r['name']} "))
+        assert f"token_max_ttl={r['token_ttl']}" in call.split(), call
+
+
+def test_refuses_plain_http_addr(tmp_path):
+    res, calls = run(tmp_path, BAO_ADDR="http://openbao-active.openbao.svc:8200")
+    assert res.returncode != 0 and "https" in res.stderr
+    assert calls == []
+
+
+def test_read_errors_are_not_missing_state(tmp_path):
+    # 403, TLS and connection errors also exit 2; they must surface, not read as "absent".
+    for state, cause in (("denied", "permission denied"), ("tls", "x509"),
+                         ("down", "connection refused")):
+        for args in ((), ("--dry-run",)):
+            res, calls = run(tmp_path, *args, state=state)
+            assert res.returncode != 0, (state, args)
+            assert cause in res.stderr, (state, res.stderr)
+            assert "declare audit" not in res.stderr, res.stderr
+            assert not [c for c in calls if "enable" in c.split() or "write" in c.split()]
+            assert "enable" not in res.stdout and "write" not in res.stdout, (state, res.stdout)
+
+
+def test_unreadable_k8s_config_is_not_overwritten(tmp_path):
+    # Token may list mounts but not read auth/kubernetes/config: die, never blind-overwrite.
+    res, calls = run(tmp_path, state="configured", FAKE_CONFIG="denied")
+    assert res.returncode != 0 and "permission denied" in res.stderr
+    assert not [c for c in calls if c.startswith("write auth/kubernetes/config")]
