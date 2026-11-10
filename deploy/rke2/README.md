@@ -89,7 +89,7 @@ ansible-playbook -i inventory/hosts.example.yml site.yml --syntax-check
   agents. If that column matters, label the nodes after they join, from a
   server with the admin kubeconfig. No playbook task does this yet.
 - The `site.yml` default-token check hashes the raw value, so a token padded
-  with whitespace around the role default (`" defaultSecret12345"`) gets past
+  with whitespace around the role's default token (a leading space, say) gets past
   it. Empty, whitespace-only and exact-default tokens are refused. Never derive
   the token from the role default; generate it with `openssl rand -hex 32`.
 - The secret scan in `test_rke2_iac.py` accepts any `{{ ... }}` value, so a
