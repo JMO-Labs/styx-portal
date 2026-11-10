@@ -172,8 +172,8 @@ def test_unreadable_k8s_config_is_not_overwritten(tmp_path):
 ISSUER = "https://gitlab.example.internal"
 
 
-def jwt_role_write(calls: list[str]) -> dict:
-    (call,) = [c for c in calls if c.startswith("write auth/jwt/role/gitlab-mirror - ")]
+def jwt_role_write(calls: list[str], name: str = "gitlab-mirror") -> dict:
+    (call,) = [c for c in calls if c.startswith(f"write auth/jwt/role/{name} - ")]
     return json.loads(call.split(" - ", 1)[1])
 
 
@@ -197,15 +197,20 @@ def test_jwt_enabled_and_role_written(tmp_path):
     assert role["bound_claims"]["ref_protected"] == "true"
     assert role["token_policies"] == ["gitlab-mirror"]
     assert role["token_ttl"] == role["token_max_ttl"] == want["token_ttl"] <= 900
+    assert jwt_role_write(calls, "gitlab-protect")["token_policies"] == ["gitlab-protect"]
 
 
 def test_jwt_idempotent(tmp_path):
     (tmp_path / "a").mkdir()
     (tmp_path / "b").mkdir()
     _, first = run(tmp_path / "a", BAO_GITLAB_JWT_ISSUER=ISSUER)
-    echoed = json.dumps({"data": jwt_role_write(first)})
+    roles = tmp_path / "roles"
+    roles.mkdir()
+    for r in json.loads((OPENBAO / "jwt-roles.json").read_text()):
+        (roles / f"{r['name']}.json").write_text(
+            json.dumps({"data": jwt_role_write(first, r["name"])}))
     res, calls = run(tmp_path / "b", state="configured", BAO_GITLAB_JWT_ISSUER=ISSUER,
-                     FAKE_JWT_ROLE=echoed)
+                     FAKE_JWT_ROLES=str(roles))
     assert res.returncode == 0, res.stderr
     assert not [c for c in calls if "jwt" in c and ("write" in c.split() or "enable" in c)]
 

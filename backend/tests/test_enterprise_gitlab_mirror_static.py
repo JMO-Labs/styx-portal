@@ -14,8 +14,9 @@ def test_mirror_policy_is_read_only_and_scoped():
 
 
 def test_jwt_role_binds_protected_ref():
-    (role,) = json.loads((OPENBAO / "jwt-roles.json").read_text())
-    assert role["name"] == "gitlab-mirror" and role["role_type"] == "jwt"
+    roles = {r["name"]: r for r in json.loads((OPENBAO / "jwt-roles.json").read_text())}
+    role = roles["gitlab-mirror"]
+    assert role["role_type"] == "jwt"
     assert role["bound_claims"]["ref_protected"] == "true"
     assert role["bound_claims"]["project_path"] and "*" not in role["bound_claims"]["project_path"]
     assert role["bound_audiences"] and role["user_claim"]

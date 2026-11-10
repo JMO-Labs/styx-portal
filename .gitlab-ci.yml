@@ -218,7 +218,7 @@ gitlab-mirror-apply:
   script:
     - |
       set -eu
-      eval "$(python3 - <<'EOF'
+      creds="$(python3 - <<'EOF'
       import json, os, shlex, ssl, urllib.request
       addr, ctx = os.environ["BAO_ADDR"], ssl.create_default_context(cafile=os.environ["BAO_CACERT"])
       def call(path, body=None, token=None):
@@ -233,9 +233,83 @@ gitlab-mirror-apply:
       print("export GITHUB_TOKEN=" + shlex.quote(data["github_token"]))
       EOF
       )"
+      eval "$creds"
       rc=0; python3 deploy/enterprise/gitlab-mirror/mirror_bootstrap.py --dry-run || rc=$?
-      [ "$rc" -le 2 ] || exit "$rc"
+      [ "$rc" -eq 0 ] || [ "$rc" -eq 2 ] || exit "$rc"
       python3 deploy/enterprise/gitlab-mirror/mirror_bootstrap.py
+
+gitlab-protect-iac:
+  # deploy/enterprise/gitlab-protect + gitlab-common (issue #16): lint + offline tests.
+  stage: test
+  <<: *backend_setup
+  <<: *on_push_or_mr
+  script:
+    - >-
+      .venv/bin/python -m ruff check ../deploy/enterprise/gitlab-common/glapi.py
+      ../deploy/enterprise/gitlab-protect/protect_bootstrap.py
+      ../deploy/enterprise/gitlab-protect/approval_gate.py
+      ../deploy/enterprise/gitlab-protect/github_lock.py
+    - >-
+      .venv/bin/python -m pytest -q tests/test_gitlab_glapi.py
+      tests/test_gitlab_protect_bootstrap.py tests/test_approval_gate.py
+      tests/test_github_lock.py tests/test_ci_jobs.py
+
+.gitlab_protect_bao: &gitlab_protect_bao
+  # Logs in to OpenBao (JWT role gitlab-protect) and exports GITLAB_TOKEN and
+  # GITLAB_CI_CONFIG_PATH from kv gitlab-protect/bootstrap; nothing reaches the log.
+  # A failed login fails the job (no eval of a command substitution).
+  image: python:3.12
+  id_tokens:
+    BAO_ID_TOKEN:
+      aud: $BAO_ADDR
+  variables:
+    GITLAB_URL: $CI_SERVER_URL
+    GITLAB_PROJECT: $CI_PROJECT_PATH
+  before_script:
+    - |
+      set -eu
+      creds="$(python3 - <<'EOF'
+      import json, os, shlex, ssl, urllib.request
+      addr, ctx = os.environ["BAO_ADDR"], ssl.create_default_context(cafile=os.environ["BAO_CACERT"])
+      def call(path, body=None, token=None):
+          req = urllib.request.Request(addr + "/v1/" + path, json.dumps(body).encode() if body else None)
+          if token:
+              req.add_header("X-Vault-Token", token)
+          with urllib.request.urlopen(req, context=ctx, timeout=30) as r:
+              return json.load(r)
+      tok = call("auth/jwt/login", {"role": "gitlab-protect", "jwt": os.environ["BAO_ID_TOKEN"]})["auth"]["client_token"]
+      data = call("kv/data/gitlab-protect/bootstrap", token=tok)["data"]["data"]
+      print("export GITLAB_TOKEN=" + shlex.quote(data["gitlab_token"]))
+      print("export GITLAB_CI_CONFIG_PATH=" + shlex.quote(data["ci_config_path"]))
+      EOF
+      )"
+      eval "$creds"
+
+gitlab-protect-apply:
+  # Protected branches/tags and merge checks (docs/operate/gitlab-protect.md). Manual,
+  # protected refs only; set GITLAB_APPROVALS=native as a CI variable on Premium+.
+  # Not run as part of issue #16.
+  stage: release
+  <<: *gitlab_protect_bao
+  rules:
+    - if: '$CI_COMMIT_REF_PROTECTED == "true"'
+      when: manual
+      allow_failure: true
+  script:
+    - |
+      rc=0; python3 deploy/enterprise/gitlab-protect/protect_bootstrap.py --dry-run || rc=$?
+      [ "$rc" -eq 0 ] || [ "$rc" -eq 2 ] || exit "$rc"
+      python3 deploy/enterprise/gitlab-protect/protect_bootstrap.py
+
+gitlab-protect-drift:
+  # Scheduled dry run: fails on drift (rc 2) or error (rc 1), e.g. a Maintainer turned off
+  # "pipelines must succeed" or changed ci_config_path.
+  stage: test
+  <<: *gitlab_protect_bao
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_REF_PROTECTED == "true"'
+  script:
+    - python3 deploy/enterprise/gitlab-protect/protect_bootstrap.py --dry-run
 
 plugin-test:
   stage: test
