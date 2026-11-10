@@ -81,6 +81,23 @@ ansible-lint            # production profile, our files only
 ansible-playbook -i inventory/hosts.example.yml site.yml --syntax-check
 ```
 
+## Known issues
+
+- The worker label is `node.kubernetes.io/worker=true` instead of the
+  `node-role.kubernetes.io/worker=true` the ticket first asked for (see the
+  table above). `kubectl get nodes` therefore shows `<none>` in `ROLES` for
+  agents. If that column matters, label the nodes after they join, from a
+  server with the admin kubeconfig. No playbook task does this yet.
+- The `site.yml` default-token check hashes the raw value, so a token padded
+  with whitespace around the role's default token (a leading space, say) gets past
+  it. Empty, whitespace-only and exact-default tokens are refused. Never derive
+  the token from the role default; generate it with `openssl rand -hex 32`.
+- The secret scan in `test_rke2_iac.py` accepts any `{{ ... }}` value, so a
+  Jinja literal such as `token: "{{ 'abc' }}"` would not be flagged. Review
+  token-like keys by hand.
+- Nothing here has been applied to a real node. The CI job only lints and
+  syntax-checks; Molecule against real RKE2 is out of scope.
+
 ## Open placeholders (TODO)
 
 - Air-gap mode (`rke2_airgap_mode: false` for now) and pulling images through Harbor.
