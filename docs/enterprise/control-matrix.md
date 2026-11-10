@@ -62,7 +62,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | CM-3 | Configuration Change Control | Git-based review, image rollout (ADR-0003, 0030); changes reviewed and approved on the federal GitLab: `deploy/enterprise/gitlab-protect/protect_bootstrap.py` protects `enterprise`/`release/*`/`v*` and requires a passing pipeline, the `approval-gate` job (external `ci-policy` config) requires a non-author approval after the latest push, scheduled `gitlab-protect-drift` fails on drift, `github_lock.py` push-locks the GitHub copies at cutover (#16, docs/operate/gitlab-protect.md); pushed to GitHub by protected-branch-only push mirror `deploy/enterprise/gitlab-mirror` (ADR-0048) | System | Planned |
 | CM-6 | Configuration Settings | RKE2 hardening, image config; STIG exception, R05 condition (ADR-0007, 0011); Pod Security Admission exception for the desktop namespace (rootless Selkies base image) (ADR-0057); Pod Security Admission exception for the `openbao` namespace (`enforce: privileged`, read-only hostPath for the static seal key only; warn/audit restricted): `deploy/enterprise/openbao/namespace.yaml` (ADR-0042) | System | Planned |
 | CM-7 | Least Functionality | Seat mode and homelab features hard-disabled with config test, minimal images (ADR-0004, 0028, 0053); `openbao` namespace PSA exception limited to one read-only hostPath (`/etc/openbao/seal`) (ADR-0042) | System | Planned |
-| CM-8 | System Component Inventory | Component and SBOM inventory (ADR-0005, 0029) | System | Planned |
+| CM-8 | System Component Inventory | Component and SBOM inventory (ADR-0005, 0029); [component register](component-register.md) of libraries, images, charts and apt apps, CI-checked (#17) | System | Planned |
 | CM-12 | Information Location | Homes, CephFS profiles, Ceph RGW archive; user-driven OneDrive moves (ADR-0034, 0035, 0054) | System | Planned |
 
 ## CP - Contingency Planning
@@ -145,7 +145,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
 | SA-3 | System Development Life Cycle | Single codebase, CI; federal GitLab source of truth (ADR-0003, 0028, 0048) | System | Planned |
-| SA-4 | Acquisition Process | Component and license rule; accepted costs listed (ADR-0005) | Hybrid | Planned |
+| SA-4 | Acquisition Process | Component and license rule; accepted costs listed (ADR-0005); [component register](component-register.md) with cost class and [license policy](license-policy.yaml), blocking CI gate (#17) | Hybrid | Planned |
 | SA-9 | External System Services | GCC High, upstream GitLab, cloud bucket (ADR-0019, 0037) | Hybrid | Planned |
 | SA-10 | Developer Configuration Management | Git, signed builds (ADR-0003, 0029); federal GitLab is source of truth with approvals: `protect_bootstrap.py` (protected branches/tags, pipeline must pass), `approval-gate` job (non-author approval after the latest push, job log as evidence), `gitlab-protect-drift` schedule, GitHub push-lock `github_lock.py` (#16); `deploy/enterprise/gitlab-mirror` mirrors protected branches only, keeps divergent refs (ADR-0048) | System | Planned |
 | SA-11 | Developer Testing and Evaluation | Load test and security testing (ADR-0047) | System | Planned |
@@ -180,6 +180,6 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
-| SR-3 | Supply Chain Controls and Processes | Signed allowlisted images, SBOM (ADR-0029); Harbor registry with digest-pinned images implemented in code, not deployed: `deploy/enterprise/harbor/` | System | Planned |
-| SR-4 | Provenance | SBOM, signatures, federal GitLab as source of truth (ADR-0029, 0048); one-way push mirror `deploy/enterprise/gitlab-mirror` with pinned GitHub host key and repo-scoped deploy key, protected branches only, approvals on federal GitLab (#16) | System | Planned |
+| SR-3 | Supply Chain Controls and Processes | Signed allowlisted images, SBOM (ADR-0029; per-image OS-package SBOM stays in ADR-0029 phase 3, top-level inventory in the [component register](component-register.md)); Harbor registry with digest-pinned images implemented in code, not deployed: `deploy/enterprise/harbor/` | System | Planned |
+| SR-4 | Provenance | SBOM (per-image SBOM in ADR-0029 phase 3), signatures, federal GitLab as source of truth (ADR-0029, 0048); one-way push mirror `deploy/enterprise/gitlab-mirror` with pinned GitHub host key and repo-scoped deploy key, protected branches only, approvals on federal GitLab (#16) | System | Planned |
 | SR-11 | Component Authenticity | cosign verification (ADR-0029) | System | Planned |

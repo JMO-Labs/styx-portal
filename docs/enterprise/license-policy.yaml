@@ -1,0 +1,64 @@
+# License policy for the component register (issue #17, ADR-0005).
+# Enforced by scripts/license_register.py check. SPDX IDs; the -only / -or-later / + forms
+# are normalised (GPL-2.0-only == GPL-2.0). Licenses not listed below are unknown and fail
+# until components.yaml has an override with a source_url.
+
+# Permissive / notice, data and fonts, weak copyleft (unmodified use), strong copyleft.
+allow:
+  - MIT
+  - MIT-0
+  - ISC
+  - 0BSD
+  - BSD-2-Clause
+  - BSD-3-Clause
+  - Apache-2.0
+  - Python-2.0
+  - PSF-2.0
+  - Zlib
+  - BlueOak-1.0.0
+  - Unlicense
+  - CC0-1.0
+  - BSL-1.0
+  - Artistic-2.0
+  - PostgreSQL
+  - X11
+  - Unicode-3.0
+  - Unicode-DFS-2016
+  - CC-BY-3.0
+  - CC-BY-4.0
+  - OFL-1.1
+  - MPL-2.0
+  - LGPL-2.1
+  - LGPL-3.0
+  - EPL-2.0
+  - GPL-2.0
+  - GPL-3.0
+
+# Only for separate, unmodified server components (scope: service), never linked libraries.
+service_only:
+  - AGPL-3.0
+
+# Source-available, non-commercial / no-derivatives, and the JSON license.
+deny:
+  - SSPL-1.0
+  - BUSL-1.1
+  - Commons-Clause
+  - Elastic-2.0
+  - CC-BY-NC-*
+  - CC-BY-ND-*
+  - JSON
+
+# Proprietary EULAs: denied in gated scopes unless the item names an accepted ADR exception.
+proprietary:
+  - LicenseRef-proprietary*
+
+# Accepted cost / exception ADRs (ADR-0005): D19 Power Automate HTTP connector,
+# D37 offsite bucket, D41 code signing + Apple developer program.
+accepted_adrs:
+  - ADR-0019
+  - ADR-0037
+  - ADR-0041
+
+# Non-SPDX names emitted by Trivy -> SPDX ID.
+aliases:
+  Python-Software-Foundation-License: PSF-2.0

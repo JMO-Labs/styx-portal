@@ -1,0 +1,8 @@
+# Mini policy for backend/tests/test_license_register.py
+allow: [MIT, Apache-2.0, BSD-3-Clause, GPL-2.0, PSF-2.0]
+service_only: [AGPL-3.0]
+deny: [SSPL-1.0, Elastic-2.0, Commons-Clause, CC-BY-NC-*]
+proprietary: [LicenseRef-proprietary*]
+accepted_adrs: [ADR-0019, ADR-0037, ADR-0041]
+aliases:
+  Python-Software-Foundation-License: PSF-2.0
