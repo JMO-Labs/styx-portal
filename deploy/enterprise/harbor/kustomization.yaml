@@ -1,0 +1,12 @@
+# Harbor support manifests (issue #5). The chart itself is rendered with
+# helm template (see README.md); this kustomization holds everything else.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - external-secrets.yaml
+  - s3-credentials.yaml
+  - objectbucketclaim.yaml
+  - harbor-db.yaml
+  - networkpolicy.yaml
+  - pdb.yaml

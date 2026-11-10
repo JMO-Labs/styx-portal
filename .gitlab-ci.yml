@@ -102,7 +102,257 @@ offsite-integration:
         | sha256sum -c -
       tar xzf "$T/kopia.tar.gz" -C "$T" --strip-components=1 kopia-0.23.1-linux-x64/kopia
       chmod +x "$T/kopia" "$T/minio" "$T/mc"
-      PATH="$T:$PATH" .venv/bin/python -m pytest -q tests/integration
+      PATH="$T:$PATH" .venv/bin/python -m pytest -q tests/integration/test_offsite_minio.py
+
+openbao-iac:
+  # deploy/enterprise/{openbao,external-secrets} (issue #4): render vendored charts and
+  # kustomizations, kubeconform, lint the playbook and the TLS script. Pinned, sha256-checked.
+  stage: test
+  image: python:3.12
+  <<: *on_push_or_mr
+  script:
+    - |
+      set -eu
+      pip install -q ansible-core==2.21.6 ansible-lint==26.11.0 yamllint==1.38.0 shellcheck-py==0.11.0.1
+      T="$CI_PROJECT_DIR/.k8stools"; mkdir -p "$T"; cd "$T"
+      GH=https://github.com
+      curl -sSfLO https://get.helm.sh/helm-v4.3.1-linux-amd64.tar.gz
+      curl -sSfLO "$GH/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.8.3/kustomize_v5.8.3_linux_amd64.tar.gz"
+      curl -sSfLO "$GH/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz"
+      printf '%s  %s\n' \
+        0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b helm-v4.3.1-linux-amd64.tar.gz \
+        cb9e31198d3f63b44848bd0afc4c8efc56e6cfef9c93a4a39a211940e6decd61 kustomize_v5.8.3_linux_amd64.tar.gz \
+        9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883 kubeconform-linux-amd64.tar.gz \
+        | sha256sum -c -
+      tar xzf helm-v4.3.1-linux-amd64.tar.gz --strip-components=1 linux-amd64/helm
+      tar xzf kustomize_v5.8.3_linux_amd64.tar.gz
+      tar xzf kubeconform-linux-amd64.tar.gz kubeconform
+      export PATH="$T:$PATH"
+      cd "$CI_PROJECT_DIR/deploy/enterprise"
+      helm template openbao openbao/charts/openbao-0.30.7.tgz --skip-tests -n openbao \
+        -f openbao/values.yaml > "$T/openbao-chart.yaml"
+      # Only the server StatefulSet may mount the seal-key hostPath (the chart test pod copies it).
+      test "$(grep -c "path: /etc/openbao/seal" "$T/openbao-chart.yaml")" = 1
+      helm template external-secrets external-secrets/charts/external-secrets-2.14.0.tgz \
+        -n external-secrets -f external-secrets/values.yaml > "$T/eso-chart.yaml"
+      kustomize build openbao > "$T/openbao.yaml"
+      kustomize build external-secrets > "$T/eso.yaml"
+      kubeconform -strict -ignore-missing-schemas -kubernetes-version 1.36.6 -summary "$T"/*.yaml
+      yamllint -c .yamllint openbao external-secrets
+      shellcheck openbao/gen-bootstrap-tls.sh
+      cd openbao
+      ansible-lint ansible/seal-key.yml
+      ansible-playbook -i ansible/inventory.example.yml ansible/seal-key.yml --syntax-check
+
+openbao-integration:
+  # Real OpenBao 2.7.2 static seal: restart, wrong key, rotation, snapshot restore, deployed HCL.
+  # Uses the sha256-pinned release binary (same build as the pinned image), so no Docker.
+  stage: test
+  <<: *backend_setup
+  <<: *on_push_or_mr
+  variables:
+    OPENBAO_IT: "1"
+  script:
+    - |
+      set -eu
+      T="$CI_PROJECT_DIR/.openbao-bin"; mkdir -p "$T"
+      curl -sSfL -o "$T/bao.tar.gz" https://github.com/openbao/openbao/releases/download/v2.7.2/openbao_2.7.2_linux_amd64.tar.gz
+      echo "582b1f3c2fdc5afd443b2d57a225ef654de75adea609fdb66731fd582a9cbc96  $T/bao.tar.gz" | sha256sum -c -
+      tar xzf "$T/bao.tar.gz" -C "$T" bao
+      PATH="$T:$PATH" .venv/bin/python -m pytest -q tests/integration/test_openbao_static_seal.py
+
+harbor-iac:
+  # deploy/enterprise/harbor (issue #5): helm template (vendored chart 1.19.4) + kustomize
+  # + kubeconform, pinned tools. CRDs validate against the datreeio CRDs-catalog.
+  stage: test
+  image: python:3.12
+  <<: *on_push_or_mr
+  script:
+    - |
+      set -eu
+      GH=https://github.com
+      curl -sSfLO https://get.helm.sh/helm-v3.22.1-linux-amd64.tar.gz
+      curl -sSfLO "$GH/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.8.3/kustomize_v5.8.3_linux_amd64.tar.gz"
+      curl -sSfLO "$GH/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz"
+      printf '%s  %s\n' \
+        896cf63684a42a723d61c980369d6e588330927deb13676ca0d85006dd6da0ea helm-v3.22.1-linux-amd64.tar.gz \
+        cb9e31198d3f63b44848bd0afc4c8efc56e6cfef9c93a4a39a211940e6decd61 kustomize_v5.8.3_linux_amd64.tar.gz \
+        9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883 kubeconform-linux-amd64.tar.gz \
+        | sha256sum -c -
+      tar xzf helm-v3.22.1-linux-amd64.tar.gz -C /usr/local/bin --strip-components=1 linux-amd64/helm
+      for f in kustomize_*.tar.gz kubeconform-*.tar.gz; do tar xzf "$f" -C /usr/local/bin; done
+      H=deploy/enterprise/harbor
+      helm template harbor "$H/charts/harbor-1.19.4.tgz" -n harbor -f "$H/values.yaml" > harbor-chart.yaml
+      kustomize build "$H" > harbor-extra.yaml
+      kubeconform -strict -ignore-missing-schemas -summary -kubernetes-version 1.36.6 \
+        -schema-location default \
+        -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+        harbor-chart.yaml harbor-extra.yaml
+
+.dmz_haproxy_image: &dmz_haproxy_image
+  # Official haproxy:3.4.7 (Debian trixie), the pinned LTS in the role defaults. Runs as root so
+  # the job can add python3; needs a Docker executor that honours image:docker:user.
+  image:
+    name: haproxy:3.4.7@sha256:f6d2ee87b47192d9cc8c22e88fef405122ff339859644883edc2a7d1827f87b3
+    entrypoint: [""]
+    docker:
+      user: root
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 python3-venv >/dev/null
+    - cd backend
+    - python3 -m venv .venv
+    - .venv/bin/pip install -q -e ".[dev]"
+
+dmz-haproxy-iac:
+  # deploy/enterprise/dmz-haproxy (issue #7): lint the role and playbook, render the templates
+  # with the committed vars and run haproxy -c -f on them.
+  stage: test
+  <<: [*dmz_haproxy_image, *on_push_or_mr]
+  variables:
+    HAPROXY_IT: "1"
+  script:
+    - |
+      set -eu
+      .venv/bin/pip install -q ansible-core==2.21.6 ansible-lint==26.11.0 yamllint==1.38.0
+      export PATH="$PWD/.venv/bin:$PATH"
+      .venv/bin/python -m pytest -q tests/integration/test_dmz_haproxy.py -k config_check
+      cd "$CI_PROJECT_DIR/deploy/enterprise"
+      yamllint -c .yamllint dmz-haproxy
+      cd dmz-haproxy
+      ansible-lint ansible/site.yml
+      ansible-playbook -i ansible/inventory.example.yml ansible/site.yml --syntax-check
+
+dmz-haproxy-integration:
+  # Real HAProxy behaviour: header strip-and-set, no-card 403, SNI/Host 421, untrusted CA,
+  # provision mTLS, resumed sessions, against an mTLS echo backend standing in for Traefik.
+  stage: test
+  <<: [*dmz_haproxy_image, *on_push_or_mr]
+  variables:
+    HAPROXY_IT: "1"
+  script:
+    - .venv/bin/python -m pytest -q tests/integration/test_dmz_haproxy.py
+
+gitlab-mirror-iac:
+  # deploy/enterprise/gitlab-mirror (issue #10): lint + offline tests against a local stub.
+  stage: test
+  <<: *backend_setup
+  <<: *on_push_or_mr
+  script:
+    - .venv/bin/python -m ruff check ../deploy/enterprise/gitlab-mirror/mirror_bootstrap.py
+    - .venv/bin/python -m pytest -q tests/test_gitlab_mirror_bootstrap.py
+
+gitlab-mirror-apply:
+  # Configures the GitLab -> GitHub push mirror (docs/operate/gitlab-mirror.md). Manual,
+  # protected refs only. Tokens come from OpenBao (JWT role gitlab-mirror, kv
+  # gitlab-mirror/bootstrap) and never touch the job log. Set BAO_ADDR and BAO_CACERT (file).
+  stage: release
+  image: python:3.12
+  rules:
+    - if: '$CI_COMMIT_REF_PROTECTED == "true"'
+      when: manual
+      allow_failure: true
+  id_tokens:
+    BAO_ID_TOKEN:
+      aud: $BAO_ADDR
+  variables:
+    GITLAB_URL: $CI_SERVER_URL
+    GITLAB_PROJECT: $CI_PROJECT_PATH
+    GITHUB_REPO: JMO-Labs/styx-portal
+  script:
+    - |
+      set -eu
+      creds="$(python3 - <<'EOF'
+      import json, os, shlex, ssl, urllib.request
+      addr, ctx = os.environ["BAO_ADDR"], ssl.create_default_context(cafile=os.environ["BAO_CACERT"])
+      def call(path, body=None, token=None):
+          req = urllib.request.Request(addr + "/v1/" + path, json.dumps(body).encode() if body else None)
+          if token:
+              req.add_header("X-Vault-Token", token)
+          with urllib.request.urlopen(req, context=ctx, timeout=30) as r:
+              return json.load(r)
+      tok = call("auth/jwt/login", {"role": "gitlab-mirror", "jwt": os.environ["BAO_ID_TOKEN"]})["auth"]["client_token"]
+      data = call("kv/data/gitlab-mirror/bootstrap", token=tok)["data"]["data"]
+      print("export GITLAB_TOKEN=" + shlex.quote(data["gitlab_token"]))
+      print("export GITHUB_TOKEN=" + shlex.quote(data["github_token"]))
+      EOF
+      )"
+      eval "$creds"
+      rc=0; python3 deploy/enterprise/gitlab-mirror/mirror_bootstrap.py --dry-run || rc=$?
+      [ "$rc" -eq 0 ] || [ "$rc" -eq 2 ] || exit "$rc"
+      python3 deploy/enterprise/gitlab-mirror/mirror_bootstrap.py
+
+gitlab-protect-iac:
+  # deploy/enterprise/gitlab-protect + gitlab-common (issue #16): lint + offline tests.
+  stage: test
+  <<: *backend_setup
+  <<: *on_push_or_mr
+  script:
+    - >-
+      .venv/bin/python -m ruff check ../deploy/enterprise/gitlab-common/glapi.py
+      ../deploy/enterprise/gitlab-protect/protect_bootstrap.py
+      ../deploy/enterprise/gitlab-protect/approval_gate.py
+      ../deploy/enterprise/gitlab-protect/github_lock.py
+    - >-
+      .venv/bin/python -m pytest -q tests/test_gitlab_glapi.py
+      tests/test_gitlab_protect_bootstrap.py tests/test_approval_gate.py
+      tests/test_github_lock.py tests/test_ci_jobs.py
+
+.gitlab_protect_bao: &gitlab_protect_bao
+  # Logs in to OpenBao (JWT role gitlab-protect) and exports GITLAB_TOKEN and
+  # GITLAB_CI_CONFIG_PATH from kv gitlab-protect/bootstrap; nothing reaches the log.
+  # A failed login fails the job (no eval of a command substitution).
+  image: python:3.12
+  id_tokens:
+    BAO_ID_TOKEN:
+      aud: $BAO_ADDR
+  variables:
+    GITLAB_URL: $CI_SERVER_URL
+    GITLAB_PROJECT: $CI_PROJECT_PATH
+  before_script:
+    - |
+      set -eu
+      creds="$(python3 - <<'EOF'
+      import json, os, shlex, ssl, urllib.request
+      addr, ctx = os.environ["BAO_ADDR"], ssl.create_default_context(cafile=os.environ["BAO_CACERT"])
+      def call(path, body=None, token=None):
+          req = urllib.request.Request(addr + "/v1/" + path, json.dumps(body).encode() if body else None)
+          if token:
+              req.add_header("X-Vault-Token", token)
+          with urllib.request.urlopen(req, context=ctx, timeout=30) as r:
+              return json.load(r)
+      tok = call("auth/jwt/login", {"role": "gitlab-protect", "jwt": os.environ["BAO_ID_TOKEN"]})["auth"]["client_token"]
+      data = call("kv/data/gitlab-protect/bootstrap", token=tok)["data"]["data"]
+      print("export GITLAB_TOKEN=" + shlex.quote(data["gitlab_token"]))
+      print("export GITLAB_CI_CONFIG_PATH=" + shlex.quote(data["ci_config_path"]))
+      EOF
+      )"
+      eval "$creds"
+
+gitlab-protect-apply:
+  # Protected branches/tags and merge checks (docs/operate/gitlab-protect.md). Manual,
+  # protected refs only; set GITLAB_APPROVALS=native as a CI variable on Premium+.
+  # Not run as part of issue #16.
+  stage: release
+  <<: *gitlab_protect_bao
+  rules:
+    - if: '$CI_COMMIT_REF_PROTECTED == "true"'
+      when: manual
+      allow_failure: true
+  script:
+    - |
+      rc=0; python3 deploy/enterprise/gitlab-protect/protect_bootstrap.py --dry-run || rc=$?
+      [ "$rc" -eq 0 ] || [ "$rc" -eq 2 ] || exit "$rc"
+      python3 deploy/enterprise/gitlab-protect/protect_bootstrap.py
+
+gitlab-protect-drift:
+  # Scheduled dry run: fails on drift (rc 2) or error (rc 1), e.g. a Maintainer turned off
+  # "pipelines must succeed" or changed ci_config_path.
+  stage: test
+  <<: *gitlab_protect_bao
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_REF_PROTECTED == "true"'
+  script:
+    - python3 deploy/enterprise/gitlab-protect/protect_bootstrap.py --dry-run
 
 plugin-test:
   stage: test

@@ -24,6 +24,9 @@ nav = [
     { "Install" = "operate/install.md" },
     { "Production" = "operate/production.md" },
     { "Kubernetes" = "operate/kubernetes.md" },
+    { "Harbor (enterprise)" = "operate/harbor-enterprise.md" },
+    { "GitLab mirror (enterprise)" = "operate/gitlab-mirror.md" },
+    { "GitLab protected branches (enterprise)" = "operate/gitlab-protect.md" },
     { "Enroll workstations" = "operate/workstations-enroll.md" },
     { "Templates and instances" = "operate/templates-instances.md" },
     { "Proxied services" = "operate/services.md" },
@@ -36,6 +39,8 @@ nav = [
     { "Monitoring" = "operate/monitoring.md" },
     { "Offsite backup" = "operate/offsite-backup.md" },
     { "Upgrade" = "operate/upgrade.md" },
+    { "Enterprise: OpenBao" = "enterprise/runbooks/openbao.md" },
+    { "Enterprise: DMZ HAProxy" = "enterprise/runbooks/dmz-haproxy.md" },
   ] },
   { "Build" = [
     "build/index.md",

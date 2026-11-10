@@ -1,0 +1,7 @@
+# Adversarial fixture for test_no_default_secrets: must be flagged.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: harbor-core
+stringData:
+  HARBOR_ADMIN_PASSWORD: Harbor12345

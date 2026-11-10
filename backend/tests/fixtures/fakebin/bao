@@ -1,0 +1,62 @@
+#!/bin/sh
+# Fake bao for test_openbao_configure.py: appends argv (one line per call) to $FAKE_LOG
+# and prints canned JSON for the read calls, chosen by FAKE_STATE=empty|configured, or
+# fails every call like the real CLI (exit 2) with FAKE_STATE=denied|tls|down.
+# FAKE_AUDIT=none drops the audit device; FAKE_CONFIG=denied forbids reading the k8s config.
+# FAKE_JWT_ROLES is a directory: <name>.json is what the configured cluster returns for
+# auth/jwt/role/<name>.
+# Lives in the repo, not tmp_path, so it still runs where /tmp is mounted noexec.
+# Writes that read JSON from stdin ("-" last) log it on the same line.
+case "$*" in
+  *" -") printf '%s %s\n' "$*" "$(tr -d '\n')" >> "$FAKE_LOG" ;;
+  *) printf '%s\n' "$*" >> "$FAKE_LOG" ;;
+esac
+state="${FAKE_STATE:-empty}"
+case "$state" in
+  denied) echo 'Error: Code: 403. Errors: * permission denied' >&2; exit 2 ;;
+  tls) echo 'Error: tls: failed to verify certificate: x509: certificate signed by unknown authority' >&2; exit 2 ;;
+  down) echo 'Error: dial tcp 127.0.0.1:8200: connect: connection refused' >&2; exit 2 ;;
+esac
+case "$*" in
+  "secrets list -format=json")
+    if [ "$state" = configured ]; then
+      echo '{"kv/":{"type":"kv","options":{"version":"2"}},"sys/":{"type":"system"}}'
+    else
+      echo '{"sys/":{"type":"system"}}'
+    fi ;;
+  "audit list -format=json")
+    # Declared in the server HCL, so present from the first start.
+    if [ "${FAKE_AUDIT:-}" = none ]; then
+      echo '{}'
+    else
+      echo '{"stdout/":{"type":"file","options":{"file_path":"stdout"}}}'
+    fi ;;
+  "auth list -format=json")
+    if [ "$state" = configured ]; then
+      echo '{"kubernetes/":{"type":"kubernetes"},"jwt/":{"type":"jwt"},"token/":{"type":"token"}}'
+    else
+      echo '{"token/":{"type":"token"}}'
+    fi ;;
+  "read -format=json auth/kubernetes/config")
+    if [ "${FAKE_CONFIG:-}" = denied ]; then
+      echo 'Error reading auth/kubernetes/config: Code: 403. Errors: * permission denied' >&2; exit 2
+    elif [ "$state" = configured ]; then
+      echo '{"data":{"kubernetes_host":"https://kubernetes.default.svc"}}'
+    else
+      echo 'No value found at auth/kubernetes/config' >&2; exit 2
+    fi ;;
+  "read -format=json auth/jwt/config")
+    if [ "$state" = configured ]; then
+      echo '{"data":{"bound_issuer":"https://gitlab.example.internal","oidc_discovery_url":"https://gitlab.example.internal"}}'
+    else
+      echo 'No value found at auth/jwt/config' >&2; exit 2
+    fi ;;
+  "read -format=json auth/jwt/role/"*)
+    f="${FAKE_JWT_ROLES:-/nonexistent}/${3#auth/jwt/role/}.json"
+    if [ "$state" = configured ] && [ -f "$f" ]; then
+      cat "$f"
+    else
+      echo "No value found at $3" >&2; exit 2
+    fi ;;
+esac
+exit 0

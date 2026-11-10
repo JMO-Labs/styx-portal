@@ -1,0 +1,16 @@
+[
+  {
+    "name": "eso",
+    "bound_service_account_names": ["external-secrets"],
+    "bound_service_account_namespaces": ["external-secrets"],
+    "policies": ["eso-read"],
+    "token_ttl": 3600
+  },
+  {
+    "name": "raft-snapshot",
+    "bound_service_account_names": ["openbao-snapshot"],
+    "bound_service_account_namespaces": ["openbao"],
+    "policies": ["raft-snapshot"],
+    "token_ttl": 900
+  }
+]

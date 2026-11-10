@@ -49,7 +49,8 @@ frontend/          React app (Vite, "Glance" UI)
 e2e/               Playwright full-stack suite (real Sonarr/Jellyfin, shell, screenshots); stream-ab/ = latency harness
 scripts/           build_agent_artifacts.sh (wheelhouse, EXTRA_WHEELS), build_xwl_eager.sh, build-docs.sh, ...
 docs/              Zensical docs: use/ operate/ build/ (this guide), upstream/ patches
-docs/enterprise/   Styx Enterprise design, ADRs 0001-0061 (Accepted 2026-11-09), control matrix, runbooks/ (full-site restore); not in docs nav
+docs/enterprise/   Styx Enterprise design, ADRs 0001-0061 (Accepted 2026-11-09), control matrix, runbooks/ (full-site restore, openbao, dmz-haproxy); the OpenBao and DMZ HAProxy runbooks are in the docs nav
+deploy/enterprise/ Enterprise IaC (branch enterprise only): openbao/ (HA Raft, static seal, bao_configure.py, seal-key playbook), external-secrets/ (ClusterSecretStore openbao), harbor/ (chart 1.19.4 values, CNPG harbor-db, harbor_bootstrap.py; runbook docs/operate/harbor-enterprise.md), gitlab-mirror/ (mirror_bootstrap.py, pinned github_known_hosts; runbook docs/operate/gitlab-mirror.md), gitlab-common/ (glapi.py, shared stdlib API client), gitlab-protect/ (protect_bootstrap.py, approval_gate.py + ci-policy/gitlab-ci.yml, github_lock.py; runbook docs/operate/gitlab-protect.md), dmz-haproxy/ (Ansible role dmz_haproxy: HAProxy 3.4.7 + keepalived VIP, Client-Cert strip-and-set; runbook docs/enterprise/runbooks/dmz-haproxy.md)
 docker-compose.yml Infrastructure services
 traefik/           Traefik static config
 templates/         Default JSON templates (seeded on first run); services/ = proxy presets

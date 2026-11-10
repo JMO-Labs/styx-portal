@@ -1,0 +1,14 @@
+# OpenBao namespace (issue #4, ADR-0042).
+# PSA exception (CM-6, CM-7): enforce=privileged only because the server pods mount the
+# static seal key directory /etc/openbao/seal as a read-only hostPath (keeps the key out of
+# etcd and Velero). Everything else meets "restricted"; warn/audit stay on restricted.
+# Recorded in docs/enterprise/control-matrix.md (CM-6), same pattern as the D57 desktop exception.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openbao
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+    styx.io/openbao-secrets: "true"  # lets the snapshot ExternalSecret use ClusterSecretStore openbao

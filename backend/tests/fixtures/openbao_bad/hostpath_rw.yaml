@@ -1,0 +1,6 @@
+expect: readOnly
+patch:
+  server:
+    volumeMounts:
+      - {name: tls, mountPath: /openbao/tls, readOnly: true}
+      - {name: seal, mountPath: /openbao/seal, readOnly: false}

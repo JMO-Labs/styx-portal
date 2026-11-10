@@ -1,0 +1,5 @@
+expect: not pinned by digest
+patch:
+  server:
+    image:
+      tag: 2.7.2

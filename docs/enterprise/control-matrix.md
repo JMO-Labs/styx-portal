@@ -59,9 +59,9 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
 | CM-2 | Baseline Configuration | Golden images, profiles in git (ADR-0003, 0028) | System | Planned |
-| CM-3 | Configuration Change Control | Git-based review, image rollout (ADR-0003, 0030) | System | Planned |
-| CM-6 | Configuration Settings | RKE2 hardening, image config; STIG exception, R05 condition (ADR-0007, 0011); Pod Security Admission exception for the desktop namespace (rootless Selkies base image) (ADR-0057) | System | Planned |
-| CM-7 | Least Functionality | Seat mode and homelab features hard-disabled with config test, minimal images (ADR-0004, 0028, 0053) | System | Planned |
+| CM-3 | Configuration Change Control | Git-based review, image rollout (ADR-0003, 0030); changes reviewed and approved on the federal GitLab: `deploy/enterprise/gitlab-protect/protect_bootstrap.py` protects `enterprise`/`release/*`/`v*` and requires a passing pipeline, the `approval-gate` job (external `ci-policy` config) requires a non-author approval after the latest push, scheduled `gitlab-protect-drift` fails on drift, `github_lock.py` push-locks the GitHub copies at cutover (#16, docs/operate/gitlab-protect.md); pushed to GitHub by protected-branch-only push mirror `deploy/enterprise/gitlab-mirror` (ADR-0048) | System | Planned |
+| CM-6 | Configuration Settings | RKE2 hardening, image config; STIG exception, R05 condition (ADR-0007, 0011); Pod Security Admission exception for the desktop namespace (rootless Selkies base image) (ADR-0057); Pod Security Admission exception for the `openbao` namespace (`enforce: privileged`, read-only hostPath for the static seal key only; warn/audit restricted): `deploy/enterprise/openbao/namespace.yaml` (ADR-0042) | System | Planned |
+| CM-7 | Least Functionality | Seat mode and homelab features hard-disabled with config test, minimal images (ADR-0004, 0028, 0053); `openbao` namespace PSA exception limited to one read-only hostPath (`/etc/openbao/seal`) (ADR-0042) | System | Planned |
 | CM-8 | System Component Inventory | Component and SBOM inventory (ADR-0005, 0029) | System | Planned |
 | CM-12 | Information Location | Homes, CephFS profiles, Ceph RGW archive; user-driven OneDrive moves (ADR-0034, 0035, 0054) | System | Planned |
 
@@ -84,7 +84,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | IA-2(12) | Acceptance of PIV Credentials | CAC, PIV and PIV-I (PIV Authentication cert only); DoD roots + Federal Common Policy CA; OCSP + CRL mirror (ADR-0015, 0016, 0017, 0041) | System | Planned |
 | IA-3 | Device Identification and Authentication | mTLS client cert for webhook (ADR-0020) | System | Planned |
 | IA-4 | Identifier Management | EDIPI (CAC) or card UUID (PIV/PIV-I) bound at first login, immutable username (ADR-0016, 0018) | System | Planned |
-| IA-5 | Authenticator Management | PKI via DoD and federal CAs; break-glass and token rotation; OpenBao auto-unseal, offline escrow (ADR-0015, 0020, 0025, 0042) | Hybrid | Planned |
+| IA-5 | Authenticator Management | PKI via DoD and federal CAs; break-glass and token rotation; OpenBao auto-unseal, offline escrow (ADR-0015, 0020, 0025, 0042); Kubernetes auth roles and least-privilege policies (`deploy/enterprise/openbao/auth-roles.json`, `policies/`), ESO `ClusterSecretStore` `openbao` (`deploy/enterprise/external-secrets/`) | Hybrid | Planned |
 | IA-5(2) | Public Key-Based Authentication | Certificate validation for CAC/PIV/PIV-I chains, OCSP + CRL mirror (ADR-0015, 0017) | System | Planned |
 | IA-8 | Identification and Authentication (Non-Organizational Users) | Not planned; no external users in v1 (ADR-0001, 0015) | System | Planned |
 | IA-12 | Identity Proofing | Approval workflow; Styx checks asserted approver is a group manager, cannot verify M365 approval, D23 review is the real control; R04 (ADR-0018, 0020, 0021, 0023); security officer owns the review; new accounts unreviewed for 2 business days are auto-suspended (ADR-0024) | Hybrid | Planned |
@@ -138,7 +138,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
 | RA-3 | Risk Assessment | Organizational risk assessment with ADR input (ADR-0010) | Hybrid | Planned |
-| RA-5 | Vulnerability Monitoring and Scanning | Trivy, Harbor, image rebuilds (ADR-0029, 0030) | System | Planned |
+| RA-5 | Vulnerability Monitoring and Scanning | Trivy, Harbor, image rebuilds (ADR-0029, 0030); Harbor registry implemented in code, not deployed: `deploy/enterprise/harbor/` (Trivy off until Phase 3) | System | Planned |
 
 ## SA - System and Services Acquisition
 
@@ -147,7 +147,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | SA-3 | System Development Life Cycle | Single codebase, CI; federal GitLab source of truth (ADR-0003, 0028, 0048) | System | Planned |
 | SA-4 | Acquisition Process | Component and license rule; accepted costs listed (ADR-0005) | Hybrid | Planned |
 | SA-9 | External System Services | GCC High, upstream GitLab, cloud bucket (ADR-0019, 0037) | Hybrid | Planned |
-| SA-10 | Developer Configuration Management | Git, signed builds (ADR-0003, 0029) | System | Planned |
+| SA-10 | Developer Configuration Management | Git, signed builds (ADR-0003, 0029); federal GitLab is source of truth with approvals: `protect_bootstrap.py` (protected branches/tags, pipeline must pass), `approval-gate` job (non-author approval after the latest push, job log as evidence), `gitlab-protect-drift` schedule, GitHub push-lock `github_lock.py` (#16); `deploy/enterprise/gitlab-mirror` mirrors protected branches only, keeps divergent refs (ADR-0048) | System | Planned |
 | SA-11 | Developer Testing and Evaluation | Load test and security testing (ADR-0047) | System | Planned |
 
 ## SC - System and Communications Protection
@@ -157,12 +157,12 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | SC-5 | Denial-of-Service Protection | DMZ proxy limits, resource caps (ADR-0009, 0031) | System | Planned |
 | SC-7 | Boundary Protection | HAProxy DMZ pair, Cilium, Squid; SC-7(5) tailored, R01 (ADR-0007, 0012, 0040, 0050) | System | Planned |
 | SC-7(5) | Deny by Default - Allow by Exception | Tailored: internet allowed with category blocking; Cilium denies all non-proxy egress; risk acceptance R01 (ADR-0040); allowlist mode per group stays; monthly review of the uncategorised hostnames report in Elastic | System | Planned |
-| SC-8 | Transmission Confidentiality and Integrity | TLS at DMZ, separate banner/login/provision/portal hosts, mTLS webhook (ADR-0012, 0020, 0049) | System | Planned |
+| SC-8 | Transmission Confidentiality and Integrity | TLS at DMZ, separate banner/login/provision/portal hosts, mTLS webhook (ADR-0012, 0020, 0049); Harbor internal TLS is off, pod-to-pod traffic is encrypted by Cilium WireGuard (#18), Harbor to `harbor-db` uses `verify-full` | System | Planned |
 | SC-10 | Network Disconnect | Idle and disconnect timeouts (ADR-0039) | System | Planned |
-| SC-12 | Cryptographic Key Establishment and Management | OpenBao PKI, auto-unseal, Shamir recovery split, offline escrow, Ceph OSD dm-crypt keys (ADR-0042, 0061) | System | Planned |
+| SC-12 | Cryptographic Key Establishment and Management | OpenBao PKI, auto-unseal, Shamir recovery split, offline escrow, Ceph OSD dm-crypt keys (ADR-0042, 0061); static seal key file placed by `deploy/enterprise/openbao/ansible/seal-key.yml`, offline bootstrap CA `gen-bootstrap-tls.sh`, rotation in [runbooks/openbao.md](runbooks/openbao.md) (IaC done, not deployed) | System | Planned |
 | SC-13 | Cryptographic Protection | Non-FIPS exception recorded (ADR-0011); R05 accepted on condition; exception references: TODO (owner): issuer, date, scope - required before Phase 1 starts | System | Planned |
 | SC-23 | Session Authenticity | OIDC sessions, CSRF protections (ADR-0043) | System | Planned |
-| SC-28 | Protection of Information at Rest | Every Ceph OSD encrypted with dm-crypt, keys in OpenBao; backups encryption (ADR-0033, 0037, 0042, 0061); offsite copy encrypted client-side by Kopia in deploy/k8s/offsite-export, IaC done, not deployed | System | Planned |
+| SC-28 | Protection of Information at Rest | Every Ceph OSD encrypted with dm-crypt, keys in OpenBao; backups encryption (ADR-0033, 0037, 0042, 0061); OpenBao Raft auto-unsealed by the static seal on control-plane local PVs, nightly Raft snapshot offsite (`deploy/enterprise/openbao/`); offsite copy encrypted client-side by Kopia in deploy/k8s/offsite-export, IaC done, not deployed | System | Planned |
 | SC-28(1) | Cryptographic Protection | dm-crypt on every Ceph OSD, keys in OpenBao (ADR-0061) | System | Planned |
 
 ## SI - System and Information Integrity
@@ -180,6 +180,6 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
-| SR-3 | Supply Chain Controls and Processes | Signed allowlisted images, SBOM (ADR-0029) | System | Planned |
-| SR-4 | Provenance | SBOM, signatures, federal GitLab as source of truth (ADR-0029, 0048) | System | Planned |
+| SR-3 | Supply Chain Controls and Processes | Signed allowlisted images, SBOM (ADR-0029); Harbor registry with digest-pinned images implemented in code, not deployed: `deploy/enterprise/harbor/` | System | Planned |
+| SR-4 | Provenance | SBOM, signatures, federal GitLab as source of truth (ADR-0029, 0048); one-way push mirror `deploy/enterprise/gitlab-mirror` with pinned GitHub host key and repo-scoped deploy key, protected branches only, approvals on federal GitLab (#16) | System | Planned |
 | SR-11 | Component Authenticity | cosign verification (ADR-0029) | System | Planned |

@@ -1,0 +1,68 @@
+# One local PV per control-plane node for OpenBao Raft (hostnames from #2's hosts.example.yml).
+# ansible/seal-key.yml creates /var/lib/openbao/raft (0700, uid 100) on each node.
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: openbao-raft-rke2-server-01
+  labels:
+    app.kubernetes.io/name: openbao
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: openbao-local
+  local:
+    path: /var/lib/openbao/raft
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [rke2-server-01]
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: openbao-raft-rke2-server-02
+  labels:
+    app.kubernetes.io/name: openbao
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: openbao-local
+  local:
+    path: /var/lib/openbao/raft
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [rke2-server-02]
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: openbao-raft-rke2-server-03
+  labels:
+    app.kubernetes.io/name: openbao
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: openbao-local
+  local:
+    path: /var/lib/openbao/raft
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [rke2-server-03]
