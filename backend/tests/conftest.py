@@ -2,9 +2,14 @@ import os
 import tempfile
 from unittest.mock import AsyncMock, MagicMock
 
+import asyncio
+
 import pytest
+import sqlalchemy
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.pool import NullPool
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -24,15 +29,95 @@ from app.database import get_session  # noqa: E402
 from app.routers.instances import get_docker_manager, get_screenshot_service  # noqa: E402
 
 
+TEST_DB_URL = os.environ.get("STYX_TEST_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+IS_PG = TEST_DB_URL.startswith("postgresql")
+
+
+def pytest_collection_modifyitems(config, items):
+    skip = "pg_only" if not IS_PG else "sqlite_only"
+    marker = pytest.mark.skip(reason=f"{skip} test on {'postgres' if IS_PG else 'sqlite'}")
+    for item in items:
+        if skip in item.keywords:
+            item.add_marker(marker)
+
+
+async def _pg_reset_schema(url: str = TEST_DB_URL) -> None:
+    """Drop everything in the public schema (tests own the test database)."""
+    eng = create_async_engine(url, poolclass=NullPool)
+    async with eng.begin() as conn:
+        await conn.execute(sqlalchemy.text("DROP SCHEMA public CASCADE"))
+        await conn.execute(sqlalchemy.text("CREATE SCHEMA public"))
+    await eng.dispose()
+
+
+@pytest.fixture(scope="session")
+def _pg_schema():
+    """Postgres: build the schema once via Alembic (the real migration path)."""
+    if not IS_PG:
+        yield
+        return
+    from app.db_migrate import migrate
+
+    async def build():
+        await _pg_reset_schema()
+        eng = create_async_engine(TEST_DB_URL, poolclass=NullPool)
+        await migrate(eng)
+        await eng.dispose()
+
+    asyncio.run(build())
+    yield
+    asyncio.run(_pg_reset_schema())
+
+
 @pytest.fixture(name="session")
-async def session_fixture():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
-    async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    async with async_session_factory() as session:
-        yield session
+async def session_fixture(_pg_schema):
+    if not IS_PG:
+        engine = create_async_engine(TEST_DB_URL)
+        async with engine.begin() as conn:
+            await conn.run_sync(SQLModel.metadata.create_all)
+        async_session_factory = async_sessionmaker(
+            engine, class_=AsyncSession, expire_on_commit=False)
+        async with async_session_factory() as session:
+            yield session
+        await engine.dispose()
+        return
+    # Postgres: one outer transaction per test; session commits become savepoints.
+    engine = create_async_engine(TEST_DB_URL, poolclass=NullPool)
+    async with engine.connect() as conn:
+        outer = await conn.begin()
+        async with AsyncSession(conn, expire_on_commit=False,
+                                join_transaction_mode="create_savepoint") as session:
+            yield session
+        await outer.rollback()
     await engine.dispose()
+
+
+# Scratch DB for migration/startup tests: a SQLite file, or a throwaway PG database.
+async def _pg_admin(sql: str) -> None:
+    eng = create_async_engine(TEST_DB_URL, poolclass=NullPool, isolation_level="AUTOCOMMIT")
+    async with eng.connect() as conn:
+        await conn.execute(sqlalchemy.text(sql))
+    await eng.dispose()
+
+
+@pytest.fixture
+async def scratch_url(tmp_path):
+    if not IS_PG:
+        yield f"sqlite+aiosqlite:///{tmp_path / 'styx.db'}"
+        return
+    url = make_url(TEST_DB_URL)
+    name = f"{url.database}_scratch"
+    await _pg_admin(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+    await _pg_admin(f'CREATE DATABASE "{name}"')
+    yield url.set(database=name).render_as_string(hide_password=False)
+    await _pg_admin(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+
+
+@pytest.fixture
+async def scratch_engine(scratch_url):
+    eng = create_async_engine(scratch_url, poolclass=NullPool)
+    yield eng
+    await eng.dispose()
 
 
 @pytest.fixture(autouse=True)

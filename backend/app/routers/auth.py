@@ -57,6 +57,8 @@ def _hash_token(raw: str) -> str:
 
 async def _issue_session(resp: Response, session: AsyncSession, user: User, request: Request,
                          family_id: str | None = None, session_only: bool = False) -> None:
+    session.add(user)
+    await session.flush()  # a new user row must exist before its refresh_tokens FK row (PG)
     access = tokens.create_access_token(user.id, user.role, tv=user.token_version)
     refresh, jti = tokens.create_refresh_token(user.id)
     family_id = family_id or jti

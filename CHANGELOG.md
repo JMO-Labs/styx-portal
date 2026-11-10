@@ -2,6 +2,8 @@
 
 ### Features
 
+* **db:** Postgres support (`postgresql+asyncpg://` in `DATABASE_URL`) next to SQLite (styx-portal#21)
+* **db:** Alembic manages the schema (`0001_baseline`); existing SQLite databases are backed up to `<db>.pre-alembic.bak` and stamped once at startup (styx-portal#21)
 * **dr:** restore test harness for the phase-1 full-site restore test (ADR-0037, CP-4/CP-9/CP-10, R03): stdlib CLI `deploy/dr/restore-test/styx_drtest.py` (`plan`, `run --confirm`, `fingerprint`, `mark`, `report`, `teardown`) restores into a scratch target from CNPG (new `Cluster` with `bootstrap.recovery`, no `plugins`/`backup`), Velero (namespace-mapped, ReadOnly BSL, no cluster resources) and the Kopia offsite repo (`--readonly`); five guards refuse non-scratch targets before the first write (exit 2); checks row counts and checksums against a fingerprint baseline, `pg_amcheck`, Alembic head, Velero phase, Kopia verify plus sha256 sample and `/api/health`; RTO 8 h / RPO 24 h; versioned JSON + Markdown evidence report with secrets redacted; any error after the first write aborts with exit 3 and a failing report; not run (styx-portal#15)
 * **deploy:** RKE2 node IaC (ADR-0006, ADR-0007): Ansible tree `deploy/rke2/` with community role `lablabs.rke2` pinned to 1.54.0 (exact git tag), RKE2 `v1.36.6+rke2r1` from the stable channel with downgrades off, CIS profile plus apiserver `service-account-extend-token-expiration=false`, keepalived API VIP (kube-vip off), `cni: [cilium]` (tuning in #18), bundled ingress off, server taint `CriticalAddonsOnly=true:NoExecute`, worker labels `node.kubernetes.io/worker=true` and `styx.io/gpu-ready=true`, cluster token only from `RKE2_TOKEN` or Vault with a fail-fast `site.yml` assert, placeholder inventory of 3 servers and 8 agents, CI job `rke2-iac` (galaxy install, yamllint, ansible-lint production, syntax-check) in GitLab and GitHub; not applied, not for accredited environments until SC-13/CM-6 are closed (styx-portal#2)
 * **deploy:** opt-in Kopia offsite export of CephFS snapshots (ADR-0037): `deploy/k8s/offsite-export/` component with nightly `styx-offsite-export` and daily `styx-offsite-verify` CronJobs (Kopia 0.23.1, client-side AES-256-GCM or ChaCha20-Poly1305, S3 Object Lock COMPLIANCE with lock extension, retention 30/8/12, RPO guard, orphaned-source purge after `OFFSITE_ORPHAN_DAYS`), ExternalSecret from OpenBao `backup/offsite/kopia`, read-only ceph-csi PV, own `styx-backup` namespace, CiliumNetworkPolicy and 4 Prometheus alerts; not in the base kustomization, not deployed (styx-portal#13)
@@ -14,6 +16,8 @@
 
 ### Bug Fixes
 
+* **db:** timezone-aware datetimes are stored as naive UTC on every backend (`UTCDateTime`)
+* **db:** TURN byte counters are 64-bit; instance delete keeps session events; new users are flushed before their refresh token (Postgres foreign keys)
 * **ci:** `gitlab-mirror-apply` fails on a failed OpenBao login and continues only on dry-run rc 0 or 2 (styx-portal#16)
 
 ### Documentation

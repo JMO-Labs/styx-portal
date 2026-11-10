@@ -1,5 +1,10 @@
 import sqlite3
-from app.database import _ensure_template_columns
+
+import pytest
+
+from app.db_migrate import _ensure_template_columns
+
+pytestmark = pytest.mark.sqlite_only
 
 
 def test_ensure_template_columns_adds_missing(tmp_path):

@@ -36,7 +36,10 @@ class _Docker:
 
 
 async def _seed(session, statuses):
-    from app.models import Instance
+    from app.models import Instance, ServiceTemplate
+    if not await session.get(ServiceTemplate, "t"):
+        session.add(ServiceTemplate(id="t", name="tpl-t", display_name="T", image="img"))
+        await session.commit()
     insts = [Instance(name=f"i{n}", subdomain=f"s{n}", template_id="t", status=st, container_id=f"c{n}")
              for n, st in enumerate(statuses)]
     for i in insts:

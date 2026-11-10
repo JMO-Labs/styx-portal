@@ -75,6 +75,7 @@ async def purge_profiles(session: AsyncSession, runtime, *, user_id: str | None 
         except Exception:  # noqa: BLE001  volume may already be gone
             logger.warning("profile volume %s not removed", row.volume_name, exc_info=True)
         await session.delete(row)
+    await session.flush()  # rows go before their template/user is deleted (PG FKs)
 
 
 async def delete_profile(session: AsyncSession, runtime, user_id: str, template_id: str) -> None:

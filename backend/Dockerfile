@@ -16,6 +16,8 @@ RUN useradd -m -u 1000 appuser \
     && chown -R appuser:appuser /app
 
 COPY --chown=appuser:appuser backend/app/ app/
+COPY --chown=appuser:appuser backend/alembic.ini ./
+COPY --chown=appuser:appuser backend/alembic/ alembic/
 COPY --chown=appuser:appuser agent/ /app/agent/
 COPY --chown=appuser:appuser templates/ /app/templates/
 

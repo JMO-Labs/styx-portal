@@ -11,9 +11,9 @@ from app.schemas import OAuthIdentity
 from app.security.crypto import encrypt_secret
 from app.security.passwords import hash_password
 from app.services import matrix_card
+from tests.db_helpers import ensure_user
 
 PW = "correct horse battery staple"
-
 
 async def _card_user(session, name="carol"):
     card = matrix_card.generate_card()
@@ -154,6 +154,7 @@ async def test_oauth_login_ignores_card(client, session):
     session.add(OAuthProvider(name="google", display_label="Google", kind="oidc",
                               issuer_url="https://accounts.google.test",
                               client_id="cid", client_secret_enc=encrypt_secret("sec")))
+    await ensure_user(session, "a")
     session.add(Invite(token_hash="h", email="new@x.com", role="user", created_by="a"))
     await session.commit()
     with patch("app.security.oauth.build_authorize",

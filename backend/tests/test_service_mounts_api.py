@@ -80,6 +80,9 @@ async def test_member_forbidden(member_client, session, dk):
     assert (await member_client.post(f"/api/services/{s.id}/mount/plan")).status_code == 403
 
 
+# Fires concurrent requests through the one shared test session; an asyncpg
+# connection cannot run concurrent statements, so this harness only works on SQLite.
+@pytest.mark.sqlite_only
 async def test_concurrent_applies_start_one_job(admin_client, session, dk):
     import asyncio
     s = await _svc(session)
