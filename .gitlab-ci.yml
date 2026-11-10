@@ -274,6 +274,24 @@ trivy-fs:
   script:
     - trivy fs --scanners vuln,secret --severity HIGH,CRITICAL --exit-code 1 --ignore-unfixed .
 
+license-register:
+  # Component and license register (issue #17): Trivy license scans of the repo lockfiles and
+  # the backend venv (built from uv.lock), then the policy/staleness check. Blocking.
+  # Trivy is sha256-pinned; never v0.69.4-0.69.6 (CVE-2026-33634).
+  stage: security
+  <<: *backend_setup
+  <<: *on_push_or_mr
+  script:
+    - |
+      set -eu
+      cd "$CI_PROJECT_DIR"
+      T="$CI_PROJECT_DIR/.trivy-bin"; mkdir -p "$T"
+      curl -sSfL -o "$T/trivy.tar.gz" https://github.com/aquasecurity/trivy/releases/download/v0.76.2/trivy_0.76.2_Linux-64bit.tar.gz
+      echo "bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf  $T/trivy.tar.gz" | sha256sum -c -
+      tar xzf "$T/trivy.tar.gz" -C "$T" trivy
+      scripts/license_scan.sh "$T/trivy"
+      backend/.venv/bin/python scripts/license_register.py check --sbom repo.cdx.json venv.cdx.json
+
 # ---- release (semantic-release on default branch) ----------------------------
 semantic-release:
   stage: release
