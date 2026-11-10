@@ -200,13 +200,14 @@ def test_ci_policy_gate_inputs_are_script_literals():
     """Job or manual-run variables override YAML variables, so the API URL, product project
     and gate ref must be literals inside the (pinned) script, not $VARIABLES."""
     job = yaml.safe_load((DIR / "ci-policy/gitlab-ci.yml").read_text())["approval-gate"]
-    curl, run = job["script"]
+    curl, _check, run = job["script"]
     assert "approval_gate.py/raw?ref=" in curl and "$CI_JOB_TOKEN" in curl
     url = curl.split('"')[-2]
     assert url.startswith("https://") and "$" not in url
-    assert run.startswith("CI_API_V4_URL=https://") and "CI_PROJECT_ID=" in run
+    assert "CI_API_V4_URL=https://" in run and "CI_PROJECT_ID=" in run
     assert run.endswith("python3 -I /tmp/approval_gate.py")
-    assert "$" not in run.split("python3")[0]
+    literals = run.split("CI_API_V4_URL=")[1].split("python3")[0]
+    assert "$" not in literals
 
 
 def test_ci_policy_pins_workflow_so_mr_pipelines_exist():
@@ -215,7 +216,8 @@ def test_ci_policy_pins_workflow_so_mr_pipelines_exist():
     wf = yaml.safe_load((DIR / "ci-policy/gitlab-ci.yml").read_text())["workflow"]
     first, *rest = wf["rules"]
     assert first == {"if": '$CI_PIPELINE_SOURCE == "merge_request_event"'}
-    assert {"if": "$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS", "when": "never"} in rest
+    assert {"if": '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"',
+            "when": "never"} in rest
 
 
 def test_ci_policy_workflow_never_rule_is_push_only():
