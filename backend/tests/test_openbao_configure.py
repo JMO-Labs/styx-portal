@@ -1,0 +1,113 @@
+"""bao_configure.py against a fake `bao` (issue #4): env guards, idempotency, dry run."""
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+from tests.openbao_checks import OPENBAO
+
+SCRIPT = OPENBAO / "bao_configure.py"
+FAKEBIN = Path(__file__).parent / "fixtures/fakebin"
+TOKEN = "s.SECRETVALUE"
+
+
+def run(tmp_path, *args, state="empty", **env_over):
+    log = tmp_path / "bao.log"
+    log.touch()
+    env = {"PATH": f"{FAKEBIN}:{os.environ['PATH']}", "FAKE_LOG": str(log), "FAKE_STATE": state,
+           "BAO_ADDR": "https://openbao-active.openbao.svc:8200",
+           "BAO_CACERT": "/openbao/tls/ca.crt", "BAO_TOKEN": TOKEN}
+    env.update(env_over)
+    env = {k: v for k, v in env.items() if v is not None}
+    res = subprocess.run([sys.executable, str(SCRIPT), *args], env=env, capture_output=True,
+                         text=True, timeout=30)
+    return res, log.read_text().splitlines()
+
+
+def policies() -> list[str]:
+    return sorted(p.stem for p in (OPENBAO / "policies").glob("*.hcl"))
+
+
+def roles() -> list[str]:
+    return [r["name"] for r in json.loads((OPENBAO / "auth-roles.json").read_text())]
+
+
+def test_refuses_without_addr_or_cacert(tmp_path):
+    for missing in ("BAO_ADDR", "BAO_CACERT"):
+        res, calls = run(tmp_path, **{missing: None})
+        assert res.returncode != 0 and missing in res.stderr
+        assert calls == []
+
+
+def test_refuses_skip_verify(tmp_path):
+    for value in ("1", "false", ""):
+        res, calls = run(tmp_path, BAO_SKIP_VERIFY=value)
+        assert res.returncode != 0 and "BAO_SKIP_VERIFY" in res.stderr
+        assert calls == []
+
+
+def test_fresh_cluster_applies_everything(tmp_path):
+    res, calls = run(tmp_path)
+    assert res.returncode == 0, res.stderr
+    for want in ("secrets enable -path=kv kv-v2", "audit enable file file_path=stdout",
+                 "auth enable kubernetes",
+                 "write auth/kubernetes/config kubernetes_host=https://kubernetes.default.svc"):
+        assert want in calls, want
+    for p in policies():
+        assert sum(c.startswith(f"policy write {p} ") for c in calls) == 1, p
+    for r in roles():
+        assert sum(c.startswith(f"write auth/kubernetes/role/{r} ") for c in calls) == 1, r
+    eso = next(c for c in calls if c.startswith("write auth/kubernetes/role/eso "))
+    for part in ("bound_service_account_names=external-secrets",
+                 "bound_service_account_namespaces=external-secrets", "policies=eso-read",
+                 "token_ttl=3600"):
+        assert part in eso.split(), part
+
+
+def test_idempotent_second_run(tmp_path):
+    res, calls = run(tmp_path, state="configured")
+    assert res.returncode == 0, res.stderr
+    assert not [c for c in calls if " enable " in f" {c} "]
+    assert not [c for c in calls if c.startswith("write auth/kubernetes/config")]
+
+
+def test_extra_mounts_file(tmp_path):
+    conf = tmp_path / "conf"
+    shutil.copytree(OPENBAO / "policies", conf / "policies")
+    shutil.copy(OPENBAO / "auth-roles.json", conf)
+    (conf / "extra-mounts.json").write_text(json.dumps([{"path": "rook", "type": "kv-v2"}]))
+    res, calls = run(tmp_path, "--dir", str(conf))
+    assert res.returncode == 0, res.stderr
+    assert "secrets enable -path=rook kv-v2" in calls
+    assert "secrets enable -path=kv kv-v2" in calls
+
+
+def test_shipped_extra_mounts_empty():
+    assert json.loads((OPENBAO / "extra-mounts.json").read_text()) == []
+
+
+def test_dry_run_no_writes(tmp_path):
+    res, calls = run(tmp_path, "--dry-run")
+    assert res.returncode == 0, res.stderr
+    assert calls, "dry run should still read state"
+    for c in calls:
+        assert "write" not in c.split() and "enable" not in c.split(), c
+    assert "bao secrets enable -path=kv kv-v2" in res.stdout
+    assert "bao policy write eso-read" in res.stdout
+
+
+def test_token_never_printed(tmp_path):
+    for args in ((), ("--dry-run",)):
+        res, _ = run(tmp_path, *args)
+        assert TOKEN not in res.stdout and TOKEN not in res.stderr
+
+
+def test_stdlib_only_and_short():
+    src = SCRIPT.read_text()
+    assert len(src.splitlines()) < 500
+    imports = {ln.split()[1].split(".")[0] for ln in src.splitlines()
+               if ln.startswith(("import ", "from "))}
+    assert imports <= set(sys.stdlib_module_names) | {"__future__"}, imports
