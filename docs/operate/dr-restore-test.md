@@ -15,6 +15,8 @@ Status: code and tests only, not run yet (IaC done, not run).
 | Kopia | the offsite repository from [Offsite backup](offsite-backup.md) (#13) | paths under `scratch_mount_root` |
 
 Each section (`cnpg`, `velero`, `kopia`) is optional. Leave it out of the config to skip it.
+At least one must be present: a config with none of them is refused (exit 2), because a
+run that restores nothing is not evidence.
 
 ## Usage
 
@@ -47,7 +49,7 @@ export DRTEST_CNPG_S3_KEY_ID=... DRTEST_CNPG_S3_SECRET=...                  # re
 Exit codes: 0 pass, 1 the run finished but did not pass, 2 refused (guard, config or
 `--confirm`), with nothing written, 3 aborted: a write step (namespace create, apply,
 restore, delete) failed, or an error came up after the first write (for example a
-malformed tool reply), so nothing after it ran. Exit 3 means writes may have run: run
+malformed tool reply or a restored file the harness cannot read), so nothing after it ran. Exit 3 means writes may have run: run
 `teardown`. `run` still writes a failing report
 whose last step shows the failure. A failed namespace create is never ignored: the
 namespace may belong to another run.

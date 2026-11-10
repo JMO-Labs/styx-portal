@@ -81,9 +81,9 @@ class Runner:
         try:
             p = subprocess.run(argv, input=input, capture_output=True, text=not binary,
                                env={**os.environ, **(env or {})}, check=False)
-        except FileNotFoundError:
-            p = subprocess.CompletedProcess(argv, 127, b"" if binary else "", f"{argv[0]}: "
-                                            "not found")
+        except OSError as e:  # not found (127) or not executable (126): a failed step
+            p = subprocess.CompletedProcess(argv, 127 if isinstance(e, FileNotFoundError)
+                                            else 126, b"" if binary else "", f"{argv[0]}: {e}")
         rec = {"id": step, "start": iso(start), "end": iso(now()), "actor": "harness",
                "command": self.sink.redact(cmd),
                "result": "ok" if p.returncode == 0 else f"exit {p.returncode}"}
@@ -144,8 +144,8 @@ def execute(cfg, runner, sink):
     runner.armed = True
     try:
         return restore_and_verify(cfg, runner, sink, rd, existing, started, uid)
-    except (StepFailed, KeyError, TypeError, AttributeError, ValueError) as e:
-        # Writes may have run: never exit 2 ("refused, nothing written") from here.
+    except Exception as e:  # noqa: BLE001
+        # Writes may have run: never exit 2 ("refused, nothing written") or a traceback.
         sink.err(f"ABORTED: {e}" if isinstance(e, StepFailed)
                  else f"ABORTED: error after writes ({type(e).__name__}: {e})")
         if not runner.dry:
