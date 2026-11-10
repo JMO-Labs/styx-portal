@@ -191,7 +191,8 @@ Owner role: Platform admin
 Estimate: 1:00 (parallel with steps 6-7), unproven until #15
 Evidence: CI pipeline IDs, image digests, cosign verify output, Kyverno admission check
 
-1. Deploy Harbor (#5) from IaC.
+1. Deploy Harbor (#5) from IaC: follow [Harbor (enterprise)](../../operate/harbor-enterprise.md)
+   (bootstrap order, OpenBao paths, `harbor_bootstrap.py`).
 2. Re-run the federal GitLab CI pipelines for the 3-5 golden images (ADR-0028) and the
    platform image mirror.
 3. Sign with the cosign key from OpenBao (ADR-0029) and check `cosign verify` per image.

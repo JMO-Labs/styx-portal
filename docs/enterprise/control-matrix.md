@@ -138,7 +138,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
 | RA-3 | Risk Assessment | Organizational risk assessment with ADR input (ADR-0010) | Hybrid | Planned |
-| RA-5 | Vulnerability Monitoring and Scanning | Trivy, Harbor, image rebuilds (ADR-0029, 0030) | System | Planned |
+| RA-5 | Vulnerability Monitoring and Scanning | Trivy, Harbor, image rebuilds (ADR-0029, 0030); Harbor registry implemented in code, not deployed: `deploy/enterprise/harbor/` (Trivy off until Phase 3) | System | Planned |
 
 ## SA - System and Services Acquisition
 
@@ -157,7 +157,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | SC-5 | Denial-of-Service Protection | DMZ proxy limits, resource caps (ADR-0009, 0031) | System | Planned |
 | SC-7 | Boundary Protection | HAProxy DMZ pair, Cilium, Squid; SC-7(5) tailored, R01 (ADR-0007, 0012, 0040, 0050) | System | Planned |
 | SC-7(5) | Deny by Default - Allow by Exception | Tailored: internet allowed with category blocking; Cilium denies all non-proxy egress; risk acceptance R01 (ADR-0040); allowlist mode per group stays; monthly review of the uncategorised hostnames report in Elastic | System | Planned |
-| SC-8 | Transmission Confidentiality and Integrity | TLS at DMZ, separate banner/login/provision/portal hosts, mTLS webhook (ADR-0012, 0020, 0049) | System | Planned |
+| SC-8 | Transmission Confidentiality and Integrity | TLS at DMZ, separate banner/login/provision/portal hosts, mTLS webhook (ADR-0012, 0020, 0049); Harbor internal TLS is off, pod-to-pod traffic is encrypted by Cilium WireGuard (#18), Harbor to `harbor-db` uses `verify-full` | System | Planned |
 | SC-10 | Network Disconnect | Idle and disconnect timeouts (ADR-0039) | System | Planned |
 | SC-12 | Cryptographic Key Establishment and Management | OpenBao PKI, auto-unseal, Shamir recovery split, offline escrow, Ceph OSD dm-crypt keys (ADR-0042, 0061) | System | Planned |
 | SC-13 | Cryptographic Protection | Non-FIPS exception recorded (ADR-0011); R05 accepted on condition; exception references: TODO (owner): issuer, date, scope - required before Phase 1 starts | System | Planned |
@@ -180,6 +180,6 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
-| SR-3 | Supply Chain Controls and Processes | Signed allowlisted images, SBOM (ADR-0029) | System | Planned |
+| SR-3 | Supply Chain Controls and Processes | Signed allowlisted images, SBOM (ADR-0029); Harbor registry with digest-pinned images implemented in code, not deployed: `deploy/enterprise/harbor/` | System | Planned |
 | SR-4 | Provenance | SBOM, signatures, federal GitLab as source of truth (ADR-0029, 0048) | System | Planned |
 | SR-11 | Component Authenticity | cosign verification (ADR-0029) | System | Planned |

@@ -218,3 +218,20 @@ def test_no_dangling_adr_refs():
                for status_id in re.findall(r"^- Decision ID: (\S+)$", p.read_text(), re.M)]
     for did in ids:
         assert adr_ids.count(did) == 1, did
+
+
+def test_harbor_phase1_docs():
+    """Issue #5: Harbor IaC is documented, ADR-0029 decision unchanged."""
+    text = adr("0029")
+    assert status(text) == "Accepted"
+    assert "## Implementation note (Phase 1, #5)" in text
+    cm = (DOCS / "control-matrix.md").read_text()
+    for ctl in ("SR-3", "RA-5"):
+        assert "deploy/enterprise/harbor" in row(cm, ctl), ctl
+        assert has(row(cm, ctl), "implemented in code, not deployed"), ctl
+    assert has(row(cm, "SC-8"), "WireGuard")
+    restore = (DOCS / "runbooks/full-site-restore.md").read_text()
+    assert "operate/harbor-enterprise.md" in restore
+    root = DOCS.parents[1]
+    assert (root / "docs/operate/harbor-enterprise.md").is_file()
+    assert "operate/harbor-enterprise.md" in (root / "zensical.toml").read_text()

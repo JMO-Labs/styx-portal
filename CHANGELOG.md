@@ -1,3 +1,9 @@
+## Unreleased
+
+### Features
+
+* **harbor:** Harbor 2.15.4 registry IaC for enterprise Phase 1 (chart 1.19.4, CNPG `harbor-db`, RGW S3, ESO secrets, `harbor_bootstrap.py`), not deployed (#5)
+
 ## 1.0.0 (2026-06-15)
 
 ### Features
