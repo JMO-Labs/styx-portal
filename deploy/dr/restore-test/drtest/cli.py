@@ -109,3 +109,6 @@ def main(argv=None):
     except Refused as e:
         sink.err(f"REFUSED: {e}")
         return 2
+    except run.StepFailed as e:
+        sink.err(f"ABORTED: {e}")
+        return 3

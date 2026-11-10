@@ -29,6 +29,8 @@ class Sink:
     def __init__(self, env=None):
         env = os.environ if env is None else env
         vals = {v for k, v in env.items() if SECRET_ENV.search(k) and len(v) >= 4}
+        # Also the forms json.dumps writes (", backslash and non-ASCII escaped).
+        vals |= {json.dumps(v, ensure_ascii=a)[1:-1] for v in vals for a in (True, False)}
         self.secrets = sorted(vals, key=len, reverse=True)
 
     def redact(self, s):
@@ -48,6 +50,10 @@ class Sink:
     def append(self, path, record):
         with open(path, "a") as f:
             f.write(self.redact(json.dumps(record, sort_keys=True)) + "\n")
+
+
+class StepFailed(Exception):
+    """A write step exited non-zero: stop before anything else is written."""
 
 
 class Runner:
@@ -85,6 +91,8 @@ class Runner:
             self.sink.append(self.log, rec)
         elif not self.dry:
             self.pending.append(rec)
+        if write and p.returncode != 0:
+            raise StepFailed(f"{step} failed ({rec['result']}): {rec['command']}")
         return p
 
 
@@ -134,15 +142,12 @@ def execute(cfg, runner, sink):
         rd.mkdir(parents=True, exist_ok=True)
         runner.attach(rd / "steps.jsonl")
     runner.armed = True
-    for ns, ours in existing.items():
-        if not ours:
-            runner(["kubectl", "create", "-f", "-"], step="create-namespace", write=True,
-                   input=json.dumps(guards.namespace_manifest(ns, cfg["run_id"]), indent=2))
-    if "cnpg" in cfg:
-        cnpg.restore(cfg, runner)
-    if "velero" in cfg:
-        velero.restore(cfg, runner)
-    snaps = kopia.restore(cfg, runner, rd) if "kopia" in cfg else {}
+    try:
+        snaps = restore(cfg, runner, rd, existing)
+    except StepFailed as e:
+        sink.err(f"ABORTED: {e}")
+        write_report(cfg, rd, sink)  # no state.json: pass is false
+        return 3
     if runner.dry:
         sink.out("# then: checks (row counts/checksums, pg_amcheck, alembic, velero phase, "
                  "kopia verify + sha256 sample, GET health_url), report, no teardown")
@@ -165,6 +170,19 @@ def execute(cfg, runner, sink):
                                step="git-sha").stdout.strip() or "unknown"}
     sink.write(rd / "state.json", json.dumps(state, indent=2))
     return write_report(cfg, rd, sink)
+
+
+def restore(cfg, runner, rd, existing):
+    """All write steps. A failed `create` may mean the namespace is someone else's."""
+    for ns, ours in existing.items():
+        if not ours:
+            runner(["kubectl", "create", "-f", "-"], step="create-namespace", write=True,
+                   input=json.dumps(guards.namespace_manifest(ns, cfg["run_id"]), indent=2))
+    if "cnpg" in cfg:
+        cnpg.restore(cfg, runner)
+    if "velero" in cfg:
+        velero.restore(cfg, runner)
+    return kopia.restore(cfg, runner, rd) if "kopia" in cfg else {}
 
 
 def tool_versions(runner):

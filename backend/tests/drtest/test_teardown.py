@@ -34,3 +34,11 @@ def test_teardown_refuses_prod_namespace(h):
 def test_teardown_requires_confirm(h):
     assert h.cli("teardown").returncode != 0
     assert h.calls() == []
+
+
+def test_teardown_failed_delete_exits_3(h):
+    h.on(rf"^kubectl get namespace {NS}", out=OWN)
+    h.on(r"^kubectl delete", code=1)
+    r = h.cli("teardown", "--confirm", RUN)
+    assert r.returncode == 3
+    assert "ABORTED" in r.stderr and "Traceback" not in r.stderr

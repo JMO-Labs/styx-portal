@@ -45,7 +45,10 @@ export DRTEST_CNPG_S3_KEY_ID=... DRTEST_CNPG_S3_SECRET=...                  # re
 | `teardown --confirm <run-id>` | deletes the scratch namespace(s) that carry `styx.io/dr-run=<run-id>` and pass Guard 2 |
 
 Exit codes: 0 pass, 1 the run finished but did not pass, 2 refused (guard, config or
-`--confirm`), with nothing written.
+`--confirm`), with nothing written, 3 aborted: a write step (namespace create, apply,
+restore, delete) failed, so nothing after it ran. `run` still writes a failing report
+whose last step shows the failure. A failed namespace create is never ignored: the
+namespace may belong to another run.
 
 Teardown leaves the Velero `Restore` object (a record in the `velero` namespace) and the
 Kopia files under `scratch_mount_root`. Remove the files by hand after the report is filed.
