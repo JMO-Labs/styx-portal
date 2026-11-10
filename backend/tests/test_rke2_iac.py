@@ -1,5 +1,6 @@
 """Static checks for the RKE2 node IaC under deploy/rke2 (issue #2)."""
 
+import hashlib
 import ipaddress
 import re
 from pathlib import Path
@@ -15,7 +16,7 @@ FILES = [
 ]
 DOC_NETS = [ipaddress.ip_network(n) for n in ("192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24")]
 TOKEN_LOOKUP = "{{ lookup('env', 'RKE2_TOKEN') }}"
-SECRET_LINE = re.compile(r"^\s*-?\s*[\w.-]*(token|password)\s*:\s*(.*)$", re.I)
+SECRET_LINE = re.compile(r"""^\s*-?\s*["']?[\w.-]*(token|password)["']?\s*:\s*(.*)$""", re.I)
 
 
 def _load(rel):
@@ -139,7 +140,8 @@ def test_site_asserts_token_present():
     conds = task["ansible.builtin.assert"]["that"]
     # trim: a whitespace-only RKE2_TOKEN renders as a null token and each server mints its own.
     assert "rke2_token | trim | length > 0" in conds
-    assert "rke2_token != 'defaultSecret12345'" in conds
+    default_sha1 = hashlib.sha1(b"defaultSecret12345").hexdigest()  # noqa: S324 - not a security hash
+    assert f"rke2_token | hash('sha1') != '{default_sha1}'" in conds
     # always: --tags runs must not skip the guard.
     assert "always" in task["tags"]
 

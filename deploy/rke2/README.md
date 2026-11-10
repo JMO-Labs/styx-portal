@@ -21,7 +21,7 @@ Installs a CIS-hardened RKE2 cluster: 3 HA control-plane (server) nodes in group
 | CNI | `cilium` only; Cilium tuning and kube-proxy replacement are in #18 |
 | Ingress | bundled ingress disabled |
 | Servers | taint `CriticalAddonsOnly=true:NoExecute` |
-| Agents | labels `node-role.kubernetes.io/worker=true`, `styx.io/gpu-ready=true` |
+| Agents | labels `node.kubernetes.io/worker=true`, `styx.io/gpu-ready=true` (not `node-role.kubernetes.io/*`: kubelet and NodeRestriction refuse that prefix in `--node-labels`, so agents would not register) |
 
 The role's CIS task already creates the `etcd` user and installs the CIS
 sysctls, so this tree does not repeat those steps.
