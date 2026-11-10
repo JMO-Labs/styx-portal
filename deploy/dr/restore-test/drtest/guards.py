@@ -10,6 +10,7 @@ import re
 RUN_LABEL = "styx.io/dr-run"
 SCRATCH_LABEL = "styx.io/dr-scratch"
 NS_RE = re.compile(r"styx-drtest-[a-z0-9]([a-z0-9-]*[a-z0-9])?")
+DNS_LABEL = re.compile(r"[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?")
 DENY = {"styx", "default", "velero", "openbao", "rook-ceph", "styx-backup"}
 DENY_PREFIX = ("kube-", "cnpg-")
 
@@ -75,8 +76,11 @@ def velero_targets(cfg):
     """Guard 3 (config part): every included namespace is mapped to a scratch namespace."""
     v = cfg["velero"]
     inc, maps = v["include_namespaces"], v["namespace_mappings"]
-    if not inc or any(n in ("", "*") or "," in n for n in inc):
-        raise Refused("velero include_namespaces must list namespaces explicitly (no '*')")
+    # Literal names only: Velero expands globs (*?[]) but mappings match literally,
+    # so an unmapped match would be restored in place.
+    if not inc or not all(isinstance(n, str) and DNS_LABEL.fullmatch(n) for n in inc):
+        raise Refused("velero include_namespaces must be literal namespace names "
+                      "(no globs, no commas)")
     missing = [n for n in inc if n not in maps]
     if missing:
         raise Refused(f"velero namespace_mappings miss {', '.join(missing)} "

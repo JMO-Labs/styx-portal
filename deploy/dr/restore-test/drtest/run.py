@@ -29,6 +29,8 @@ class Sink:
     def __init__(self, env=None):
         env = os.environ if env is None else env
         vals = {v for k, v in env.items() if SECRET_ENV.search(k) and len(v) >= 4}
+        # Also the forms json.dumps writes (", backslash and non-ASCII escaped).
+        vals |= {json.dumps(v, ensure_ascii=a)[1:-1] for v in vals for a in (True, False)}
         self.secrets = sorted(vals, key=len, reverse=True)
 
     def redact(self, s):
@@ -48,6 +50,10 @@ class Sink:
     def append(self, path, record):
         with open(path, "a") as f:
             f.write(self.redact(json.dumps(record, sort_keys=True)) + "\n")
+
+
+class StepFailed(Exception):
+    """A write step exited non-zero: stop before anything else is written."""
 
 
 class Runner:
@@ -75,16 +81,19 @@ class Runner:
         try:
             p = subprocess.run(argv, input=input, capture_output=True, text=not binary,
                                env={**os.environ, **(env or {})}, check=False)
-        except FileNotFoundError:
-            p = subprocess.CompletedProcess(argv, 127, b"" if binary else "", f"{argv[0]}: "
-                                            "not found")
+        except OSError as e:  # not found (127) or not executable (126): a failed step
+            p = subprocess.CompletedProcess(argv, 127 if isinstance(e, FileNotFoundError)
+                                            else 126, b"" if binary else "", f"{argv[0]}: {e}")
         rec = {"id": step, "start": iso(start), "end": iso(now()), "actor": "harness",
                "command": self.sink.redact(cmd),
-               "result": "ok" if p.returncode == 0 else f"exit {p.returncode}"}
+               "result": "ok" if p.returncode == 0 else f"exit {p.returncode}",
+               **({"write": True} if write else {})}
         if self.log:
             self.sink.append(self.log, rec)
         elif not self.dry:
             self.pending.append(rec)
+        if write and p.returncode != 0:
+            raise StepFailed(f"{step} failed ({rec['result']}): {rec['command']}")
         return p
 
 
@@ -130,19 +139,30 @@ def execute(cfg, runner, sink):
     started = now()
     uid, existing = guard_all(cfg, runner)
     rd = run_dir(cfg)
+    if not runner.dry and (rd / "state.json").exists():
+        raise guards.Refused(f"run {cfg['run_id']} already ran ({rd}); run teardown and "
+                             "use a new run_id (one run dir = one verdict)")
     if not runner.dry:
         rd.mkdir(parents=True, exist_ok=True)
         runner.attach(rd / "steps.jsonl")
     runner.armed = True
-    for ns, ours in existing.items():
-        if not ours:
-            runner(["kubectl", "create", "-f", "-"], step="create-namespace", write=True,
-                   input=json.dumps(guards.namespace_manifest(ns, cfg["run_id"]), indent=2))
-    if "cnpg" in cfg:
-        cnpg.restore(cfg, runner)
-    if "velero" in cfg:
-        velero.restore(cfg, runner)
-    snaps = kopia.restore(cfg, runner, rd) if "kopia" in cfg else {}
+    try:
+        return restore_and_verify(cfg, runner, sink, rd, existing, started, uid)
+    except (Exception, KeyboardInterrupt) as e:  # noqa: BLE001
+        # Writes may have run: never exit 2 ("refused, nothing written") or a traceback.
+        msg = (str(e) if isinstance(e, StepFailed)
+               else f"error after writes ({type(e).__name__}: {e})")
+        sink.err(f"ABORTED: {msg}")
+        if not runner.dry:
+            state = {"started": iso(started), "cluster_uid": uid, "aborted": msg,
+                     "datasets": []}
+            sink.write(rd / "state.json", json.dumps(state, indent=2))
+            write_report(cfg, rd, sink)  # aborted: pass is false
+        return 3
+
+
+def restore_and_verify(cfg, runner, sink, rd, existing, started, uid):
+    snaps = restore(cfg, runner, rd, existing)
     if runner.dry:
         sink.out("# then: checks (row counts/checksums, pg_amcheck, alembic, velero phase, "
                  "kopia verify + sha256 sample, GET health_url), report, no teardown")
@@ -165,6 +185,19 @@ def execute(cfg, runner, sink):
                                step="git-sha").stdout.strip() or "unknown"}
     sink.write(rd / "state.json", json.dumps(state, indent=2))
     return write_report(cfg, rd, sink)
+
+
+def restore(cfg, runner, rd, existing):
+    """All write steps. A failed `create` may mean the namespace is someone else's."""
+    for ns, ours in existing.items():
+        if not ours:
+            runner(["kubectl", "create", "-f", "-"], step="create-namespace", write=True,
+                   input=json.dumps(guards.namespace_manifest(ns, cfg["run_id"]), indent=2))
+    if "cnpg" in cfg:
+        cnpg.restore(cfg, runner)
+    if "velero" in cfg:
+        velero.restore(cfg, runner)
+    return kopia.restore(cfg, runner, rd) if "kopia" in cfg else {}
 
 
 def tool_versions(runner):

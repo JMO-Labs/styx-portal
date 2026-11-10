@@ -117,7 +117,7 @@ def sha256_sample(runner, k, root_obj, target, n, seed):
         local = hashlib.sha256((root / rel).read_bytes()).hexdigest()
         if p.returncode or hashlib.sha256(p.stdout).hexdigest() != local:
             bad.append(rel)
-    return check(f"kopia:sha256:{target}", not bad,
+    return check(f"kopia:sha256:{target}", bool(sample) and not bad,
                  f"{len(sample) - len(bad)}/{len(sample)} match"
                  + (f"; mismatch: {', '.join(bad[:10])}" if bad else ""))
 
