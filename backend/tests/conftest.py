@@ -163,3 +163,13 @@ def _no_host_interface_trust(monkeypatch):
     from app.middleware import rate_limit
     monkeypatch.setattr(rate_limit, "_startup_networks", ())
     monkeypatch.setattr(rate_limit, "_snapshot_taken", False)
+
+
+def pytest_runtest_logreport(report):
+    # Temporary CI diagnostic: surface failures as GitHub annotations.
+    if report.failed and os.environ.get("GITHUB_ACTIONS"):
+        import sys
+        msg = str(report.longrepr)[-1800:]
+        msg = msg.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+        sys.__stdout__.write(f"\n::error title={report.nodeid}::{msg}\n")
+        sys.__stdout__.flush()
