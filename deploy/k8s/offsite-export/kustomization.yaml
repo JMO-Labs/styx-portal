@@ -1,0 +1,21 @@
+# Opt-in offsite export (issue #13, ADR-0037). NOT referenced by ../kustomization.yaml.
+# Build: kubectl kustomize deploy/k8s/offsite-export   Docs: docs/operate/offsite-backup.md
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: styx-backup
+resources:
+  - namespace.yaml
+  - externalsecret.yaml
+  - pv.yaml
+  - cronjob-export.yaml
+  - cronjob-verify.yaml
+  - networkpolicy.yaml
+  - prometheusrule.yaml
+configMapGenerator:
+  - name: styx-offsite-params
+    envs: [params.env]
+  - name: styx-offsite-script
+    files: [offsite-export.sh]
+images:
+  - name: docker.io/kopia/kopia
+    newTag: "0.23.1"

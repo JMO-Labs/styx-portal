@@ -71,9 +71,9 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 |---|---|---|---|---|
 | CP-2 | Contingency Plan | HA design, availability targets (ADR-0006, 0008) | Hybrid | Planned |
 | CP-4 | Contingency Plan Testing | Full-site restore test (phase 1), 200-session load-test gate (ADR-0037, 0047); full-site restore test repeats annually, each result filed as eMASS evidence (R03) | Hybrid | Planned |
-| CP-6 | Alternate Storage Site | Encrypted CephFS-snapshot export to CUI-authorized cloud bucket (ADR-0037) | Hybrid | Planned |
+| CP-6 | Alternate Storage Site | Encrypted CephFS-snapshot export to CUI-authorized cloud bucket (ADR-0037); Kopia component deploy/k8s/offsite-export, IaC done, not deployed | Hybrid | Planned |
 | CP-7 | Alternate Processing Site | Not provided; exception R03 (ADR-0037) | Hybrid | Planned |
-| CP-9 | System Backup | CNPG, Velero, home snapshots, offline-escrowed backup keys in two sealed sets (ADR-0033, 0036, 0037, 0042); restore per [runbooks/full-site-restore.md](runbooks/full-site-restore.md) | System | Planned |
+| CP-9 | System Backup | CNPG, Velero, home snapshots, offline-escrowed backup keys in two sealed sets (ADR-0033, 0036, 0037, 0042); restore per [runbooks/full-site-restore.md](runbooks/full-site-restore.md); offsite copy with Object Lock and daily verify in deploy/k8s/offsite-export, IaC done, not deployed | System | Planned |
 | CP-10 | System Recovery and Reconstitution | RTO 8 h restore procedures (ADR-0037): [runbooks/full-site-restore.md](runbooks/full-site-restore.md) | System | Planned |
 
 ## IA - Identification and Authentication
@@ -162,7 +162,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | SC-12 | Cryptographic Key Establishment and Management | OpenBao PKI, auto-unseal, Shamir recovery split, offline escrow, Ceph OSD dm-crypt keys (ADR-0042, 0061); static seal key file placed by `deploy/enterprise/openbao/ansible/seal-key.yml`, offline bootstrap CA `gen-bootstrap-tls.sh`, rotation in [runbooks/openbao.md](runbooks/openbao.md) (IaC done, not deployed) | System | Planned |
 | SC-13 | Cryptographic Protection | Non-FIPS exception recorded (ADR-0011); R05 accepted on condition; exception references: TODO (owner): issuer, date, scope - required before Phase 1 starts | System | Planned |
 | SC-23 | Session Authenticity | OIDC sessions, CSRF protections (ADR-0043) | System | Planned |
-| SC-28 | Protection of Information at Rest | Every Ceph OSD encrypted with dm-crypt, keys in OpenBao; backups encryption (ADR-0033, 0037, 0042, 0061); OpenBao Raft auto-unsealed by the static seal on control-plane local PVs, nightly Raft snapshot offsite (`deploy/enterprise/openbao/`) | System | Planned |
+| SC-28 | Protection of Information at Rest | Every Ceph OSD encrypted with dm-crypt, keys in OpenBao; backups encryption (ADR-0033, 0037, 0042, 0061); OpenBao Raft auto-unsealed by the static seal on control-plane local PVs, nightly Raft snapshot offsite (`deploy/enterprise/openbao/`); offsite copy encrypted client-side by Kopia in deploy/k8s/offsite-export, IaC done, not deployed | System | Planned |
 | SC-28(1) | Cryptographic Protection | dm-crypt on every Ceph OSD, keys in OpenBao (ADR-0061) | System | Planned |
 
 ## SI - System and Information Integrity

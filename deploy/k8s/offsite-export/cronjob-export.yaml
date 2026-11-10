@@ -1,0 +1,65 @@
+# Nightly offsite export (offsite-export.sh export). Runs after #9's snapshot window.
+# Pod spec is shared with cronjob-verify.yaml; keep both in sync.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: styx-offsite-export
+spec:
+  schedule: "30 4 * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 21600
+      template:
+        metadata:
+          labels: {app: styx-offsite}
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          # UID 0 with only CAP_DAC_READ_SEARCH: user homes are 0700 under per-user UIDs,
+          # and Kubernetes grants no effective capabilities to non-root containers.
+          # The volume is read-only, so the job can read every home but change nothing.
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: kopia
+              image: docker.io/kopia/kopia
+              command: [/bin/sh, /scripts/offsite-export.sh]
+              args: [export]
+              envFrom:
+                - configMapRef: {name: styx-offsite-params}
+                - secretRef: {name: styx-offsite-export}
+              env:
+                - {name: HOME, value: /work}
+                - {name: KOPIA_CONFIG_PATH, value: /work/config/repository.config}
+                - {name: KOPIA_CACHE_DIRECTORY, value: /work/cache}
+                - {name: KOPIA_LOG_DIR, value: /work/logs}
+                - {name: KOPIA_CHECK_FOR_UPDATES, value: "false"}
+                - {name: KOPIA_PERSIST_CREDENTIALS_ON_CONNECT, value: "false"}
+              securityContext:
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: [ALL]
+                  add: [DAC_READ_SEARCH]
+                seccompProfile: {type: RuntimeDefault}
+              resources:
+                requests: {cpu: 500m, memory: 1Gi}
+                limits: {memory: 4Gi}
+              volumeMounts:
+                - {name: snapshots, mountPath: /snapshots, readOnly: true}
+                - {name: script, mountPath: /scripts, readOnly: true}
+                - {name: work, mountPath: /work}
+          volumes:
+            - name: snapshots
+              persistentVolumeClaim: {claimName: styx-offsite-snapshots, readOnly: true}
+            - name: script
+              configMap: {name: styx-offsite-script}
+            - name: work
+              emptyDir: {sizeLimit: 20Gi}

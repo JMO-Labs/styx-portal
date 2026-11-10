@@ -1,0 +1,35 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: styx-offsite
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: styx-offsite
+      rules:
+        - alert: StyxOffsiteExportFailed
+          expr: kube_job_failed{job_name=~"styx-offsite-export.*",condition="true"} > 0
+          for: 5m
+          labels: {severity: critical}
+          annotations:
+            summary: Offsite backup export job failed (check job logs for failed subvolumes)
+        - alert: StyxOffsiteExportStale
+          # RPO 24 h + 2 h runtime slack; absent() fires until the first success.
+          expr: (time() - kube_cronjob_status_last_successful_time{cronjob="styx-offsite-export"}) > 93600 or absent(kube_cronjob_status_last_successful_time{cronjob="styx-offsite-export"})
+          for: 30m
+          labels: {severity: critical}
+          annotations:
+            summary: No successful offsite export in over 26h (RPO 24h breached)
+        - alert: StyxOffsiteVerifyFailed
+          expr: kube_job_failed{job_name=~"styx-offsite-verify.*",condition="true"} > 0
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: Offsite backup verify job failed (possible repository corruption)
+        - alert: StyxOffsiteVerifyStale
+          expr: (time() - kube_cronjob_status_last_successful_time{cronjob="styx-offsite-verify"}) > 180000 or absent(kube_cronjob_status_last_successful_time{cronjob="styx-offsite-verify"})
+          for: 30m
+          labels: {severity: warning}
+          annotations:
+            summary: No successful offsite verify in over 50h

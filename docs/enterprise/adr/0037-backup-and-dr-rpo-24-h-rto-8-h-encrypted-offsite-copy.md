@@ -34,6 +34,11 @@ Negative:
 - No alternate processing site (CP-7); risk acceptance R03.
 - Recovery within 8 h is unproven until the phase 1 restore test.
 - Recurring cloud cost.
+- SC-13 gap: the offsite copy uses Kopia (AES256-GCM-HMAC-SHA256 or CHACHA20-POLY1305-HMAC-SHA256). The algorithms are approved, but Kopia is not a FIPS-validated module, and its password KDF is scrypt (the only KDF Kopia supports). This stays open debt under the R05 waiver (ADR-0011).
+
+Implementation:
+
+- The offsite export tool is Kopia (chosen over restic, rclone crypt, Velero and Ceph-native mirroring because only Kopia makes the cipher configurable and manages S3 Object Lock itself). It ships as the opt-in component `deploy/k8s/offsite-export/` (issue #13): a nightly export of CephFS subvolume snapshots to one client-side-encrypted repository in an Object Lock bucket, a daily verify, alerts for failure and RPO breach, and keys from OpenBao (ADR-0042) with offline escrow. IaC done, not deployed. See docs/operate/offsite-backup.md.
 
 Follow-up work:
 
