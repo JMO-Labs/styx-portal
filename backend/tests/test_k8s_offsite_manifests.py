@@ -203,3 +203,14 @@ def test_docs_require_noncurrent_version_lifecycle():
     assert "noncurrent" in deleted.lower()
     cost = page.split("## Cost check", 1)[1].split("\n## ", 1)[0]
     assert "lifecycle" in cost.lower()
+
+
+def test_docs_bound_is_per_pack_and_rotation_erases():
+    """Kopia GC drops only whole packs; shared live packs keep purged chunks (testing pass 4)."""
+    page = (ROOT / "docs/operate/offsite-backup.md").read_text()
+    deleted = page.split("## Deleted users", 1)[1].split("\n## ", 1)[0].lower()
+    for phrase in ("whole pack", "shared", "escrowed key", "rotat", "crypto-shred",
+                   "erase deadline"):
+        assert phrase in deleted, phrase
+    cost = page.split("## Cost check", 1)[1].split("\n## ", 1)[0].lower()
+    assert "whole pack" in cost
