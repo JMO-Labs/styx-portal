@@ -116,6 +116,19 @@ def test_spdx_parsing_parentheses_and_with(tmp_path, capsys, expr):
     assert lr.normalize("GPL-2.0-only") == "GPL-2.0"
 
 
+def test_denied_with_exception_fails(tmp_path, capsys):
+    code, out = run(tmp_path, capsys, [lib("x", "1.0.0", expr="Apache-2.0 WITH Commons-Clause")])
+    assert code == 1
+    assert "denied license Commons-Clause" in out
+
+
+@pytest.mark.parametrize("expr", ["MIT WITH", "MIT WITH (", "MIT WITH AND"])
+def test_with_missing_exception_is_bad_expression(tmp_path, capsys, expr):
+    code, out = run(tmp_path, capsys, [lib("x", "1.0.0", expr=expr)])
+    assert code == 1
+    assert "bad SPDX expression" in out
+
+
 def test_paid_without_adr_fails(tmp_path, capsys):
     code, out = run(tmp_path, capsys, components=[item(cost="paid")])
     assert code == 1
@@ -205,22 +218,39 @@ def test_duplicate_component_versions_listed_separately(tmp_path):
     assert len(rows) == 2
 
 
-@pytest.mark.parametrize("case", ["empty", "no_components", "bad_key", "bad_json"])
+BAD_SBOM = {"no_components": {"bomFormat": "CycloneDX"},
+            "str_component": {"components": ["x"]},
+            "null_component": {"components": [None]},
+            "str_license": {"components": [{**lib("a", "1.0.0"), "licenses": ["MIT"]}]}}
+BAD_MANIFEST = {"bad_key": {"components": [item(colour="blue")]},
+                "str_item": {"components": ["foo"]},
+                "map_components": {"components": {"a": 1}},
+                "str_override": {"overrides": ["x"]}}
+
+
+@pytest.mark.parametrize("case", ["empty", "bad_json", "null_adrs", *BAD_SBOM, *BAD_MANIFEST])
 def test_malformed_inputs(tmp_path, capsys, case):
     s = sbom(tmp_path, [lib("a", "1.0.0", "MIT")])
     m = manifest(tmp_path)
+    pol = FIX / "license-policy.yaml"
     if case == "empty":
         s.write_text("")
     elif case == "bad_json":
         s.write_text("{nope")
-    elif case == "no_components":
-        s.write_text(json.dumps({"bomFormat": "CycloneDX"}))
+    elif case == "null_adrs":
+        pol = tmp_path / "policy.yaml"
+        pol.write_text(yaml.safe_dump({**yaml.safe_load((FIX / "license-policy.yaml").read_text()),
+                                       "accepted_adrs": None}))
+    elif case in BAD_SBOM:
+        s.write_text(json.dumps(BAD_SBOM[case]))
     else:
-        m = manifest(tmp_path, [item(colour="blue")])
-    assert lr.main(args(tmp_path, [s], m, "check")) == 2
+        m.write_text(yaml.safe_dump(BAD_MANIFEST[case]))
+    a = args(tmp_path, [s], m, "check")
+    a[a.index("--policy") + 1] = str(pol)
+    assert lr.main(a) == 2
     out = capsys.readouterr()
     assert "Traceback" not in out.out + out.err
-    assert (out.out + out.err).strip()
+    assert out.err.startswith("error: ")
 
 
 def test_repo_policy_files_valid():
