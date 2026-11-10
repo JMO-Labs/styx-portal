@@ -1,0 +1,69 @@
+#jinja2: trim_blocks: True, lstrip_blocks: True
+---
+# Cilium values for the RKE2-bundled chart (issue #18); see README "Cilium".
+# Ansible templates this into server/manifests/ (rke2_custom_manifests). Plain Jinja only,
+# and every tag sits inside valuesContent so the unrendered file stays valid YAML.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: rke2-cilium
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    {% if cilium_kube_proxy_replacement %}
+    kubeProxyReplacement: true
+    # RKE2's client-side LB on every node, so the CNI does not depend on the keepalived VIP.
+    k8sServiceHost: localhost
+    k8sServicePort: "6443"
+    {% else %}
+    kubeProxyReplacement: false
+    {% endif %}
+    bpf:
+      masquerade: true
+    {% if cilium_encryption_type == "wireguard" %}
+    encryption:
+      enabled: true
+      type: wireguard
+      nodeEncryption: false
+    {% elif cilium_encryption_type == "ipsec" %}
+    # Secret kube-system/cilium-ipsec-keys is created out of band before the first install.
+    encryption:
+      enabled: true
+      type: ipsec
+      ipsec:
+        secretName: cilium-ipsec-keys
+    {% elif cilium_encryption_type == "none" %}
+    encryption:
+      enabled: false
+    {% else %}
+    # Not a bool on purpose: the chart schema and the tests reject a typo instead of
+    # silently running unencrypted.
+    encryption:
+      enabled: INVALID_cilium_encryption_type
+    {% endif %}
+    # ServiceMonitors stay off: their CRDs do not exist when the CNI installs (#8 adds them).
+    prometheus:
+      enabled: true
+      metricsService: true
+    operator:
+      prometheus:
+        enabled: true
+    hubble:
+      enabled: true
+      relay:
+        enabled: true
+      ui:
+        enabled: false
+      tls:
+        auto:
+          method: cronJob
+      metrics:
+        enableOpenMetrics: true
+        # Namespace context only: per-pod labels explode cardinality with ~200 desktop pods.
+        enabled:
+          - dns
+          - drop:sourceContext=namespace;destinationContext=namespace
+          - flow:sourceContext=namespace;destinationContext=namespace
+          - tcp
+          - icmp
+          - port-distribution

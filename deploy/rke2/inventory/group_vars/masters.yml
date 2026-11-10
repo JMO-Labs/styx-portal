@@ -1,3 +1,6 @@
 ---
 rke2_server_node_taints:
   - CriticalAddonsOnly=true:NoExecute
+# Servers only: the role templates these into server/manifests/.
+rke2_custom_manifests:
+  - "{{ playbook_dir }}/templates/rke2-cilium.yaml"

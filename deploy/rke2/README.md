@@ -18,7 +18,7 @@ Installs a CIS-hardened RKE2 cluster: 3 HA control-plane (server) nodes in group
 | RKE2 version | exact pin from the stable channel (`group_vars/all.yml`), no downgrades |
 | Hardening | `rke2_cis_profile: cis`, apiserver `service-account-extend-token-expiration=false` |
 | API HA | keepalived VIP (`rke2_api_ip`), VIP and DNS name in the TLS SANs; kube-vip off |
-| CNI | `cilium` only; Cilium tuning and kube-proxy replacement are in #18 |
+| CNI | `cilium` with kube-proxy replacement, encryption and Hubble (see [Cilium](#cilium)) |
 | Ingress | bundled ingress disabled |
 | Servers | taint `CriticalAddonsOnly=true:NoExecute` |
 | Agents | labels `node.kubernetes.io/worker=true`, `styx.io/gpu-ready=true` (not `node-role.kubernetes.io/*`: kubelet and NodeRestriction refuse that prefix in `--node-labels`, so agents would not register) |
@@ -57,6 +57,54 @@ exempted explicitly in the `pod-security-admission-config-file` (follow-up work)
 Cilium runs in `kube-system`, so it is not affected. RKE2's built-in CIS
 NetworkPolicies coexist with the default-deny baseline in #19.
 
+## Cilium
+
+RKE2 bundles the Cilium chart, so the chart version follows `rke2_version`:
+`v1.36.6+rke2r1` ships `rke2-cilium` 1.20.400 (Cilium 1.20.4). **Upgrading Cilium
+means bumping `rke2_version`**; then replace the vendored chart in `charts/` and
+the version in `validate-cilium.sh` to match.
+
+Our values live in `templates/rke2-cilium.yaml`, a `HelmChartConfig`
+(`kube-system/rke2-cilium`). `masters.yml` lists it in `rke2_custom_manifests`,
+so the role templates it into `/var/lib/rancher/rke2/server/manifests/` on every
+server. The file deliberately has no `.j2` suffix: the role keeps the source file
+name, and RKE2 only applies `.yaml`, `.yml` and `.json` files from that directory.
+Its first line (`#jinja2: ...`) sets `lstrip_blocks` so Ansible renders it cleanly.
+
+| Variable (`group_vars/all.yml`) | Default | Effect |
+|---|---|---|
+| `cilium_kube_proxy_replacement` | `true` | `kubeProxyReplacement: true`, API via `localhost:6443` (RKE2's local load balancer on every node, so the CNI does not depend on the keepalived VIP), `bpf.masquerade: true` |
+| `disable_kube_proxy` | `"{{ cilium_kube_proxy_replacement }}"` | role writes `disable-kube-proxy: true`; tied to the line above so they cannot drift |
+| `cilium_encryption_type` | `wireguard` | node-to-node encryption: `wireguard`, `ipsec` or `none`; any other value fails the chart schema and the tests |
+
+Always on: Cilium agent metrics (`:9962`, metrics Service), operator metrics
+(`:9963`), Hubble with relay and metrics (`:9965`, OpenMetrics) for `dns`, `drop`,
+`flow` (namespace context only, to bound cardinality), `tcp`, `icmp` and
+`port-distribution`. Hubble UI is off.
+
+**ServiceMonitors are off on purpose.** Their CRDs do not exist when the CNI
+installs on a new cluster, so enabling them would fail the chart and the cluster
+would never get a network. The three ServiceMonitors (agent 9962, operator 9963,
+Hubble 9965) belong to the monitoring overlay (#8), and the default-deny policy
+(#19) must allow scraping those ports.
+
+Prerequisites: kernel 5.8 or newer for kube-proxy replacement (Ubuntu 24.04 ships
+6.8, with WireGuard built in).
+
+### Switching encryption
+
+- `wireguard` (default): Cilium creates and rotates the keys. **Not FIPS-validatable**
+  (ChaCha20/Curve25519), recorded as SC-13 debt; IPsec is the exit if SC-13 must close.
+- `ipsec`: create the Secret `kube-system/cilium-ipsec-keys` **out of band, before
+  the first install** (Vault or env, then `kubectl create secret generic`; see the
+  [Cilium IPsec guide](https://docs.cilium.io/en/stable/security/network/encryption-ipsec/)).
+  Never ship it through `rke2_custom_manifests`: the role writes those files with
+  mode 0644. Key rotation is manual. The tests fail on key material in this tree.
+- `none`: no node-to-node encryption, which leaves an SC-8 gap.
+
+Changing the type on a running cluster restarts the Cilium agents and briefly
+interrupts pod traffic.
+
 ## Break-glass escrow (D25)
 
 After the first server comes up, escrow the admin kubeconfig
@@ -79,7 +127,19 @@ ansible-galaxy install -r requirements.yml
 yamllint .
 ansible-lint            # production profile, our files only
 ansible-playbook -i inventory/hosts.example.yml site.yml --syntax-check
+./validate-cilium.sh    # needs helm 3.22.1 and kubeconform 0.8.0 (CI pins and checks both)
 ```
+
+`validate-cilium.sh` renders the HelmChartConfig with Ansible for each encryption
+type, runs `helm template` on the vendored chart
+`charts/rke2-cilium-1.20.400.tgz` with that `valuesContent`, and runs
+`kubeconform -strict -kubernetes-version 1.36.6 -ignore-missing-schemas` on the
+chart output and the HelmChartConfig. The chart is vendored (sha256
+`5cf70c5a6f7cc21bfe8b38d7baca1a1171e1ab7130d92ad8a017bd7babc1a46e`, matching the `rke2-charts` index) because
+`rke2-charts.rancher.io` was not reachable from the build environment; per D48,
+mirror it in federal GitLab too. The chart's schema rejects a non-boolean
+`encryption.enabled`, but it types `kubeProxyReplacement` as a string, so only
+the pytest checks catch a bad value there.
 
 ## Known issues
 
@@ -99,6 +159,8 @@ ansible-playbook -i inventory/hosts.example.yml site.yml --syntax-check
   syntax-checks; Molecule against real RKE2 is out of scope.
 
 ## Open placeholders (TODO)
+
+- Air-gap: Cilium images come from the RKE2 image tarball or Harbor (with the item below).
 
 - Air-gap mode (`rke2_airgap_mode: false` for now) and pulling images through Harbor.
 - The real VIP address and API DNS name (placeholders use RFC 5737 / `example.internal`).

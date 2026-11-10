@@ -20,6 +20,10 @@ rke2_additional_sans:
   - 192.0.2.10
   - rke2-api.example.internal
 
-# Cilium tuning lives in #18; only select the CNI here.
 rke2_cni: [cilium]
+# Cilium values: templates/rke2-cilium.yaml (README "Cilium").
+cilium_kube_proxy_replacement: true
+cilium_encryption_type: wireguard  # wireguard | ipsec | none
+# Tied to KPR so the two cannot drift: kube-proxy off only when Cilium replaces it.
+disable_kube_proxy: "{{ cilium_kube_proxy_replacement }}"
 rke2_ingress_controller: none

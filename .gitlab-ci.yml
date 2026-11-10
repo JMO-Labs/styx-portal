@@ -359,7 +359,7 @@ gitlab-protect-drift:
     - python3 deploy/enterprise/gitlab-protect/protect_bootstrap.py --dry-run
 
 rke2-iac:
-  # deploy/rke2 (issue #2): galaxy install of the pinned role, yamllint, ansible-lint, syntax-check.
+  # deploy/rke2 (issues #2, #18): galaxy install, yamllint, ansible-lint, syntax-check, Cilium render.
   stage: test
   image: python:3.12
   <<: *on_push_or_mr
@@ -370,6 +370,18 @@ rke2-iac:
     - yamllint .
     - ansible-lint
     - ansible-playbook -i inventory/hosts.example.yml site.yml --syntax-check
+    - |
+      # Cilium HelmChartConfig (#18): pinned, sha256-checked tools; chart vendored in charts/.
+      set -eu
+      T="$CI_PROJECT_DIR/.k8stools"; mkdir -p "$T"
+      curl -sSfL -o "$T/helm.tgz" https://get.helm.sh/helm-v3.22.1-linux-amd64.tar.gz
+      curl -sSfL -o "$T/kc.tgz" https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz
+      printf '%s  %s\n' \
+        896cf63684a42a723d61c980369d6e588330927deb13676ca0d85006dd6da0ea "$T/helm.tgz" \
+        9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883 "$T/kc.tgz" | sha256sum -c -
+      tar xzf "$T/helm.tgz" -C "$T" --strip-components=1 linux-amd64/helm
+      tar xzf "$T/kc.tgz" -C "$T" kubeconform
+      PATH="$T:$PATH" ./validate-cilium.sh "$T/out"
 
 plugin-test:
   stage: test
