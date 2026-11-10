@@ -30,6 +30,8 @@ class HarborError(Exception):
 
 class Client:
     def __init__(self, url, password, ca_file=None):
+        if not url.startswith(("https://", "http://")):
+            raise HarborError(f"HARBOR_URL must start with https:// (got {url!r})")
         self.url = url.rstrip("/")
         token = base64.b64encode(f"admin:{password}".encode()).decode()
         self.headers = {"Authorization": f"Basic {token}", "Accept": "application/json",
@@ -85,6 +87,8 @@ def find_robot(client):
 def open_secret(path):
     """Create a 0600 temp file next to `path` before any write, so a bad path never
     strands the robot and a failed create never clobbers an existing secret file."""
+    if path.endswith("/") or os.path.isdir(path):
+        raise HarborError(f"--secret-out {path} is a directory, give a file path")
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(path)), prefix=".robot-")
     return os.fdopen(fd, "w"), tmp  # mkstemp creates it 0600
 
@@ -104,10 +108,13 @@ def apply(client, missing, need_robot, secret_out):
             print(f"created project {p}")
         if need_robot:
             created = client.call("POST", "/robots", robot_body())
+            if not isinstance(created, dict) or not created.get("secret"):
+                raise HarborError("POST /robots returned no secret; delete robot "
+                                  f"{ROBOT} in Harbor and rerun")
             out.write(created["secret"] + "\n")
             out.close()
             os.replace(tmp, secret_out)
-            print(f"created robot {created['name']}; secret written to {secret_out}")
+            print(f"created robot {created.get('name', ROBOT)}; secret written to {secret_out}")
     finally:
         if out:
             out.close()
