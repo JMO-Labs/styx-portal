@@ -1,0 +1,16 @@
+---
+# Placeholder inventory: copy to hosts.yml and set real names and IPs (RFC 5737 here).
+all:
+  children:
+    dmz:
+      hosts:
+        dmz-proxy-01:
+          ansible_host: 192.0.2.31
+          dmz_peer_addr: 192.0.2.31
+          dmz_vrrp_state: MASTER
+          dmz_vrrp_priority: 150
+        dmz-proxy-02:
+          ansible_host: 192.0.2.32
+          dmz_peer_addr: 192.0.2.32
+          dmz_vrrp_state: BACKUP
+          dmz_vrrp_priority: 100

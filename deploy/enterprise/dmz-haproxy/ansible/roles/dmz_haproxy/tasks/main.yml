@@ -1,0 +1,137 @@
+---
+- name: Require site inputs
+  ansible.builtin.assert:
+    that:
+      - dmz_pki_src_dir | length > 0
+      - dmz_provision_allowed_cidrs | length > 0
+      - dmz_traefik_servers | length > 0
+      - dmz_vrrp_auth_pass | length > 0
+      - dmz_vrrp_auth_pass | length <= 8
+      - dmz_vrrp_state in ['MASTER', 'BACKUP']
+    fail_msg: set dmz_pki_src_dir, provision CIDRs, Traefik servers and the vaulted VRRP secret
+  no_log: true
+
+- name: Install pinned HAProxy and keepalived
+  ansible.builtin.apt:
+    name:
+      - "haproxy={{ dmz_haproxy_version }}-*"
+      - "keepalived=1:{{ dmz_keepalived_version }}-*"
+      - "curl={{ dmz_curl_version }}-*"  # keepalived vrrp_script probes /healthz
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+    allow_change_held_packages: true  # bumping dmz_haproxy_version moves the hold
+
+- name: Hold the pinned packages
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop: [haproxy, keepalived]
+
+- name: Create the PKI, error page and systemd drop-in directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: "{{ dmz_haproxy_user }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ dmz_pki_dir }}", mode: "0750" }
+    - { path: "{{ dmz_haproxy_dir }}/errors", mode: "0755" }
+    - { path: /etc/systemd/system/haproxy.service.d, mode: "0755" }
+  no_log: true
+
+- name: Place server certs, client-cert CAs and the HAProxy client cert
+  ansible.builtin.copy:
+    src: "{{ dmz_pki_src_dir }}/{{ item | basename }}"
+    dest: "{{ item }}"
+    owner: root
+    group: "{{ dmz_haproxy_user }}"
+    mode: "0640"
+  loop:
+    - "{{ dmz_cert_public }}"
+    - "{{ dmz_cert_login }}"
+    - "{{ dmz_cert_provision }}"
+    - "{{ dmz_piv_ca_file }}"
+    - "{{ dmz_openbao_ca_file }}"
+    - "{{ dmz_cluster_ca_file }}"
+    - "{{ dmz_haproxy_client_cert }}"
+  no_log: true
+  notify: Reload haproxy
+
+- name: Install the no-card error page
+  ansible.builtin.copy:
+    src: errors/no-card.html
+    dest: "{{ dmz_haproxy_dir }}/errors/no-card.html"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload haproxy
+
+- name: Render the crt-list
+  ansible.builtin.template:
+    src: crt-list.j2
+    dest: "{{ dmz_haproxy_dir }}/crt-list.txt"
+    owner: root
+    group: "{{ dmz_haproxy_user }}"
+    mode: "0640"
+  no_log: true
+  notify: Reload haproxy
+
+- name: Render haproxy.cfg
+  ansible.builtin.template:
+    src: haproxy.cfg.j2
+    dest: "{{ dmz_haproxy_dir }}/haproxy.cfg"
+    owner: root
+    group: "{{ dmz_haproxy_user }}"
+    mode: "0640"
+    validate: haproxy -c -f %s
+  notify: Reload haproxy
+
+- name: Render keepalived.conf
+  ansible.builtin.template:
+    src: keepalived.conf.j2
+    dest: /etc/keepalived/keepalived.conf
+    owner: root
+    group: root
+    mode: "0600"
+    validate: keepalived -t -f %s
+  no_log: true
+  notify: Reload keepalived
+
+- name: Harden the haproxy unit (systemd drop-in)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/haproxy.service.d/hardening.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Service]
+      NoNewPrivileges=true
+      ProtectSystem=full
+      ProtectHome=true
+      PrivateTmp=true
+      PrivateDevices=true
+      ProtectKernelTunables=true
+      ProtectKernelModules=true
+      ProtectKernelLogs=true
+      ProtectControlGroups=true
+      ProtectClock=true
+      ProtectHostname=true
+      RestrictSUIDSGID=true
+      RestrictRealtime=true
+      RestrictNamespaces=true
+      LockPersonality=true
+      SystemCallArchitectures=native
+      RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+      CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_SETUID CAP_SETGID CAP_SYS_RESOURCE
+  notify:
+    - Reload systemd
+    - Restart haproxy
+
+- name: Enable and start haproxy and keepalived
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop: [haproxy, keepalived]

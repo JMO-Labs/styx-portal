@@ -36,3 +36,4 @@ Negative:
 Follow-up work:
 
 - Define header format, strip-and-set rules and network policy in phase 2.
+- Header format and strip-and-set rules chosen (issue #7, [runbook](../runbooks/dmz-haproxy.md), contract in `deploy/enterprise/dmz-haproxy/README.md`). Format: Keycloak `haproxy` x509cert-lookup provider. `Client-Cert` = `%[ssl_c_der,base64]` (base64 DER leaf) and `Client-Cert-Chain` = `%[ssl_c_chain_der,base64]`. Rules: HAProxy always deletes client-supplied `Client-Cert`, `Client-Cert-Chain`, `X-Forwarded-*` and `Forwarded` first. It sets the two cert headers only on `login.<domain>` and only when `ssl_c_used` and `ssl_c_verify 0`. Login without a verified card gets a 403 page. SNI must equal Host on mTLS hosts (421). HAProxy re-encrypts to a dedicated Traefik entrypoint over mTLS. The Traefik entrypoint, Keycloak flags and Cilium policy (#19) are left to their own tickets.
