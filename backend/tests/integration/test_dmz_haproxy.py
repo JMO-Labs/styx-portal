@@ -61,17 +61,19 @@ class Pki:
         path.write_bytes(pem)
         return path
 
-    def ca(self, name: str):
+    def ca(self, name: str, parent=None):
         key = ec.generate_private_key(ec.SECP256R1())
         subj = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, f"Test {name}")])
-        cert = (self._builder(subj, subj, key.public_key())
+        issuer, signer = (parent[0].subject, parent[1]) if parent else (subj, key)
+        cert = (self._builder(subj, issuer, key.public_key())
                 .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
                 .add_extension(x509.KeyUsage(False, False, False, False, False, True, True, False, False),
                                critical=True)
-                .sign(key, hashes.SHA256()))
+                .sign(signer, hashes.SHA256()))
         return cert, key, self._write(f"{name}-ca", cert)
 
-    def leaf(self, name: str, ca, sans: list[str] | None = None, client: bool = False):
+    def leaf(self, name: str, ca, sans: list[str] | None = None, client: bool = False,
+             chain: tuple = ()):
         ca_cert, ca_key, _ = ca
         key = ec.generate_private_key(ec.SECP256R1())
         subj = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, name)])
@@ -85,7 +87,11 @@ class Pki:
                      for s in sans]
             b = b.add_extension(x509.SubjectAlternativeName(names), critical=False)
         cert = b.sign(ca_key, hashes.SHA256())
-        return cert, self._write(name, cert, key)
+        path = self._write(name, cert, key)
+        if chain:  # leaf, key, then intermediates: what card middleware typically sends
+            path.write_bytes(path.read_bytes() + b"".join(c.public_bytes(serialization.Encoding.PEM)
+                                                          for c in chain))
+        return cert, path
 
     @staticmethod
     def _builder(subj, issuer, pub):
@@ -135,10 +141,15 @@ def env(tmp_path_factory):
     pki = Pki(base)
     piv, bao, rogue, cluster = pki.ca("piv"), pki.ca("openbao"), pki.ca("rogue"), pki.ca("cluster")
     edge = pki.ca("edge")
-    _, edge_pem = pki.leaf("edge-server", edge, [LOGIN, PROVISION, PORTAL, BANNER])
+    # One server cert per crt-list entry, as in production: resumption across entries is the risk.
+    _, public_pem = pki.leaf("public-server", edge, [PORTAL, BANNER])
+    _, login_pem = pki.leaf("login-server", edge, [LOGIN])
+    _, provision_pem = pki.leaf("provision-server", edge, [PROVISION])
     _, traefik_pem = pki.leaf("traefik", cluster, ["traefik.test", "127.0.0.1"])
     _, hap_client = pki.leaf("haproxy-client", cluster, client=True)
     card, card_pem = pki.leaf("card-holder", piv, client=True)
+    piv_ica = pki.ca("piv-ica", piv)
+    _, chain_card_pem = pki.leaf("chain-card-holder", piv_ica, client=True, chain=(piv_ica[0],))
     _, rogue_pem = pki.leaf("rogue-holder", rogue, client=True)
     _, bao_pem = pki.leaf("webhook", bao, client=True)
     srv, echo_port = start_echo(traefik_pem, cluster[2])
@@ -149,8 +160,8 @@ def env(tmp_path_factory):
         "dmz_domain": DOMAIN, "dmz_bind_addr": "127.0.0.1", "dmz_https_port": port,
         "dmz_healthz_bind": f"127.0.0.1:{hz}", "dmz_haproxy_dir": str(base),
         "dmz_haproxy_run_dir": str(run), "dmz_haproxy_user": "", "dmz_haproxy_log": "stdout format raw",
-        "dmz_cert_public": str(edge_pem), "dmz_cert_login": str(edge_pem),
-        "dmz_cert_provision": str(edge_pem), "dmz_piv_ca_file": str(piv[2]),
+        "dmz_cert_public": str(public_pem), "dmz_cert_login": str(login_pem),
+        "dmz_cert_provision": str(provision_pem), "dmz_piv_ca_file": str(piv[2]),
         "dmz_openbao_ca_file": str(bao[2]), "dmz_cluster_ca_file": str(cluster[2]),
         "dmz_haproxy_client_cert": str(hap_client), "dmz_traefik_sni": "traefik.test",
         "dmz_traefik_servers": [{"name": "traefik1", "addr": f"127.0.0.1:{echo_port}"}],
@@ -181,7 +192,7 @@ def env(tmp_path_factory):
         proc.kill()
         pytest.fail("haproxy did not start: " + (base / "haproxy.log").read_text())
     yield {"port": port, "card": card, "card_pem": card_pem, "rogue_pem": rogue_pem,
-           "bao_pem": bao_pem, "edge_ca": edge[2], "echo_port": echo_port, "cfg": cfg}
+           "bao_pem": bao_pem, "chain_card_pem": chain_card_pem, "edge_ca": edge[2], "echo_port": echo_port, "cfg": cfg}
     proc.terminate()
     proc.wait(10)
     srv.shutdown()
@@ -287,16 +298,35 @@ def test_sni_host_match_is_case_and_port_insensitive(env):
 
 @pytest.mark.parametrize("max_ver", [ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_3])
 def test_resumed_session_never_half_set(env, max_ver):
-    ctx = client_ctx(env, env["card_pem"], max_ver)
-    _, _, session, _ = get(env, LOGIN, ctx=ctx)
+    """The card sends leaf + intermediate, so a dropped chain on resumption is visible."""
+    ctx = client_ctx(env, env["chain_card_pem"], max_ver)
+    status, body, session, _ = get(env, LOGIN, ctx=ctx)
+    assert status == 200
+    fresh = echoed(body)
+    assert fresh["client-cert-chain"][0], "fresh handshake must carry the chain"
     status, body, _, reused = get(env, LOGIN, ctx=ctx, session=session)
     if status == 403:
         assert body == NO_CARD
         return
     assert status == 200
     h = echoed(body)
-    assert base64.b64decode(h["client-cert"][0]) == card_der(env), f"resumed={reused}"
-    assert len(h["client-cert-chain"]) == 1
+    assert (h["client-cert"], h["client-cert-chain"]) == (
+        fresh["client-cert"], fresh["client-cert-chain"]), f"resumed={reused}"
+
+
+@pytest.mark.parametrize("max_ver", [ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_3])
+def test_provision_session_resumed_on_login_never_sets_header(env, max_ver):
+    """Adversarial: an OpenBao-CA session must never authenticate as a card on login."""
+    ctx = client_ctx(env, env["bao_pem"], max_ver)
+    status, _, session, _ = get(env, PROVISION, ctx=ctx)
+    assert status == 200
+    before = len(Echo.hits)
+    try:
+        status, body, _, reused = get(env, LOGIN, ctx=ctx, session=session)
+    except (ssl.SSLError, ConnectionResetError, http.client.RemoteDisconnected):
+        return  # OpenBao cert rejected on a full login handshake: fine
+    assert status in (403, 421), f"resumed={reused} status={status}"
+    assert len(Echo.hits) == before
 
 
 def test_provision_requires_cert(env):

@@ -228,3 +228,35 @@ def test_files_under_500_lines():
     for p in [*DMZ.rglob("*"), RUNBOOK]:
         if p.is_file():
             assert len(p.read_text().splitlines()) < 500, p
+
+
+def test_tls_resumption_disabled(cfg, fe):
+    """Rework #1/#2: a resumed session must never carry a stale or cross-host client cert."""
+    glob = section(strip_comments(cfg), "global")
+    assert re.search(r"^\s*tune\.ssl\.cachesize\s+0\s*$", glob, re.M), "stateful cache (TLS 1.2 + 1.3 PSK)"
+    assert "no-tls-tickets" in " ".join(directives(glob, "ssl-default-bind-options"))
+    for rule in directives(fe, "http-request set-header Client-Cert"):
+        assert "!{ ssl_fc_is_resumed }" in rule.split(" if ", 1)[1], rule
+    no_card = next(r for r in directives(fe, "http-request return") if "no-card.html" in r)
+    assert "ssl_fc_is_resumed" in no_card
+
+
+def test_dropin_dir_created_before_dropin():
+    """Rework #3: copy does not create haproxy.service.d on a fresh host."""
+    tasks = load_yaml(TASKS)
+    dropin = next(i for i, t in enumerate(tasks)
+                  if "haproxy.service.d" in str(t.get("ansible.builtin.copy", {}).get("dest", "")))
+    made = [i for i, t in enumerate(tasks) if "ansible.builtin.file" in t
+            and "haproxy.service.d" in str(t) and "directory" in str(t)]
+    assert made and min(made) < dropin
+
+
+def test_vrrp_check_tool_installed():
+    """Rework #4: the vrrp_script binary must come from a pinned package the role installs."""
+    tool = re.search(r'script "(\S+)', render("keepalived.conf.j2")).group(1)
+    apt = next(t["ansible.builtin.apt"] for t in load_yaml(TASKS) if "ansible.builtin.apt" in t)
+    pkgs = [str(p) for p in apt["name"]]
+    name = tool.rsplit("/", 1)[-1]
+    if name != "haproxy":
+        assert any(p.startswith(f"{name}=") for p in pkgs), (tool, pkgs)
+    assert all("=" in p for p in pkgs)
