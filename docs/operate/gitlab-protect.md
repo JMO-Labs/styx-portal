@@ -94,10 +94,12 @@ None of these are verified yet. Check them before the first apply.
 1. **ci-policy project.** Create `<group>/ci-policy`. Give write access only to the people
    who approve pipeline changes (not to every Maintainer of the product project). Copy
    `ci-policy/gitlab-ci.yml` to its root as `gitlab-ci.yml` and `approval_gate.py` to its
-   root. In `gitlab-ci.yml` set the four literals of job `approval-gate`: `CI_API_V4_URL`
-   (the federal GitLab's `https://…/api/v4`), `CI_PROJECT_ID` (numeric id of the product
-   project), `GATE_PROJECT` (URL-encoded ci-policy path, e.g. `styx%2Fci-policy`) and
-   `GATE_REF` (the reviewed commit SHA of `approval_gate.py`). Add the product project to
+   root. In the `script:` of job `approval-gate` set the literals: the federal API URL
+   `https://…/api/v4` (twice), the URL-encoded ci-policy path (e.g. `styx%2Fci-policy`), the
+   reviewed commit SHA of `approval_gate.py` and `CI_PROJECT_ID` (numeric id of the product
+   project). They are literals in the script, not variables, because job and manual-run
+   variables override YAML variables. Set `tags:` to the tag of a runner that only instance or
+   ci-policy admins can register (default `ci-policy-trusted`). Add the product project to
    ci-policy's job token allowlist (*Settings > CI/CD > Job token permissions*), so the gate
    can download the script.
 2. **Gate token.** In the product project create a project access token: role **Reporter**,
@@ -138,14 +140,17 @@ No CI job applies it. At cutover:
 - On Free/CE the gate checks the author only, not other committers on the MR.
 - The gate is manual: a reviewer must run it after approving.
 - GitLab deep-merges a job of the same name from the included project config into the gate.
-  `ci-policy/gitlab-ci.yml` pins every key that runs code (`image`, `before_script`,
-  `after_script`, `hooks`, `cache`, `dependencies`) and turns off inherited defaults and
-  global variables. It also pins `CI_API_V4_URL` and `CI_PROJECT_ID` as literals, so the
-  token cannot be sent elsewhere. An MR can still add other job-level `variables` to
-  `approval-gate`, for example `CI_MERGE_REQUEST_IID` pointing at another, approved MR.
-  A Maintainer who can merge could use that to pass the gate without a valid approval.
-  Review MRs that touch `approval-gate` in `.gitlab-ci.yml` closely; native approval rules
-  (Premium) or pipeline execution policies (Ultimate) close the gap.
+  `ci-policy/gitlab-ci.yml` pins every key that runs code or picks the runner (`image`,
+  `tags`, `services`, `before_script`, `after_script`, `hooks`, `cache`, `dependencies`),
+  turns off inherited defaults and global variables, and pins `workflow:` so an included
+  workflow cannot stop MR pipelines. The gate takes the MR from `CI_JOB_TOKEN` (`GET /job`):
+  the job must be `approval-gate` of this project in a `refs/merge-requests/<iid>/head`
+  pipeline whose IID equals `CI_MERGE_REQUEST_IID`, and the MR head must be the pipeline's
+  commit. Anything else fails, including `parallel:` (it renames the job).
+- Merged results pipelines (Premium) run on `refs/merge-requests/<iid>/merge`; the gate fails
+  closed on them. Use `native` approvals there.
+- While an MR is open, branch pipelines for its source branch are not created (`workflow:`);
+  only the MR pipeline runs.
 - Role entries for specific users, groups or deploy keys on a protected branch (Premium) are
   left as they are; only the role levels are managed.
 - Only the first 100 notes, rules and rulesets are read.
