@@ -51,6 +51,22 @@ The release name must be `openbao` (pod DNS `openbao-N.openbao-internal`, TLS SA
 ClusterSecretStore URL). `ansible/inventory.example.yml` is a copy of #2's
 `deploy/rke2/inventory/hosts.example.yml` until that PR merges.
 
+## CI
+
+`.gitlab-ci.yml` has two jobs for this tree:
+
+- `openbao-iac` renders both vendored charts with `helm template --skip-tests` and fails unless
+  exactly one rendered object mounts `/etc/openbao/seal`. It then runs `kustomize build` on both
+  directories, `kubeconform -strict` against Kubernetes 1.36.6, `yamllint`, `shellcheck`,
+  `ansible-lint` and `--syntax-check`.
+- `openbao-integration` runs `backend/tests/integration/test_openbao_static_seal.py` with
+  `OPENBAO_IT=1` against the sha256-pinned `bao` 2.7.2 release binary.
+
+GitHub Actions does not run these jobs yet. The matching `ci.yml` patch is in the body of
+PR JMO-Labs/styx-portal#131, and someone with the token `workflow` scope has to apply it. Until
+then, `helm template` and the seal-hostPath count have not run in any CI. Run them locally
+(see above) before you change `values.yaml`.
+
 ## Extending (#20)
 
 Add a mount to `extra-mounts.json` (`[{"path": "rook", "type": "kv-v2"}]`), a policy file to
