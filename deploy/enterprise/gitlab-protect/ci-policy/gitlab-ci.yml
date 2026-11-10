@@ -1,0 +1,38 @@
+# External CI config for the federal styx-portal project (issue #16, docs/operate/gitlab-protect.md).
+# Lives in the separate ci-policy project; the product project points at it with
+# ci_config_path=gitlab-ci.yml@<group>/ci-policy, so an MR cannot remove the gate.
+#
+# The main file wins over included files, but GitLab deep-merges a same-named job: an MR could
+# add keys this job does not set. So every key that could run code or change inputs is pinned
+# here, and default keywords and global variables are not inherited.
+include:
+  - project: $CI_PROJECT_PATH
+    ref: $CI_COMMIT_SHA
+    file: .gitlab-ci.yml
+
+approval-gate:
+  stage: .post
+  image: python:3.12
+  inherit:
+    default: false
+    variables: false
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && ($CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "enterprise" || $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^release\//)'
+      when: manual
+      allow_failure: false
+  needs: []
+  dependencies: []
+  cache: []
+  hooks:
+    pre_get_sources_script: []
+  before_script: []
+  after_script: []
+  variables:
+    GIT_STRATEGY: none
+    # Set both before use: URL-encoded ci-policy project path and the reviewed commit SHA of
+    # approval_gate.py in it. The job token needs access to ci-policy (job token allowlist).
+    GATE_PROJECT: "group%2Fci-policy"
+    GATE_REF: "0000000000000000000000000000000000000000"
+  script:
+    - 'curl -sSfL -H "JOB-TOKEN: $CI_JOB_TOKEN" -o /tmp/approval_gate.py "$CI_API_V4_URL/projects/$GATE_PROJECT/repository/files/approval_gate.py/raw?ref=$GATE_REF"'
+    - python3 -I /tmp/approval_gate.py
