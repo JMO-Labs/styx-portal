@@ -70,11 +70,11 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
 | CP-2 | Contingency Plan | HA design, availability targets (ADR-0006, 0008) | Hybrid | Planned |
-| CP-4 | Contingency Plan Testing | Full-site restore test (phase 1), 200-session load-test gate (ADR-0037, 0047); full-site restore test repeats annually, each result filed as eMASS evidence (R03) | Hybrid | Planned |
+| CP-4 | Contingency Plan Testing | Full-site restore test (phase 1), 200-session load-test gate (ADR-0037, 0047); full-site restore test repeats annually, each result filed as eMASS evidence (R03); restore test harness deploy/dr/restore-test ([dr-restore-test.md](../operate/dr-restore-test.md)) writes the evidence report, IaC done, not run | Hybrid | Planned |
 | CP-6 | Alternate Storage Site | Encrypted CephFS-snapshot export to CUI-authorized cloud bucket (ADR-0037); Kopia component deploy/k8s/offsite-export, IaC done, not deployed | Hybrid | Planned |
 | CP-7 | Alternate Processing Site | Not provided; exception R03 (ADR-0037) | Hybrid | Planned |
-| CP-9 | System Backup | CNPG, Velero, home snapshots, offline-escrowed backup keys in two sealed sets (ADR-0033, 0036, 0037, 0042); restore per [runbooks/full-site-restore.md](runbooks/full-site-restore.md); offsite copy with Object Lock and daily verify in deploy/k8s/offsite-export, IaC done, not deployed | System | Planned |
-| CP-10 | System Recovery and Reconstitution | RTO 8 h restore procedures (ADR-0037): [runbooks/full-site-restore.md](runbooks/full-site-restore.md) | System | Planned |
+| CP-9 | System Backup | CNPG, Velero, home snapshots, offline-escrowed backup keys in two sealed sets (ADR-0033, 0036, 0037, 0042); restore per [runbooks/full-site-restore.md](runbooks/full-site-restore.md); offsite copy with Object Lock and daily verify in deploy/k8s/offsite-export, IaC done, not deployed; restores checked (checksums, pg_amcheck, Kopia verify) by deploy/dr/restore-test, IaC done, not run | System | Planned |
+| CP-10 | System Recovery and Reconstitution | RTO 8 h restore procedures (ADR-0037): [runbooks/full-site-restore.md](runbooks/full-site-restore.md); RTO/RPO measured by deploy/dr/restore-test ([dr-restore-test.md](../operate/dr-restore-test.md)), IaC done, not run | System | Planned |
 
 ## IA - Identification and Authentication
 

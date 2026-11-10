@@ -38,6 +38,7 @@ nav = [
     { "WebRTC and TURN" = "operate/webrtc-turn.md" },
     { "Monitoring" = "operate/monitoring.md" },
     { "Offsite backup" = "operate/offsite-backup.md" },
+    { "DR restore test" = "operate/dr-restore-test.md" },
     { "Upgrade" = "operate/upgrade.md" },
     { "Enterprise: OpenBao" = "enterprise/runbooks/openbao.md" },
     { "Enterprise: DMZ HAProxy" = "enterprise/runbooks/dmz-haproxy.md" },

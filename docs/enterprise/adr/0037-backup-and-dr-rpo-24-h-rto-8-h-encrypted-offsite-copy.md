@@ -33,6 +33,7 @@ Negative:
 
 - No alternate processing site (CP-7); risk acceptance R03.
 - Recovery within 8 h is unproven until the phase 1 restore test.
+- The restore test harness `deploy/dr/restore-test/` (issue #15) restores into a scratch target, measures RTO/RPO and writes the CP-4/CP-9/CP-10 evidence report; built and unit-tested, not run yet (docs/operate/dr-restore-test.md).
 - Recurring cloud cost.
 - SC-13 gap: the offsite copy uses Kopia (AES256-GCM-HMAC-SHA256 or CHACHA20-POLY1305-HMAC-SHA256). The algorithms are approved, but Kopia is not a FIPS-validated module, and its password KDF is scrypt (the only KDF Kopia supports). This stays open debt under the R05 waiver (ADR-0011).
 
