@@ -150,7 +150,7 @@ def test_harbor_db_cluster():
 
 def test_obc_and_s3_mapping():
     m = manifests()
-    obc = m[("ObjectBucketClaim", "harbor-registry")]
+    obc = m[("ObjectBucketClaim", "harbor-registry-bucket")]
     assert obc["spec"]["storageClassName"] == "ceph-bucket"
     es = m[("ExternalSecret", "harbor-s3")]
     assert es["spec"]["secretStoreRef"]["kind"] == "SecretStore"
@@ -159,14 +159,20 @@ def test_obc_and_s3_mapping():
     store = m[("SecretStore", es["spec"]["secretStoreRef"]["name"])]
     assert store["spec"]["provider"]["kubernetes"]["remoteNamespace"] == "harbor"
     (role,) = of_kind("Role")
-    assert role["rules"] == [{"apiGroups": [""], "resources": ["secrets"], "verbs": ["get"]}]
+    assert role["rules"] == [{"apiGroups": [""], "resources": ["secrets"], "verbs": ["get"],
+                              "resourceNames": ["harbor-registry-bucket"]}]
     assert of_kind("ServiceAccount") and of_kind("RoleBinding")
 
 
 def test_external_secrets():
     m = manifests()
     paths = {"harbor-admin": "kv/harbor/admin", "harbor-secret-key": "kv/harbor/secret-key",
-             "harbor-tls": "kv/harbor/tls", "harbor-bootstrap-robot": "kv/harbor/robot-ci"}
+             "harbor-tls": "kv/harbor/tls", "harbor-bootstrap-robot": "kv/harbor/robot-ci",
+             "harbor-core-secret": "kv/harbor/core", "harbor-core-token": "kv/harbor/core-token",
+             "harbor-core-xsrf": "kv/harbor/core-xsrf",
+             "harbor-jobservice-secret": "kv/harbor/jobservice",
+             "harbor-registry-http": "kv/harbor/registry-http",
+             "harbor-registry-credentials": "kv/harbor/registry-credentials"}
     for name, path in paths.items():
         spec = m[("ExternalSecret", name)]["spec"]
         assert spec["secretStoreRef"] == {"kind": "ClusterSecretStore", "name": "openbao"}
@@ -174,6 +180,31 @@ def test_external_secrets():
     tls = m[("ExternalSecret", "harbor-tls")]["spec"]["target"]["template"]
     assert tls["type"] == "kubernetes.io/tls"
     assert set(tls["data"]) == {"tls.crt", "tls.key", "ca.crt"}
+    keys = {"harbor-core-secret": {"secret"}, "harbor-core-xsrf": {"CSRF_KEY"},
+            "harbor-jobservice-secret": {"JOBSERVICE_SECRET"},
+            "harbor-registry-http": {"REGISTRY_HTTP_SECRET"},
+            "harbor-registry-credentials": {"REGISTRY_PASSWD", "REGISTRY_HTPASSWD"}}
+    for name, want in keys.items():
+        assert {d["secretKey"] for d in m[("ExternalSecret", name)]["spec"]["data"]} == want
+    token = m[("ExternalSecret", "harbor-core-token")]["spec"]["target"]["template"]
+    assert set(token["data"]) == {"tls.crt", "tls.key"}
+
+
+# Secret/ConfigMap names the chart renders for release "harbor".
+CHART_NAMES = {"harbor-core", "harbor-jobservice", "harbor-jobservice-env", "harbor-registry",
+               "harbor-registry-htpasswd", "harbor-registryctl", "harbor-portal",
+               "harbor-exporter", "harbor-exporter-env", "harbor-ingress", "harbor-trivy"}
+
+
+def test_no_name_clash_with_chart():
+    m = manifests()
+    ours = {d["spec"]["target"]["name"] for d in of_kind("ExternalSecret")}
+    ours |= {n for (k, n) in m if k == "ObjectBucketClaim"}  # Rook writes Secret + CM
+    assert not ours & CHART_NAMES
+    if _have_helm():
+        theirs = {d["metadata"]["name"] for d in yaml.safe_load_all(_helm_template())
+                  if d and d["kind"] in ("Secret", "ConfigMap")}
+        assert not ours & theirs
 
 
 def _rules(cnp, key):
@@ -242,3 +273,9 @@ def test_helm_render():
         pod = d.get("spec", {}).get("template", {}).get("spec", {})
         for ctr in pod.get("containers", []) + pod.get("initContainers", []):
             assert ctr["image"].startswith("harbor.example.internal/"), ctr["image"]
+
+
+@pytest.mark.skipif(not _have_helm(), reason="helm or vendored chart missing")
+def test_render_deterministic():
+    # random chart secrets would rotate keys and roll every pod on each apply
+    assert _helm_template() == _helm_template()

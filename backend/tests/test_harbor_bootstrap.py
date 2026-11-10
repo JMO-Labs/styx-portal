@@ -17,7 +17,8 @@ ADMIN_PW = "PW-abc"
 
 
 class Stub:
-    def __init__(self, projects=(), robots=(), fail_project_post=False):
+    def __init__(self, projects=(), robots=(), fail_project_post=False, html=False):
+        self.html = html  # a proxy answering 200 with an HTML page
         self.projects = set(projects)
         self.robots = list(robots)
         self.fail_project_post = fail_project_post
@@ -52,6 +53,11 @@ def _handler(stub):
                     return self._send(200, {"name": name, "project_id": 1})
                 return self._send(404, {"errors": [{"code": "NOT_FOUND"}]})
             if path == "/api/v2.0/robots":
+                if stub.html:
+                    self.send_response(200)
+                    self.send_header("Content-Length", "6")
+                    self.end_headers()
+                    return self.wfile.write(b"<html>")
                 return self._send(200, stub.robots)
             return self._send(404, {})
 
@@ -166,3 +172,16 @@ def test_http_error_fails(harbor, tmp_path, capsys):
     harbor(fail_project_post=True)
     assert run("--secret-out", str(tmp_path / "robot")) != 0
     assert "500" in capsys.readouterr().err
+
+
+def test_unwritable_secret_out_fails_before_create(harbor, tmp_path, capsys):
+    stub = harbor(projects=PROJECTS)
+    assert run("--secret-out", str(tmp_path / "missing/dir/robot")) != 0
+    assert "error:" in capsys.readouterr().err
+    assert writes(stub) == []  # the one-time secret is never stranded
+
+
+def test_non_json_body_fails_cleanly(harbor, tmp_path, capsys):
+    harbor(projects=PROJECTS, html=True)
+    assert run("--secret-out", str(tmp_path / "robot")) == 1
+    assert "error:" in capsys.readouterr().err

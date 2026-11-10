@@ -77,6 +77,17 @@ def check_toggles(v):
     return errs
 
 
+# Chart secrets that `helm template` would regenerate (lookup is empty), each from ESO.
+COMPONENT_SECRETS = {
+    "core.existingSecret": "harbor-core-secret",
+    "core.secretName": "harbor-core-token",
+    "core.existingXsrfSecret": "harbor-core-xsrf",
+    "jobservice.existingSecret": "harbor-jobservice-secret",
+    "registry.existingSecret": "harbor-registry-http",
+    "registry.credentials.existingSecret": "harbor-registry-credentials",
+}
+
+
 def check_secrets(v):
     errs = []
     if v.get("existingSecretAdminPassword") != "harbor-admin":
@@ -85,6 +96,12 @@ def check_secrets(v):
         errs.append("existingSecretAdminPasswordKey must be HARBOR_ADMIN_PASSWORD")
     if v.get("existingSecretSecretKey") != "harbor-secret-key":
         errs.append("existingSecretSecretKey must be harbor-secret-key")
+    for path, want in COMPONENT_SECRETS.items():
+        got = v
+        for k in path.split("."):
+            got = got.get(k, {}) if isinstance(got, dict) else {}
+        if got != want:
+            errs.append(f"{path} must be {want}; the chart regenerates it on every render")
     for key in ("harborAdminPassword", "secretKey"):
         if key in v:
             errs.append(f"{key} must not be set; use the existing Secret")
