@@ -1,0 +1,7 @@
+# Fake leaked Secret: test_no_secret_material_committed must flag this file.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: openbao-tls
+stringData:
+  tls.key: not-a-real-key

@@ -1,0 +1,7 @@
+# External Secrets plain manifests (issue #4). The operator and CRDs come from the chart:
+# helm template external-secrets charts/external-secrets-2.14.0.tgz -n external-secrets -f values.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - clustersecretstore.yaml

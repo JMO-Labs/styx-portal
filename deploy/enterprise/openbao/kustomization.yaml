@@ -1,0 +1,13 @@
+# OpenBao plain manifests (issue #4). The server itself comes from the Helm chart:
+# helm template openbao charts/openbao-0.30.7.tgz --skip-tests -n openbao -f values.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - storageclass.yaml
+  - local-pvs.yaml
+  - networkpolicy.yaml
+  - snapshot-sa.yaml
+  - snapshot-params.yaml
+  - snapshot-externalsecret.yaml
+  - snapshot-cronjob.yaml

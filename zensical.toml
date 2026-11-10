@@ -35,6 +35,7 @@ nav = [
     { "WebRTC and TURN" = "operate/webrtc-turn.md" },
     { "Monitoring" = "operate/monitoring.md" },
     { "Upgrade" = "operate/upgrade.md" },
+    { "Enterprise: OpenBao" = "enterprise/runbooks/openbao.md" },
   ] },
   { "Build" = [
     "build/index.md",
