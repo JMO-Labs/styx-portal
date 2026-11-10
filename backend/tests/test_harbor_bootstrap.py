@@ -18,7 +18,8 @@ ADMIN_PW = "PW-abc"
 
 class Stub:
     def __init__(self, projects=(), robots=(), fail_project_post=False, html=False,
-                 robot_status=201, short_body=False):
+                 robot_status=201, short_body=False, robot_reply=None):
+        self.robot_reply = robot_reply  # override the robot POST body (API/proxy drift)
         self.html = html  # a proxy answering 200 with an HTML page
         self.robot_status = robot_status
         self.short_body = short_body  # connection drops mid-body
@@ -82,6 +83,8 @@ def _handler(stub):
                     return self._send(stub.robot_status, {"errors": [{"code": "CONFLICT"}]})
                 name = "robot$ci-push"
                 stub.robots.append({"id": 7, "name": name, "level": "system"})
+                if stub.robot_reply is not None:
+                    return self._send(201, stub.robot_reply)
                 return self._send(201, {"id": 7, "name": name, "secret": ROBOT_SECRET})
             return self._send(404, {})
 
@@ -218,3 +221,26 @@ def test_dropped_connection_is_http_error(harbor, tmp_path, capsys):
     assert run("--secret-out", str(tmp_path / "robot")) == 1
     err = capsys.readouterr().err
     assert "/robots" in err and "secret-out" not in err
+
+
+@pytest.mark.parametrize("trailing", ["", "/"])
+def test_directory_secret_out_fails_before_create(harbor, tmp_path, capsys, trailing):
+    stub = harbor(projects=PROJECTS)
+    (tmp_path / "d").mkdir()
+    assert run("--secret-out", str(tmp_path / "d") + trailing) != 0
+    assert "--secret-out" in capsys.readouterr().err
+    assert writes(stub) == []  # the one-time secret is never stranded
+
+
+def test_robot_reply_without_secret_fails_cleanly(harbor, tmp_path, capsys):
+    harbor(projects=PROJECTS, robot_reply={"id": 7})
+    assert run("--secret-out", str(tmp_path / "robot")) == 1
+    assert "error:" in capsys.readouterr().err
+    assert list(tmp_path.iterdir()) == []  # no temp file left behind
+
+
+def test_url_without_scheme_fails_cleanly(harbor, monkeypatch, capsys):
+    harbor()
+    monkeypatch.setenv("HARBOR_URL", "harbor.example.internal")
+    assert run("--dry-run") != 0
+    assert "HARBOR_URL" in capsys.readouterr().err
