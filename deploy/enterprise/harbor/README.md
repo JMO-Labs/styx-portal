@@ -43,6 +43,12 @@ kubeconform -strict -ignore-missing-schemas -kubernetes-version 1.36.6 \
 The GitLab job is `harbor-iac` in `.gitlab-ci.yml`. `backend/tests/test_enterprise_harbor.py`
 runs the same render when `helm` is installed.
 
+GitHub Actions does not run `harbor-iac` yet. The matching `ci.yml` patch is in the body of
+PR JMO-Labs/styx-portal#132, and someone with the token `workflow` scope has to apply it. Until
+then, the GitHub pytest step runs the Harbor suites (the render tests only when `helm` is on the
+runner), but kubeconform does not run there. Run the commands above locally before you change
+`values.yaml`.
+
 **Vendored chart.** `https://helm.goharbor.io` was not reachable when this was built (and runners may be offline),
 so the chart is vendored. `charts/harbor-1.19.4.tgz` is the
 [v1.19.4 tag](https://github.com/goharbor/harbor-helm/releases/tag/v1.19.4) of
