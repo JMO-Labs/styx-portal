@@ -61,6 +61,32 @@ jobs:
         working-directory: frontend
         run: npm test
 
+  test-postgres:
+    # Same backend suite against Postgres (CNPG major). Needs Docker on the runner.
+    runs-on: homelab
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: styx
+          POSTGRES_PASSWORD: styx-ci
+          POSTGRES_DB: styx_test
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U styx -d styx_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-backend
+      - name: pytest (postgres)
+        working-directory: backend
+        env:
+          STYX_TEST_DATABASE_URL: postgresql+asyncpg://styx:styx-ci@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/styx_test
+        run: .venv/bin/python -m pytest -q
+
   plugin-test:
     runs-on: homelab
     steps:
