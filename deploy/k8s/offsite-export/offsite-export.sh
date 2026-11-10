@@ -48,13 +48,25 @@ each_subvolume() {
   for sv in "$OFFSITE_SNAP_ROOT"/*/*/; do
     [ -d "$sv" ] || continue
     sv=${sv%/}
+    group=${sv%/*}; group=${group##*/}
+    case "$group" in
+      _nogroup) ;;
+      _*) continue ;; # mgr/volumes internals (_deleting, _index, _legacy)
+    esac
+    if [ -n "${OFFSITE_GROUPS:-}" ]; then
+      case " $OFFSITE_GROUPS " in *" $group "*) ;; *) continue ;; esac
+    fi
     newest=""
     for s in "$sv"/.snap/"$OFFSITE_SNAP_PREFIX"*; do
       name=${s##*/}
-      case "${name#"$OFFSITE_SNAP_PREFIX"}" in
+      d=${name#"$OFFSITE_SNAP_PREFIX"}
+      case "$d" in
         [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
         *) continue ;;
       esac
+      # A future or impossible date would be picked forever and mask staleness.
+      [ "$(date -u -d "$d" +%Y-%m-%d 2>/dev/null)" = "$d" ] || continue
+      [ "$(echo "$d" | tr -d -)" -le "$TODAY" ] || continue
       # Glob order is sorted and ISO dates sort lexically, so the last match is newest.
       newest=$name
     done
@@ -87,6 +99,7 @@ found() { # found <group dir> <subvol dir> <snap name>
 do_export() {
   kopia_s3 connect
   YESTERDAY=$(date -u -d "@$(( $(date -u +%s) - 86400 ))" +%Y%m%d)
+  TODAY=$(date -u +%Y%m%d)
   SEEN=0 FAILED=""
   each_subvolume
   [ "$SEEN" -gt 0 ] || die "no subvolumes found under $OFFSITE_SNAP_ROOT"

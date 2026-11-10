@@ -46,6 +46,7 @@ turns it into the ConfigMap `styx-offsite-params`.
 | `OFFSITE_LOCK_DAYS` | `35` | Object Lock period (COMPLIANCE). It must be longer than the full-maintenance interval (7 days) plus 1 day. |
 | `OFFSITE_SNAP_ROOT` | `/snapshots` | Mount path of the CephFS `volumes` root. |
 | `OFFSITE_SNAP_PREFIX` | `nightly-` | Snapshot name prefix. Names must be `<prefix>YYYY-MM-DD`. |
+| `OFFSITE_GROUPS` | empty | Space-separated subvolume groups to export (for example `homes profiles`). Empty means every group. Set it when other groups, such as ceph-csi's `csi`, have no nightly snapshots: their subvolumes would otherwise fail the run. |
 | `OFFSITE_VERIFY_PERCENT` | `1` | Share of files that the daily verify re-reads and decrypts. |
 | `OFFSITE_FULL_VERIFY_DOW` | `7` | Weekday (`date -u +%u`, 1 = Monday) for the full `content verify`. |
 
@@ -74,9 +75,12 @@ add an exemption scoped to these two CronJobs.
 
 ### How export works
 
-For each `<group>/<subvol>` under `OFFSITE_SNAP_ROOT`, the job:
+For each `<group>/<subvol>` under `OFFSITE_SNAP_ROOT`, the job skips Ceph's internal
+`_`-prefixed dirs (`_deleting`, `_index`, ...) except `_nogroup`, and groups not in
+`OFFSITE_GROUPS` when that is set. Then it:
 
-1. Picks the newest `.snap/<prefix>YYYY-MM-DD/<uuid>` by name. It ignores other names, such as `manual-x`.
+1. Picks the newest `.snap/<prefix>YYYY-MM-DD/<uuid>` by name. It ignores other names, such as `manual-x`,
+   and names whose date is invalid or after today (UTC), so a bogus name cannot mask a stale export.
 2. Runs `kopia snapshot create <path> --override-source=styx@offsite:/export/<group>/<subvol> --tags=snap:<name>`.
    The stable source name lets Kopia find the previous snapshot, so the run is incremental.
 
