@@ -1,6 +1,7 @@
 #!/bin/sh
 # Fake bao for test_openbao_configure.py: appends argv (one line per call) to $FAKE_LOG
-# and prints canned JSON for the read calls, chosen by FAKE_STATE=empty|configured.
+# and prints canned JSON for the read calls, chosen by FAKE_STATE=empty|configured
+# (and FAKE_AUDIT=none).
 # Lives in the repo, not tmp_path, so it still runs where /tmp is mounted noexec.
 printf '%s\n' "$*" >> "$FAKE_LOG"
 state="${FAKE_STATE:-empty}"
@@ -12,10 +13,11 @@ case "$*" in
       echo '{"sys/":{"type":"system"}}'
     fi ;;
   "audit list -format=json")
-    if [ "$state" = configured ]; then
-      echo '{"file/":{"type":"file","options":{"file_path":"stdout"}}}'
-    else
+    # Declared in the server HCL, so present from the first start; FAKE_AUDIT=none drops it.
+    if [ "${FAKE_AUDIT:-}" = none ]; then
       echo '{}'
+    else
+      echo '{"stdout/":{"type":"file","options":{"file_path":"stdout"}}}'
     fi ;;
   "auth list -format=json")
     if [ "$state" = configured ]; then

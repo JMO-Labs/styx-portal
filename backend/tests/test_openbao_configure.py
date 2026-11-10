@@ -52,7 +52,7 @@ def test_refuses_skip_verify(tmp_path):
 def test_fresh_cluster_applies_everything(tmp_path):
     res, calls = run(tmp_path)
     assert res.returncode == 0, res.stderr
-    for want in ("secrets enable -path=kv kv-v2", "audit enable file file_path=stdout",
+    for want in ("secrets enable -path=kv kv-v2", "audit list -format=json",
                  "auth enable kubernetes",
                  "write auth/kubernetes/config kubernetes_host=https://kubernetes.default.svc"):
         assert want in calls, want
@@ -72,6 +72,21 @@ def test_idempotent_second_run(tmp_path):
     assert res.returncode == 0, res.stderr
     assert not [c for c in calls if " enable " in f" {c} "]
     assert not [c for c in calls if c.startswith("write auth/kubernetes/config")]
+
+
+def test_never_enables_audit_over_api(tmp_path):
+    # OpenBao 2.7 refuses API-created audit devices; the stdout device is declared in the
+    # server HCL (values.yaml) and the script only verifies it.
+    for state in ("empty", "configured"):
+        res, calls = run(tmp_path, state=state)
+        assert res.returncode == 0, res.stderr
+        assert not [c for c in calls if c.startswith("audit enable")]
+
+
+def test_fails_when_stdout_audit_missing(tmp_path):
+    res, calls = run(tmp_path, FAKE_AUDIT="none")
+    assert res.returncode != 0 and "audit" in res.stderr
+    assert not [c for c in calls if "enable" in c.split() or "write" in c.split()]
 
 
 def test_extra_mounts_file(tmp_path):

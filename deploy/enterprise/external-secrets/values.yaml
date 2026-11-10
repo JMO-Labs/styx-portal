@@ -1,0 +1,24 @@
+# Helm values for external-secrets chart 2.14.0 (ESO v2.14.0), issue #4, ADR-0042.
+# Render: helm template external-secrets charts/external-secrets-2.14.0.tgz \
+#   -n external-secrets -f values.yaml
+# Images: mirror of ghcr.io/external-secrets/external-secrets:v2.14.0 (digest from the
+# release's signed SLSA provenance). All three deployments use the same image.
+installCRDs: true
+
+serviceAccount:
+  create: true
+  name: external-secrets  # bound by OpenBao role eso (auth-roles.json)
+
+image:
+  repository: harbor.example.internal/external-secrets/external-secrets
+  tag: "v2.14.0@sha256:10608eb53e636e744903d5f3657a4d9c44e28d9d9c181b73e07bc7dd2e6884dc"
+
+webhook:
+  image:
+    repository: harbor.example.internal/external-secrets/external-secrets
+    tag: "v2.14.0@sha256:10608eb53e636e744903d5f3657a4d9c44e28d9d9c181b73e07bc7dd2e6884dc"
+
+certController:
+  image:
+    repository: harbor.example.internal/external-secrets/external-secrets
+    tag: "v2.14.0@sha256:10608eb53e636e744903d5f3657a4d9c44e28d9d9c181b73e07bc7dd2e6884dc"

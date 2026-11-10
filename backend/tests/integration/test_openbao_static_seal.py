@@ -7,6 +7,7 @@ TLS is off on this loopback-only test listener; the deployed config is checked e
 
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -14,6 +15,7 @@ import time
 from pathlib import Path
 
 import pytest
+import yaml
 
 pytestmark = pytest.mark.skipif(os.environ.get("OPENBAO_IT") != "1",
                                 reason="set OPENBAO_IT=1 to run the OpenBao integration test")
@@ -209,3 +211,58 @@ def test_snapshot_restore_needs_matching_key(nodes):
     b.wait_unsealed()
     b.wait_leader()
     assert b.read_secret() == "42"
+
+
+def test_deployed_config_boots(tmp_path):
+    """The real values.yaml HCL (TLS, static seal, declarative audit) starts and auto-unseals.
+
+    Only paths and ports are rewritten; service_registration needs a cluster and is dropped.
+    """
+
+    repo = Path(__file__).resolve().parents[3] / "deploy/enterprise/openbao"
+    hcl = yaml.safe_load((repo / "values.yaml").read_text())["server"]["ha"]["raft"]["config"]
+    tls = tmp_path / "tls"
+    subprocess.run(["bash", str(repo / "gen-bootstrap-tls.sh"), str(tls)], check=True,
+                   capture_output=True)
+    seal, data = tmp_path / "seal", tmp_path / "data"
+    seal.mkdir()
+    data.mkdir()
+    kid = re.search(r'current_key_id = "([^"]+)"', hcl).group(1)
+    (seal / f"{kid}.key").write_bytes(os.urandom(32))
+    port, cport = free_port(), free_port()
+    hcl = (hcl.replace("/openbao/tls/", f"{tls}/").replace("/openbao/seal/", f"{seal}/")
+           .replace('"/openbao/data"', f'"{data}"').replace("[::]:8200", f"127.0.0.1:{port}")
+           .replace("[::]:8201", f"127.0.0.1:{cport}")
+           .replace('service_registration "kubernetes" {}', ""))
+    hcl += f'\napi_addr = "https://127.0.0.1:{port}"\ncluster_addr = "https://127.0.0.1:{cport}"\n'
+    cfg = tmp_path / "config.hcl"
+    cfg.write_text(hcl)
+    env = {**os.environ, "BAO_ADDR": f"https://127.0.0.1:{port}", "BAO_CACERT": str(tls / "ca.crt"),
+           "BAO_RAFT_NODE_ID": "openbao-0"}
+    log = open(tmp_path / "server.log", "wb")
+    proc = subprocess.Popen(["bao", "server", f"-config={cfg}"], stdout=log,
+                            stderr=subprocess.STDOUT, env=env)
+    try:
+        def bao(*args):
+            return subprocess.run(["bao", *args], env=env, capture_output=True, text=True,
+                                  timeout=60)
+        deadline = time.time() + 30
+        while bao("status").returncode not in (0, 2):
+            assert proc.poll() is None and time.time() < deadline, (
+                (tmp_path / "server.log").read_text())
+            time.sleep(0.3)
+        out = json.loads(bao("operator", "init", "-recovery-shares=3", "-recovery-threshold=2",
+                             "-format=json").stdout)
+        env["BAO_TOKEN"] = out["root_token"]
+        deadline = time.time() + 30
+        while bao("audit", "list", "-format=json").returncode != 0:
+            assert time.time() < deadline, (tmp_path / "server.log").read_text()
+            time.sleep(0.5)
+        st = json.loads(bao("status", "-format=json").stdout)
+        assert st["sealed"] is False and st["type"] == "static"
+        audit = json.loads(bao("audit", "list", "-format=json").stdout)
+        assert audit["stdout/"]["type"] == "file"
+        assert audit["stdout/"]["options"]["file_path"] == "stdout"
+    finally:
+        proc.terminate()
+        proc.wait(timeout=30)

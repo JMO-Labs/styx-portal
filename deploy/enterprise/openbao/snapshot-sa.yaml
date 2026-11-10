@@ -1,0 +1,8 @@
+# Identity of the Raft snapshot CronJob. No RBAC: the token is only presented to OpenBao
+# Kubernetes auth (role raft-snapshot), which reviews it through the chart's auth-delegator.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openbao-snapshot
+  namespace: openbao
+automountServiceAccountToken: false

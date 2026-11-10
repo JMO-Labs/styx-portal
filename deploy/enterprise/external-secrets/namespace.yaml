@@ -1,0 +1,9 @@
+# External Secrets Operator namespace (issue #4). Restricted PSA: the chart's pods comply.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: external-secrets
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

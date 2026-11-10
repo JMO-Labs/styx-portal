@@ -97,6 +97,13 @@ def test_static_seal_stanza():
     assert "runbooks/openbao.md" in hcl
 
 
+def test_audit_declared_to_stdout():
+    # Declarative audit device (OpenBao 2.7 refuses API-created ones): path stdout/, file to stdout.
+    hcl = values()["server"]["ha"]["raft"]["config"]
+    assert re.search(r'^audit "file" "stdout" \{.*?file_path = "stdout".*?^\}', hcl, re.M | re.S)
+    assert "unsafe_allow_api_audit_creation" not in hcl
+
+
 def test_tls_enabled():
     v = values()
     hcl = v["server"]["ha"]["raft"]["config"]

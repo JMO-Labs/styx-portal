@@ -1,5 +1,7 @@
 """Nightly Raft snapshot CronJob to the offsite OpenBao prefix (issue #4, A1)."""
 
+import re
+
 from tests.openbao_checks import OPENBAO, check_images, check_security_context, load_docs
 
 
@@ -36,7 +38,7 @@ def test_service_account():
 def test_init_container_saves_snapshot():
     (init,) = pod()["initContainers"]
     cmd = " ".join(init["command"] + init.get("args", []))
-    assert "operator raft snapshot save /snap/openbao-" in cmd
+    assert re.search(r"operator raft snapshot save \"?/snap/openbao-", cmd)
     assert "role=raft-snapshot" in cmd and "auth/kubernetes/login" in cmd
     assert "date -u" in cmd
     assert init["image"].startswith("harbor.example.internal/openbao/openbao:")

@@ -1,0 +1,106 @@
+# Nightly Raft snapshot to the offsite OpenBao prefix (A1, issue #4). Feeds #15 and
+# docs/enterprise/runbooks/full-site-restore.md step 3. Snapshots are wrapped by the static
+# seal key in use when taken: keep every escrowed key until its last snapshot ages out.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: openbao-raft-snapshot
+  namespace: openbao
+spec:
+  schedule: "0 2 * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app: openbao-raft-snapshot
+        spec:
+          restartPolicy: Never
+          serviceAccountName: openbao-snapshot
+          automountServiceAccountToken: true  # presented to OpenBao Kubernetes auth only
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 100
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: snapshot
+              image: harbor.example.internal/openbao/openbao:2.7.2@sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  BAO_TOKEN="$(bao write -field=token auth/kubernetes/login role=raft-snapshot \
+                    jwt=@/var/run/secrets/kubernetes.io/serviceaccount/token)"
+                  export BAO_TOKEN
+                  bao operator raft snapshot save "/snap/openbao-$(date -u +%Y%m%dT%H%M%SZ).snap"
+              env:
+                - name: BAO_ADDR
+                  value: https://openbao-active.openbao.svc:8200
+                - name: BAO_CACERT
+                  value: /openbao/tls/ca.crt
+                - name: HOME
+                  value: /snap
+              securityContext:
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+                seccompProfile:
+                  type: RuntimeDefault
+              resources:
+                requests: {cpu: 50m, memory: 64Mi}
+                limits: {memory: 256Mi}
+              volumeMounts:
+                - {name: snap, mountPath: /snap}
+                - {name: ca, mountPath: /openbao/tls, readOnly: true}
+          containers:
+            - name: upload
+              image: harbor.example.internal/rclone/rclone:1.76.0@sha256:7cbeec24a44f206067597c0368be4de90ae19a64d5113c7d1938bd737a81e466
+              # Server-side encryption is left to the bucket default (no SSE flag here).
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  rclone copy --config /dev/null --s3-provider Other --s3-env-auth \
+                    --s3-endpoint "${S3_ENDPOINT}" --s3-region "${S3_REGION}" --s3-no-check-bucket \
+                    /snap ":s3:${BUCKET}/${PREFIX}"
+              envFrom:
+                - configMapRef:
+                    name: openbao-snapshot-params
+                - secretRef:
+                    name: openbao-snapshot-s3
+              env:
+                - name: HOME
+                  value: /snap
+              securityContext:
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+                seccompProfile:
+                  type: RuntimeDefault
+              resources:
+                requests: {cpu: 50m, memory: 64Mi}
+                limits: {memory: 256Mi}
+              volumeMounts:
+                - {name: snap, mountPath: /snap, readOnly: true}
+          volumes:
+            - name: snap
+              emptyDir:
+                sizeLimit: 2Gi
+            - name: ca
+              secret:
+                secretName: openbao-tls
+                items:
+                  - {key: ca.crt, path: ca.crt}  # CA only; never mount the server key here
