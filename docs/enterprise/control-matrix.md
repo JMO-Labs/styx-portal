@@ -34,15 +34,15 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
-| AU-2 | Event Logging | Event catalog incl. webhook, DLP (clipboard/file events as metadata only, never content), egress hostnames (ADR-0020, 0038, 0044); takeover events (actor, user, start/end, mode view/control, reason) (ADR-0060) | System | Planned |
-| AU-3 | Content of Audit Records | Readable identity first.last plus EDIPI/card-UUID correlation; DLP records are metadata only (ADR-0016, 0038, 0044); takeover events (actor, user, start/end, mode view/control, reason) (ADR-0060) | System | Planned |
+| AU-2 | Event Logging | Event catalog incl. webhook, DLP (clipboard/file events as metadata only, never content), egress hostnames (ADR-0020, 0038, 0044); takeover events (actor, user, start/end, mode view/control, reason) (ADR-0060); Styx audit events as ECS JSON (`event.dataset=styx.audit`) and kube-apiserver audit policy in deploy/logging, IaC done, not deployed | System | Planned |
+| AU-3 | Content of Audit Records | Readable identity first.last plus EDIPI/card-UUID correlation; DLP records are metadata only (ADR-0016, 0038, 0044); takeover events (actor, user, start/end, mode view/control, reason) (ADR-0060); ECS fields `@timestamp`, `event.id`, `event.action/category/type/outcome`, `user.id/name`, `source.ip`, redacted `styx.audit.detail`; reserved `styx.identity.card_*`, egress and DLP fields (filename sha256 only, no `file.hash`) in deploy/logging, IaC done, not deployed | System | Planned |
 | AU-4 | Audit Log Storage Capacity | Elastic 90 d hot / 1 y archive sizing (ADR-0044) | System | Planned |
-| AU-5 | Response to Audit Logging Process Failures | Alerting on log shipping failure (ADR-0044) | System | Planned |
+| AU-5 | Response to Audit Logging Process Failures | Alerting on log shipping failure (ADR-0044); Fluent Bit filesystem buffer and alerts FluentBitOutputFailing, FluentBitRetriesHigh, FluentBitDown in deploy/logging, IaC done, not deployed | System | Planned |
 | AU-6 | Audit Record Review, Analysis, and Reporting | Daily digest, access reviews, Elastic (ADR-0023, 0024, 0044); monthly review of takeover events by security officer or auditor (ADR-0060); monthly review of the uncategorised hostnames report (R01) | Hybrid | Planned |
 | AU-8 | Time Stamps | Cluster NTP; time source from org (ADR-0044) | Hybrid | Planned |
 | AU-9 | Protection of Audit Information | Auditor read-only role; Elastic access controls (ADR-0026, 0044) | Hybrid | Planned |
-| AU-11 | Audit Record Retention | 1 y archive (ADR-0044) | System | Planned |
-| AU-12 | Audit Record Generation | Styx, Keycloak, Squid hostnames, DLP metadata-only events; Selkies audit patch (ADR-0038, 0040, 0058); gateway takeover events (ADR-0060) | System | Planned |
+| AU-11 | Audit Record Retention | 1 y archive (ADR-0044); ILM `styx-logs`: hot rollover 50gb/30d, cold at 90 d, delete at `RETENTION_DELETE_DAYS` (default 455 d, open item) in deploy/logging/elastic, IaC done, not deployed | System | Planned |
+| AU-12 | Audit Record Generation | Styx, Keycloak, Squid hostnames, DLP metadata-only events; Selkies audit patch (ADR-0038, 0040, 0058); gateway takeover events (ADR-0060); Fluent Bit ships Styx audit, container logs and kube-apiserver audit to Elastic data streams (docs/operate/logging.md), IaC done, not deployed | System | Planned |
 
 ## CA - Assessment, Authorization, and Monitoring
 
