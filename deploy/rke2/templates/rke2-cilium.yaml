@@ -10,7 +10,8 @@ metadata:
   namespace: kube-system
 spec:
   valuesContent: |-
-    {% if cilium_kube_proxy_replacement %}
+    {# Same truthy set as Ansible's `bool`, which the role applies to disable_kube_proxy. #}
+    {% if cilium_kube_proxy_replacement | string | lower in ["true", "yes", "on", "1", "y", "t", "1.0"] %}
     kubeProxyReplacement: true
     # RKE2's client-side LB on every node, so the CNI does not depend on the keepalived VIP.
     k8sServiceHost: localhost
