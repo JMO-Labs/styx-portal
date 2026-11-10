@@ -28,6 +28,25 @@ The component is opt-in: `deploy/k8s/offsite-export/` is **not** part of
 - A bucket credential that can write and read objects. It must **not** have
   `s3:BypassGovernanceRetention`, and it must not be able to change the bucket's lock
   configuration or delete the bucket.
+- A bucket **lifecycle rule** on `OFFSITE_S3_PREFIX` with `NoncurrentVersionExpiration`
+  set to `OFFSITE_LOCK_DAYS` (Kopia recommends matching the retention period) and
+  `ExpiredObjectDeleteMarker`. An Object Lock bucket is always versioned, and Kopia's
+  garbage collection deletes blobs with a plain `DELETE`. That only adds a delete
+  marker: without the rule, every deleted blob stays (and is billed) forever. The
+  bucket owner sets it once, for example:
+
+  ```sh
+  # MinIO
+  mc ilm rule add --prefix styx/ --noncurrent-expire-days 35 --expire-delete-marker <alias>/<bucket>
+  # AWS S3
+  aws s3api put-bucket-lifecycle-configuration --bucket <bucket> --lifecycle-configuration \
+    '{"Rules":[{"ID":"styx-offsite-noncurrent","Status":"Enabled","Filter":{"Prefix":"styx/"},
+      "NoncurrentVersionExpiration":{"NoncurrentDays":35},
+      "Expiration":{"ExpiredObjectDeleteMarker":true}}]}'
+  ```
+
+  Keep the days equal to `OFFSITE_LOCK_DAYS` if you change it. Object Lock still wins:
+  a locked version is not removed before its lock expires.
 
 ## Configuration
 
@@ -126,6 +145,7 @@ OpenBao or the cluster, because a site loss can take both:
 
 - the repository password (`KOPIA_PASSWORD`)
 - the endpoint, region, bucket and prefix
+- the bucket lifecycle rule (prefix and noncurrent-expiry days), to set it again on a rebuilt or migrated bucket
 - the Kopia version in use (the `images:` tag)
 - this one-page restore procedure
 
@@ -157,7 +177,8 @@ the data. To rotate for real:
 1. Create a new repository under a new prefix with a new password, using `init`.
 2. Point `params.env` and OpenBao at it, and update the escrow envelope.
 3. Leave the old repository until its locks expire and its retention ages out. Then
-   delete the prefix with the bucket owner's account.
+   delete the prefix with the bucket owner's account. The bucket is versioned, so the
+   lifecycle rule removes the noncurrent versions afterwards.
 
 ## Deleted users
 
@@ -166,10 +187,13 @@ no new snapshots. Kopia measures retention from a source's own newest snapshot, 
 on its own it would keep that source's last snapshots forever. `export` therefore
 deletes all snapshots of a source that is no longer on disk once its newest snapshot
 is older than `OFFSITE_ORPHAN_DAYS` (default 1095 days, the same horizon as Kopia's
-`keep-annual 3` for a file deleted from a live home). The next maintenance runs
-remove the data once the Object Lock period has passed. So a deleted user's data
-stays offsite for up to `OFFSITE_ORPHAN_DAYS` plus `OFFSITE_LOCK_DAYS` plus about
-a week of maintenance. Lower `OFFSITE_ORPHAN_DAYS` if the data-retention notice
+`keep-annual 3` for a file deleted from a live home). Kopia's maintenance then
+garbage-collects the unreferenced blobs, which only adds S3 delete markers. The
+bucket lifecycle rule (see Prerequisites) removes the now noncurrent versions
+`NoncurrentVersionExpiration` days later, and never before their Object Lock expires.
+So a deleted user's data stays offsite for up to `OFFSITE_ORPHAN_DAYS` plus about a
+week of maintenance GC delay plus the noncurrent-expiry days (`OFFSITE_LOCK_DAYS`,
+35 by default). Without the lifecycle rule it stays forever. Lower `OFFSITE_ORPHAN_DAYS` if the data-retention notice
 needs a shorter period, and record the value there.
 
 A subvolume that is missing only for a while (for example a mount problem) is safe:
@@ -189,7 +213,10 @@ its source is purged only after its newest snapshot is older than
 ## Cost check (D05/D37)
 
 The worst case is about 2 TB (200 users × 10 GB homes plus profiles), before dedup and
-compression. Object Lock and 30+ days of history keep extra versions. Before you
+compression. Object Lock and 30+ days of history keep extra versions. Without the
+noncurrent-version lifecycle rule (see Prerequisites), every blob that Kopia's GC
+deletes stays billed forever and storage grows without bound; with it, deleted blobs
+are billed for about `OFFSITE_LOCK_DAYS` more. Before you
 deploy, check the chosen provider's storage, request and egress pricing against the
 accepted budget of about $20-50/month (D05/D37).
 
@@ -200,5 +227,6 @@ accepted budget of about $20-50/month (D05/D37).
 - `backend/tests/integration/test_offsite_minio.py` (`OFFSITE_IT=1`, CI job
   `offsite-integration`) runs real Kopia against MinIO with Object Lock. It covers
   backup, verify, a byte-identical restore and an incremental second run. It also
-  shows that deleting a locked version is refused, and that a wrong password cannot
-  connect.
+  shows that deleting a locked version is refused, that a wrong password cannot
+  connect, that orphaned sources are purged, and that the bucket's noncurrent-version
+  lifecycle rule coexists with Object Lock.

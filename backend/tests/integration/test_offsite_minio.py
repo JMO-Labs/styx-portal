@@ -48,6 +48,9 @@ def minio(tmp_path_factory):
         except OSError:
             time.sleep(0.2)
     _sh(["mc", "mb", "--with-lock", f"it/{BUCKET}"], env)
+    # Bucket prerequisite from docs/operate/offsite-backup.md (noncurrent versions = lock days).
+    _sh(["mc", "ilm", "rule", "add", "--prefix", "styx/", "--noncurrent-expire-days", "35",
+         "--expire-delete-marker", f"it/{BUCKET}"], env)
     yield port, env
     proc.terminate()
     proc.wait(timeout=20)
