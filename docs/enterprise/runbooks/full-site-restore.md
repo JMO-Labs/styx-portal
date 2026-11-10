@@ -53,7 +53,8 @@ The offsite escrow envelope (B1) must hold:
 
 - Kopia password for the #13 home repository, plus endpoint, region, bucket and prefix
 - Offsite bucket credentials (read access for all A1 prefixes)
-- OpenBao static seal key (32-byte key file, C1)
+- OpenBao static seal key (32-byte key file, C1) and its original `current_key_id`; the restored
+  raft data is wrapped under that id, so a new id cannot decrypt it
 - OpenBao raft snapshot location (bucket prefix and naming)
 - RKE2 token (server token; only needed for [Control-plane-only loss](#control-plane-only-loss))
 - Velero repo password (`velero-repo-credentials`)
@@ -155,7 +156,8 @@ snapshot could never be decrypted. That is why C1 uses `seal "static"`.
 
 1. Write the escrowed static seal key to the key file path from #4 (mode 0400, owner openbao).
 2. Deploy OpenBao from IaC (#4) with the matching stanza, for example
-   `seal "static" { current_key_id = "<key-id>" current_key = "file://<key-file-path>" }`.
+   `seal "static" { current_key_id = "<key-id>" current_key = "file://<key-file-path>" }`,
+   where `<key-id>` is the escrowed original key id.
 3. Initialise the new cluster, then download the newest raft snapshot from the offsite
    OpenBao prefix (A1) and record its timestamp.
 4. Restore it: `bao operator raft snapshot restore -force <snapshot-file>`.
@@ -351,4 +353,4 @@ Reference only; built in other tickets, not here:
 - OpenBao raft snapshot CronJob writing nightly to the offsite prefix.
 - RGW cold-archive mirror to the offsite bucket (ADR-0035).
 - CNPG volumeSnapshot backups kept locally on Ceph for fast local restores.
-- The static seal (`seal "static"`) in #4, with the key escrowed in both sets (C1).
+- The static seal (`seal "static"`) in #4, with the key and its key id escrowed in both sets (C1).
