@@ -54,7 +54,30 @@ Run these from a host in an allowed client network, against the VIP:
 | Domain fronting | `curl -s -o /dev/null -w '%{http_code}' --cert card.pem --key card.key --resolve login.<domain>:443:<VIP> -H 'Host: portal.<domain>' https://login.<domain>/` | `421` |
 | Trailing-dot Host | `curl -s -o /dev/null -w '%{http_code}' -H 'Host: provision.<domain>.' https://portal.<domain>/` | `421` |
 | Unknown Host | `curl -s -o /dev/null -w '%{http_code}' -H 'Host: other.example' https://portal.<domain>/` | `421` |
+| No TLS resumption | `openssl s_client -connect <VIP>:443 -servername login.<domain> -reconnect </dev/null 2>/dev/null \| grep -c '^Reused'` | `0` (every connection is `New`) |
 | Provision outside the allowlist | `curl ... https://provision.<domain>/` from a non-GCC High source with a valid OpenBao cert | `403` |
 | Valid card | Sign in with a CAC in a browser | Keycloak shows the x509 user; its log shows the `haproxy` lookup provider |
 
-The CI job `dmz-haproxy-integration` runs the same checks against a real HAProxy on every pipeline.
+The GitLab CI job `dmz-haproxy-integration` runs the same checks against a real HAProxy. It has
+not run in a pipeline yet (see the first known issue).
+
+## Known issues
+
+- **GitLab jobs not yet run.** `wq/styx-portal` has no GitLab pipelines, so `dmz-haproxy-iac`,
+  `dmz-haproxy-integration` and the digest-pinned `haproxy:3.4.7` image have not run in CI.
+  GitHub Actions runs only the static suite, because the behaviour suite skips without
+  `HAPROXY_IT=1`. The #7 testers ran the job steps locally with the pinned tool versions,
+  against HAProxy 3.4.7 (AWS-LC build), 3.4.0 and 3.3.6 (OpenSSL). Check the first real pipeline.
+- **No TLS resumption on any host.** `no-tls-tickets` is a bind option, not a crt-list keyword,
+  so it is set in `ssl-default-bind-options`. Together with `tune.ssl.cachesize 0`, it turns off
+  resumption for every served name, not only login. Every connection does a full handshake,
+  which costs more CPU. This is deliberate. Without it, a TLS 1.3 PSK from `provision.<domain>`
+  could resume on `login.<domain>` and HAProxy would forward the OpenBao cert as `Client-Cert`.
+  As a second layer, a resumed login session never gets the cert headers and gets the no-card
+  page instead. Do not turn the session cache back on to save CPU.
+- **Underscore header names pass through.** A client-sent `Client_Cert` is not deleted. HAProxy,
+  Traefik (Go) and Keycloak (Vert.x) don't treat `_` as `-`, so it can't reach the lookup SPI
+  as `Client-Cert`. Keep it that way: never turn on underscore-to-dash header normalisation on
+  any hop between HAProxy and Keycloak.
+- **Placeholders.** `dmz_provision_allowed_cidrs` holds documentation ranges until the real
+  GCC High egress ranges (D20) are known. The certificate source (D12/D49) is the org's call.
