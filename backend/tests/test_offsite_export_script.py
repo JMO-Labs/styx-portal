@@ -44,6 +44,7 @@ def env(tmp_path):
         "OFFSITE_SNAP_PREFIX": "nightly-",
         "OFFSITE_VERIFY_PERCENT": "1",
         "OFFSITE_FULL_VERIFY_DOW": "7",
+        "OFFSITE_ORPHAN_DAYS": "1095",
     }
 
 
@@ -241,3 +242,56 @@ def test_export_only_bogus_dates_fails(env):
     r = run(env, "export")
     assert r.returncode != 0
     assert creates(env) == []
+
+
+def listing(tmp_path, *snaps):
+    """`kopia snapshot list --all --json` lines for (export path, start day offset)."""
+    lines = [f' {{"id":"id{i}","source":{{"host":"offsite","userName":"styx",'
+             f'"path":"/export/{gs}"}},"description":"","startTime":"{day(off)}T04:31:00Z",'
+             f'"endTime":"{day(off)}T04:40:00Z"}},' for i, (gs, off) in enumerate(snaps)]
+    f = tmp_path / "list.json"
+    f.write_text("[\n" + "\n".join(lines) + "\n]\n")
+    return str(f)
+
+
+def deletes(env):
+    return [c for c in calls(env) if c[:2] == ["snapshot", "delete"]]
+
+
+def test_export_purges_orphaned_sources_past_retention(env, tmp_path):
+    """Kopia never expires a source that gets no new snapshots (deleted user, D34)."""
+    root = Path(env["OFFSITE_SNAP_ROOT"])
+    snap(root, "homes", "alice", f"nightly-{day()}")
+    lst = listing(tmp_path, ("homes/alice", -2000),  # still on disk: kept
+                  ("homes/gone", -1200), ("homes/gone", -1100),  # orphan, past 1095 d
+                  ("homes/old jo", -1096),  # orphan with a space, past 1095 d
+                  ("homes/recent", -1200), ("homes/recent", -30))  # orphan, newest too young
+    r = run(env, "export", FAKE_LIST=lst)
+    assert r.returncode == 0, r.stderr
+    got = sorted(c[2] for c in deletes(env))
+    assert got == ["styx@offsite:/export/homes/gone", "styx@offsite:/export/homes/old jo"]
+    for c in deletes(env):
+        assert "--all-snapshots-for-source" in c and "--delete" in c
+    assert calls(env).index(creates(env)[-1]) < calls(env).index(deletes(env)[0])
+
+
+def test_export_purge_honours_orphan_days(env, tmp_path):
+    snap(Path(env["OFFSITE_SNAP_ROOT"]), "homes", "alice", f"nightly-{day()}")
+    lst = listing(tmp_path, ("homes/gone", -40))
+    assert run(env, "export", FAKE_LIST=lst, OFFSITE_ORPHAN_DAYS="35").returncode == 0
+    assert len(deletes(env)) == 1
+
+
+def test_export_purge_failure_exits_nonzero(env, tmp_path):
+    snap(Path(env["OFFSITE_SNAP_ROOT"]), "homes", "alice", f"nightly-{day()}")
+    lst = listing(tmp_path, ("homes/gone", -2000))
+    r = run(env, "export", FAKE_LIST=lst, FAKE_FAIL="snapshot delete")
+    assert r.returncode != 0
+    assert "homes/gone" in r.stderr
+
+
+def test_export_never_purges_when_no_subvolumes(env, tmp_path):
+    """Adversarial: an empty or unmounted snapshot root must not wipe the repository."""
+    lst = listing(tmp_path, ("homes/alice", -2000))
+    assert run(env, "export", FAKE_LIST=lst).returncode != 0
+    assert deletes(env) == []

@@ -97,6 +97,8 @@ def test_params_defaults():
     # Kopia: lock must outlive the full-maintenance interval (7 d) by at least 1 d.
     assert int(p["OFFSITE_LOCK_DAYS"]) > 7 + 1
     assert p["OFFSITE_S3_PREFIX"] == "styx/"
+    # Orphaned sources (deleted users) go once older than Kopia's keep-annual 3 horizon.
+    assert p["OFFSITE_ORPHAN_DAYS"] == "1095"
     assert p["OFFSITE_SNAP_ROOT"] == "/snapshots"
     assert p["OFFSITE_SNAP_PREFIX"] == "nightly-"
     assert p["OFFSITE_VERIFY_PERCENT"] == "1"

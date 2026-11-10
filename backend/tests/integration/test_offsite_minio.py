@@ -140,3 +140,17 @@ def test_wrong_password_cannot_connect(repo, tmp_path):
            "KOPIA_CONFIG_PATH": str(tmp_path / "other.config")}
     r = _sh(["sh", str(SCRIPT), "verify"], bad, check=False)
     assert r.returncode != 0
+
+
+def test_orphaned_source_is_purged(repo, tmp_path):
+    """A deleted user's source gets no new snapshots, so Kopia retention never expires it."""
+    env, tree = repo
+    for gs, start in (("homes/gone", "2020-01-02 03:04:05 UTC"),
+                      ("homes/recent", time.strftime("%Y-%m-%d 00:00:00 UTC", time.gmtime()))):
+        _sh(["kopia", "snapshot", "create", str(tree), f"--override-source=styx@offsite:/export/{gs}",
+             f"--start-time={start}", f"--end-time={start}"], env)
+    r = _sh(["sh", str(SCRIPT), "export"], env, check=False)
+    assert r.returncode == 0, r.stderr[-2000:]
+    out = _sh(["kopia", "snapshot", "list", "--all", "--json"], env).stdout
+    paths = {s["source"]["path"] for s in json.loads(out)}
+    assert paths == {"/export/homes/alice", "/export/homes/recent"}
