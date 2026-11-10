@@ -75,6 +75,9 @@ def test_pause_unsupported_is_422():
 async def _owned(session, status="running"):
     from sqlmodel import select
     admin = (await session.exec(select(User).where(User.username == "admin"))).first()
+    if not await session.get(ServiceTemplate, "t"):
+        session.add(ServiceTemplate(id="t", name="tpl-t", display_name="T", image="img"))
+        await session.commit()
     inst = Instance(template_id="t", owner_id=admin.id, name="o", subdomain="o",
                     container_id="selkies-o", status=status)
     session.add(inst)

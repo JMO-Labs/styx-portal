@@ -25,3 +25,11 @@ async def scalar(engine, sql: str):
 async def downgrade_base(engine) -> None:
     async with engine.begin() as conn:
         await conn.run_sync(lambda c: command.downgrade(alembic_config(c), "base"))
+
+
+async def ensure_user(session, uid: str) -> None:
+    """Create a bare User row with this id (Postgres enforces FKs that SQLite ignored)."""
+    from app.models import User
+    if not await session.get(User, uid):
+        session.add(User(id=uid, username=f"u-{uid}", password_hash="x"))
+        await session.commit()

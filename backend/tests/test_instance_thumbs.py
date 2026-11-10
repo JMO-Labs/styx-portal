@@ -1,7 +1,7 @@
 import pytest
 
 from app.main import app
-from app.models import Instance
+from app.models import Instance, ServiceTemplate, User
 from app.routers import instance_thumbs
 from app.routers.instances import get_screenshot_service
 from app.services.screenshot import ScreenshotService
@@ -19,6 +19,12 @@ def _thumb_dir(tmp_path, monkeypatch, client):
 
 
 async def _mk(session, owner_id, sub="thumb1"):
+    if not await session.get(ServiceTemplate, "t"):
+        session.add(ServiceTemplate(id="t", name="tpl-t", display_name="T", image="img"))
+        await session.commit()
+    if not await session.get(User, owner_id):
+        session.add(User(id=owner_id, username=f"u-{owner_id}", password_hash="x"))
+        await session.commit()
     inst = Instance(template_id="t", name="n", subdomain=sub, owner_id=owner_id, status="running")
     session.add(inst)
     await session.commit()

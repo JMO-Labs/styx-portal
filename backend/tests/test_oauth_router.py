@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 from app.models import OAuthProvider, Invite
 from app.schemas import OAuthIdentity
 from app.security.crypto import encrypt_secret
-
+from tests.db_helpers import ensure_user
 
 async def _seed_provider(session):
     p = OAuthProvider(name="google", display_label="Google", kind="oidc",
@@ -37,6 +37,7 @@ async def test_start_sets_tx_cookie_and_redirects(client, session):
 @pytest.mark.asyncio
 async def test_callback_provisions_via_invite_and_sets_session(client, session):
     await _seed_provider(session)
+    await ensure_user(session, "a")
     session.add(Invite(token_hash="h", email="new@x.com", role="user", created_by="a"))
     await session.commit()
     with patch("app.security.oauth.build_authorize",
