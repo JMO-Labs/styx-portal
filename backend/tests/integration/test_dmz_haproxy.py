@@ -36,6 +36,7 @@ HAPROXY = os.environ.get("HAPROXY_BIN") or shutil.which("haproxy") or "haproxy"
 DOMAIN = "example.test"
 LOGIN, PROVISION = f"login.{DOMAIN}", f"provision.{DOMAIN}"
 PORTAL, BANNER = f"portal.{DOMAIN}", f"banner.{DOMAIN}"
+INSIDE, OUTSIDE = "127.0.0.1", "127.0.0.2"  # client sources: in / outside the provision allowlist
 NO_CARD = (ROLE / "files/errors/no-card.html").read_bytes()
 
 
@@ -165,7 +166,7 @@ def env(tmp_path_factory):
         "dmz_openbao_ca_file": str(bao[2]), "dmz_cluster_ca_file": str(cluster[2]),
         "dmz_haproxy_client_cert": str(hap_client), "dmz_traefik_sni": "traefik.test",
         "dmz_traefik_servers": [{"name": "traefik1", "addr": f"127.0.0.1:{echo_port}"}],
-        "dmz_provision_allowed_cidrs": ["127.0.0.0/8"], "dmz_peers_port": free_port(),
+        "dmz_provision_allowed_cidrs": [f"{INSIDE}/32"], "dmz_peers_port": free_port(),
         "dmz_login_rate_limit": 10000, "dmz_provision_rate_limit": 10000,
     }
     first, second = "dmz-proxy-01", "dmz-proxy-02"
@@ -208,11 +209,14 @@ def client_ctx(env, cert: Path | None = None, max_ver=None) -> ssl.SSLContext:
     return ctx
 
 
-def get(env, sni: str, host: str | None = None, cert: Path | None = None, headers=None,
-        ctx: ssl.SSLContext | None = None, session=None):
-    """One HTTP/1.1 request over a fresh TLS connection. Returns (status, body, session, reused)."""
+def get(env, sni: str | None, host: str | None = None, cert: Path | None = None, headers=None,
+        ctx: ssl.SSLContext | None = None, session=None, src: str = INSIDE):
+    """One HTTP/1.1 request over a fresh TLS connection. Returns (status, body, session, reused).
+    sni=None sends no SNI."""
     ctx = ctx or client_ctx(env, cert)
-    raw = socket.create_connection(("127.0.0.1", env["port"]), timeout=5)
+    if sni is None:
+        ctx.check_hostname = False
+    raw = socket.create_connection(("127.0.0.1", env["port"]), timeout=5, source_address=(src, 0))
     sock = ctx.wrap_socket(raw, server_hostname=sni, session=session)
     lines = ["GET / HTTP/1.1", f"Host: {host or sni}", "Connection: close"]
     lines += [f"{k}: {v}" for k, v in (headers or {}).items()]
@@ -230,7 +234,8 @@ def echoed(body: bytes) -> dict:
 
 
 SPOOF = {"Client-Cert": "AAAA", "Client-Cert-Chain": "AAAA", "X-Forwarded-For": "1.2.3.4",
-         "X-Forwarded-Host": "evil.test", "Forwarded": "for=1.2.3.4"}
+         "X-Forwarded-Host": "evil.test", "Forwarded": "for=1.2.3.4", "X-Real-Ip": "1.2.3.4",
+         "X-Forwarded-Port": "evil.test", "X-Forwarded-Tls-Client-Cert": "evil.test"}
 
 
 def card_der(env) -> bytes:
@@ -337,6 +342,31 @@ def test_provision_requires_cert(env):
     status, body, *_ = get(env, PROVISION, cert=env["bao_pem"])
     assert status == 200
     assert "client-cert" not in echoed(body)
+
+
+def test_provision_denied_outside_allowlist(env):
+    before = len(Echo.hits)
+    status, *_ = get(env, PROVISION, cert=env["bao_pem"], src=OUTSIDE)
+    assert status == 403 and len(Echo.hits) == before
+    status, *_ = get(env, PROVISION, cert=env["bao_pem"], src=INSIDE)
+    assert status == 200
+
+
+@pytest.mark.parametrize("sni", [PORTAL, BANNER, None])
+@pytest.mark.parametrize("host", [f"{PROVISION}.", f"{LOGIN}.", f"{PROVISION.upper()}.:443",
+                                  f"{LOGIN}..", "other.test", "[::1]:443"])
+def test_host_variants_never_bypass_mtls_hosts(env, sni, host):
+    """Adversarial: Traefik matches `provision.<d>.` as `provision.<d>`, so an unmatched Host form must
+    never be forwarded from a public SNI (or no SNI) and outside the provision allowlist."""
+    before = len(Echo.hits)
+    status, *_ = get(env, sni, host, src=OUTSIDE)
+    assert status in (403, 421) and len(Echo.hits) == before, status
+
+
+def test_login_trailing_dot_host_with_card_is_login(env):
+    status, body, *_ = get(env, LOGIN, f"{LOGIN}.", cert=env["card_pem"])
+    assert status == 200
+    assert base64.b64decode(echoed(body)["client-cert"][0]) == card_der(env)
 
 
 def test_backend_rejects_without_haproxy_client_cert(env):

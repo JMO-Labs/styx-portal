@@ -93,9 +93,9 @@ def test_no_ignore_err_or_crl():
 def test_strip_before_set(fe):
     rules = directives(fe, "http-request")
     dels = [i for i, r in enumerate(rules) if r.startswith("http-request del-header")]
-    assert dels == list(range(len(STRIPPED))), "del-header must be the first http-request rules"
+    assert dels == list(range(len(dels))), "del-header must be the first http-request rules"
     deleted = {rules[i].split()[2] for i in dels}
-    assert deleted == set(STRIPPED)
+    assert set(STRIPPED) <= deleted
     first_set = next(i for i, r in enumerate(rules) if r.startswith("http-request set-header"))
     assert max(dels) < first_set
 
@@ -131,6 +131,24 @@ def test_sni_host_mismatch_421(fe):
     # 421 must fire before any header is set.
     rules = directives(fe, "http-request")
     assert rules.index(deny[0]) < next(i for i, r in enumerate(rules) if "set-header" in r)
+
+
+def test_host_normalised_and_fail_closed(fe):
+    """Trailing-dot Host (Traefik treats it as equal) is normalised; unknown hosts are denied (421)."""
+    d = host_vars()["dmz_domain"]
+    assert "regsub(" in fe, "Host must lose a trailing dot before the ACLs"
+    acl = next(r for r in directives(fe, "acl") if r.split()[1] == "known_host")
+    for name in ("login", "provision", "portal", "banner"):
+        assert f"{name}.{d}" in acl
+    rules = directives(fe, "http-request")
+    deny = next(i for i, r in enumerate(rules) if "deny_status 421" in r and "!known_host" in r)
+    assert deny < next(i for i, r in enumerate(rules) if "set-header" in r)
+
+
+def test_all_forwarding_headers_stripped(fe):
+    dels = directives(fe, "http-request del-header")
+    assert "http-request del-header X-Forwarded- -m beg" in dels
+    assert "http-request del-header X-Real-Ip" in dels
 
 
 def test_provision_source_allowlist(fe):
