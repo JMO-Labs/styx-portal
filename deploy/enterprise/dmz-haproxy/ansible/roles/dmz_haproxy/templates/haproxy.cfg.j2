@@ -1,0 +1,96 @@
+# {{ ansible_managed | default('Managed by Ansible') }} - DMZ HAProxy pair (issue #7, ADR-0050).
+# Header contract: deploy/enterprise/dmz-haproxy/README.md. Runbook: docs/enterprise/runbooks/dmz-haproxy.md.
+global
+    log {{ dmz_haproxy_log }} local0
+{% if dmz_haproxy_user %}
+    user {{ dmz_haproxy_user }}
+    group {{ dmz_haproxy_user }}
+{% endif %}
+    localpeer {{ inventory_hostname }}
+    stats socket {{ dmz_haproxy_run_dir }}/admin.sock mode 660 level admin
+    ssl-default-bind-ciphers {{ dmz_tls_ciphers }}
+    ssl-default-bind-ciphersuites {{ dmz_tls_ciphersuites }}
+    ssl-default-bind-curves {{ dmz_tls_curves }}
+    # No TLS resumption on any host: a resumed session drops ssl_c_chain_der (HAProxy manual) and a
+    # TLS 1.3 PSK from provision.<domain> could resume on login. no-tls-tickets is bind-only (not a
+    # crt-list keyword); cachesize 0 also kills the stateful cache (TLS 1.2 IDs, TLS 1.3 PSK).
+    ssl-default-bind-options ssl-min-ver {{ dmz_tls_min_ver }} no-tls-tickets
+    tune.ssl.cachesize 0
+    ssl-default-server-ciphers {{ dmz_tls_ciphers }}
+    ssl-default-server-ciphersuites {{ dmz_tls_ciphersuites }}
+    ssl-default-server-options ssl-min-ver {{ dmz_tls_min_ver }}
+
+defaults
+    mode http
+    log global
+    option httplog
+    timeout connect 5s
+    timeout client 30s
+    timeout server 60s
+    timeout http-request 10s
+    timeout http-keep-alive 10s
+
+# Rate-limit counters are shared by both nodes so a failover keeps them.
+peers dmz_peers
+{% for h in groups['dmz'] %}
+    peer {{ h }} {{ hostvars[h].dmz_peer_addr }}:{{ dmz_peers_port }}
+{% endfor %}
+
+backend st_login
+    stick-table type ipv6 size 100k expire {{ dmz_ratelimit_period }} store http_req_rate({{ dmz_ratelimit_period }}) peers dmz_peers
+
+backend st_provision
+    stick-table type ipv6 size 10k expire {{ dmz_ratelimit_period }} store http_req_rate({{ dmz_ratelimit_period }}) peers dmz_peers
+
+# Local health endpoint for keepalived's vrrp_script; never bound publicly.
+frontend fe_healthz
+    bind {{ dmz_healthz_bind }}
+    monitor-uri /healthz
+
+frontend fe_https
+    bind {{ dmz_bind_addr }}:{{ dmz_https_port }} ssl crt-list {{ dmz_haproxy_dir }}/crt-list.txt alpn h2,http/1.1
+    # 1. Never pass client-supplied identity or forwarding headers (ADR-0050).
+    http-request del-header Client-Cert
+    http-request del-header Client-Cert-Chain
+    http-request del-header X-Forwarded-For
+    http-request del-header X-Forwarded-Proto
+    http-request del-header X-Forwarded-Host
+    http-request del-header Forwarded
+    # Every other forwarding header too: Traefik trusts them from the DMZ pair (X-Forwarded-Port, -Tls-Client-Cert...).
+    http-request del-header X-Forwarded- -m beg
+    http-request del-header X-Real-Ip
+
+    # Lowercase, drop the port and one trailing dot: Traefik routes `login.<domain>.` as `login.<domain>`.
+    http-request set-var(txn.host) req.hdr(host),field(1,:),lower,regsub([.]$,)
+    http-request set-var(txn.sni) ssl_fc_sni,lower
+    acl is_login var(txn.host) -m str login.{{ dmz_domain }}
+    acl is_provision var(txn.host) -m str provision.{{ dmz_domain }}
+    acl mtls_sni var(txn.sni) -m str login.{{ dmz_domain }} provision.{{ dmz_domain }}
+    acl sni_is_host var(txn.host),strcmp(txn.sni) eq 0
+    acl known_host var(txn.host) -m str login.{{ dmz_domain }} provision.{{ dmz_domain }} portal.{{ dmz_domain }} banner.{{ dmz_domain }}
+    acl provision_src src {{ dmz_provision_allowed_cidrs | join(' ') }}
+
+    # 2. Fail closed: only the four served names reach the cluster.
+    http-request deny deny_status 421 if !known_host
+    #    SNI must equal Host on mTLS hosts (domain fronting), either direction.
+    http-request deny deny_status 421 if mtls_sni !sni_is_host or is_login !sni_is_host or is_provision !sni_is_host
+    # 3. provision.<domain>: GCC High sources only (D20), then per-source rate limits.
+    http-request deny deny_status 403 if is_provision !provision_src
+    http-request track-sc0 src table st_login if is_login
+    http-request track-sc0 src table st_provision if is_provision
+    http-request deny deny_status 429 if is_login { sc0_http_req_rate(st_login) gt {{ dmz_login_rate_limit }} }
+    http-request deny deny_status 429 if is_provision { sc0_http_req_rate(st_provision) gt {{ dmz_provision_rate_limit }} }
+    # 4. login.<domain> without a verified card on a full handshake: styled page, nothing reaches the
+    #    cluster. Resumed sessions are refused too (defence in depth if resumption is ever re-enabled).
+    http-request return status 403 content-type "text/html; charset=utf-8" file {{ dmz_haproxy_dir }}/errors/no-card.html if is_login !{ ssl_c_used } or is_login !{ ssl_c_verify 0 } or is_login { ssl_fc_is_resumed }
+    # 5. Cert headers only on login, only after a full verified handshake (Keycloak "haproxy" lookup).
+    http-request set-header Client-Cert %[ssl_c_der,base64] if is_login { ssl_c_used } { ssl_c_verify 0 } !{ ssl_fc_is_resumed }
+    http-request set-header Client-Cert-Chain %[ssl_c_chain_der,base64] if is_login { ssl_c_used } { ssl_c_verify 0 } !{ ssl_fc_is_resumed }
+    http-request set-header X-Forwarded-Proto https
+    option forwardfor
+    default_backend be_traefik
+
+backend be_traefik
+{% for s in dmz_traefik_servers %}
+    server {{ s.name }} {{ s.addr }} ssl verify required ca-file {{ dmz_cluster_ca_file }} crt {{ dmz_haproxy_client_cert }} sni str({{ dmz_traefik_sni }}) verifyhost {{ dmz_traefik_sni }} check
+{% endfor %}

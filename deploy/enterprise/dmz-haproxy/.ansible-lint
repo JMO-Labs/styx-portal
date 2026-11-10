@@ -1,0 +1,6 @@
+---
+profile: production
+offline: true
+skip_list:
+  # Issue #7 fixes the role name (dmz_haproxy) and the dmz_* variable names together.
+  - var-naming[no-role-prefix]

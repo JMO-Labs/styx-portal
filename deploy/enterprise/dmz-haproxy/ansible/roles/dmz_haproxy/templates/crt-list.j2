@@ -1,0 +1,3 @@
+{{ dmz_cert_public }} [verify none] banner.{{ dmz_domain }} portal.{{ dmz_domain }}
+{{ dmz_cert_login }} [verify optional ca-file {{ dmz_piv_ca_file }}] login.{{ dmz_domain }}
+{{ dmz_cert_provision }} [verify required ca-file {{ dmz_openbao_ca_file }}] provision.{{ dmz_domain }}
