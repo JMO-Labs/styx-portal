@@ -165,3 +165,52 @@ def test_unreadable_k8s_config_is_not_overwritten(tmp_path):
     assert res.returncode != 0 and "permission denied" in res.stderr
     assert "auth/kubernetes/config failed" in res.stderr, res.stderr
     assert not [c for c in calls if c.startswith("write auth/kubernetes/config")]
+
+
+# ---- GitLab CI JWT auth (issue #10) -----------------------------------------------------
+
+ISSUER = "https://gitlab.example.internal"
+
+
+def jwt_role_write(calls: list[str]) -> dict:
+    (call,) = [c for c in calls if c.startswith("write auth/jwt/role/gitlab-mirror - ")]
+    return json.loads(call.split(" - ", 1)[1])
+
+
+def test_jwt_skipped_without_issuer(tmp_path):
+    for state in ("empty", "configured"):
+        res, calls = run(tmp_path, state=state)
+        assert res.returncode == 0, res.stderr
+        assert not [c for c in calls if "jwt" in c], calls
+
+
+def test_jwt_enabled_and_role_written(tmp_path):
+    res, calls = run(tmp_path, BAO_GITLAB_JWT_ISSUER=ISSUER)
+    assert res.returncode == 0, res.stderr
+    assert "auth enable jwt" in calls
+    assert (f"write auth/jwt/config bound_issuer={ISSUER} oidc_discovery_url={ISSUER}"
+            in calls)
+    role = jwt_role_write(calls)
+    want = json.loads((OPENBAO / "jwt-roles.json").read_text())[0]
+    assert role["role_type"] == "jwt"
+    assert role["bound_claims"] == want["bound_claims"]
+    assert role["bound_claims"]["ref_protected"] == "true"
+    assert role["token_policies"] == ["gitlab-mirror"]
+    assert role["token_ttl"] == role["token_max_ttl"] == want["token_ttl"] <= 900
+
+
+def test_jwt_idempotent(tmp_path):
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    _, first = run(tmp_path / "a", BAO_GITLAB_JWT_ISSUER=ISSUER)
+    echoed = json.dumps({"data": jwt_role_write(first)})
+    res, calls = run(tmp_path / "b", state="configured", BAO_GITLAB_JWT_ISSUER=ISSUER,
+                     FAKE_JWT_ROLE=echoed)
+    assert res.returncode == 0, res.stderr
+    assert not [c for c in calls if "jwt" in c and ("write" in c.split() or "enable" in c)]
+
+
+def test_jwt_refuses_http_issuer(tmp_path):
+    res, calls = run(tmp_path, BAO_GITLAB_JWT_ISSUER="http://gitlab.example.internal")
+    assert res.returncode != 0 and "BAO_GITLAB_JWT_ISSUER" in res.stderr
+    assert calls == []

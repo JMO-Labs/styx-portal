@@ -4,7 +4,9 @@
 Checks the stdout file audit device (declared in the server HCL: OpenBao 2.7 refuses
 API-created audit devices), then applies the kv/ (KV v2) mount plus extra-mounts.json,
 Kubernetes auth, every policies/*.hcl and every role in auth-roles.json. Reads state first and
-only enables what is missing; policy and role writes are upserts. Stdlib only; calls `bao`.
+only enables what is missing; policy and role writes are upserts. With BAO_GITLAB_JWT_ISSUER set
+it also configures auth/jwt for GitLab CI id_tokens and the roles in jwt-roles.json (issue #10),
+writing only what differs. Stdlib only; calls `bao`.
 
 Usage: BAO_ADDR=https://... BAO_CACERT=ca.crt BAO_TOKEN=... ./bao_configure.py [--dry-run]
 """
@@ -31,6 +33,9 @@ def check_env() -> None:
             die(f"{var} must be set")
     if not os.environ["BAO_ADDR"].startswith("https://"):
         die("BAO_ADDR must be https://; refusing to send the token in cleartext")
+    issuer = os.environ.get("BAO_GITLAB_JWT_ISSUER")
+    if issuer is not None and not issuer.startswith("https://"):
+        die("BAO_GITLAB_JWT_ISSUER must be https://")
     for var in ("BAO_SKIP_VERIFY", "VAULT_SKIP_VERIFY"):
         if var in os.environ:
             die(f"{var} is set; refusing to talk to OpenBao without TLS verification")
@@ -51,11 +56,11 @@ class Applier:
     def __init__(self, dry_run: bool):
         self.dry_run = dry_run
 
-    def __call__(self, *args: str) -> None:
-        print("bao " + shlex.join(args))
+    def __call__(self, *args: str, stdin: str | None = None) -> None:
+        print("bao " + shlex.join(args) + (f" <<< {stdin}" if stdin else ""))
         if self.dry_run:
             return
-        res = subprocess.run(["bao", *args], capture_output=True, text=True)
+        res = subprocess.run(["bao", *args], capture_output=True, text=True, input=stdin)
         if res.returncode != 0:
             die(f"bao {shlex.join(args)} failed: {res.stderr.strip()}")
 
@@ -113,6 +118,23 @@ def apply_roles(conf: Path, bao: Applier) -> None:
             f"token_ttl={int(r['token_ttl'])}", f"token_max_ttl={int(r['token_ttl'])}")
 
 
+def apply_gitlab_jwt(conf: Path, bao: Applier, issuer: str) -> None:
+    if "jwt/" not in (read("auth", "list", "-format=json") or {}):
+        bao("auth", "enable", "jwt")
+        cfg, enabled = {}, False
+    else:
+        cfg, enabled = (read("read", "-format=json", "auth/jwt/config") or {}).get("data") or {}, True
+    if cfg.get("bound_issuer") != issuer or cfg.get("oidc_discovery_url") != issuer:
+        bao("write", "auth/jwt/config", f"bound_issuer={issuer}", f"oidc_discovery_url={issuer}")
+    for r in json.loads((conf / "jwt-roles.json").read_text()):
+        want = {k: v for k, v in r.items() if k not in ("name", "policies")}
+        want |= {"token_policies": r["policies"], "token_max_ttl": int(r["token_ttl"])}
+        path = f"auth/jwt/role/{r['name']}"
+        cur = ((read("read", "-format=json", path) if enabled else None) or {}).get("data") or {}
+        if any(cur.get(k) != v for k, v in want.items()):
+            bao("write", path, "-", stdin=json.dumps(want, sort_keys=True))
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--dry-run", action="store_true", help="print planned writes, change nothing")
@@ -126,6 +148,8 @@ def main(argv: list[str] | None = None) -> int:
     apply_k8s_auth(bao)
     apply_policies(args.dir, bao)
     apply_roles(args.dir, bao)
+    if issuer := os.environ.get("BAO_GITLAB_JWT_ISSUER"):
+        apply_gitlab_jwt(args.dir, bao, issuer)
     return 0
 
 

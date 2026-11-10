@@ -3,8 +3,13 @@
 # and prints canned JSON for the read calls, chosen by FAKE_STATE=empty|configured, or
 # fails every call like the real CLI (exit 2) with FAKE_STATE=denied|tls|down.
 # FAKE_AUDIT=none drops the audit device; FAKE_CONFIG=denied forbids reading the k8s config.
+# FAKE_JWT_ROLE is the JSON the configured cluster returns for auth/jwt/role/gitlab-mirror.
 # Lives in the repo, not tmp_path, so it still runs where /tmp is mounted noexec.
-printf '%s\n' "$*" >> "$FAKE_LOG"
+# Writes that read JSON from stdin ("-" last) log it on the same line.
+case "$*" in
+  *" -") printf '%s %s\n' "$*" "$(tr -d '\n')" >> "$FAKE_LOG" ;;
+  *) printf '%s\n' "$*" >> "$FAKE_LOG" ;;
+esac
 state="${FAKE_STATE:-empty}"
 case "$state" in
   denied) echo 'Error: Code: 403. Errors: * permission denied' >&2; exit 2 ;;
@@ -27,7 +32,7 @@ case "$*" in
     fi ;;
   "auth list -format=json")
     if [ "$state" = configured ]; then
-      echo '{"kubernetes/":{"type":"kubernetes"},"token/":{"type":"token"}}'
+      echo '{"kubernetes/":{"type":"kubernetes"},"jwt/":{"type":"jwt"},"token/":{"type":"token"}}'
     else
       echo '{"token/":{"type":"token"}}'
     fi ;;
@@ -38,6 +43,18 @@ case "$*" in
       echo '{"data":{"kubernetes_host":"https://kubernetes.default.svc"}}'
     else
       echo 'No value found at auth/kubernetes/config' >&2; exit 2
+    fi ;;
+  "read -format=json auth/jwt/config")
+    if [ "$state" = configured ]; then
+      echo '{"data":{"bound_issuer":"https://gitlab.example.internal","oidc_discovery_url":"https://gitlab.example.internal"}}'
+    else
+      echo 'No value found at auth/jwt/config' >&2; exit 2
+    fi ;;
+  "read -format=json auth/jwt/role/gitlab-mirror")
+    if [ "$state" = configured ] && [ -n "${FAKE_JWT_ROLE:-}" ]; then
+      echo "$FAKE_JWT_ROLE"
+    else
+      echo 'No value found at auth/jwt/role/gitlab-mirror' >&2; exit 2
     fi ;;
 esac
 exit 0
