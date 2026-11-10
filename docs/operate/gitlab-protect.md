@@ -96,8 +96,8 @@ None of these are verified yet. Check them before the first apply.
    `ci-policy/gitlab-ci.yml` to its root as `gitlab-ci.yml` and `approval_gate.py` to its
    root. In the `script:` of job `approval-gate` set the literals: the federal API URL
    `https://…/api/v4` (twice), the URL-encoded ci-policy path (e.g. `styx%2Fci-policy`), the
-   reviewed commit SHA of `approval_gate.py` and `CI_PROJECT_ID` (numeric id of the product
-   project). They are literals in the script, not variables, because job and manual-run
+   reviewed commit SHA of `approval_gate.py`, its `sha256sum` (checked before it runs) and
+   `CI_PROJECT_ID` (numeric id of the product project). They are literals in the script, not variables, because job and manual-run
    variables override YAML variables. Set `tags:` to the tag of a runner that only instance or
    ci-policy admins can register (default `ci-policy-trusted`). Add the product project to
    ci-policy's job token allowlist (*Settings > CI/CD > Job token permissions*), so the gate
@@ -149,8 +149,15 @@ No CI job applies it. At cutover:
   commit. Anything else fails, including `parallel:` (it renames the job).
 - Merged results pipelines (Premium) run on `refs/merge-requests/<iid>/merge`; the gate fails
   closed on them. Use `native` approvals there.
-- While an MR is open, branch pipelines for its source branch are not created (`workflow:`);
-  only the MR pipeline runs.
+- While an MR is open, *push* pipelines for its source branch are not created (`workflow:`);
+  only the MR pipeline runs. Schedule (drift), web and API pipelines always run. Pushes to a
+  protected branch are not exempt, so the MR keeps a single gated head pipeline: if
+  `enterprise` is the source of an open MR (e.g. into `release/1.x`), a merge into
+  `enterprise` gets no branch pipeline and so no `semantic-release`. Run the pipeline on
+  `enterprise` by hand (*Build > Pipelines > Run pipeline*) after such a merge.
+- The gate runs under `env -i` with only the CI inputs it needs, and `curl` ignores proxy and
+  CA environment, because an MR's same-named job can add job variables. An internal CA must
+  therefore be in the gate image's system trust store; `GITLAB_CA_FILE` is not passed.
 - Role entries for specific users, groups or deploy keys on a protected branch (Premium) are
   left as they are; only the role levels are managed.
 - Only the first 100 notes, rules and rulesets are read.
