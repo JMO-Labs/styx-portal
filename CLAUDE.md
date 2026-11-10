@@ -49,7 +49,8 @@ frontend/          React app (Vite, "Glance" UI)
 e2e/               Playwright full-stack suite (real Sonarr/Jellyfin, shell, screenshots); stream-ab/ = latency harness
 scripts/           build_agent_artifacts.sh (wheelhouse, EXTRA_WHEELS), build_xwl_eager.sh, build-docs.sh, ...
 docs/              Zensical docs: use/ operate/ build/ (this guide), upstream/ patches
-docs/enterprise/   Styx Enterprise design, ADRs 0001-0061 (Accepted 2026-11-09), control matrix, runbooks/ (full-site restore); not in docs nav
+docs/enterprise/   Styx Enterprise design, ADRs 0001-0061 (Accepted 2026-11-09), control matrix, runbooks/ (full-site restore, openbao); only the OpenBao runbook is in the docs nav
+deploy/enterprise/ Enterprise IaC (branch enterprise only): openbao/ (HA Raft, static seal, bao_configure.py, seal-key playbook), external-secrets/ (ClusterSecretStore openbao)
 docker-compose.yml Infrastructure services
 traefik/           Traefik static config
 templates/         Default JSON templates (seeded on first run); services/ = proxy presets
