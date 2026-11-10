@@ -38,3 +38,4 @@ Negative:
 Follow-up work:
 
 - Full-site restore test (phase 1 exit); record CP-6/CP-7 in eMASS.
+- Full-site restore runbook: [runbooks/full-site-restore.md](../runbooks/full-site-restore.md), applying A1 (offsite scope), B1 (two escrow sets) and D1 (RTO clock) from #14.

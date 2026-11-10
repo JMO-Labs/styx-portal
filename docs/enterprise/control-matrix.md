@@ -73,8 +73,8 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | CP-4 | Contingency Plan Testing | Full-site restore test (phase 1), 200-session load-test gate (ADR-0037, 0047); full-site restore test repeats annually, each result filed as eMASS evidence (R03) | Hybrid | Planned |
 | CP-6 | Alternate Storage Site | Encrypted CephFS-snapshot export to CUI-authorized cloud bucket (ADR-0037) | Hybrid | Planned |
 | CP-7 | Alternate Processing Site | Not provided; exception R03 (ADR-0037) | Hybrid | Planned |
-| CP-9 | System Backup | CNPG, Velero, home snapshots, offline-escrowed backup keys (ADR-0033, 0036, 0037, 0042) | System | Planned |
-| CP-10 | System Recovery and Reconstitution | RTO 8 h restore procedures (ADR-0037) | System | Planned |
+| CP-9 | System Backup | CNPG, Velero, home snapshots, offline-escrowed backup keys in two sealed sets (ADR-0033, 0036, 0037, 0042); restore per [runbooks/full-site-restore.md](runbooks/full-site-restore.md) | System | Planned |
+| CP-10 | System Recovery and Reconstitution | RTO 8 h restore procedures (ADR-0037): [runbooks/full-site-restore.md](runbooks/full-site-restore.md) | System | Planned |
 
 ## IA - Identification and Authentication
 
