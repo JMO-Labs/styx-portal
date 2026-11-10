@@ -163,4 +163,5 @@ def test_unreadable_k8s_config_is_not_overwritten(tmp_path):
     # Token may list mounts but not read auth/kubernetes/config: die, never blind-overwrite.
     res, calls = run(tmp_path, state="configured", FAKE_CONFIG="denied")
     assert res.returncode != 0 and "permission denied" in res.stderr
+    assert "auth/kubernetes/config failed" in res.stderr, res.stderr
     assert not [c for c in calls if c.startswith("write auth/kubernetes/config")]

@@ -5,6 +5,9 @@ import yaml
 from tests.openbao_checks import OPENBAO
 
 PLAYBOOK = OPENBAO / "ansible/seal-key.yml"
+# Chart defaults for openbao/openbao 0.30.7 (server.uid / server.gid), overridable per inventory.
+UID = "{{ openbao_uid | default(100) }}"
+GID = "{{ openbao_gid | default(1000) }}"
 
 
 def play() -> dict:
@@ -43,13 +46,19 @@ def test_key_mode_0400_dir_0500():
     assert by_path["/var/lib/openbao/raft"]["mode"] == "0700"
     for f in by_path.values():
         assert f["state"] == "directory"
-        assert f["owner"] == "{{ openbao_uid }}" and f["group"] == "{{ openbao_gid }}"
+        assert f["owner"] == UID and f["group"] == GID
     (copy,) = [module(t, "copy") for t in tasks() if module(t, "copy")]
     assert copy["mode"] == "0400"
     assert copy["dest"] == "/etc/openbao/seal/{{ openbao_seal_key_id }}.key"
     assert copy["src"] == "{{ openbao_seal_key_src }}"
-    assert play()["vars"]["openbao_uid"] == 100 and play()["vars"]["openbao_gid"] == 1000
-    assert "openbao_seal_key_src" not in play()["vars"]
+    assert copy["owner"] == UID and copy["group"] == GID
+    # Play vars outrank inventory vars; the uid/gid defaults live in the filter instead.
+    assert "vars" not in play()
+
+
+def test_stat_follows_symlinked_key_src():
+    (stat,) = [module(t, "stat") for t in tasks() if module(t, "stat")]
+    assert stat["follow"] is True
 
 
 def test_asserts_32_bytes_and_required_src():
