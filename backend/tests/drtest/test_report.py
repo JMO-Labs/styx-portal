@@ -1,6 +1,8 @@
 """RTO/RPO rules, evidence schema, overall pass, secret redaction (issue #15)."""
 
 import json
+
+import pytest
 from datetime import UTC, datetime, timedelta
 
 from drtest import report
@@ -104,3 +106,16 @@ def test_secrets_never_written(h, health):
     for b in blobs:
         for v in SECRETS.values():
             assert v not in b
+
+
+@pytest.mark.parametrize("secret", ['abc"defZQXJ', "pässwördZQXJ", "back\\slashZQXJ"])
+def test_json_escaped_secrets_never_written(h, health, secret):
+    # json.dumps escapes ", \ and non-ASCII; the escaped form must be redacted too.
+    r, d = full_run(h, health)
+    r = h.cli("run", "--confirm", RUN, DRTEST_CNPG_S3_SECRET=secret)
+    plan = h.cli("plan", DRTEST_CNPG_S3_SECRET=secret)
+    blobs = [r.stdout, r.stderr, plan.stdout, plan.stderr]
+    blobs += [p.read_text() for p in d.iterdir() if p.is_file() and p.suffix != ".config"]
+    assert any("ACCESS_SECRET_KEY" in b for b in blobs)
+    for b in blobs:
+        assert "ZQXJ" not in b

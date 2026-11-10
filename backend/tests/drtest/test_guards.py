@@ -1,10 +1,11 @@
 """Hard guards refuse non-scratch targets before the first write (issue #15)."""
 
+import json
 import os
 
 import pytest
 
-from .conftest import NS, RUN, UID
+from .conftest import NS, RUN, UID, full_run_setup
 
 
 def refused(h):
@@ -146,3 +147,26 @@ def test_config_errors_refused_before_any_write(h, name):
     r = h.cli("run", "--confirm", RUN)
     assert r.returncode == 2, r.stderr
     assert h.writes() == []
+
+
+def test_failed_namespace_create_aborts_before_restore(h):
+    # Unreadable namespace (RBAC/transient) + create fails (AlreadyExists): it may be
+    # someone else's namespace, so nothing may be restored into it.
+    h.on(r"^kubectl create", code=1)
+    r = h.cli("run", "--confirm", RUN)
+    assert r.returncode == 3, r.stdout + r.stderr
+    assert "ABORTED" in r.stderr
+    assert [c[:2] for c in h.writes()] == [["kubectl", "create"]]
+    rep = json.loads((h.run_dir() / "report.json").read_text())
+    assert rep["pass"] is False
+    assert rep["steps"][-1]["result"] == "exit 1"
+
+
+@pytest.mark.parametrize("step", [r"^kubectl apply", r"^velero restore create",
+                                  r"^kopia .*snapshot restore"])
+def test_failed_write_step_aborts(h, health, step):
+    full_run_setup(h, health)
+    h.on(step, code=1)
+    r = h.cli("run", "--confirm", RUN)
+    assert r.returncode == 3, r.stdout + r.stderr
+    assert json.loads((h.run_dir() / "report.json").read_text())["pass"] is False
