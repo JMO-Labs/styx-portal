@@ -77,6 +77,7 @@ each_subvolume() {
 found() { # found <group dir> <subvol dir> <snap name>
   gs="${1##*/}/${2##*/}"
   SEEN=$((SEEN + 1))
+  ON_DISK="$ON_DISK|$gs|"
   if [ -z "$3" ]; then
     FAILED="$FAILED $gs(no-snapshot)"; return 0
   fi
@@ -96,13 +97,36 @@ found() { # found <group dir> <subvol dir> <snap name>
   fi
 }
 
+# Kopia measures retention from a source's own newest snapshot, so a source that gets
+# no new snapshots (deleted home, D34) is never expired. Drop such orphans once their
+# newest snapshot is older than OFFSITE_ORPHAN_DAYS; Object Lock still holds the blobs.
+purge_orphans() {
+  cutoff=$(date -u -d "@$(( $(date -u +%s) - OFFSITE_ORPHAN_DAYS * 86400 ))" +%Y%m%d)
+  json=$(kopia snapshot list --all --json) || { FAILED="$FAILED (list)"; return 0; }
+  # One manifest per line: emit "YYYYMMDD group/subvol", keep the newest per source.
+  newest=$(printf '%s\n' "$json" | sed -n \
+    's|.*"host":"offsite","userName":"styx","path":"/export/\([^"]*\)"}.*"startTime":"\([0-9]*\)-\([0-9]*\)-\([0-9]*\)T.*|\2\3\4 \1|p' \
+    | sort -r | awk '!seen[substr($0, 10)]++')
+  while read -r d gs; do
+    [ -n "$gs" ] || continue
+    case "$ON_DISK" in *"|$gs|"*) continue ;; esac
+    [ "$d" -lt "$cutoff" ] || continue
+    echo "offsite-export: purge orphaned $gs (newest $d)"
+    kopia snapshot delete "styx@offsite:/export/$gs" --all-snapshots-for-source --delete \
+      || FAILED="$FAILED $gs(purge)"
+  done <<EOT
+$newest
+EOT
+}
+
 do_export() {
   kopia_s3 connect
   YESTERDAY=$(date -u -d "@$(( $(date -u +%s) - 86400 ))" +%Y%m%d)
   TODAY=$(date -u +%Y%m%d)
-  SEEN=0 FAILED=""
+  SEEN=0 FAILED="" ON_DISK=""
   each_subvolume
   [ "$SEEN" -gt 0 ] || die "no subvolumes found under $OFFSITE_SNAP_ROOT"
+  purge_orphans
   [ -z "$FAILED" ] || die "failed subvolumes:$FAILED"
   echo "offsite-export: exported $SEEN subvolume(s)"
 }

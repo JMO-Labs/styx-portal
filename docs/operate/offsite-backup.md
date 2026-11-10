@@ -44,6 +44,7 @@ turns it into the ConfigMap `styx-offsite-params`.
 | `OFFSITE_S3_DISABLE_TLS` | `false` | Only the CI MinIO test sets this. Never change it in a real deployment. |
 | `OFFSITE_KEEP_DAILY` / `_WEEKLY` / `_MONTHLY` | `30` / `8` / `12` | Kopia global retention policy, set by `init`. |
 | `OFFSITE_LOCK_DAYS` | `35` | Object Lock period (COMPLIANCE). It must be longer than the full-maintenance interval (7 days) plus 1 day. |
+| `OFFSITE_ORPHAN_DAYS` | `1095` | `export` deletes every snapshot of a source that is no longer on disk (a deleted home) once its newest snapshot is older than this. `1095` matches Kopia's `keep-annual 3` horizon for files deleted from a live home. |
 | `OFFSITE_SNAP_ROOT` | `/snapshots` | Mount path of the CephFS `volumes` root. |
 | `OFFSITE_SNAP_PREFIX` | `nightly-` | Snapshot name prefix. Names must be `<prefix>YYYY-MM-DD`. |
 | `OFFSITE_GROUPS` | empty | Space-separated subvolume groups to export (for example `homes profiles`). Empty means every group. Set it when other groups, such as ceph-csi's `csi`, have no nightly snapshots: their subvolumes would otherwise fail the run. |
@@ -160,10 +161,20 @@ the data. To rotate for real:
 
 ## Deleted users
 
-When an account is deleted, its home goes too (D34). Its data stays in the offsite
-copy until retention ages it out: up to 12 monthly snapshots, plus Kopia's annual
-default unless it is set to 0, plus the Object Lock period. Record this in the
-data-retention notice.
+When an account is deleted, its home goes too (D34). Its offsite source then gets
+no new snapshots. Kopia measures retention from a source's own newest snapshot, so
+on its own it would keep that source's last snapshots forever. `export` therefore
+deletes all snapshots of a source that is no longer on disk once its newest snapshot
+is older than `OFFSITE_ORPHAN_DAYS` (default 1095 days, the same horizon as Kopia's
+`keep-annual 3` for a file deleted from a live home). The next maintenance runs
+remove the data once the Object Lock period has passed. So a deleted user's data
+stays offsite for up to `OFFSITE_ORPHAN_DAYS` plus `OFFSITE_LOCK_DAYS` plus about
+a week of maintenance. Lower `OFFSITE_ORPHAN_DAYS` if the data-retention notice
+needs a shorter period, and record the value there.
+
+A subvolume that is missing only for a while (for example a mount problem) is safe:
+its source is purged only after its newest snapshot is older than
+`OFFSITE_ORPHAN_DAYS`. A run that finds no subvolumes at all fails before purging.
 
 ## Integrity and alerts
 
