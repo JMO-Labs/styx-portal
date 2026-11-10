@@ -1,5 +1,5 @@
 name: Setup Backend
-description: Checkout-agnostic Python setup + backend dev dependency install
+description: Checkout-agnostic Python setup + backend dev dependency install (from uv.lock)
 runs:
   using: composite
   steps:
@@ -12,4 +12,8 @@ runs:
       run: |
         python -m venv .venv
         .venv/bin/pip install --upgrade pip -q
-        .venv/bin/pip install -e ".[dev]" -q
+        # Install from the lock (issue #17): the component register needs a reproducible venv.
+        python -m pip install -q uv==0.13.7
+        python -m uv export --frozen --extra dev --no-emit-project -q -o .venv/requirements.lock.txt
+        .venv/bin/pip install -q --require-hashes -r .venv/requirements.lock.txt
+        .venv/bin/pip install -q --no-deps -e .
