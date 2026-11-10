@@ -52,6 +52,8 @@ Run these from a host in an allowed client network, against the VIP:
 | No card on login | `curl -s -o /dev/null -w '%{http_code}' https://login.<domain>/` | `403` and the no-card page |
 | Spoofed header dropped | `curl -s -H 'Client-Cert: AAAA' https://portal.<domain>/` while a debug echo route is attached in Traefik | No `Client-Cert` reaches the backend |
 | Domain fronting | `curl -s -o /dev/null -w '%{http_code}' --cert card.pem --key card.key --resolve login.<domain>:443:<VIP> -H 'Host: portal.<domain>' https://login.<domain>/` | `421` |
+| Trailing-dot Host | `curl -s -o /dev/null -w '%{http_code}' -H 'Host: provision.<domain>.' https://portal.<domain>/` | `421` |
+| Unknown Host | `curl -s -o /dev/null -w '%{http_code}' -H 'Host: other.example' https://portal.<domain>/` | `421` |
 | Provision outside the allowlist | `curl ... https://provision.<domain>/` from a non-GCC High source with a valid OpenBao cert | `403` |
 | Valid card | Sign in with a CAC in a browser | Keycloak shows the x509 user; its log shows the `haproxy` lookup provider |
 

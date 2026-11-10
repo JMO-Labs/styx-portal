@@ -30,8 +30,8 @@ A failed verification aborts the handshake. No entry sets `ca-ignore-err` or `cr
 
 ## Header contract (what HAProxy guarantees to Traefik and Keycloak)
 
-1. On every host, the first `http-request` rules delete any client-supplied `Client-Cert`, `Client-Cert-Chain`, `X-Forwarded-For`, `X-Forwarded-Proto`, `X-Forwarded-Host` and `Forwarded`.
-2. On `login.<domain>` and `provision.<domain>`, the TLS SNI must equal the `Host` header (lowercased, port stripped). Otherwise the answer is **421** (domain fronting). A request with `Host: login.<domain>` on any other SNI also gets 421.
+1. On every host, the first `http-request` rules delete any client-supplied `Client-Cert`, `Client-Cert-Chain`, `X-Forwarded-For`, `X-Forwarded-Proto`, `X-Forwarded-Host` and `Forwarded`, then every other `X-Forwarded-*` header and `X-Real-Ip` (Traefik trusts them from the DMZ pair).
+2. The `Host` header is lowercased, its port and one trailing dot are stripped (Traefik routes `login.<domain>.` as `login.<domain>`), and any name other than `login`, `provision`, `portal` or `banner.<domain>` gets **421** (fail closed). On `login.<domain>` and `provision.<domain>`, the TLS SNI must equal that normalised `Host`. Otherwise the answer is **421** (domain fronting). A request with `Host: login.<domain>` on any other SNI also gets 421.
 3. `provision.<domain>` from outside `dmz_provision_allowed_cidrs` gets **403**. Per-source-IP limits (`dmz_login_rate_limit`, `dmz_provision_rate_limit` per `dmz_ratelimit_period`) return **429**.
 4. `login.<domain>` without a verified client cert gets the **403** `no-card.html` page, and nothing reaches the cluster.
 5. Only on `login.<domain>`, and only when `ssl_c_used` and `ssl_c_verify 0`:

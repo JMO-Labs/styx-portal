@@ -56,16 +56,23 @@ frontend fe_https
     http-request del-header X-Forwarded-Proto
     http-request del-header X-Forwarded-Host
     http-request del-header Forwarded
+    # Every other forwarding header too: Traefik trusts them from the DMZ pair (X-Forwarded-Port, -Tls-Client-Cert...).
+    http-request del-header X-Forwarded- -m beg
+    http-request del-header X-Real-Ip
 
-    http-request set-var(txn.host) req.hdr(host),field(1,:),lower
+    # Lowercase, drop the port and one trailing dot: Traefik routes `login.<domain>.` as `login.<domain>`.
+    http-request set-var(txn.host) req.hdr(host),field(1,:),lower,regsub([.]$,)
     http-request set-var(txn.sni) ssl_fc_sni,lower
     acl is_login var(txn.host) -m str login.{{ dmz_domain }}
     acl is_provision var(txn.host) -m str provision.{{ dmz_domain }}
     acl mtls_sni var(txn.sni) -m str login.{{ dmz_domain }} provision.{{ dmz_domain }}
     acl sni_is_host var(txn.host),strcmp(txn.sni) eq 0
+    acl known_host var(txn.host) -m str login.{{ dmz_domain }} provision.{{ dmz_domain }} portal.{{ dmz_domain }} banner.{{ dmz_domain }}
     acl provision_src src {{ dmz_provision_allowed_cidrs | join(' ') }}
 
-    # 2. SNI must equal Host on mTLS hosts (domain fronting), either direction.
+    # 2. Fail closed: only the four served names reach the cluster.
+    http-request deny deny_status 421 if !known_host
+    #    SNI must equal Host on mTLS hosts (domain fronting), either direction.
     http-request deny deny_status 421 if mtls_sni !sni_is_host or is_login !sni_is_host or is_provision !sni_is_host
     # 3. provision.<domain>: GCC High sources only (D20), then per-source rate limits.
     http-request deny deny_status 403 if is_provision !provision_src
