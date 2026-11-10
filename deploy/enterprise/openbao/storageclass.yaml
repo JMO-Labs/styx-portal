@@ -1,0 +1,9 @@
+# Static local volumes for OpenBao Raft on control-plane NVMe. Never Ceph: Ceph OSDs need
+# OpenBao for their dm-crypt keys (ADR-0061), so Raft on Ceph would deadlock a cold start.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: openbao-local
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain

@@ -154,10 +154,13 @@ Evidence: snapshot object name and timestamp (OpenBao RPO), `bao status` output,
 A TPM seal cannot be restored on new hardware: the key is bound to the lost TPM, so the
 snapshot could never be decrypted. That is why C1 uses `seal "static"`.
 
-1. Write the escrowed static seal key to the key file path from #4 (mode 0400, owner openbao).
-2. Deploy OpenBao from IaC (#4) with the matching stanza, for example
-   `seal "static" { current_key_id = "<key-id>" current_key = "file://<key-file-path>" }`,
-   where `<key-id>` is the escrowed original key id.
+1. Write the escrowed static seal key to `/etc/openbao/seal/<key-id>.key` (mode 0400, owner
+   openbao) on every control-plane node with
+   `deploy/enterprise/openbao/ansible/seal-key.yml` (see [openbao.md](openbao.md)).
+2. Deploy OpenBao from IaC (`deploy/enterprise/openbao/`, #4) with the matching stanza,
+   `seal "static" { current_key_id = "<key-id>" current_key = "file:///openbao/seal/<key-id>.key" }`
+   (the pods mount `/etc/openbao/seal` read-only at `/openbao/seal`), where `<key-id>` is the
+   escrowed key id that was current when the snapshot was taken.
 3. Initialise the new cluster, then download the newest raft snapshot from the offsite
    OpenBao prefix (A1) and record its timestamp.
 4. Restore it: `bao operator raft snapshot restore -force <snapshot-file>`.

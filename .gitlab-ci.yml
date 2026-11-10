@@ -61,6 +61,63 @@ pytest:
   <<: *on_push_or_mr
   script: [.venv/bin/python -m pytest -q]
 
+openbao-iac:
+  # deploy/enterprise/{openbao,external-secrets} (issue #4): render vendored charts and
+  # kustomizations, kubeconform, lint the playbook and the TLS script. Pinned, sha256-checked.
+  stage: test
+  image: python:3.12
+  <<: *on_push_or_mr
+  script:
+    - |
+      set -eu
+      pip install -q ansible-core==2.21.6 ansible-lint==26.11.0 yamllint==1.38.0 shellcheck-py==0.11.0.1
+      T="$CI_PROJECT_DIR/.k8stools"; mkdir -p "$T"; cd "$T"
+      GH=https://github.com
+      curl -sSfLO https://get.helm.sh/helm-v4.3.1-linux-amd64.tar.gz
+      curl -sSfLO "$GH/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.8.3/kustomize_v5.8.3_linux_amd64.tar.gz"
+      curl -sSfLO "$GH/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz"
+      printf '%s  %s\n' \
+        0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b helm-v4.3.1-linux-amd64.tar.gz \
+        cb9e31198d3f63b44848bd0afc4c8efc56e6cfef9c93a4a39a211940e6decd61 kustomize_v5.8.3_linux_amd64.tar.gz \
+        9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883 kubeconform-linux-amd64.tar.gz \
+        | sha256sum -c -
+      tar xzf helm-v4.3.1-linux-amd64.tar.gz --strip-components=1 linux-amd64/helm
+      tar xzf kustomize_v5.8.3_linux_amd64.tar.gz
+      tar xzf kubeconform-linux-amd64.tar.gz kubeconform
+      export PATH="$T:$PATH"
+      cd "$CI_PROJECT_DIR/deploy/enterprise"
+      helm template openbao openbao/charts/openbao-0.30.7.tgz --skip-tests -n openbao \
+        -f openbao/values.yaml > "$T/openbao-chart.yaml"
+      # Only the server StatefulSet may mount the seal-key hostPath (the chart test pod copies it).
+      test "$(grep -c "path: /etc/openbao/seal" "$T/openbao-chart.yaml")" = 1
+      helm template external-secrets external-secrets/charts/external-secrets-2.14.0.tgz \
+        -n external-secrets -f external-secrets/values.yaml > "$T/eso-chart.yaml"
+      kustomize build openbao > "$T/openbao.yaml"
+      kustomize build external-secrets > "$T/eso.yaml"
+      kubeconform -strict -ignore-missing-schemas -kubernetes-version 1.36.6 -summary "$T"/*.yaml
+      yamllint -c .yamllint openbao external-secrets
+      shellcheck openbao/gen-bootstrap-tls.sh
+      cd openbao
+      ansible-lint ansible/seal-key.yml
+      ansible-playbook -i ansible/inventory.example.yml ansible/seal-key.yml --syntax-check
+
+openbao-integration:
+  # Real OpenBao 2.7.2 static seal: restart, wrong key, rotation, snapshot restore, deployed HCL.
+  # Uses the sha256-pinned release binary (same build as the pinned image), so no Docker.
+  stage: test
+  <<: *backend_setup
+  <<: *on_push_or_mr
+  variables:
+    OPENBAO_IT: "1"
+  script:
+    - |
+      set -eu
+      T="$CI_PROJECT_DIR/.openbao-bin"; mkdir -p "$T"
+      curl -sSfL -o "$T/bao.tar.gz" https://github.com/openbao/openbao/releases/download/v2.7.2/openbao_2.7.2_linux_amd64.tar.gz
+      echo "582b1f3c2fdc5afd443b2d57a225ef654de75adea609fdb66731fd582a9cbc96  $T/bao.tar.gz" | sha256sum -c -
+      tar xzf "$T/bao.tar.gz" -C "$T" bao
+      PATH="$T:$PATH" .venv/bin/python -m pytest -q tests/integration/test_openbao_static_seal.py
+
 harbor-iac:
   # deploy/enterprise/harbor (issue #5): helm template (vendored chart 1.19.4) + kustomize
   # + kubeconform, pinned tools. CRDs validate against the datreeio CRDs-catalog.
