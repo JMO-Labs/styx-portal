@@ -121,8 +121,8 @@ def check_auth(v):
         errs.append("self_registration must be false")
     if cfg.get("project_creation_restriction") != "adminonly":
         errs.append("project_creation_restriction must be adminonly")
-    if not cfg.get("audit_log_forward_endpoint"):
-        errs.append("audit_log_forward_endpoint must be set (#11)")
+    if "audit_log_forward_endpoint" in cfg:  # core fatals at startup if it can't dial it
+        errs.append("audit_log_forward_endpoint must be unset in Phase 1 (deferred to #11)")
     return errs
 
 

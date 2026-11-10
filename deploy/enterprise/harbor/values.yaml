@@ -84,12 +84,12 @@ core:
   existingXsrfSecretKey: CSRF_KEY         # 32 chars
   # CONFIG_OVERWRITE_JSON. db_auth with admin + robots only, so Phase 2 can switch
   # to oidc_auth. Never create local users: one local user locks db_auth forever.
-  # Audit endpoint: PLACEHOLDER(#11); default-deny blocks it until #11 adds the egress CNP.
+  # No audit_log_forward_endpoint: core dials it at startup and fatals if unreachable.
+  # Deferred to #11; audit events stay in the Harbor DB until then.
   configureUserSettings: >-
     {"auth_mode": "db_auth",
     "self_registration": false,
-    "project_creation_restriction": "adminonly",
-    "audit_log_forward_endpoint": "syslog.example.internal:514"}
+    "project_creation_restriction": "adminonly"}
 
 jobservice:
   replicas: 2

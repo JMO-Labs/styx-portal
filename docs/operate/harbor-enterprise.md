@@ -100,6 +100,16 @@ provider (`oidc_endpoint`, `oidc_client_id`, client secret from OpenBao, `oidc_a
 `oidc_admin_group`). The switch only works while no local users exist apart from `admin`.
 Robot accounts keep working.
 
+## Audit log forwarding (deferred to #11)
+
+`core.configureUserSettings` does not set `audit_log_forward_endpoint` in Phase 1. Harbor
+2.15.4 dials that endpoint while it applies `CONFIG_OVERWRITE_JSON` and exits fatally if the
+dial fails, so a set endpoint would make a reachable syslog listener a hard startup dependency
+of harbor-core (and a circular one, because #11 pulls Fluent Bit through Harbor). Until #11
+provides a target, audit events stay in the Harbor database, which the `harbor-db` backups
+cover. To enable forwarding: start a TCP syslog listener before Harbor, add a `harbor-core`
+egress CNP to it, then add the key back.
+
 ## Phase 3: Trivy (air-gapped)
 
 Set `trivy.enabled: true` and keep it offline: `trivy.skipUpdate: true`,
