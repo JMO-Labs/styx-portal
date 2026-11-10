@@ -13,6 +13,10 @@
 
 * **ci:** `gitlab-mirror-apply` fails on a failed OpenBao login and continues only on dry-run rc 0 or 2 (styx-portal#16)
 
+### Documentation
+
+* **enterprise:** GitLab protect runbook: Free/CE cannot PATCH protected-branch levels (re-protect by hand), runner tags have no access control (restrict project-runner creation); enterprise IaC layout and OpenBao `gitlab-protect` role (styx-portal#16)
+
 ## 1.0.0 (2026-06-15)
 
 ### Features

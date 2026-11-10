@@ -98,8 +98,10 @@ None of these are verified yet. Check them before the first apply.
    `https://…/api/v4` (twice), the URL-encoded ci-policy path (e.g. `styx%2Fci-policy`), the
    reviewed commit SHA of `approval_gate.py`, its `sha256sum` (checked before it runs) and
    `CI_PROJECT_ID` (numeric id of the product project). They are literals in the script, not variables, because job and manual-run
-   variables override YAML variables. Set `tags:` to the tag of a runner that only instance or
-   ci-policy admins can register (default `ci-policy-trusted`). Add the product project to
+   variables override YAML variables. Set `tags:` to the tag of a trusted runner (default
+   `ci-policy-trusted`). Runner tags have no access control: any Maintainer who may create a
+   project runner can register one with the same tag. Restrict project-runner creation on
+   the product project (or its group) to admins. Add the product project to
    ci-policy's job token allowlist (*Settings > CI/CD > Job token permissions*), so the gate
    can download the script.
 2. **Gate token.** In the product project create a project access token: role **Reporter**,
@@ -138,6 +140,16 @@ No CI job applies it. At cutover:
   gate. To close that, set `PUSH_LEVEL = 0` (No one): GitLab semantic-release only creates
   tags, so nothing else needs to push.
 - On Free/CE the gate checks the author only, not other committers on the MR.
+- On Free/CE the API cannot change the push or merge level of an existing protected branch
+  (`allowed_to_push`/`allowed_to_merge` on `PATCH` are Premium). `apply` still sends the
+  PATCH and prints `done:`, but the level does not change. `gitlab-protect-drift` keeps
+  failing with rc 2, so the gap stays visible. Fix it by hand: unprotect the branch in
+  *Settings > Repository > Protected branches*, then rerun `gitlab-protect-apply`, which
+  protects it again with the managed levels.
+- A Maintainer who registers a project runner with the `ci-policy-trusted` tag can run the
+  gate on a runner they control. That needs Maintainer rights, which with `PUSH_LEVEL=40`
+  already allow a direct push. Restricting project-runner creation (Setup step 1) and
+  `PUSH_LEVEL = 0` close both.
 - The gate is manual: a reviewer must run it after approving.
 - GitLab deep-merges a job of the same name from the included project config into the gate.
   `ci-policy/gitlab-ci.yml` pins every key that runs code or picks the runner (`image`,

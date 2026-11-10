@@ -37,7 +37,7 @@ upstream GitHub releases. CI renders from these files, so it never needs the cha
 | `snapshot-*.yaml` | Nightly Raft snapshot CronJob, its ServiceAccount, params ConfigMap and S3 ExternalSecret |
 | `gen-bootstrap-tls.sh` | Offline bootstrap CA (EC P-384, 10 y) and server cert (1 y) |
 | `bao_configure.py` | Idempotent configuration: `kv/`, audit, Kubernetes auth, `policies/*.hcl`, `auth-roles.json`, `extra-mounts.json`; with `BAO_GITLAB_JWT_ISSUER` set, also `auth/jwt` and `jwt-roles.json` |
-| `jwt-roles.json` | GitLab CI JWT roles (#10): `gitlab-mirror`, bound to `project_path` and `ref_protected`, policy `gitlab-mirror`, TTL 900 s. `project_path` and `bound_audiences` are placeholders until deployment |
+| `jwt-roles.json` | GitLab CI JWT roles: `gitlab-mirror` (#10) and `gitlab-protect` (#16), each bound to `project_path` and `ref_protected`, with the policy of the same name (read on `kv/data/<name>/*` only), TTL 900 s. `project_path` and `bound_audiences` are placeholders until deployment |
 | `ansible/seal-key.yml` | Places the 32-byte seal key and creates the Raft directory on group `masters` |
 
 ## Render and validate
