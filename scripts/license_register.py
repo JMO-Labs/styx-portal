@@ -61,8 +61,17 @@ def load_policy(path):
     data = _yaml(path)
     _keys(path, "policy", data, POLICY_KEYS, POLICY_KEYS - {"aliases"})
     data.setdefault("aliases", {})
+    for key in POLICY_KEYS - {"aliases"}:
+        if not isinstance(data[key], list) or not all(isinstance(x, str) for x in data[key]):
+            raise InputError(f"{path}: {key}: expected a list of strings")
+    if not isinstance(data["aliases"], dict):
+        raise InputError(f"{path}: aliases: expected a mapping")
     data["accepted_adrs"] = {norm_adr(a) for a in data["accepted_adrs"]}
     return data
+
+
+def _name(item):
+    return item.get("name") if isinstance(item, dict) else repr(item)
 
 
 def load_components(path):
@@ -71,15 +80,18 @@ def load_components(path):
     data = {"first_party": data.get("first_party") or [],
             "components": data.get("components") or [],
             "overrides": data.get("overrides") or []}
+    for key, val in data.items():
+        if not isinstance(val, list):
+            raise InputError(f"{path}: {key}: expected a list")
     for c in data["components"]:
-        _keys(path, f"component {c.get('name')}", c, COMPONENT_KEYS, COMPONENT_REQUIRED)
+        _keys(path, f"component {_name(c)}", c, COMPONENT_KEYS, COMPONENT_REQUIRED)
         c["version"] = str(c["version"])
         if c["scope"] not in SCOPES:
             raise InputError(f"{path}: component {c['name']}: bad scope {c['scope']!r}")
         if c["cost"] not in COSTS:
             raise InputError(f"{path}: component {c['name']}: bad cost {c['cost']!r}")
     for o in data["overrides"]:
-        _keys(path, f"override {o.get('name')}", o, OVERRIDE_KEYS, {"name", "version", "license"})
+        _keys(path, f"override {_name(o)}", o, OVERRIDE_KEYS, {"name", "version", "license"})
         o["version"] = str(o["version"])
     return data
 
@@ -91,6 +103,11 @@ def load_sbom(path):
         raise InputError(f"{path}: not a readable CycloneDX JSON file: {e}") from None
     if not isinstance(data, dict) or not isinstance(data.get("components"), list):
         raise InputError(f"{path}: CycloneDX file has no 'components' list")
+    for c in data["components"]:
+        lics = c.get("licenses") or [] if isinstance(c, dict) else None
+        if not isinstance(lics, list) or not all(
+                isinstance(x, dict) and isinstance(x.get("license") or {}, dict) for x in lics):
+            raise InputError(f"{path}: malformed CycloneDX component {c!r}")
     return data["components"]
 
 
@@ -109,7 +126,7 @@ def norm_adr(adr):
 def parse(expr):
     """SPDX expression -> nested ('OR'|'AND', [..]) tuples with license-id strings as leaves.
 
-    WITH exceptions bind to their license and are dropped (the base license decides).
+    `lic WITH exception` becomes ('WITH', [lic, exception]).
     """
     tokens = re.findall(r"\(|\)|[^\s()]+", expr)
     pos = 0
@@ -133,7 +150,10 @@ def parse(expr):
             return node
         lic = tokens[pos - 1]
         if peek() == "WITH":
-            take(), take()
+            take()
+            if peek() in (None, "(", ")", "AND", "OR", "WITH"):
+                raise ValueError(f"bad SPDX expression {expr!r}")
+            return ("WITH", [lic, take()])
         return lic
 
     def binary(op):
@@ -170,6 +190,11 @@ def expr_problem(node, comp, policy):
     if isinstance(node, str):
         return leaf_problem(node, comp, policy)
     op, parts = node
+    if op == "WITH":  # the base license decides, unless the exception itself is denied
+        lic, exc = parts
+        if any(fnmatch.fnmatch(exc, p) for p in policy["deny"]):
+            return f"denied license {exc}"
+        return leaf_problem(lic, comp, policy)
     problems = [expr_problem(p, comp, policy) for p in parts]
     if op == "OR":
         return None if None in problems else " and ".join(problems)
