@@ -216,3 +216,22 @@ def test_ci_policy_pins_workflow_so_mr_pipelines_exist():
     first, *rest = wf["rules"]
     assert first == {"if": '$CI_PIPELINE_SOURCE == "merge_request_event"'}
     assert {"if": "$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS", "when": "never"} in rest
+
+
+def test_ci_policy_workflow_never_rule_is_push_only():
+    """Only push pipelines step aside for an open MR; schedule/web/api (drift, apply) still run."""
+    rules = yaml.safe_load((DIR / "ci-policy/gitlab-ci.yml").read_text())["workflow"]["rules"]
+    nevers = [r for r in rules if r.get("when") == "never"]
+    assert nevers and all('$CI_PIPELINE_SOURCE == "push"' in r["if"] for r in nevers)
+    assert rules[-1] == {"when": "always"}  # a schedule source falls through to here
+
+
+def test_ci_policy_gate_runs_in_clean_env_with_pinned_download():
+    """MR job variables deep-merge in, so proxy/CA env must not reach curl or the gate,
+    and the downloaded gate is checked against a pinned sha256 before it runs."""
+    curl, check, run = yaml.safe_load((DIR / "ci-policy/gitlab-ci.yml").read_text())[
+        "approval-gate"]["script"]
+    assert "--noproxy '*'" in curl and "--proto '=https'" in curl and "--cacert " in curl
+    assert "sha256sum -c" in check and "$" not in check.split("|")[0]
+    assert run.startswith("env -i PATH=") and "python3 -I /tmp/approval_gate.py" in run
+    assert "GITLAB_CA_FILE" not in run and "PROXY" not in run.upper()
