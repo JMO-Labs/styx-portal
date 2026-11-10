@@ -1,0 +1,8 @@
+---
+# DMZ HAProxy pair (issue #7). Run: ansible-playbook -i hosts.yml site.yml \
+#   -e dmz_pki_src_dir=/secure/dmz-pki --ask-vault-pass
+- name: DMZ HAProxy pair
+  hosts: dmz
+  become: true
+  roles:
+    - dmz_haproxy

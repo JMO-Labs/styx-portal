@@ -1,0 +1,54 @@
+---
+# DMZ HAProxy pair (issue #7, ADR-0012, ADR-0050). Site values live in group_vars/dmz.yml.
+
+# Packages. HAProxy 3.4 is the current LTS (haproxy.org, checked 2026-11-10). The apt source
+# (org mirror of the HAProxy 3.4 LTS packages for Ubuntu 24.04) must carry these exact versions.
+dmz_haproxy_version: "3.4.7"
+dmz_keepalived_version: "2.2.8"
+
+# Paths on the DMZ hosts.
+dmz_haproxy_dir: /etc/haproxy
+dmz_haproxy_run_dir: /run/haproxy
+dmz_pki_dir: "{{ dmz_haproxy_dir }}/pki"
+dmz_haproxy_user: haproxy
+dmz_haproxy_log: /dev/log
+
+# Server certs (D12/D49: issuer is the org's call). PEM = cert chain + key in one file.
+dmz_cert_public: "{{ dmz_pki_dir }}/public.pem"         # banner.<domain> + portal.<domain>
+dmz_cert_login: "{{ dmz_pki_dir }}/login.pem"
+dmz_cert_provision: "{{ dmz_pki_dir }}/provision.pem"
+# Client-cert trust: DoD/PIV-I roots for login, OpenBao PKI CA for the provision webhook (D20).
+dmz_piv_ca_file: "{{ dmz_pki_dir }}/piv-roots.pem"
+dmz_openbao_ca_file: "{{ dmz_pki_dir }}/openbao-ca.pem"
+# Re-encrypt to Traefik: cluster CA to verify Traefik, and HAProxy's own client cert (cert + key).
+dmz_cluster_ca_file: "{{ dmz_pki_dir }}/cluster-ca.pem"
+dmz_haproxy_client_cert: "{{ dmz_pki_dir }}/haproxy-client.pem"
+# Controller-side directory holding the files above by basename. Never commit it.
+dmz_pki_src_dir: ""
+
+# TLS policy. R05: FIPS/STIG exception references are still open debt (SC-13, CM-6);
+# these are placeholders to be confirmed before any deployment.
+dmz_tls_min_ver: TLSv1.2
+dmz_tls_ciphers: "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256"
+dmz_tls_ciphersuites: "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256"
+dmz_tls_curves: "P-384:P-256"
+
+# Listeners.
+dmz_bind_addr: "0.0.0.0"
+dmz_https_port: 443
+dmz_healthz_bind: "127.0.0.1:8404"
+dmz_peers_port: 10000
+
+# Traefik dedicated DMZ entrypoint (RequireAndVerifyClientCert); SNI is also the verified name.
+dmz_traefik_sni: traefik-dmz.cluster.internal
+dmz_traefik_servers: []
+
+# Per-source-IP limits: requests per dmz_ratelimit_period.
+dmz_ratelimit_period: 10s
+dmz_login_rate_limit: 50
+dmz_provision_rate_limit: 20
+dmz_provision_allowed_cidrs: []
+
+# keepalived (active/passive, unicast VRRP). Per-host state/priority come from the inventory.
+dmz_vrrp_interface: eth0
+dmz_vrrp_router_id: 51

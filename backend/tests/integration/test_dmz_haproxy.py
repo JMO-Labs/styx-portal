@@ -11,6 +11,7 @@ import http.client
 import ipaddress
 import json
 import os
+import pwd
 import shutil
 import socket
 import ssl
@@ -198,7 +199,7 @@ def client_ctx(env, cert: Path | None = None, max_ver=None) -> ssl.SSLContext:
 
 def get(env, sni: str, host: str | None = None, cert: Path | None = None, headers=None,
         ctx: ssl.SSLContext | None = None, session=None):
-    """One HTTP/1.1 request over a fresh TLS connection. Returns (status, body, sslsock)."""
+    """One HTTP/1.1 request over a fresh TLS connection. Returns (status, body, session, reused)."""
     ctx = ctx or client_ctx(env, cert)
     raw = socket.create_connection(("127.0.0.1", env["port"]), timeout=5)
     sock = ctx.wrap_socket(raw, server_hostname=sni, session=session)
@@ -208,9 +209,9 @@ def get(env, sni: str, host: str | None = None, cert: Path | None = None, header
     resp = http.client.HTTPResponse(sock)
     resp.begin()
     body = resp.read()
-    session_out = sock.session
+    session_out, reused = sock.session, sock.session_reused
     sock.close()
-    return resp.status, body, session_out, sock
+    return resp.status, body, session_out, reused
 
 
 def echoed(body: bytes) -> dict:
@@ -288,13 +289,13 @@ def test_sni_host_match_is_case_and_port_insensitive(env):
 def test_resumed_session_never_half_set(env, max_ver):
     ctx = client_ctx(env, env["card_pem"], max_ver)
     _, _, session, _ = get(env, LOGIN, ctx=ctx)
-    status, body, _, sock = get(env, LOGIN, ctx=ctx, session=session)
+    status, body, _, reused = get(env, LOGIN, ctx=ctx, session=session)
     if status == 403:
         assert body == NO_CARD
         return
     assert status == 200
     h = echoed(body)
-    assert base64.b64decode(h["client-cert"][0]) == card_der(env), f"resumed={sock.session_reused}"
+    assert base64.b64decode(h["client-cert"][0]) == card_der(env), f"resumed={reused}"
     assert len(h["client-cert-chain"]) == 1
 
 
@@ -317,3 +318,27 @@ def test_backend_rejects_without_haproxy_client_cert(env):
             s.sendall(b"GET / HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
             resp = http.client.HTTPResponse(s)
             resp.begin()
+
+
+def test_config_check_production_values(tmp_path):
+    """haproxy -c on the committed group_vars/defaults; only file paths point at a throwaway PKI."""
+    pki = Pki(tmp_path)
+    ca = pki.ca("any")
+    _, pem = pki.leaf("edge", ca, [LOGIN])
+    overrides = {"dmz_haproxy_dir": str(tmp_path), "dmz_haproxy_run_dir": str(tmp_path),
+                 **{k: str(pem) for k in ("dmz_cert_public", "dmz_cert_login", "dmz_cert_provision",
+                                          "dmz_haproxy_client_cert")},
+                 **{k: str(ca[2]) for k in ("dmz_piv_ca_file", "dmz_openbao_ca_file",
+                                            "dmz_cluster_ca_file")}}
+    try:
+        pwd.getpwnam("haproxy")
+    except KeyError:
+        overrides["dmz_haproxy_user"] = ""  # local runs without the haproxy user
+    (tmp_path / "errors").mkdir()
+    (tmp_path / "errors/no-card.html").write_bytes(NO_CARD)
+    (tmp_path / "crt-list.txt").write_text(render("crt-list.j2", overrides))
+    for host in ("dmz-proxy-01", "dmz-proxy-02"):
+        cfg = tmp_path / f"{host}.cfg"
+        cfg.write_text(render("haproxy.cfg.j2", overrides, host))
+        check = subprocess.run([HAPROXY, "-c", "-f", str(cfg)], capture_output=True, text=True)
+        assert check.returncode == 0, check.stdout + check.stderr

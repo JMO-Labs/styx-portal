@@ -68,16 +68,19 @@ def test_tls_settings_are_variables(cfg):
         assert str(v[var]) in crt, var
 
 
-def test_crt_list_verify_modes(crt_list):
+def test_crt_list_verify_modes(crt_list, cfg):
     d = host_vars()["dmz_domain"]
     login, prov = crt_list[f"login.{d}"], crt_list[f"provision.{d}"]
-    assert "verify optional" in login and "no-tls-tickets" in login
+    assert "verify optional" in login
     assert f"ca-file {host_vars()['dmz_piv_ca_file']}" in login
     assert "verify required" in prov
     assert f"ca-file {host_vars()['dmz_openbao_ca_file']}" in prov
     for h in ("banner", "portal"):
         line = crt_list[f"{h}.{d}"]
         assert "verify none" in line and "ca-file" not in line, h
+    # no-tls-tickets is a bind-only keyword (not allowed in crt-list): it must cover the login bind.
+    opts = next(ln for ln in strip_comments(cfg).splitlines() if "ssl-default-bind-options" in ln)
+    assert "no-tls-tickets" in opts
 
 
 def test_no_ignore_err_or_crl():
