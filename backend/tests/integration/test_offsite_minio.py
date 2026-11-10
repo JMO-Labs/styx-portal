@@ -154,3 +154,13 @@ def test_orphaned_source_is_purged(repo, tmp_path):
     out = _sh(["kopia", "snapshot", "list", "--all", "--json"], env).stdout
     paths = {s["source"]["path"] for s in json.loads(out)}
     assert paths == {"/export/homes/alice", "/export/homes/recent"}
+
+
+def test_bucket_lifecycle_expires_noncurrent_versions(repo):
+    """Kopia GC's plain DELETE only adds a delete marker; the documented rule removes the data."""
+    env, _ = repo
+    out = _sh(["mc", "ilm", "rule", "export", f"it/{BUCKET}"], env).stdout
+    (rule,) = json.loads(out)["Rules"]
+    assert rule["Status"] == "Enabled" and rule["Filter"]["Prefix"] == env["OFFSITE_S3_PREFIX"]
+    assert rule["NoncurrentVersionExpiration"]["NoncurrentDays"] == int(env["OFFSITE_LOCK_DAYS"])
+    assert rule["Expiration"]["ExpiredObjectDeleteMarker"] is True

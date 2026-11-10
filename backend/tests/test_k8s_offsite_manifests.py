@@ -191,3 +191,15 @@ def test_docs_and_compliance_records():
         assert row.rstrip().endswith("| Planned |"), ctl
     (adr11,) = (ENT / "adr").glob("0011-*.md")
     assert "- Status: Accepted\n" in adr11.read_text()
+
+
+def test_docs_require_noncurrent_version_lifecycle():
+    """Object Lock buckets are versioned: Kopia GC only adds delete markers (testing pass 3)."""
+    page = (ROOT / "docs/operate/offsite-backup.md").read_text()
+    for phrase in ("NoncurrentVersionExpiration", "ExpiredObjectDeleteMarker",
+                   "mc ilm rule add", "--noncurrent-expire-days"):
+        assert phrase in page, phrase
+    deleted = page.split("## Deleted users", 1)[1].split("\n## ", 1)[0]
+    assert "noncurrent" in deleted.lower()
+    cost = page.split("## Cost check", 1)[1].split("\n## ", 1)[0]
+    assert "lifecycle" in cost.lower()
