@@ -61,6 +61,49 @@ pytest:
   <<: *on_push_or_mr
   script: [.venv/bin/python -m pytest -q]
 
+offsite-manifests:
+  # deploy/k8s/offsite-export (issue #13): kustomize build + kubeconform, pinned tools.
+  stage: test
+  image: python:3.12
+  <<: *on_push_or_mr
+  script:
+    - |
+      set -eu
+      GH=https://github.com
+      curl -sSfLO "$GH/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.8.3/kustomize_v5.8.3_linux_amd64.tar.gz"
+      curl -sSfLO "$GH/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz"
+      printf '%s  %s\n' \
+        cb9e31198d3f63b44848bd0afc4c8efc56e6cfef9c93a4a39a211940e6decd61 kustomize_v5.8.3_linux_amd64.tar.gz \
+        9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883 kubeconform-linux-amd64.tar.gz \
+        | sha256sum -c -
+      for f in *.tar.gz; do tar xzf "$f" -C /usr/local/bin; done
+      kustomize build deploy/k8s/offsite-export > offsite.yaml
+      kubeconform -strict -ignore-missing-schemas -summary offsite.yaml
+
+offsite-integration:
+  # Real kopia against MinIO with Object Lock (backend/tests/integration, OFFSITE_IT=1).
+  stage: test
+  <<: *backend_setup
+  <<: *on_push_or_mr
+  variables:
+    OFFSITE_IT: "1"
+  script:
+    - |
+      set -eu
+      T="$CI_PROJECT_DIR/.offsite-bin"; mkdir -p "$T"
+      GH=https://github.com
+      curl -sSfL -o "$T/kopia.tar.gz" "$GH/kopia/kopia/releases/download/v0.23.1/kopia-0.23.1-linux-x64.tar.gz"
+      curl -sSfL -o "$T/minio" "$GH/minio/minio/releases/download/RELEASE.2025-09-07T16-13-09Z/minio.linux-amd64.RELEASE.2025-09-07T16-13-09Z"
+      curl -sSfL -o "$T/mc" "$GH/minio/mc/releases/download/RELEASE.2025-08-13T08-35-41Z/mc.linux-amd64.RELEASE.2025-08-13T08-35-41Z"
+      printf '%s  %s\n' \
+        416d0f84a3dbb321a8b2d8f0997b1a0a6e915babe79ee76fa6e4d2bd1e1c5178 "$T/kopia.tar.gz" \
+        7c5bd8512c6e966455b1d198209358b2d191c77a83ab377c4073281065fb855f "$T/minio" \
+        01f866e9c5f9b87c2b09116fa5d7c06695b106242d829a8bb32990c00312e891 "$T/mc" \
+        | sha256sum -c -
+      tar xzf "$T/kopia.tar.gz" -C "$T" --strip-components=1 kopia-0.23.1-linux-x64/kopia
+      chmod +x "$T/kopia" "$T/minio" "$T/mc"
+      PATH="$T:$PATH" .venv/bin/python -m pytest -q tests/integration
+
 plugin-test:
   stage: test
   image: golang:1.22
