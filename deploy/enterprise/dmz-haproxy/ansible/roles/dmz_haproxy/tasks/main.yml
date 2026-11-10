@@ -16,6 +16,7 @@
     name:
       - "haproxy={{ dmz_haproxy_version }}-*"
       - "keepalived=1:{{ dmz_keepalived_version }}-*"
+      - "curl={{ dmz_curl_version }}-*"  # keepalived vrrp_script probes /healthz
     state: present
     update_cache: true
     cache_valid_time: 3600
@@ -27,7 +28,7 @@
     selection: hold
   loop: [haproxy, keepalived]
 
-- name: Create the PKI and error page directories
+- name: Create the PKI, error page and systemd drop-in directories
   ansible.builtin.file:
     path: "{{ item.path }}"
     state: directory
@@ -37,6 +38,7 @@
   loop:
     - { path: "{{ dmz_pki_dir }}", mode: "0750" }
     - { path: "{{ dmz_haproxy_dir }}/errors", mode: "0755" }
+    - { path: /etc/systemd/system/haproxy.service.d, mode: "0755" }
   no_log: true
 
 - name: Place server certs, client-cert CAs and the HAProxy client cert

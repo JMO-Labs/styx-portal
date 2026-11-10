@@ -5,6 +5,7 @@
 # (org mirror of the HAProxy 3.4 LTS packages for Ubuntu 24.04) must carry these exact versions.
 dmz_haproxy_version: "3.4.7"
 dmz_keepalived_version: "2.2.8"
+dmz_curl_version: "8.5.0"  # Ubuntu 24.04; not held, so security updates still apply
 
 # Paths on the DMZ hosts.
 dmz_haproxy_dir: /etc/haproxy

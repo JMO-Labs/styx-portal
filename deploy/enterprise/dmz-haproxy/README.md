@@ -40,7 +40,7 @@ A failed verification aborts the handshake. No entry sets `ca-ignore-err` or `cr
 
    This is the format of Keycloak's `haproxy` x509cert-lookup provider.
 6. HAProxy sets `X-Forwarded-Proto: https` and appends `X-Forwarded-For` with the client source address.
-7. TLS resumption: HAProxy documents that `ssl_c_chain_der` does not support resumed sessions. `no-tls-tickets` is set on the bind; it is a bind-only keyword and cannot go in a crt-list line. Stateful resumption still happens. The CI behaviour test (`test_resumed_session_never_half_set`) proves that a resumed login carries the correct `Client-Cert`. On a resumed session `Client-Cert-Chain` may be empty, so Keycloak must not rely on it (see below).
+7. TLS resumption is off on every host. HAProxy documents that `ssl_c_chain_der` does not support resumed sessions, and a TLS 1.3 session from `provision.<domain>` could otherwise resume on `login.<domain>` and pass its OpenBao cert as a card. The bind sets `no-tls-tickets` (a bind-only keyword, so it cannot go in a crt-list line), and `tune.ssl.cachesize 0` disables the stateful cache (TLS 1.2 session IDs and TLS 1.3 PSK). As defence in depth, the cert headers are set only when `!{ ssl_fc_is_resumed }`, and a resumed login gets the no-card page. CI covers this with `test_resumed_session_never_half_set` (the card sends a chain) and `test_provision_session_resumed_on_login_never_sets_header`. Even so, Keycloak must not rely on `Client-Cert-Chain` (see below).
 
 HAProxy re-encrypts to Traefik over mTLS: `ssl verify required ca-file {{ dmz_cluster_ca_file }} crt {{ dmz_haproxy_client_cert }}`, with SNI and `verifyhost` = `dmz_traefik_sni`. It never uses `verify none`.
 

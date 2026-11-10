@@ -2,7 +2,7 @@
 
 ### Features
 
-* **enterprise:** DMZ HAProxy pair IaC: HAProxy 3.4.7 LTS + keepalived unicast VIP, crt-list client-cert policy per host, strip-and-set `Client-Cert`/`Client-Cert-Chain` for the Keycloak `haproxy` lookup, SNI=Host 421, provision CIDR allowlist, peered rate limits, mTLS re-encrypt to Traefik, not deployed (`deploy/enterprise/dmz-haproxy/`, styx-portal#7)
+* **enterprise:** DMZ HAProxy pair IaC: HAProxy 3.4.7 LTS + keepalived unicast VIP, crt-list client-cert policy per host, strip-and-set `Client-Cert`/`Client-Cert-Chain` for the Keycloak `haproxy` lookup, TLS resumption disabled, SNI=Host 421, provision CIDR allowlist, peered rate limits, mTLS re-encrypt to Traefik, not deployed (`deploy/enterprise/dmz-haproxy/`, styx-portal#7)
 * **harbor:** Harbor 2.15.4 registry IaC for enterprise Phase 1 (chart 1.19.4, CNPG `harbor-db`, RGW S3, ESO secrets, `harbor_bootstrap.py`), not deployed (#5)
 * **enterprise:** OpenBao 2.7.2 HA (3 Raft nodes on control-plane local PVs) with `seal "static"` auto-unseal, offline bootstrap TLS, declarative stdout audit, idempotent `bao_configure.py`, seal-key Ansible playbook and nightly Raft snapshot CronJob (`deploy/enterprise/openbao/`, styx-portal#4)
 * **enterprise:** External Secrets Operator 2.14.0 with `ClusterSecretStore` `openbao` (Vault provider, Kubernetes auth, namespace-label gated) (`deploy/enterprise/external-secrets/`, styx-portal#4)
