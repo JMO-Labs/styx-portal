@@ -1,0 +1,189 @@
+# Offsite backup (encrypted export)
+
+The offsite copy for the enterprise profile (ADR-0037, D37). Each night a Kopia
+CronJob reads the newest CephFS subvolume snapshots (taken by the nightly home and
+profile snapshots) read-only. It writes them to one Kopia repository in an S3 bucket
+with Object Lock. Kopia encrypts and deduplicates on the client, so each run uploads
+only changed chunks. The bucket never sees plaintext.
+
+The component is opt-in: `deploy/k8s/offsite-export/` is **not** part of
+`deploy/k8s/kustomization.yaml`, so the homelab profile does not change.
+
+| Piece | What it does |
+|---|---|
+| `styx-offsite-export` CronJob | `30 4 * * *` UTC, `offsite-export.sh export` |
+| `styx-offsite-verify` CronJob | `30 10 * * *` UTC, `offsite-export.sh verify` (1% file sample daily, full `content verify` weekly) |
+| `ExternalSecret styx-offsite-export` | `KOPIA_PASSWORD`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` from OpenBao KV `backup/offsite/kopia` (D42) |
+| `PersistentVolume styx-offsite-snapshots` | Static ceph-csi volume on the CephFS `volumes` root, `ReadOnlyMany`, read-only cephx user |
+| `CiliumNetworkPolicy` | Egress to kube-dns and the bucket FQDN on 443 only |
+| `PrometheusRule styx-offsite` | `StyxOffsiteExportFailed`, `StyxOffsiteExportStale` (> 26 h, RPO 24 h), `StyxOffsiteVerifyFailed`, `StyxOffsiteVerifyStale` (> 50 h) |
+
+## Prerequisites
+
+- Rook-Ceph with CephFS (#3) and the nightly `nightly-YYYY-MM-DD` subvolume snapshots (#9).
+- OpenBao and External Secrets with a `ClusterSecretStore` named `openbao` (#4).
+- Cilium (for `toFQDNs`) and kube-prometheus-stack with kube-state-metrics.
+- A bucket that supports **S3 Object Lock** (created with locking on) and holds a
+  CUI authorization. The owner chooses it before deployment.
+- A bucket credential that can write and read objects. It must **not** have
+  `s3:BypassGovernanceRetention`, and it must not be able to change the bucket's lock
+  configuration or delete the bucket.
+
+## Configuration
+
+All settings live in `deploy/k8s/offsite-export/params.env`. A `configMapGenerator`
+turns it into the ConfigMap `styx-offsite-params`.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `OFFSITE_CIPHER` | `AES256-GCM-HMAC-SHA256` | Or `CHACHA20-POLY1305-HMAC-SHA256`. It is fixed when the repository is created. |
+| `OFFSITE_S3_ENDPOINT` | `s3.example.invalid` | Bucket endpoint host. Also set it in `networkpolicy.yaml` (`toFQDNs`). |
+| `OFFSITE_S3_BUCKET` | `styx-offsite.example.invalid` | Bucket name. |
+| `OFFSITE_S3_PREFIX` | `styx/` | Object prefix for the repository. |
+| `OFFSITE_S3_REGION` | `us-gov-west-1` | Bucket region. |
+| `OFFSITE_S3_DISABLE_TLS` | `false` | Only the CI MinIO test sets this. Never change it in a real deployment. |
+| `OFFSITE_KEEP_DAILY` / `_WEEKLY` / `_MONTHLY` | `30` / `8` / `12` | Kopia global retention policy, set by `init`. |
+| `OFFSITE_LOCK_DAYS` | `35` | Object Lock period (COMPLIANCE). It must be longer than the full-maintenance interval (7 days) plus 1 day. |
+| `OFFSITE_SNAP_ROOT` | `/snapshots` | Mount path of the CephFS `volumes` root. |
+| `OFFSITE_SNAP_PREFIX` | `nightly-` | Snapshot name prefix. Names must be `<prefix>YYYY-MM-DD`. |
+| `OFFSITE_VERIFY_PERCENT` | `1` | Share of files that the daily verify re-reads and decrypts. |
+| `OFFSITE_FULL_VERIFY_DOW` | `7` | Weekday (`date -u +%u`, 1 = Monday) for the full `content verify`. |
+
+Also replace the placeholders in `pv.yaml` (`clusterID`, `fsName`) and create the
+read-only cephx user's Secret `styx-offsite-cephx-ro` (keys `userID`, `userKey`) in
+namespace `styx-backup`. For example:
+
+```sh
+ceph auth get-or-create client.styx-offsite-ro \
+  mon 'allow r' mds 'allow r' osd 'allow r tag cephfs data=<fsName>'
+```
+
+The image tag is pinned in `kustomization.yaml` (`images:`). Mirror it to Harbor and
+sign it when ADR-0029 lands.
+
+### Namespace and pod security
+
+User homes are `0700` and each belongs to a different UID. The job therefore runs as
+UID 0 with every capability dropped except `DAC_READ_SEARCH` (read any file). It
+also uses a read-only root filesystem, a read-only snapshot volume and no privilege
+escalation. Pod Security `baseline` (the `styx` namespace) does not allow
+`DAC_READ_SEARCH`. The component therefore creates its own namespace, `styx-backup`,
+with `pod-security.kubernetes.io/enforce: privileged` and `warn: restricted`. Keep
+other workloads out of that namespace. If cluster policy (Kyverno) forbids the label,
+add an exemption scoped to these two CronJobs.
+
+### How export works
+
+For each `<group>/<subvol>` under `OFFSITE_SNAP_ROOT`, the job:
+
+1. Picks the newest `.snap/<prefix>YYYY-MM-DD/<uuid>` by name. It ignores other names, such as `manual-x`.
+2. Runs `kopia snapshot create <path> --override-source=styx@offsite:/export/<group>/<subvol> --tags=snap:<name>`.
+   The stable source name lets Kopia find the previous snapshot, so the run is incremental.
+
+The job fails, and the alert fires, in these cases:
+
+- There are no subvolumes at all.
+- A subvolume has no matching snapshot.
+- A subvolume's newest snapshot is older than yesterday (UTC). This is the RPO guard.
+- An upload fails. The job still tries every other subvolume first, then names the
+  failed ones in its log, for example `failed subvolumes: homes/alice(upload)`.
+
+## First-time init
+
+Run `init` once from a one-off Job, after the Secret exists:
+
+```sh
+kubectl kustomize deploy/k8s/offsite-export | kubectl apply -f -
+kubectl -n styx-backup create job offsite-init --from=cronjob/styx-offsite-export \
+  --dry-run=client -o yaml | sed 's/- export/- init/' | kubectl apply -f -
+kubectl -n styx-backup logs -f job/offsite-init
+```
+
+`offsite-export.sh init` refuses to run if it can already connect to a repository at
+the target. Otherwise it runs these steps:
+
+1. `kopia repository create s3 ... --encryption=$OFFSITE_CIPHER --retention-mode=COMPLIANCE --retention-period=${OFFSITE_LOCK_DAYS}d`
+2. `kopia maintenance set --extend-object-locks=true`
+3. `kopia policy set --global --keep-daily/--keep-weekly/--keep-monthly`
+
+All runs use the fixed identity `styx@offsite`, so the export job owns maintenance.
+Kopia's other global defaults (`keep-latest 10`, `keep-hourly 48`, `keep-annual 3`)
+stay in force. Set `--keep-annual=0` if a snapshot must not be kept for up to 3 years.
+
+The script refuses a `KOPIA_PASSWORD` shorter than 32 characters. It never prints
+the password or puts it on a command line. Kopia and the S3 client read it, and the
+`AWS_*` keys, from the environment.
+
+## Offline escrow envelope
+
+A sealed envelope in the safe (D25/D42) holds everything needed to restore without
+OpenBao or the cluster, because a site loss can take both:
+
+- the repository password (`KOPIA_PASSWORD`)
+- the endpoint, region, bucket and prefix
+- the Kopia version in use (the `images:` tag)
+- this one-page restore procedure
+
+Bucket read credentials come from the bucket owner's account (break-glass). They are
+not in the envelope. Update the envelope after every key rotation.
+
+### Restore procedure (one page)
+
+1. On any Linux machine, install the escrowed Kopia version.
+2. Set `KOPIA_PASSWORD`, `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` in your shell
+   environment (not on the command line).
+3. Connect read-only, so the restore host never runs maintenance:
+   `kopia repository connect s3 --readonly --bucket=<b> --endpoint=<e> --region=<r> --prefix=<p> --override-username=styx --override-hostname=restore`
+4. List the snapshots: `kopia snapshot list --all`. Sources are
+   `styx@offsite:/export/<group>/<subvol>`, and the tag `snap:` names the CephFS snapshot.
+5. Restore as root, to keep owners and modes:
+   `kopia snapshot restore <snapshot-id> /restore/<group>/<subvol>`
+6. Copy the data into the target subvolume. Run `kopia snapshot verify` if in doubt.
+
+The restore harness (#15) runs this procedure end to end, and the DR runbook (#14)
+reuses it.
+
+## Key rotation
+
+`kopia repository change-password` only re-wraps the format blob. The master key stays
+the same, and Object Lock keeps the old format blob, so the old password still opens
+the data. To rotate for real:
+
+1. Create a new repository under a new prefix with a new password, using `init`.
+2. Point `params.env` and OpenBao at it, and update the escrow envelope.
+3. Leave the old repository until its locks expire and its retention ages out. Then
+   delete the prefix with the bucket owner's account.
+
+## Deleted users
+
+When an account is deleted, its home goes too (D34). Its data stays in the offsite
+copy until retention ages it out: up to 12 monthly snapshots, plus Kopia's annual
+default unless it is set to 0, plus the Object Lock period. Record this in the
+data-retention notice.
+
+## Integrity and alerts
+
+- Every day the verify job re-reads `OFFSITE_VERIFY_PERCENT` of the files. Over a
+  year this covers most of the data. Once a week it runs `kopia content verify`.
+- Kopia locks data and index blobs (`p*`, `q*`, `x*`, `kopia.repository`). It
+  deliberately leaves its own `_log_*` and `kopia.maintenance` blobs unlocked.
+- The alerts come from kube-state-metrics (`kube_job_failed`,
+  `kube_cronjob_status_last_successful_time`). The stale alerts also fire before the
+  first success, which is expected right after install.
+
+## Cost check (D05/D37)
+
+The worst case is about 2 TB (200 users × 10 GB homes plus profiles), before dedup and
+compression. Object Lock and 30+ days of history keep extra versions. Before you
+deploy, check the chosen provider's storage, request and egress pricing against the
+accepted budget of about $20-50/month (D05/D37).
+
+## Testing
+
+- `backend/tests/test_k8s_offsite_manifests.py` checks the manifests, and
+  `backend/tests/test_offsite_export_script.py` runs the script with a fake `kopia`.
+- `backend/tests/integration/test_offsite_minio.py` (`OFFSITE_IT=1`, CI job
+  `offsite-integration`) runs real Kopia against MinIO with Object Lock. It covers
+  backup, verify, a byte-identical restore and an incremental second run. It also
+  shows that deleting a locked version is refused, and that a wrong password cannot
+  connect.
