@@ -43,7 +43,7 @@ def read(*args: str) -> dict | None:
     if res.returncode == 2 and "No value found" in res.stderr:
         return None
     if res.returncode != 0:
-        die(f"bao {args[0]} {args[1]} failed: {res.stderr.strip()}")
+        die(f"bao {shlex.join(args)} failed: {res.stderr.strip()}")
     return json.loads(res.stdout or "{}")
 
 
@@ -57,7 +57,7 @@ class Applier:
             return
         res = subprocess.run(["bao", *args], capture_output=True, text=True)
         if res.returncode != 0:
-            die(f"bao {args[0]} {args[1]} failed: {res.stderr.strip()}")
+            die(f"bao {shlex.join(args)} failed: {res.stderr.strip()}")
 
 
 def mounts(conf: Path) -> list[dict]:
