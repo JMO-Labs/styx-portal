@@ -1,0 +1,4 @@
+---
+k8s_node_label:
+  - node-role.kubernetes.io/worker=true
+  - styx.io/gpu-ready=true

@@ -1,0 +1,18 @@
+---
+# Exact pin by git tag. D48: repoint src at the federal GitLab mirror; never pull latest.
+roles:
+  - name: lablabs.rke2
+    src: git+https://github.com/lablabs/ansible-role-rke2.git
+    version: "1.54.0"
+
+# Collections the role needs (its meta/requirements.yml), also pinned by git tag.
+collections:
+  - name: https://github.com/ansible-collections/community.general.git
+    type: git
+    version: "14.0.1"
+  - name: https://github.com/ansible-collections/ansible.utils.git
+    type: git
+    version: "v6.1.1"
+  - name: https://github.com/ansible-collections/community.library_inventory_filtering.git
+    type: git
+    version: "1.1.5"  # dependency of community.general

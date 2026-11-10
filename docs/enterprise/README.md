@@ -8,3 +8,4 @@
 - [Full-site restore runbook](runbooks/full-site-restore.md) - rebuild from IaC and offsite data, RTO 8 h (CP-9, CP-10, R03)
 - [OpenBao and External Secrets runbook](runbooks/openbao.md) - install, init, static seal rotation, CA renewal, ESO onboarding, snapshot restore (SC-12, IA-5)
 - [DMZ HAProxy pair runbook](runbooks/dmz-haproxy.md) - install, cert rotation, failover test, header verification (SC-7, SC-8, SC-23)
+- [RKE2 node IaC](../../deploy/rke2/README.md) - Ansible for 3 HA servers and 8 agents (CIS, pinned version, Cilium CNI); not for accredited environments yet

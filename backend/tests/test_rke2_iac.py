@@ -43,9 +43,9 @@ def _has_literal_secret(line: str) -> bool:
 
 def _tracked_files():
     assert ROOT.is_dir(), ROOT
-    # roles/ and .ansible/ hold the installed upstream role (gitignored), not our files.
+    # roles/, collections/ and .ansible/ hold installed upstream deps (gitignored).
     return [p for p in ROOT.rglob("*")
-            if p.is_file() and not {"roles", ".ansible"} & set(p.relative_to(ROOT).parts)]
+            if p.is_file() and not {"roles", "collections", ".ansible"} & set(p.relative_to(ROOT).parts)]
 
 
 def test_required_files_exist():
