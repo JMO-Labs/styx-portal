@@ -145,3 +145,14 @@ def test_no_ipsec_key_material():
     bad = [str(p.relative_to(ROOT)) for p in _tracked_files()
            if IPSEC_KEY.search(p.read_text())]
     assert not bad
+
+
+def test_ansible_render_matches_plain_jinja():
+    # Ansible renders with trim_blocks; the header adds lstrip_blocks so tag lines vanish cleanly.
+    text = (ROOT / TEMPLATE).read_text()
+    assert text.startswith("#jinja2: trim_blocks: True, lstrip_blocks: True\n")
+    env = jinja2.Environment(undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)  # noqa: S701
+    for kind in ("wireguard", "ipsec", "none"):
+        ctx = {**_vars("all"), "cilium_encryption_type": kind}
+        doc = yaml.safe_load(env.from_string(text).render(ctx))
+        assert yaml.safe_load(doc["spec"]["valuesContent"]) == _render(cilium_encryption_type=kind)[1]
