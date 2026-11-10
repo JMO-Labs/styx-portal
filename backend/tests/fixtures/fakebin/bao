@@ -3,7 +3,8 @@
 # and prints canned JSON for the read calls, chosen by FAKE_STATE=empty|configured, or
 # fails every call like the real CLI (exit 2) with FAKE_STATE=denied|tls|down.
 # FAKE_AUDIT=none drops the audit device; FAKE_CONFIG=denied forbids reading the k8s config.
-# FAKE_JWT_ROLE is the JSON the configured cluster returns for auth/jwt/role/gitlab-mirror.
+# FAKE_JWT_ROLES is a directory: <name>.json is what the configured cluster returns for
+# auth/jwt/role/<name>.
 # Lives in the repo, not tmp_path, so it still runs where /tmp is mounted noexec.
 # Writes that read JSON from stdin ("-" last) log it on the same line.
 case "$*" in
@@ -50,11 +51,12 @@ case "$*" in
     else
       echo 'No value found at auth/jwt/config' >&2; exit 2
     fi ;;
-  "read -format=json auth/jwt/role/gitlab-mirror")
-    if [ "$state" = configured ] && [ -n "${FAKE_JWT_ROLE:-}" ]; then
-      echo "$FAKE_JWT_ROLE"
+  "read -format=json auth/jwt/role/"*)
+    f="${FAKE_JWT_ROLES:-/nonexistent}/${3#auth/jwt/role/}.json"
+    if [ "$state" = configured ] && [ -f "$f" ]; then
+      cat "$f"
     else
-      echo 'No value found at auth/jwt/role/gitlab-mirror' >&2; exit 2
+      echo "No value found at $3" >&2; exit 2
     fi ;;
 esac
 exit 0

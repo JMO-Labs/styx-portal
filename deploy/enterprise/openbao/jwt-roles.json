@@ -7,5 +7,14 @@
     "bound_claims": {"project_path": "styx/styx-portal", "ref_protected": "true"},
     "policies": ["gitlab-mirror"],
     "token_ttl": 900
+  },
+  {
+    "name": "gitlab-protect",
+    "role_type": "jwt",
+    "user_claim": "user_login",
+    "bound_audiences": ["https://openbao.example.internal"],
+    "bound_claims": {"project_path": "styx/styx-portal", "ref_protected": "true"},
+    "policies": ["gitlab-protect"],
+    "token_ttl": 900
   }
 ]
