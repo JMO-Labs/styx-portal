@@ -3,16 +3,29 @@
 # ci_config_path=gitlab-ci.yml@<group>/ci-policy, so an MR cannot remove the gate.
 #
 # The main file wins over included files, but GitLab deep-merges a same-named job: an MR could
-# add keys this job does not set. So every key that could run code or change inputs is pinned
-# here, and default keywords and global variables are not inherited.
+# add keys this job does not set. So every key that could run code or pick the runner is pinned
+# here, defaults and global variables are not inherited, and the gate's inputs are literals in
+# the script (job and manual-run variables override YAML variables, not script text).
 include:
   - project: $CI_PROJECT_PATH
     ref: $CI_COMMIT_SHA
     file: .gitlab-ci.yml
 
+# Pinned here so an included workflow: cannot drop MR pipelines (and the gate with them).
+# Branch pipelines step aside while an MR is open, so the MR's pipeline is the gated one.
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
+      when: never
+    - when: always
+
 approval-gate:
   stage: .post
   image: python:3.12
+  # Runner tag that only instance or ci-policy admins can register; Maintainers cannot.
+  tags: [ci-policy-trusted]
+  services: []
   inherit:
     default: false
     variables: false
@@ -29,14 +42,9 @@ approval-gate:
   after_script: []
   variables:
     GIT_STRATEGY: none
-    # Set all four before use. Literals, not $VARS: an MR's same-named job can add variables
-    # but cannot replace keys set here, so the token and the project cannot be redirected.
-    CI_API_V4_URL: "https://gitlab.example.internal/api/v4"
-    CI_PROJECT_ID: "0"  # numeric id of the product project
-    # URL-encoded ci-policy path and the reviewed commit SHA of approval_gate.py in it.
-    # The job token needs access to ci-policy (job token allowlist).
-    GATE_PROJECT: "group%2Fci-policy"
-    GATE_REF: "0000000000000000000000000000000000000000"
+  # Set the literals before use: federal API URL, URL-encoded ci-policy path, reviewed commit
+  # SHA of approval_gate.py in it, and the numeric product project id. The job token needs
+  # access to ci-policy (job token allowlist). The MR itself comes from the job token.
   script:
-    - 'curl -sSfL -H "JOB-TOKEN: $CI_JOB_TOKEN" -o /tmp/approval_gate.py "$CI_API_V4_URL/projects/$GATE_PROJECT/repository/files/approval_gate.py/raw?ref=$GATE_REF"'
-    - python3 -I /tmp/approval_gate.py
+    - 'curl -sSfL -H "JOB-TOKEN: $CI_JOB_TOKEN" -o /tmp/approval_gate.py "https://gitlab.example.internal/api/v4/projects/group%2Fci-policy/repository/files/approval_gate.py/raw?ref=0000000000000000000000000000000000000000"'
+    - CI_API_V4_URL=https://gitlab.example.internal/api/v4 CI_PROJECT_ID=0 python3 -I /tmp/approval_gate.py
