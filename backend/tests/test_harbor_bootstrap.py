@@ -17,8 +17,11 @@ ADMIN_PW = "PW-abc"
 
 
 class Stub:
-    def __init__(self, projects=(), robots=(), fail_project_post=False, html=False):
+    def __init__(self, projects=(), robots=(), fail_project_post=False, html=False,
+                 robot_status=201, short_body=False):
         self.html = html  # a proxy answering 200 with an HTML page
+        self.robot_status = robot_status
+        self.short_body = short_body  # connection drops mid-body
         self.projects = set(projects)
         self.robots = list(robots)
         self.fail_project_post = fail_project_post
@@ -58,6 +61,11 @@ def _handler(stub):
                     self.send_header("Content-Length", "6")
                     self.end_headers()
                     return self.wfile.write(b"<html>")
+                if stub.short_body:
+                    self.send_response(200)
+                    self.send_header("Content-Length", "100")
+                    self.end_headers()
+                    return self.wfile.write(b"[")
                 return self._send(200, stub.robots)
             return self._send(404, {})
 
@@ -70,6 +78,8 @@ def _handler(stub):
                 stub.projects.add(body["project_name"])
                 return self._send(201)
             if path == "/api/v2.0/robots":
+                if stub.robot_status != 201:
+                    return self._send(stub.robot_status, {"errors": [{"code": "CONFLICT"}]})
                 name = "robot$ci-push"
                 stub.robots.append({"id": 7, "name": name, "level": "system"})
                 return self._send(201, {"id": 7, "name": name, "secret": ROBOT_SECRET})
@@ -185,3 +195,26 @@ def test_non_json_body_fails_cleanly(harbor, tmp_path, capsys):
     harbor(projects=PROJECTS, html=True)
     assert run("--secret-out", str(tmp_path / "robot")) == 1
     assert "error:" in capsys.readouterr().err
+
+
+def test_failed_robot_post_keeps_existing_secret_file(harbor, tmp_path):
+    harbor(projects=PROJECTS, robot_status=409)
+    out_file = tmp_path / "robot"
+    out_file.write_text("OLD-secret\n")
+    assert run("--secret-out", str(out_file)) == 1
+    assert out_file.read_text() == "OLD-secret\n"
+    assert [p.name for p in tmp_path.iterdir()] == ["robot"]  # no temp file left behind
+
+
+def test_missing_ca_file_fails_cleanly(harbor, monkeypatch, capsys):
+    harbor()
+    monkeypatch.setenv("HARBOR_CA_FILE", "/nonexistent.pem")
+    assert run("--dry-run") == 1
+    assert "HARBOR_CA_FILE" in capsys.readouterr().err
+
+
+def test_dropped_connection_is_http_error(harbor, tmp_path, capsys):
+    harbor(projects=PROJECTS, short_body=True)
+    assert run("--secret-out", str(tmp_path / "robot")) == 1
+    err = capsys.readouterr().err
+    assert "/robots" in err and "secret-out" not in err

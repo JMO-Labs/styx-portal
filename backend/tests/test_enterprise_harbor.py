@@ -115,6 +115,7 @@ def test_ingress_internal_only():
     assert v["expose"]["ingress"]["className"] == "traefik"
     assert v["expose"]["tls"]["secret"]["secretName"] == "harbor-tls"
     assert v["externalURL"] == "https://harbor.example.internal"
+    assert v["caSecretName"] == "harbor-tls"  # else core's ca-download volume has no name
 
 
 def test_security_context_restricted():
@@ -213,7 +214,9 @@ def _rules(cnp, key):
 
 def test_network_policies():
     cnps = of_kind("CiliumNetworkPolicy")
-    text = json.dumps(cnps)
+    # Harbor app pods never leave the cluster; only harbor-db reaches the offsite store.
+    app = [c for c in cnps if "harbor-db" not in json.dumps(c["spec"]["endpointSelector"])]
+    text = json.dumps(app)
     for banned in ('"toCIDR"', '"toCIDRSet"', '"toFQDNs"', '"world"'):
         assert banned not in text, banned
     ingress = [r for c in cnps for r in _rules(c, "ingress")]
@@ -279,3 +282,28 @@ def test_helm_render():
 def test_render_deterministic():
     # random chart secrets would rotate keys and roll every pod on each apply
     assert _helm_template() == _helm_template()
+
+
+def _cnp_for_db(cnps):
+    return [c for c in cnps
+            if c["spec"]["endpointSelector"].get("matchLabels") == {"cnpg.io/cluster": "harbor-db"}]
+
+
+def test_harbor_db_operator_and_backup_flows():
+    db = _cnp_for_db(of_kind("CiliumNetworkPolicy"))
+    ingress = [r for c in db for r in _rules(c, "ingress")]
+    assert any({"matchLabels": {"k8s:io.kubernetes.pod.namespace": "cnpg-system"}}
+               in r.get("fromEndpoints", []) and
+               r["toPorts"][0]["ports"][0]["port"] == "8000" for r in ingress)
+    egress = [r for c in db for r in _rules(c, "egress")]
+    cidr = [r for r in egress if "toCIDRSet" in r]
+    assert cidr and cidr[0]["toPorts"][0]["ports"][0]["port"] == "443"
+    text = json.dumps(db)
+    for banned in ('"toFQDNs"', '"world"', '"0.0.0.0/0"'):
+        assert banned not in text, banned
+
+
+def test_readme_has_no_stale_limits():
+    readme = (ROOT / "README.md").read_text()
+    assert "(`registry.credentials`)" not in readme
+    assert "is not\n  in `networkpolicy.yaml`" not in readme
