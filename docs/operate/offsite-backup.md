@@ -191,10 +191,20 @@ is older than `OFFSITE_ORPHAN_DAYS` (default 1095 days, the same horizon as Kopi
 garbage-collects the unreferenced blobs, which only adds S3 delete markers. The
 bucket lifecycle rule (see Prerequisites) removes the now noncurrent versions
 `NoncurrentVersionExpiration` days later, and never before their Object Lock expires.
-So a deleted user's data stays offsite for up to `OFFSITE_ORPHAN_DAYS` plus about a
-week of maintenance GC delay plus the noncurrent-expiry days (`OFFSITE_LOCK_DAYS`,
-35 by default). Without the lifecycle rule it stays forever. Lower `OFFSITE_ORPHAN_DAYS` if the data-retention notice
+Kopia's GC deletes only whole pack blobs with no live content left, so this bound
+holds for whole packs only: a deleted user's data in packs of their own stays offsite
+for up to `OFFSITE_ORPHAN_DAYS` plus about a week of maintenance GC delay plus the
+noncurrent-expiry days (`OFFSITE_LOCK_DAYS`, 35 by default). Without the lifecycle
+rule it stays forever. Lower `OFFSITE_ORPHAN_DAYS` if the data-retention notice
 needs a shorter period, and record the value there.
+
+Chunks in a pack shared with live, deduplicated data (for example content common to
+several homes) are not removed: full maintenance rewrites only mostly-empty packs, so
+such a pack is never deleted. Those chunks stay in the bucket, encrypted but readable
+with the escrowed key, until the repository is rotated. Rotation (see Key rotation:
+new repository, old one ages out) is the only guaranteed erase, because it
+crypto-shreds the old data. If a hard erase deadline is needed, it is set by how often
+the repository is rotated.
 
 A subvolume that is missing only for a while (for example a mount problem) is safe:
 its source is purged only after its newest snapshot is older than
@@ -216,7 +226,9 @@ The worst case is about 2 TB (200 users × 10 GB homes plus profiles), before de
 compression. Object Lock and 30+ days of history keep extra versions. Without the
 noncurrent-version lifecycle rule (see Prerequisites), every blob that Kopia's GC
 deletes stays billed forever and storage grows without bound; with it, deleted blobs
-are billed for about `OFFSITE_LOCK_DAYS` more. Before you
+are billed for about `OFFSITE_LOCK_DAYS` more. GC only drops whole packs, so a
+pack that still holds some live content stays billed in full until rotation.
+Before you
 deploy, check the chosen provider's storage, request and egress pricing against the
 accepted budget of about $20-50/month (D05/D37).
 
