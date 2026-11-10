@@ -38,3 +38,4 @@ Negative:
 Follow-up work:
 
 - Auto-unseal design, rotation policy and escrow custody in phase 1.
+- Auto-unseal is a `seal "static"` key file, escrowed in both escrow sets (C1, #14).

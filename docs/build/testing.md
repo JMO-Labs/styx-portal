@@ -28,6 +28,8 @@ Conventions:
 * `conftest.py` sets `JWT_SECRET`, `COOKIE_SECURE=false`, `DEV_CORS=true` and generous rate limits **before** importing `app`, and resets abuse trackers and the settings cache between tests (autouse fixtures).
 * Prefer testing pure builders (`build_routes_config`, `build_objects`, `resolve_stream_settings`) directly; they are pure on purpose.
 * No sleeping on real time: loops are tested through single-pass functions (`_monitor_tick`, `_run_monitor_pass`).
+* `test_enterprise_docs.py` is a doc-lint for `docs/enterprise`. It checks that ADR statuses match the index, that no ADR reference dangles, that each decision ID in design.md maps to exactly one ADR, and that the owner's Rounds 1-5 amendments are present. It also checks that no FIPS/STIG exception reference has been invented (R05 stays a `TODO (owner)` placeholder). When you change an ADR's status or add an ADR, update `adr/README.md` in the same commit.
+* `test_dr_runbook.py` is a doc-lint for `docs/enterprise/runbooks/full-site-restore.md` (#14). It checks the section and step order and the fields of each step. It checks that every timing says "unproven until #15", that roles and owner inputs stay `TBD (owner input)`, that `--cluster-reset` appears only under control-plane-only loss, that every `targetTime` ends in `Z`, and that the file holds no secrets. It also checks the runbook links from the control matrix (CP-9, CP-10), the enterprise README and ADR-0037/0042.
 
 ## Frontend (vitest)
 
