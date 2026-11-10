@@ -1,0 +1,133 @@
+# Harbor 2.15.4 via goharbor/harbor chart 1.19.4 (issue #5, ADR-0029 Phase 1).
+# Only overrides are listed; everything else is the chart default.
+# Images: upstream docker.io/goharbor/*:v2.15.4 digests, retagged under the
+# harbor.example.internal prefix with the same digest (seed bundle, follow-up issue).
+
+expose:
+  type: ingress
+  tls:
+    enabled: true
+    certSource: secret
+    secret:
+      secretName: harbor-tls          # ESO from kv/harbor/tls
+  ingress:
+    className: traefik
+    hosts:
+      core: harbor.example.internal
+
+externalURL: https://harbor.example.internal
+
+# Pod-to-pod traffic is encrypted by Cilium WireGuard (#18, SC-8).
+# Never use certSource auto: it re-renders certs on every helm template.
+internalTLS:
+  enabled: false
+
+existingSecretAdminPassword: harbor-admin
+existingSecretAdminPasswordKey: HARBOR_ADMIN_PASSWORD
+existingSecretSecretKey: harbor-secret-key   # key "secretKey", exactly 16 chars
+
+# CNPG-issued CA (key ca.crt), trusted by core, jobservice and registry.
+caBundleSecretName: harbor-db-ca
+
+persistence:
+  enabled: true
+  imageChartStorage:
+    # Node containerd cannot reach the RGW service, so the registry proxies blobs.
+    disableredirect: true
+    type: s3
+    s3:
+      existingSecret: harbor-s3         # REGISTRY_STORAGE_S3_ACCESSKEY / _SECRETKEY
+      region: us-east-1                 # RGW ignores the region
+      bucket: harbor-registry           # ObjectBucketClaim bucketName
+      regionendpoint: http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc:80  # PLACEHOLDER(#3)
+      v4auth: true
+      rootdirectory: /registry
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: false                      # the ServiceMonitor lives in the #8 overlay
+
+containerSecurityContext:
+  privileged: false
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+  capabilities:
+    drop: [ALL]
+
+nginx:                                  # unused with expose.type ingress
+  image:
+    repository: harbor.example.internal/goharbor/nginx-photon
+    tag: v2.15.4@sha256:7eff0287d5ad0f35754e162c8481ced04bbde107153ce586cefb15ee74fa1311
+
+portal:
+  replicas: 2
+  image:
+    repository: harbor.example.internal/goharbor/harbor-portal
+    tag: v2.15.4@sha256:01edf478505b21dba23a83c095f6ecac0c1e705690093edbab41e9a4d6754a75
+
+core:
+  replicas: 2
+  image:
+    repository: harbor.example.internal/goharbor/harbor-core
+    tag: v2.15.4@sha256:7d2ba5304a729887cdec7cb222a82b500278423de230ae5150c386a6c332b112
+  # CONFIG_OVERWRITE_JSON. db_auth with admin + robots only, so Phase 2 can switch
+  # to oidc_auth. Never create local users: one local user locks db_auth forever.
+  configureUserSettings: >-
+    {"auth_mode": "db_auth",
+    "self_registration": false,
+    "project_creation_restriction": "adminonly",
+    "audit_log_forward_endpoint": "syslog.example.internal:514"}
+
+jobservice:
+  replicas: 2
+  image:
+    repository: harbor.example.internal/goharbor/harbor-jobservice
+    tag: v2.15.4@sha256:f143578ef30e2be5c48873298257ed0fca31545025958c534e536a06765d2b82
+  jobLoggers: [database]                # no RWX PVC needed with object storage
+
+registry:
+  replicas: 2
+  registry:
+    image:
+      repository: harbor.example.internal/goharbor/registry-photon
+      tag: v2.15.4@sha256:dc0cb388a6445c69c8a0c406679290d2991c9698833d9e6e86a23bdfaf2f83c3
+  controller:
+    image:
+      repository: harbor.example.internal/goharbor/harbor-registryctl
+      tag: v2.15.4@sha256:30bd1ace4e3bb390d75b84673f98ddb4a69fcc6d116932ea764391df01943fb7
+
+trivy:                                  # Phase 3 (air-gapped offline DB)
+  enabled: false
+  image:
+    repository: harbor.example.internal/goharbor/trivy-adapter-photon
+    tag: v2.15.4@sha256:813ca81b4a4ea0f44f5fa81cca2645eeb58d4b1f6c66b428df9d506174bb71d9
+
+database:
+  type: external
+  internal:                             # unused with type external
+    image:
+      repository: harbor.example.internal/goharbor/harbor-db
+      tag: v2.15.4@sha256:a32d51e636d76303e086a7c5251a2c8415c6f165b2f87bafa914efd866c5403f
+  external:
+    host: harbor-db-rw.harbor.svc
+    port: "5432"
+    username: harbor
+    coreDatabase: registry
+    existingSecret: harbor-db-app       # CNPG app Secret, key "password"
+    sslmode: verify-full
+
+# Internal Valkey, single replica (accepted for Phase 1, see the operate doc).
+redis:
+  type: internal
+  internal:
+    image:
+      repository: harbor.example.internal/goharbor/valkey-photon
+      tag: v2.15.4@sha256:bb022e8f236f56f53cee7bb1f609595e497da67d829048e0af2284f97e6eb54f
+
+exporter:
+  image:
+    repository: harbor.example.internal/goharbor/harbor-exporter
+    tag: v2.15.4@sha256:9ffede33dc519b4be035596a72f00f354754a22a3769077731f81ee7d6852f4f

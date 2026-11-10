@@ -61,6 +61,34 @@ pytest:
   <<: *on_push_or_mr
   script: [.venv/bin/python -m pytest -q]
 
+harbor-iac:
+  # deploy/enterprise/harbor (issue #5): helm template (vendored chart 1.19.4) + kustomize
+  # + kubeconform, pinned tools. CRDs validate against the datreeio CRDs-catalog.
+  stage: test
+  image: python:3.12
+  <<: *on_push_or_mr
+  script:
+    - |
+      set -eu
+      GH=https://github.com
+      curl -sSfLO https://get.helm.sh/helm-v3.22.1-linux-amd64.tar.gz
+      curl -sSfLO "$GH/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.8.3/kustomize_v5.8.3_linux_amd64.tar.gz"
+      curl -sSfLO "$GH/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz"
+      printf '%s  %s\n' \
+        896cf63684a42a723d61c980369d6e588330927deb13676ca0d85006dd6da0ea helm-v3.22.1-linux-amd64.tar.gz \
+        cb9e31198d3f63b44848bd0afc4c8efc56e6cfef9c93a4a39a211940e6decd61 kustomize_v5.8.3_linux_amd64.tar.gz \
+        9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883 kubeconform-linux-amd64.tar.gz \
+        | sha256sum -c -
+      tar xzf helm-v3.22.1-linux-amd64.tar.gz -C /usr/local/bin --strip-components=1 linux-amd64/helm
+      for f in kustomize_*.tar.gz kubeconform-*.tar.gz; do tar xzf "$f" -C /usr/local/bin; done
+      H=deploy/enterprise/harbor
+      helm template harbor "$H/charts/harbor-1.19.4.tgz" -n harbor -f "$H/values.yaml" > harbor-chart.yaml
+      kustomize build "$H" > harbor-extra.yaml
+      kubeconform -strict -ignore-missing-schemas -summary -kubernetes-version 1.36.6 \
+        -schema-location default \
+        -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+        harbor-chart.yaml harbor-extra.yaml
+
 plugin-test:
   stage: test
   image: golang:1.22

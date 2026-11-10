@@ -1,0 +1,55 @@
+# Harbor-specific flows only. Intra-namespace, DNS and Prometheus come from the
+# #19 baseline. Barman offsite egress for harbor-db follows the #24 pattern.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: harbor-ingress-from-traefik
+  namespace: harbor
+spec:
+  endpointSelector:
+    matchExpressions:
+      - {key: app, operator: In, values: [harbor]}
+      - {key: component, operator: In, values: [core, portal]}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: traefik
+      toPorts:
+        - ports:
+            - {port: "8080", protocol: TCP}     # core and portal containers
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: harbor-egress-db
+  namespace: harbor
+spec:
+  endpointSelector:
+    matchLabels:
+      app: harbor
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: harbor-db
+      toPorts:
+        - ports:
+            - {port: "5432", protocol: TCP}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: harbor-egress-rgw
+  namespace: harbor
+spec:
+  endpointSelector:
+    matchLabels:
+      app: harbor
+      component: registry
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: rook-ceph
+            app: rook-ceph-rgw
+      toPorts:
+        - ports:
+            - {port: "8080", protocol: TCP}     # PLACEHOLDER(#3): RGW pod port
