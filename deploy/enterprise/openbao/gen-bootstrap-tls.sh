@@ -11,13 +11,22 @@ if [[ -z "$out" ]]; then
   exit 2
 fi
 
-# Refuse any outdir inside a git work tree, so keys can never be committed by accident.
-probe="$out"
-while [[ ! -d "$probe" ]]; do probe="$(dirname "$probe")"; done
-if git -C "$probe" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+# Refuse any outdir inside this checkout or any git work tree, so keys can never be
+# committed by accident. Plain path checks: works without git and with tarball checkouts.
+refuse() {
   echo "refusing: $out is inside a git work tree; use a path on encrypted offline media" >&2
   exit 2
-fi
+}
+probe="$out"
+while [[ ! -d "$probe" ]]; do probe="$(dirname "$probe")"; done
+probe="$(cd "$probe" && pwd -P)"
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
+[[ "$probe/" == "$repo/"* ]] && refuse
+d="$probe"
+while [[ "$d" != / ]]; do
+  [[ -e "$d/.git" ]] && refuse
+  d="$(dirname "$d")"
+done
 if [[ -e "$out/ca.key" || -e "$out/tls.key" ]]; then
   echo "refusing: $out already holds keys; renewing the CA is a runbook step" >&2
   exit 2

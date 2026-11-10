@@ -1,7 +1,6 @@
 """Static checks for deploy/enterprise/openbao (issue #4, ADR-0042, ADR-0061)."""
 
 import re
-import subprocess
 
 from tests.openbao_checks import (
     ESO, OPENBAO, ROOT, ceph_storage_refs, check_ha, check_images, check_raft_hcl,
@@ -173,14 +172,13 @@ def test_networkpolicy_ingress_sources():
     assert world and {p["port"] for r in world for tp in r["toPorts"] for p in tp["ports"]} == {"443"}
 
 
-def _tracked(tree) -> list:
-    out = subprocess.run(["git", "ls-files", str(tree)], cwd=ROOT, capture_output=True,
-                         text=True, check=True).stdout.split()
-    return [ROOT / p for p in out]
+def _files(tree) -> list:
+    # Every file in the tree (a superset of `git ls-files`), so the check needs no git.
+    return [p for p in tree.rglob("*") if p.is_file()]
 
 
 def test_no_secret_material_committed():
-    files = _tracked(OPENBAO) + _tracked(ESO)
+    files = _files(OPENBAO) + _files(ESO)
     for path in files:
         if path.suffix in (".tgz",):
             continue
