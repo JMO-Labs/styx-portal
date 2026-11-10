@@ -105,7 +105,9 @@ def test_cni_cilium_and_no_bundled_ingress():
 def test_server_taint_and_worker_labels():
     assert _vars("masters")["rke2_server_node_taints"] == ["CriticalAddonsOnly=true:NoExecute"]
     labels = _vars("workers")["k8s_node_label"]
-    assert {"node-role.kubernetes.io/worker=true", "styx.io/gpu-ready=true"} <= set(labels)
+    assert {"node.kubernetes.io/worker=true", "styx.io/gpu-ready=true"} <= set(labels)
+    # kubelet/NodeRestriction refuse node-role.kubernetes.io/* in --node-labels; agents would not register.
+    assert not any(lbl.startswith("node-role.kubernetes.io/") for lbl in labels)
 
 
 def test_token_from_env_only():
@@ -116,6 +118,8 @@ def test_secret_helper_catches_planted_values():
     assert _has_literal_secret("rke2_token: abc123") is True
     assert _has_literal_secret("  password: 'hunter2'") is True
     assert _has_literal_secret("x: defaultSecret12345") is True
+    assert _has_literal_secret('"rke2_token": abc123') is True
+    assert _has_literal_secret("'password': hunter2") is True
     assert _has_literal_secret(f'rke2_token: "{TOKEN_LOOKUP}"') is False
     assert _has_literal_secret("password: !vault |") is False
 
@@ -131,8 +135,13 @@ def test_site_asserts_token_present():
     assert play["hosts"] == "masters:workers"
     roles = [r["role"] if isinstance(r, dict) else r for r in play["roles"]]
     assert roles == ["lablabs.rke2"]
-    asserts = [t["ansible.builtin.assert"] for t in play["pre_tasks"] if "ansible.builtin.assert" in t]
-    assert any("rke2_token | length > 0" in c for a in asserts for c in a["that"])
+    (task,) = [t for t in play["pre_tasks"] if "ansible.builtin.assert" in t]
+    conds = task["ansible.builtin.assert"]["that"]
+    # trim: a whitespace-only RKE2_TOKEN renders as a null token and each server mints its own.
+    assert "rke2_token | trim | length > 0" in conds
+    assert "rke2_token != 'defaultSecret12345'" in conds
+    # always: --tags runs must not skip the guard.
+    assert "always" in task["tags"]
 
 
 def test_no_kube_proxy_or_cilium_tuning_here():
