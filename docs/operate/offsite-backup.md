@@ -176,9 +176,18 @@ the data. To rotate for real:
 
 1. Create a new repository under a new prefix with a new password, using `init`.
 2. Point `params.env` and OpenBao at it, and update the escrow envelope.
-3. Leave the old repository until its locks expire and its retention ages out. Then
-   delete the prefix with the bucket owner's account. The bucket is versioned, so the
-   lifecycle rule removes the noncurrent versions afterwards.
+3. Pick a delete date for the old repository. It never ages out on its own: it gets
+   no new snapshots, and Kopia measures retention from each source's newest snapshot.
+   The date must be at least `OFFSITE_LOCK_DAYS` after the last export to it, and late
+   enough to cover the history you must keep (12 monthly snapshots by default).
+4. On that date, delete the old prefix with the bucket owner's account. The bucket is
+   versioned, so the lifecycle rule removes the noncurrent versions
+   `NoncurrentDays` later. This is what actually erases the data.
+5. Then destroy every copy of the old password: the old OpenBao KV v2 versions of
+   `backup/offsite/kopia` (`bao kv destroy -versions=<n>`; a later version on the same
+   path does not remove them) and the old escrow envelope. Only then is anything the
+   delete missed crypto-shredded. Do not do this earlier: until the delete date the old
+   repository is still your restore source.
 
 ## Deleted users
 
@@ -202,9 +211,11 @@ Chunks in a pack shared with live, deduplicated data (for example content common
 several homes) are not removed: full maintenance rewrites only mostly-empty packs, so
 such a pack is never deleted. Those chunks stay in the bucket, encrypted but readable
 with the escrowed key, until the repository is rotated. Rotation (see Key rotation:
-new repository, old one ages out) is the only guaranteed erase, because it
-crypto-shreds the old data. If a hard erase deadline is needed, it is set by how often
-the repository is rotated.
+new repository, delete the old prefix, destroy the old password) is the only
+guaranteed erase: the prefix delete plus the lifecycle rule removes the data, and
+destroying the old password crypto-shreds any copy left. If a hard erase deadline is
+needed, it is set by how often the repository is rotated. No cadence is set yet; that
+is an owner decision.
 
 A subvolume that is missing only for a while (for example a mount problem) is safe:
 its source is purged only after its newest snapshot is older than
@@ -228,8 +239,7 @@ noncurrent-version lifecycle rule (see Prerequisites), every blob that Kopia's G
 deletes stays billed forever and storage grows without bound; with it, deleted blobs
 are billed for about `OFFSITE_LOCK_DAYS` more. GC only drops whole packs, so a
 pack that still holds some live content stays billed in full until rotation.
-Before you
-deploy, check the chosen provider's storage, request and egress pricing against the
+Before you deploy, check the chosen provider's storage, request and egress pricing against the
 accepted budget of about $20-50/month (D05/D37).
 
 ## Testing
@@ -242,3 +252,26 @@ accepted budget of about $20-50/month (D05/D37).
   shows that deleting a locked version is refused, that a wrong password cannot
   connect, that orphaned sources are purged, and that the bucket's noncurrent-version
   lifecycle rule coexists with Object Lock.
+
+## Known issues
+
+- **Not in GitHub CI yet.** The `kustomize build | kubeconform -strict` check and the
+  MinIO integration suite run as the GitLab jobs `offsite-manifests` and
+  `offsite-integration` in `.gitlab-ci.yml`, which have not run in a pipeline yet.
+  GitHub CI runs only the manifest and script unit tests. Adding the two jobs to
+  `.github/workflows/ci.yml` needs a token with `workflow` scope (patch in PR #126).
+  Until then, run both locally before you change the component.
+- **`StyxOffsiteExportFailed` stays firing after a later success.** It matches
+  `kube_job_failed`, and the CronJob keeps up to 3 failed Jobs
+  (`failedJobsHistoryLimit: 3`). After you fix the cause and a run succeeds, delete the
+  failed Job (`kubectl -n styx-backup delete job <name>`) to clear the alert. The same
+  applies to `StyxOffsiteVerifyFailed`.
+- **Password length counts bytes.** Under `dash` (the image's `/bin/sh`),
+  `${#KOPIA_PASSWORD}` counts bytes, so a password of 31 multibyte characters passes the
+  32-character check. Generate the password as random ASCII (for example
+  `openssl rand -base64 48`).
+- **Orphan names with `&`, `<` or `>`.** Kopia's `--json` output escapes these, so
+  the orphan purge would look for the wrong source name and never purge it. Ceph
+  subvolume names are normally `[A-Za-z0-9_.-]`; keep them that way.
+- **Not deployed.** A live run needs Rook-Ceph (#3), OpenBao and External Secrets (#4)
+  and the nightly snapshots (#9). The bucket and its CUI authorization are not chosen yet.
