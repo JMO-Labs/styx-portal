@@ -5,7 +5,7 @@ import sqlalchemy
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from app.database import _run_migrations
+from app.db_migrate import _run_migrations
 from app.models import ProxiedService
 from app.schemas import ProxiedServiceCreate, ProxiedServiceUpdate
 from app.services import service_favicon as sf
@@ -83,6 +83,7 @@ def test_routes_without_upstream_proxy_unchanged():
         assert "styx-up-g" not in h.get("serversTransports", {})
 
 
+@pytest.mark.sqlite_only
 @pytest.mark.asyncio
 async def test_migration_adds_upstream_is_proxy_column():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
