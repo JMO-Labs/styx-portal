@@ -6,6 +6,7 @@ A test builds a `Stub` with a `route(method, path, query, body)` function that r
 
 import importlib.util
 import json
+import os
 import ssl
 import subprocess
 import sys
@@ -92,9 +93,14 @@ def load(path: Path, name: str):
 
 
 def run_script(path: Path, *argv, env=None):
-    """Run a script in a subprocess (isolated mode) and return the CompletedProcess."""
+    """Run a script in a subprocess (isolated mode) and return the CompletedProcess.
+
+    The child inherits the environment (setup-python needs LD_LIBRARY_PATH) minus any
+    GitLab/GitHub/CI variables of the runner, plus `env`."""
+    base = {k: v for k, v in os.environ.items()
+            if not k.startswith(("GITLAB_", "GITHUB_", "CI_", "APPROVAL_"))}
     return subprocess.run([sys.executable, "-I", str(path), *argv], capture_output=True,
-                          text=True, env=env, timeout=60)
+                          text=True, env=base | (env or {}), timeout=60)
 
 
 def stdlib_only(path: Path) -> set:
