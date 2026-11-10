@@ -73,7 +73,7 @@ Its first line (`#jinja2: ...`) sets `lstrip_blocks` so Ansible renders it clean
 
 | Variable (`group_vars/all.yml`) | Default | Effect |
 |---|---|---|
-| `cilium_kube_proxy_replacement` | `true` | `kubeProxyReplacement: true`, API via `localhost:6443` (RKE2's local load balancer on every node, so the CNI does not depend on the keepalived VIP), `bpf.masquerade: true`. Read like Ansible `bool`, so `-e cilium_kube_proxy_replacement=false` (a string) turns both sides off |
+| `cilium_kube_proxy_replacement` | `true` | `kubeProxyReplacement: true`, API via `localhost:6443` (RKE2's local load balancer on every node, so the CNI does not depend on the keepalived VIP), `bpf.masquerade: true`. Read like the Ansible `bool` filter (only `true`/`yes`/`on`/`1`, any case, are true), so `-e cilium_kube_proxy_replacement=false` (a string) turns both sides off |
 | `disable_kube_proxy` | `"{{ cilium_kube_proxy_replacement }}"` | role writes `disable-kube-proxy: true`; tied to the line above so they cannot drift |
 | `cilium_encryption_type` | `wireguard` | node-to-node encryption: `wireguard`, `ipsec` or `none`; any other value fails the chart schema and the tests |
 
