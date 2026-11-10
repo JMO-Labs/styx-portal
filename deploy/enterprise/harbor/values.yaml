@@ -38,7 +38,7 @@ persistence:
     s3:
       existingSecret: harbor-s3         # REGISTRY_STORAGE_S3_ACCESSKEY / _SECRETKEY
       region: us-east-1                 # RGW ignores the region
-      bucket: harbor-registry           # ObjectBucketClaim bucketName
+      bucket: harbor-registry           # ObjectBucketClaim harbor-registry-bucket
       regionendpoint: http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc:80  # PLACEHOLDER(#3)
       v4auth: true
       rootdirectory: /registry
@@ -73,6 +73,12 @@ core:
   image:
     repository: harbor.example.internal/goharbor/harbor-core
     tag: v2.15.4@sha256:7d2ba5304a729887cdec7cb222a82b500278423de230ae5150c386a6c332b112
+  # Without these the chart generates random values on every `helm template`
+  # (lookup is empty), rotating keys and rolling all pods on each apply.
+  existingSecret: harbor-core-secret      # key "secret", 16 chars
+  secretName: harbor-core-token           # token signing tls.crt / tls.key
+  existingXsrfSecret: harbor-core-xsrf
+  existingXsrfSecretKey: CSRF_KEY         # 32 chars
   # CONFIG_OVERWRITE_JSON. db_auth with admin + robots only, so Phase 2 can switch
   # to oidc_auth. Never create local users: one local user locks db_auth forever.
   configureUserSettings: >-
@@ -87,9 +93,16 @@ jobservice:
     repository: harbor.example.internal/goharbor/harbor-jobservice
     tag: v2.15.4@sha256:f143578ef30e2be5c48873298257ed0fca31545025958c534e536a06765d2b82
   jobLoggers: [database]                # no RWX PVC needed with object storage
+  existingSecret: harbor-jobservice-secret
+  existingSecretKey: JOBSERVICE_SECRET  # 16 chars
 
 registry:
   replicas: 2
+  existingSecret: harbor-registry-http
+  existingSecretKey: REGISTRY_HTTP_SECRET
+  credentials:
+    username: harbor_registry_user        # must match the htpasswd line
+    existingSecret: harbor-registry-credentials  # REGISTRY_PASSWD, REGISTRY_HTPASSWD
   registry:
     image:
       repository: harbor.example.internal/goharbor/registry-photon

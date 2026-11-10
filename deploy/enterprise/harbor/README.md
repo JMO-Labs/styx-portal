@@ -10,7 +10,7 @@ only: nothing here is deployed by CI. The runbook is
 | Registry host | `harbor.example.internal` (placeholder, internal Traefik only) |
 | Namespace | `harbor` |
 | Database | CNPG `harbor-db`, PG 17, 2 instances, barman-cloud plugin backups |
-| Blobs | Ceph RGW S3 via ObjectBucketClaim `harbor-registry` |
+| Blobs | Ceph RGW S3 via ObjectBucketClaim `harbor-registry-bucket` (bucket `harbor-registry`) |
 | Redis | chart-internal Valkey, 1 replica |
 | Auth | `db_auth`, `admin` and robots only (Phase 2: `oidc_auth`) |
 | Trivy | disabled (Phase 3) |

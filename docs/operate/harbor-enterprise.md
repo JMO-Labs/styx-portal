@@ -63,9 +63,20 @@ bundle built by hand.
 | `kv/harbor/tls` | `tls.crt`, `tls.key`, `ca.crt` (org CA, ADR-0049) | `harbor-tls` (`kubernetes.io/tls`) |
 | `kv/harbor/robot-ci` | `name`, `secret` | `harbor-bootstrap-robot` |
 | `kv/harbor/db-offsite` | `access_key_id`, `secret_access_key` | `harbor-db-offsite` (barman-cloud) |
+| `kv/harbor/core` | `secret` (16 chars) | `harbor-core-secret` (`secret`) |
+| `kv/harbor/core-token` | `tls.crt`, `tls.key` (self-signed RSA token signing pair) | `harbor-core-token` |
+| `kv/harbor/core-xsrf` | `value` (32 chars) | `harbor-core-xsrf` (`CSRF_KEY`) |
+| `kv/harbor/jobservice` | `value` (16 chars) | `harbor-jobservice-secret` (`JOBSERVICE_SECRET`) |
+| `kv/harbor/registry-http` | `value` (16 chars) | `harbor-registry-http` (`REGISTRY_HTTP_SECRET`) |
+| `kv/harbor/registry-credentials` | `password`, `htpasswd` (`htpasswd -nbB harbor_registry_user <password>`) | `harbor-registry-credentials` |
+
+The six internal secrets above replace values the chart would otherwise generate at random on
+every `helm template` (no cluster `lookup`), which would rotate the token key and roll every
+Harbor pod on each apply. Generate them once, for example
+`openssl genrsa 4096` plus `openssl req -x509 -days 3650 -subj /CN=harbor-token-ca` for the token pair.
 
 CNPG creates `harbor-db-app` and `harbor-db-ca`. Rook creates the OBC Secret
-`harbor-registry`, which ESO maps to `harbor-s3` inside the namespace.
+`harbor-registry-bucket` (not `harbor-registry`, which the chart already uses), which ESO maps to `harbor-s3` inside the namespace.
 
 The admin password also belongs in the offline escrow set (D25).
 
@@ -77,6 +88,8 @@ The admin password also belongs in the offline escrow set (D25).
 - **Admin password:** change it in the Harbor UI first, then write it to `kv/harbor/admin` and
   update the offline escrow copy. Harbor reads `HARBOR_ADMIN_PASSWORD` only on first start,
   but the exporter uses it and a fresh install or restore needs the current value.
+- **Robot permissions:** `harbor_bootstrap.py` only creates a missing robot; it does not
+  reconcile the permissions of an existing `ci-push`. Fix drift in the UI.
 - **Secret key:** do not rotate it. Harbor encrypts stored credentials with it.
 - **TLS:** write the renewed cert to `kv/harbor/tls`. After ESO syncs, Traefik picks it up.
 

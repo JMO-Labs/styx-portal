@@ -49,7 +49,10 @@ class Client:
             raise HarborError(f"{method} {API}{path} -> HTTP {e.code}") from None
         except urllib.error.URLError as e:
             raise HarborError(f"{method} {API}{path} -> {e.reason}") from None
-        return json.loads(raw) if raw else {}
+        try:
+            return json.loads(raw) if raw else {}
+        except ValueError:
+            raise HarborError(f"{method} {API}{path} -> response is not JSON") from None
 
 
 def robot_body():
@@ -72,11 +75,11 @@ def find_robot(client):
                str(r.get("name", "")).endswith(f"${ROBOT}") for r in robots)
 
 
-def write_secret(path, secret):
+def open_secret(path):
+    """Open the 0600 secret file before any write, so a bad path never strands the robot."""
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     os.fchmod(fd, 0o600)  # also tighten a pre-existing file
-    with os.fdopen(fd, "w") as f:
-        f.write(secret + "\n")
+    return os.fdopen(fd, "w")
 
 
 def plan(client):
@@ -86,13 +89,15 @@ def plan(client):
 
 
 def apply(client, missing, need_robot, secret_out):
+    out = open_secret(secret_out) if need_robot else None
     for p in missing:
         client.call("POST", "/projects",
                     {"project_name": p, "public": False, "metadata": {"public": "false"}})
         print(f"created project {p}")
     if need_robot:
-        created = client.call("POST", "/robots", robot_body())
-        write_secret(secret_out, created["secret"])
+        with out:
+            created = client.call("POST", "/robots", robot_body())
+            out.write(created["secret"] + "\n")
         print(f"created robot {created['name']}; secret written to {secret_out}")
 
 
@@ -127,6 +132,9 @@ def main(argv=None):
         apply(client, missing, need_robot, args.secret_out)
     except HarborError as e:
         print(f"error: {e}", file=sys.stderr)
+        return 1
+    except OSError as e:
+        print(f"error: cannot write --secret-out: {e}", file=sys.stderr)
         return 1
     return 0
 
