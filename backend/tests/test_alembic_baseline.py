@@ -2,7 +2,7 @@ from alembic.script import ScriptDirectory
 from sqlmodel import SQLModel
 
 from app.db_migrate import alembic_config, migrate
-from tests.db_helpers import diff_vs_models, downgrade_base, scalar, scratch_engine, scratch_url, table_names  # noqa: F401
+from tests.db_helpers import diff_vs_models, downgrade_base, scalar, table_names
 
 
 def test_naming_convention_set():

@@ -1,3 +1,4 @@
+import pytest
 import asyncio
 
 from app.security import setup_token
@@ -27,6 +28,9 @@ async def test_setup_cross_site_refused(client):
     assert r.status_code == 403
 
 
+# Fires concurrent requests through the one shared test session; an asyncpg
+# connection cannot run concurrent statements, so this harness only works on SQLite.
+@pytest.mark.sqlite_only
 async def test_concurrent_setup_creates_one_admin(client, session):
     from sqlmodel import select, func
     from app.models import User

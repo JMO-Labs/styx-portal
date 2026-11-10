@@ -9,6 +9,8 @@ dependencies = [
     "sqlalchemy==2.1.6",  # pinned: newer sqlmodel/sqlalchemy reject naive datetimes (ban-check 500)
     "pydantic==2.14.2",
     "aiosqlite>=0.20.0",
+    "asyncpg>=0.30.0",
+    "alembic>=1.16.0",
     "docker>=7.1.0",
     "pydantic-settings>=2.16.2",
     "httpx>=0.28.0",
@@ -34,6 +36,10 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "sqlite_only: runs only on the SQLite backend (skipped on Postgres)",
+    "pg_only: runs only on the Postgres backend",
+]
 
 [tool.setuptools.packages.find]
 include = ["app*"]

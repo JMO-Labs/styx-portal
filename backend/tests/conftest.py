@@ -5,7 +5,9 @@ from unittest.mock import AsyncMock, MagicMock
 import asyncio
 
 import pytest
+import sqlalchemy
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy.pool import NullPool
 from sqlmodel import SQLModel
@@ -30,11 +32,6 @@ TEST_DB_URL = os.environ.get("STYX_TEST_DATABASE_URL", "sqlite+aiosqlite:///:mem
 IS_PG = TEST_DB_URL.startswith("postgresql")
 
 
-def pytest_configure(config):
-    config.addinivalue_line("markers", "sqlite_only: runs only on the SQLite backend")
-    config.addinivalue_line("markers", "pg_only: runs only on the Postgres backend")
-
-
 def pytest_collection_modifyitems(config, items):
     skip = "pg_only" if not IS_PG else "sqlite_only"
     marker = pytest.mark.skip(reason=f"{skip} test on {'postgres' if IS_PG else 'sqlite'}")
@@ -45,7 +42,6 @@ def pytest_collection_modifyitems(config, items):
 
 async def _pg_reset_schema(url: str = TEST_DB_URL) -> None:
     """Drop everything in the public schema (tests own the test database)."""
-    import sqlalchemy
     eng = create_async_engine(url, poolclass=NullPool)
     async with eng.begin() as conn:
         await conn.execute(sqlalchemy.text("DROP SCHEMA public CASCADE"))
@@ -93,6 +89,34 @@ async def session_fixture(_pg_schema):
             yield session
         await outer.rollback()
     await engine.dispose()
+
+
+# Scratch DB for migration/startup tests: a SQLite file, or a throwaway PG database.
+async def _pg_admin(sql: str) -> None:
+    eng = create_async_engine(TEST_DB_URL, poolclass=NullPool, isolation_level="AUTOCOMMIT")
+    async with eng.connect() as conn:
+        await conn.execute(sqlalchemy.text(sql))
+    await eng.dispose()
+
+
+@pytest.fixture
+async def scratch_url(tmp_path):
+    if not IS_PG:
+        yield f"sqlite+aiosqlite:///{tmp_path / 'styx.db'}"
+        return
+    url = make_url(TEST_DB_URL)
+    name = f"{url.database}_scratch"
+    await _pg_admin(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+    await _pg_admin(f'CREATE DATABASE "{name}"')
+    yield url.set(database=name).render_as_string(hide_password=False)
+    await _pg_admin(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+
+
+@pytest.fixture
+async def scratch_engine(scratch_url):
+    eng = create_async_engine(scratch_url, poolclass=NullPool)
+    yield eng
+    await eng.dispose()
 
 
 @pytest.fixture(autouse=True)

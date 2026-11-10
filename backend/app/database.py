@@ -1,188 +1,42 @@
 import json
-import logging
 import os
 import stat
 from pathlib import Path
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from sqlmodel import SQLModel, select
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
+from app.db_migrate import BACKUP_SUFFIX, migrate
 from app.models import ServicePreset, ServiceTemplate
 
-logger = logging.getLogger("styx-portal")
-
 settings = Settings()
+# TODO(#24): behind the CNPG pooler (transaction mode) pass
+# connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0}.
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
 )
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-_TEMPLATE_COLUMN_DDL = {
-    "shared": "BOOLEAN DEFAULT 0",
-    "restart_policy": "TEXT DEFAULT 'no'",
-    "read_only_rootfs": "BOOLEAN DEFAULT 0",
-    "tmpfs": "JSON DEFAULT '[]'",
-    "extra_hosts": "JSON DEFAULT '{}'",
-    "ulimits": "JSON DEFAULT '[]'",
-    "extra_ports": "JSON DEFAULT '[]'",
-    "entrypoint": "JSON",
-    "command": "JSON",
-    "devices": "JSON DEFAULT '[]'",
-    "privileged": "BOOLEAN DEFAULT 0",
-    "extra_docker_args": "JSON DEFAULT '{}'",
-}
 
-
-def _ensure_template_columns(conn) -> None:
-    """Add missing columns to service_templates table. Works with both sqlite3 and SQLAlchemy connections."""
-    # Handle both raw sqlite3 and SQLAlchemy connections
-    # Check if this is an async SQLAlchemy connection (has run_sync method)
-    if hasattr(conn, 'run_sync'):
-        # This is an async SQLAlchemy connection - this case is handled in async wrapper
-        raise TypeError("Use _ensure_template_columns_async for SQLAlchemy async connections")
-
-    # Raw sqlite3 connection
-    existing = {r[1] for r in conn.execute("PRAGMA table_info(service_templates)")}
-    for col, ddl in _TEMPLATE_COLUMN_DDL.items():
-        if col not in existing:
-            conn.execute(f"ALTER TABLE service_templates ADD COLUMN {col} {ddl}")
-    conn.commit()
-
-
-def _restrict_db_perms():
-    """Restrict SQLite database file permissions to 0600 (owner read/write only)."""
-    url = settings.DATABASE_URL
-    if "sqlite" not in url:
+def _restrict_db_perms(url=None):
+    """Restrict the SQLite file and its pre-Alembic backup to 0600. No-op for Postgres."""
+    url = url or engine.url
+    if url.get_backend_name() != "sqlite" or url.database in (None, "", ":memory:"):
         return
-    path = Path(url.split("///")[-1])
-    if path.exists():
-        os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)  # 0600
+    for path in (Path(url.database), Path(f"{url.database}{BACKUP_SUFFIX}")):
+        if path.exists():
+            os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)  # 0600
 
 
 async def init_db():
-    async with engine.begin() as conn:
-        await _run_migrations(conn)
-        await conn.run_sync(SQLModel.metadata.create_all)
+    await migrate(engine)
     _restrict_db_perms()
     async with async_session() as session:
         await seed_templates(session, settings.TEMPLATES_DIR)
         await seed_service_presets(session, settings.SERVICE_PRESETS_DIR)
-
-
-async def _run_migrations(conn):
-    """Add missing columns to existing tables."""
-    import sqlalchemy
-    from sqlalchemy.exc import OperationalError
-
-    migrations = [
-        ("instances", "error_message", "TEXT"),
-        ("instances", "status_detail", "TEXT"),
-        ("instances", "owner_id", "TEXT"),
-        ("service_templates", "owner_id", "TEXT"),
-        ("service_templates", "dind", "BOOLEAN"),
-        ("service_templates", "cap_add", "TEXT"),
-        ("service_templates", "security_opt", "TEXT"),
-        ("service_templates", "tls_skip_verify", "BOOLEAN"),
-        ("service_templates", "shared", "BOOLEAN DEFAULT 0"),
-        ("service_templates", "restart_policy", "TEXT DEFAULT 'no'"),
-        ("service_templates", "read_only_rootfs", "BOOLEAN DEFAULT 0"),
-        ("service_templates", "tmpfs", "JSON DEFAULT '[]'"),
-        ("service_templates", "extra_hosts", "JSON DEFAULT '{}'"),
-        ("service_templates", "ulimits", "JSON DEFAULT '[]'"),
-        ("service_templates", "extra_ports", "JSON DEFAULT '[]'"),
-        ("service_templates", "entrypoint", "JSON"),
-        ("service_templates", "command", "JSON"),
-        ("service_templates", "devices", "JSON DEFAULT '[]'"),
-        ("service_templates", "privileged", "BOOLEAN DEFAULT 0"),
-        ("service_templates", "extra_docker_args", "JSON DEFAULT '{}'"),
-        ("oauth_providers", "icon_url", "TEXT"),
-        ("oauth_providers", "trust_email", "BOOLEAN"),
-        ("oauth_providers", "allow_signup", "BOOLEAN"),
-        ("oauth_providers", "auto_promote_admins", "BOOLEAN"),
-        ("refresh_tokens", "family_id", "TEXT"),
-        ("workstations", "active_connections", "INTEGER"),
-        ("workstations", "occupied_by", "TEXT"),
-        ("workstations", "occupied_at", "TIMESTAMP"),
-        ("workstations", "disconnect_pending", "BOOLEAN"),
-        ("workstations", "idle_disconnect_sent", "BOOLEAN NOT NULL DEFAULT 0"),
-        ("workstations", "icon", "TEXT"),
-        ("workstations", "update_target", "TEXT NOT NULL DEFAULT ''"),
-        ("workstations", "update_state", "TEXT NOT NULL DEFAULT ''"),
-        ("workstations", "update_error", "TEXT"),
-        ("workstations", "update_at", "TIMESTAMP"),
-        ("users", "failed_count", "INTEGER DEFAULT 0"),
-        ("users", "token_version", "INTEGER NOT NULL DEFAULT 0"),
-        ("service_presets", "subpath", "JSON"),
-        ("proxied_services", "mount_managed", "BOOLEAN NOT NULL DEFAULT 0"),
-        ("mount_jobs", "changed", "BOOLEAN NOT NULL DEFAULT 0"),
-        ("proxied_services", "pass_identity", "BOOLEAN NOT NULL DEFAULT 0"),
-        ("proxied_services", "frame_ok", "BOOLEAN NOT NULL DEFAULT 1"),
-        ("users", "locked_until", "TIMESTAMP"),
-        ("proxied_services", "icon_custom", "BOOLEAN NOT NULL DEFAULT 0"),
-        ("users", "open_workspaces", "TEXT"),
-        ("users", "open_apps", "TEXT"),
-        ("proxied_services", "upstream_is_proxy", "BOOLEAN NOT NULL DEFAULT 0"),
-        ("users", "matrix_card", "TEXT"),
-        ("users", "matrix_pending", "TEXT"),
-        ("users", "matrix_challenge", "TEXT"),
-        ("users", "matrix_serial", "INTEGER NOT NULL DEFAULT 0"),
-        ("refresh_tokens", "session_only", "INTEGER NOT NULL DEFAULT 0"),
-        ("service_templates", "profile_mount", "TEXT"),
-        ("instances", "profile_volume", "TEXT"),
-        ("instances", "gpu", "BOOLEAN"),
-        ("instances", "notice", "TEXT"),
-        ("groups", "allow_gpu", "BOOLEAN DEFAULT 0"),
-    ]
-    for table, column, col_type in migrations:
-        try:
-            await conn.execute(sqlalchemy.text(
-                f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"
-            ))
-        except OperationalError as e:
-            msg = str(e).lower()
-            # expected on fresh installs / re-runs; anything else is a real failure
-            if "duplicate column" not in msg and "no such table" not in msg:
-                logger.error("Migration failed for %s.%s: %s", table, column, e)
-                raise
-
-    # ADD COLUMN ... BOOLEAN has no default, so rows that predate a column get NULL.
-    # These are non-nullable bools downstream — backfill NULLs to False.
-    backfills = [
-        ("oauth_providers", "trust_email", "0"),
-        ("oauth_providers", "allow_signup", "0"),
-        ("oauth_providers", "auto_promote_admins", "1"),
-        ("service_templates", "tls_skip_verify", "0"),
-        ("refresh_tokens", "family_id", "jti"),  # legacy rows: own family
-        ("workstations", "active_connections", "0"),
-        ("workstations", "disconnect_pending", "0"),
-        ("users", "failed_count", "0"),
-    ]
-    for table, column, default in backfills:
-        try:
-            await conn.execute(sqlalchemy.text(
-                f"UPDATE {table} SET {column} = {default} WHERE {column} IS NULL"
-            ))
-        except OperationalError as e:
-            if "no such table" not in str(e).lower():
-                logger.error("Backfill failed for %s.%s: %s", table, column, e)
-                raise
-
-    # Service icons are stored like workstation icons: None, "emoji:<char>" or a data: URI.
-    # Older rows hold a bare preset emoji.
-    for stmt in (
-        "UPDATE proxied_services SET icon = NULL WHERE icon = ''",
-        "UPDATE proxied_services SET icon = 'emoji:' || icon WHERE icon IS NOT NULL "
-        "AND icon NOT LIKE 'emoji:%' AND icon NOT LIKE 'data:%'",
-    ):
-        try:
-            await conn.execute(sqlalchemy.text(stmt))
-        except OperationalError as e:
-            if "no such table" not in str(e).lower():
-                logger.error("Service icon migration failed: %s", e)
-                raise
 
 
 async def get_session():

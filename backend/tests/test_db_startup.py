@@ -10,18 +10,16 @@ from sqlmodel import SQLModel
 
 from app import db_migrate
 from app.db_migrate import migrate
-from tests.db_helpers import (diff_vs_models, scalar, scratch_engine, scratch_url,  # noqa: F401
-                              table_names)
+from tests.db_helpers import diff_vs_models, scalar, table_names
 
 FIXTURES = Path(__file__).parent / "fixtures"
 HEAD = "0001_baseline"
 
 # Drift a legacy (ALTER-built) SQLite DB keeps after the stamp. SQLite is type-lax, so
 # these are harmless. Expected; do not "fix" them in the baseline.
-ALLOWED_DIFF_KINDS = {
-    "modify_nullable", "modify_default", "modify_type",
-    "add_index", "remove_index", "add_constraint", "remove_constraint",
-}
+ALLOWED_DIFF_KINDS = {"modify_nullable", "modify_type"}
+# Old releases had session_events.instance_id -> instances FK; SQLite never enforced it.
+ALLOWED_REMOVED_FKS = {"session_events"}
 
 
 def _db_path(engine) -> Path:
@@ -36,6 +34,8 @@ def _kinds(diffs) -> set[str]:
     out = set()
     for d in diffs:
         for item in (d if isinstance(d, list) else [d]):
+            if item[0] == "remove_fk" and item[1].parent.name in ALLOWED_REMOVED_FKS:
+                continue
             out.add(item[0])
     return out
 
