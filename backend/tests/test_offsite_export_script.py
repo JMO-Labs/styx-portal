@@ -195,3 +195,49 @@ def test_paths_with_spaces(env):
     (c,) = creates(env)
     assert c[2] == str(new)
     assert "--override-source=styx@offsite:/export/homes/jane doe" in c
+
+
+def test_export_skips_ceph_internal_dirs(env):
+    root = Path(env["OFFSITE_SNAP_ROOT"])
+    good = snap(root, "homes", "alice", f"nightly-{day()}")
+    (root / "_deleting" / "abc").mkdir(parents=True)
+    (root / "_index" / "clone").mkdir(parents=True)
+    r = run(env, "export")
+    assert r.returncode == 0, r.stderr
+    (c,) = creates(env)
+    assert c[2] == str(good)
+
+
+def test_export_includes_nogroup(env):
+    new = snap(Path(env["OFFSITE_SNAP_ROOT"]), "_nogroup", "bob", f"nightly-{day()}")
+    assert run(env, "export").returncode == 0
+    (c,) = creates(env)
+    assert c[2] == str(new)
+
+
+def test_export_limits_to_configured_groups(env):
+    root = Path(env["OFFSITE_SNAP_ROOT"])
+    snap(root, "homes", "alice", f"nightly-{day()}")
+    snap(root, "profiles", "alice", f"nightly-{day()}")
+    (root / "csi" / "pvc-1").mkdir(parents=True)
+    r = run(env, "export", OFFSITE_GROUPS="homes profiles")
+    assert r.returncode == 0, r.stderr
+    assert len(creates(env)) == 2
+
+
+@pytest.mark.parametrize("bogus", ["nightly-2099-01-01", "nightly-2026-13-45", "nightly-2026-02-30"])
+def test_export_ignores_future_or_invalid_dates(env, bogus):
+    root = Path(env["OFFSITE_SNAP_ROOT"])
+    good = snap(root, "homes", "alice", f"nightly-{day()}")
+    snap(root, "homes", "alice", bogus)
+    r = run(env, "export")
+    assert r.returncode == 0, r.stderr
+    (c,) = creates(env)
+    assert c[2] == str(good)
+
+
+def test_export_only_bogus_dates_fails(env):
+    snap(Path(env["OFFSITE_SNAP_ROOT"]), "homes", "alice", "nightly-2099-01-01")
+    r = run(env, "export")
+    assert r.returncode != 0
+    assert creates(env) == []
