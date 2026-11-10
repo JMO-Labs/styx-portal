@@ -9,10 +9,12 @@ Never prints the admin password or the robot secret.
 
 import argparse
 import base64
+import http.client
 import json
 import os
 import ssl
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 from urllib.parse import quote
@@ -32,7 +34,10 @@ class Client:
         token = base64.b64encode(f"admin:{password}".encode()).decode()
         self.headers = {"Authorization": f"Basic {token}", "Accept": "application/json",
                         "X-Is-Resource-Name": "true"}
-        self.ctx = ssl.create_default_context(cafile=ca_file) if ca_file else None
+        try:
+            self.ctx = ssl.create_default_context(cafile=ca_file) if ca_file else None
+        except (OSError, ssl.SSLError) as e:
+            raise HarborError(f"cannot read HARBOR_CA_FILE {ca_file}: {e}") from None
 
     def call(self, method, path, body=None, ok_404=False):
         data = json.dumps(body).encode() if body is not None else None
@@ -49,6 +54,8 @@ class Client:
             raise HarborError(f"{method} {API}{path} -> HTTP {e.code}") from None
         except urllib.error.URLError as e:
             raise HarborError(f"{method} {API}{path} -> {e.reason}") from None
+        except (OSError, http.client.HTTPException) as e:  # timeout, reset, short body
+            raise HarborError(f"{method} {API}{path} -> {e!r}") from None
         try:
             return json.loads(raw) if raw else {}
         except ValueError:
@@ -76,10 +83,10 @@ def find_robot(client):
 
 
 def open_secret(path):
-    """Open the 0600 secret file before any write, so a bad path never strands the robot."""
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    os.fchmod(fd, 0o600)  # also tighten a pre-existing file
-    return os.fdopen(fd, "w")
+    """Create a 0600 temp file next to `path` before any write, so a bad path never
+    strands the robot and a failed create never clobbers an existing secret file."""
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(path)), prefix=".robot-")
+    return os.fdopen(fd, "w"), tmp  # mkstemp creates it 0600
 
 
 def plan(client):
@@ -89,16 +96,23 @@ def plan(client):
 
 
 def apply(client, missing, need_robot, secret_out):
-    out = open_secret(secret_out) if need_robot else None
-    for p in missing:
-        client.call("POST", "/projects",
-                    {"project_name": p, "public": False, "metadata": {"public": "false"}})
-        print(f"created project {p}")
-    if need_robot:
-        with out:
+    out, tmp = open_secret(secret_out) if need_robot else (None, None)
+    try:
+        for p in missing:
+            client.call("POST", "/projects",
+                        {"project_name": p, "public": False, "metadata": {"public": "false"}})
+            print(f"created project {p}")
+        if need_robot:
             created = client.call("POST", "/robots", robot_body())
             out.write(created["secret"] + "\n")
-        print(f"created robot {created['name']}; secret written to {secret_out}")
+            out.close()
+            os.replace(tmp, secret_out)
+            print(f"created robot {created['name']}; secret written to {secret_out}")
+    finally:
+        if out:
+            out.close()
+        if tmp and os.path.exists(tmp):
+            os.unlink(tmp)
 
 
 def parse_args(argv):
@@ -114,9 +128,9 @@ def main(argv=None):
     if missing_env:
         print(f"error: missing env var {', '.join(missing_env)}", file=sys.stderr)
         return 2
-    client = Client(os.environ["HARBOR_URL"], os.environ["HARBOR_ADMIN_PASSWORD"],
-                    os.environ.get("HARBOR_CA_FILE") or None)
     try:
+        client = Client(os.environ["HARBOR_URL"], os.environ["HARBOR_ADMIN_PASSWORD"],
+                        os.environ.get("HARBOR_CA_FILE") or None)
         missing, need_robot = plan(client)
         for p in missing:
             print(f"plan: create private project {p}")

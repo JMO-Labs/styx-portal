@@ -61,13 +61,11 @@ new chart's upstream images and keep the prefix.
 ## Placeholders
 
 - `# PLACEHOLDER(#3)`: RGW endpoint and port, `ceph-bucket` and `ceph-block` classes.
-- `# PLACEHOLDER(#24)`: offsite bucket path and endpoint for barman-cloud.
-- `syslog.example.internal:514`: audit log forwarding target (#11).
+- `# PLACEHOLDER(#24)`: offsite bucket path, endpoint and egress CIDR for barman-cloud.
+- `syslog.example.internal:514`: audit log forwarding target (#11). Default-deny
+  egress blocks it until #11 adds its CNP.
 
 ## Known limits
 
-- The chart still renders its default internal registry credentials
-  (`registry.credentials`), used only between core and registry inside the namespace.
-  Moving them to an existing Secret is a follow-up.
-- Barman offsite egress from `harbor-db` pods follows the #24 egress pattern and is not
-  in `networkpolicy.yaml`.
+- The bootstrap does not reconcile the permissions of an existing `ci-push` robot.
+- Valkey is a single replica (see `docs/operate/harbor-enterprise.md`).

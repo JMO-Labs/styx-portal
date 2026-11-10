@@ -117,6 +117,8 @@ sessions drop. Launches are not affected because images are pre-pulled on every 
 ## Network
 
 `networkpolicy.yaml` allows Traefik to reach core and portal, Harbor pods to reach `harbor-db`
-on 5432, and the registry to reach the RGW pods (`# PLACEHOLDER(#3)` port). Intra-namespace,
+on 5432, the registry to reach the RGW pods (`# PLACEHOLDER(#3)` port), the CNPG operator
+(`cnpg-system`) to reach `harbor-db` on 8000, and `harbor-db` to reach the offsite store on
+443 (`# PLACEHOLDER(#24)` CIDR) for barman-cloud. Intra-namespace,
 DNS and Prometheus traffic come from the #19 baseline. Internal TLS is off because Cilium
 WireGuard (#18) encrypts pod-to-pod traffic (SC-8).

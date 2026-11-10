@@ -1,5 +1,5 @@
 # Harbor-specific flows only. Intra-namespace, DNS and Prometheus come from the
-# #19 baseline. Barman offsite egress for harbor-db follows the #24 pattern.
+# #19 baseline. Only harbor-db (backups) leaves the cluster.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -53,3 +53,39 @@ spec:
       toPorts:
         - ports:
             - {port: "8080", protocol: TCP}     # PLACEHOLDER(#3): RGW pod port
+---
+# CNPG operator status checks and failover: "The operator needs to communicate to
+# each instance on TCP port 8000" (CNPG security docs).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: harbor-db-from-cnpg-operator
+  namespace: harbor
+spec:
+  endpointSelector:
+    matchLabels:
+      cnpg.io/cluster: harbor-db
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cnpg-system
+      toPorts:
+        - ports:
+            - {port: "8000", protocol: TCP}
+---
+# barman-cloud WAL archiving and harbor-db-daily backups to the offsite object store.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: harbor-db-egress-offsite
+  namespace: harbor
+spec:
+  endpointSelector:
+    matchLabels:
+      cnpg.io/cluster: harbor-db
+  egress:
+    - toCIDRSet:
+        - cidr: 192.0.2.10/32           # PLACEHOLDER(#24): offsite object store address
+      toPorts:
+        - ports:
+            - {port: "443", protocol: TCP}
