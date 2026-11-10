@@ -50,7 +50,7 @@ e2e/               Playwright full-stack suite (real Sonarr/Jellyfin, shell, scr
 scripts/           build_agent_artifacts.sh (wheelhouse, EXTRA_WHEELS), build_xwl_eager.sh, build-docs.sh, ...
 docs/              Zensical docs: use/ operate/ build/ (this guide), upstream/ patches
 docs/enterprise/   Styx Enterprise design, ADRs 0001-0061 (Accepted 2026-11-09), control matrix, runbooks/ (full-site restore, openbao); only the OpenBao runbook is in the docs nav
-deploy/enterprise/ Enterprise IaC (branch enterprise only): openbao/ (HA Raft, static seal, bao_configure.py, seal-key playbook), external-secrets/ (ClusterSecretStore openbao), harbor/ (chart 1.19.4 values, CNPG harbor-db, harbor_bootstrap.py; runbook docs/operate/harbor-enterprise.md)
+deploy/enterprise/ Enterprise IaC (branch enterprise only): openbao/ (HA Raft, static seal, bao_configure.py, seal-key playbook), external-secrets/ (ClusterSecretStore openbao), harbor/ (chart 1.19.4 values, CNPG harbor-db, harbor_bootstrap.py; runbook docs/operate/harbor-enterprise.md), gitlab-mirror/ (mirror_bootstrap.py, pinned github_known_hosts; runbook docs/operate/gitlab-mirror.md)
 docker-compose.yml Infrastructure services
 traefik/           Traefik static config
 templates/         Default JSON templates (seeded on first run); services/ = proxy presets
