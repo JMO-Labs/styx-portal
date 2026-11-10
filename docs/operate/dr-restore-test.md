@@ -46,7 +46,9 @@ export DRTEST_CNPG_S3_KEY_ID=... DRTEST_CNPG_S3_SECRET=...                  # re
 
 Exit codes: 0 pass, 1 the run finished but did not pass, 2 refused (guard, config or
 `--confirm`), with nothing written, 3 aborted: a write step (namespace create, apply,
-restore, delete) failed, so nothing after it ran. `run` still writes a failing report
+restore, delete) failed, or an error came up after the first write (for example a
+malformed tool reply), so nothing after it ran. Exit 3 means writes may have run: run
+`teardown`. `run` still writes a failing report
 whose last step shows the failure. A failed namespace create is never ignored: the
 namespace may belong to another run.
 
@@ -76,7 +78,7 @@ Secrets come only from the environment variables above.
 | `cnpg.source`, `cnpg.restored` | libpq `host`, `port`, `user`, `dbname` (password from `PGPASSWORD`) |
 | `cnpg.tables` | `{table: primary-key column(s), comma-separated}` to fingerprint |
 | `velero.backup`, `velero.prod_bsl` | the backup to restore; the production BSL name (refused) |
-| `velero.include_namespaces`, `velero.namespace_mappings` | every included namespace must map to a `styx-drtest-*` namespace |
+| `velero.include_namespaces`, `velero.namespace_mappings` | literal namespace names only (no `*`, `?`, `[...]` globs: Velero expands them, mappings match literally); every one must map to a `styx-drtest-*` namespace |
 | `kopia.s3` | `bucket`, `endpoint`, `prefix`, optional `region`, `disable_tls` |
 | `kopia.scratch_mount_root`, `kopia.sources[]` | restore root; `{source: "styx@offsite:/export/<group>/<subvol>", target: path}` |
 | `kopia.sample` | number of restored files whose sha256 is compared with the repository |

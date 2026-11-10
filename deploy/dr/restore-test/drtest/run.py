@@ -143,11 +143,18 @@ def execute(cfg, runner, sink):
         runner.attach(rd / "steps.jsonl")
     runner.armed = True
     try:
-        snaps = restore(cfg, runner, rd, existing)
-    except StepFailed as e:
-        sink.err(f"ABORTED: {e}")
-        write_report(cfg, rd, sink)  # no state.json: pass is false
+        return restore_and_verify(cfg, runner, sink, rd, existing, started, uid)
+    except (StepFailed, KeyError, TypeError, AttributeError, ValueError) as e:
+        # Writes may have run: never exit 2 ("refused, nothing written") from here.
+        sink.err(f"ABORTED: {e}" if isinstance(e, StepFailed)
+                 else f"ABORTED: error after writes ({type(e).__name__}: {e})")
+        if not runner.dry:
+            write_report(cfg, rd, sink)  # no state.json: pass is false
         return 3
+
+
+def restore_and_verify(cfg, runner, sink, rd, existing, started, uid):
+    snaps = restore(cfg, runner, rd, existing)
     if runner.dry:
         sink.out("# then: checks (row counts/checksums, pg_amcheck, alembic, velero phase, "
                  "kopia verify + sha256 sample, GET health_url), report, no teardown")
