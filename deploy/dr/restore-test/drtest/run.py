@@ -86,7 +86,8 @@ class Runner:
                                             else 126, b"" if binary else "", f"{argv[0]}: {e}")
         rec = {"id": step, "start": iso(start), "end": iso(now()), "actor": "harness",
                "command": self.sink.redact(cmd),
-               "result": "ok" if p.returncode == 0 else f"exit {p.returncode}"}
+               "result": "ok" if p.returncode == 0 else f"exit {p.returncode}",
+               **({"write": True} if write else {})}
         if self.log:
             self.sink.append(self.log, rec)
         elif not self.dry:
@@ -138,18 +139,25 @@ def execute(cfg, runner, sink):
     started = now()
     uid, existing = guard_all(cfg, runner)
     rd = run_dir(cfg)
+    if not runner.dry and (rd / "state.json").exists():
+        raise guards.Refused(f"run {cfg['run_id']} already ran ({rd}); run teardown and "
+                             "use a new run_id (one run dir = one verdict)")
     if not runner.dry:
         rd.mkdir(parents=True, exist_ok=True)
         runner.attach(rd / "steps.jsonl")
     runner.armed = True
     try:
         return restore_and_verify(cfg, runner, sink, rd, existing, started, uid)
-    except Exception as e:  # noqa: BLE001
+    except (Exception, KeyboardInterrupt) as e:  # noqa: BLE001
         # Writes may have run: never exit 2 ("refused, nothing written") or a traceback.
-        sink.err(f"ABORTED: {e}" if isinstance(e, StepFailed)
-                 else f"ABORTED: error after writes ({type(e).__name__}: {e})")
+        msg = (str(e) if isinstance(e, StepFailed)
+               else f"error after writes ({type(e).__name__}: {e})")
+        sink.err(f"ABORTED: {msg}")
         if not runner.dry:
-            write_report(cfg, rd, sink)  # no state.json: pass is false
+            state = {"started": iso(started), "cluster_uid": uid, "aborted": msg,
+                     "datasets": []}
+            sink.write(rd / "state.json", json.dumps(state, indent=2))
+            write_report(cfg, rd, sink)  # aborted: pass is false
         return 3
 
 

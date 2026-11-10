@@ -52,7 +52,11 @@ restore, delete) failed, or an error came up after the first write (for example 
 malformed tool reply or a restored file the harness cannot read), so nothing after it ran. Exit 3 means writes may have run: run
 `teardown`. `run` still writes a failing report
 whose last step shows the failure. A failed namespace create is never ignored: the
-namespace may belong to another run.
+namespace may belong to another run. Ctrl-C after the first write is also exit 3.
+
+A `run_id` runs once: `run` refuses (exit 2) a run directory that already holds
+`state.json`. After a failed or aborted run, run `teardown` and start a new `run_id`.
+`mark` steps recorded before the first `run` are kept.
 
 Teardown leaves the Velero `Restore` object (a record in the `velero` namespace) and the
 Kopia files under `scratch_mount_root`. Remove the files by hand after the report is filed.
@@ -150,7 +154,12 @@ tables.
 - **RPO** per data set = `incident_time` minus the newest recovered point. Pass if at
   most 24 h. The point is `pg_last_xact_replay_timestamp()` (CNPG), the backup
   `.status.startTimestamp` (Velero) or the snapshot `startTime` (Kopia).
-- The run passes only if every check, the RTO and every RPO pass.
+- A negative RTO (T0 marked after the end) or RPO (recovered point newer than
+  `incident_time`) fails: the clock or the backup is wrong.
+- The run passes only if every check, the RTO and every RPO pass, it was not aborted,
+  no write step failed, at least one data source (not only `app`) was restored, and
+  every data set has at least one check. `cnpg.tables` and `kopia.sources` must not be
+  empty (refused, exit 2); a sha256 sample of zero files fails.
 
 ## Evidence
 
@@ -162,9 +171,9 @@ tables.
 | `run_id`, `mode`, `target{cluster_uid,namespace}` | what was restored where |
 | `operator`, `witness`, `git_sha`, `tool_versions` | who, and which harness and tools |
 | `rto_clock_start`, `t0`, `t_end`, `incident_time` | clock inputs |
-| `steps[]{id,start,end,actor,command,result}` | harness commands (redacted) and manual marks |
+| `steps[]{id,start,end,actor,command,result}` | harness commands (redacted) and manual marks; write steps also carry `write: true` |
 | `datasets[]{source,backup_id,recovered_point,rpo_seconds,checks[]{name,pass,detail}}` | `source` is `cnpg`, `velero`, `kopia:<source>` or `app` (health; no RPO) |
-| `rto_seconds`, `rto_limit_seconds`, `rpo_limit_seconds`, `pass` | the verdict |
+| `aborted`, `rto_seconds`, `rto_limit_seconds`, `rpo_limit_seconds`, `pass` | the verdict; `aborted` is the abort reason or `null` |
 | `controls` | `["CP-4","CP-9","CP-10","R03"]` |
 | `log_sha256` | sha256 of `steps.jsonl` |
 

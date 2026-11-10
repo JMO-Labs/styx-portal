@@ -16,7 +16,7 @@ def _within(start, end, limit):
     if start is None or end is None:
         return None, False
     s = int((end - start).total_seconds())
-    return s, s <= limit
+    return s, 0 <= s <= limit  # negative: T0 marked late or wrong incident/backup
 
 
 def rto(t0, t_end):
@@ -68,11 +68,15 @@ def build(cfg, rd):
     start = t0(cfg, state, steps)
     rto_s, rto_ok = rto(start, parse_ts(state.get("t_end")))
     incident = parse_ts(cfg.get("incident_time") or state.get("started"))
-    datasets, ok = [], rto_ok and bool(state.get("datasets"))
+    # Fail unless the run finished and restored at least one data source.
+    ok = rto_ok and not state.get("aborted") and not any(
+        s.get("write") and s.get("result") != "ok" for s in steps) and any(
+        d["source"] != "app" for d in state.get("datasets", []))
+    datasets = []
     for d in state.get("datasets", []):
         rpo_s, rpo_ok = (None, True) if d["source"] == "app" else \
             rpo(incident, parse_ts(d["recovered_point"]))
-        ok = ok and rpo_ok and all(c["pass"] for c in d["checks"])
+        ok = ok and rpo_ok and bool(d["checks"]) and all(c["pass"] for c in d["checks"])
         datasets.append({**d, "rpo_seconds": rpo_s})
     return {
         "schema_version": SCHEMA_VERSION, "run_id": cfg["run_id"], "mode": cfg["mode"],
@@ -84,7 +88,7 @@ def build(cfg, rd):
         "t0": start.isoformat().replace("+00:00", "Z") if start else None,
         "t_end": state.get("t_end"),
         "incident_time": incident.isoformat().replace("+00:00", "Z") if incident else None,
-        "rto_seconds": rto_s, "rto_limit_seconds": RTO_MAX_S, "rpo_limit_seconds": RPO_MAX_S,
+        "aborted": state.get("aborted"), "rto_seconds": rto_s, "rto_limit_seconds": RTO_MAX_S, "rpo_limit_seconds": RPO_MAX_S,
         "steps": steps, "datasets": datasets, "pass": ok, "controls": CONTROLS,
         "log_sha256": hashlib.sha256(log.read_bytes() if log.exists() else b"").hexdigest(),
     }

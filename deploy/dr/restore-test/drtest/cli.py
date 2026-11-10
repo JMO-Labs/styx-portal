@@ -40,6 +40,11 @@ def load_config(path):
         raise Refused("run_id must match ^[a-z0-9][a-z0-9-]{0,40}$")
     if not any(k in cfg for k in ("cnpg", "velero", "kopia")):
         raise Refused("config needs at least one data source: cnpg, velero or kopia")
+    # A source with nothing to verify would still give a PASS report.
+    if "cnpg" in cfg and not cfg["cnpg"].get("tables"):
+        raise Refused("cnpg.tables must list at least one table to compare")
+    if "kopia" in cfg and not cfg["kopia"].get("sources"):
+        raise Refused("kopia.sources must list at least one source")
     if cfg["mode"] not in ("data-only", "full-site"):
         raise Refused("mode must be data-only or full-site")
     if not all(isinstance(cfg[k], list) for k in ("prod_cluster_uids", "scratch_cluster_uids")):

@@ -122,3 +122,19 @@ def test_keyboard_interrupt_after_writes_aborts_with_report(fake_env, health, mo
     assert cli.main(["-c", str(cfg), "run", "--confirm", RUN]) == 3
     assert "ABORTED" in capsys.readouterr().err
     assert rep(fake_env)["pass"] is False
+
+
+def test_failed_write_step_in_log_fails(tmp_path):
+    # Even with a complete state.json, a failed write step in the log means FAIL.
+    (tmp_path / "state.json").write_text(json.dumps({
+        "started": "2026-11-10T00:00:00Z", "t_end": "2026-11-10T01:00:00Z",
+        "datasets": [{"source": "velero", "backup_id": "b", "recovered_point":
+                      "2026-11-09T23:00:00Z", "checks": [{"name": "v", "pass": True,
+                                                         "detail": ""}]}]}))
+    steps = [{"id": "guard-namespace", "actor": "harness", "result": "exit 1"},
+             {"id": "velero-restore", "actor": "harness", "result": "exit 1", "write": True}]
+    (tmp_path / "steps.jsonl").write_text("".join(json.dumps(s) + "\n" for s in steps))
+    cfg = {"run_id": RUN, "mode": "data-only", "namespace": "styx-drtest-t1"}
+    assert report.build(cfg, tmp_path)["pass"] is False
+    (tmp_path / "steps.jsonl").write_text(json.dumps(steps[0]) + "\n")
+    assert report.build(cfg, tmp_path)["pass"] is True  # a failed read is not a failure
