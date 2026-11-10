@@ -17,7 +17,9 @@ TOKEN = "s.SECRETVALUE"
 def run(tmp_path, *args, state="empty", **env_over):
     log = tmp_path / "bao.log"
     log.touch()
-    env = {"PATH": f"{FAKEBIN}:{os.environ['PATH']}", "FAKE_LOG": str(log), "FAKE_STATE": state,
+    # Inherit the environment (setup-python needs LD_LIBRARY_PATH) minus any BAO_/VAULT_ vars.
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("BAO_", "VAULT_", "FAKE_"))}
+    env |= {"PATH": f"{FAKEBIN}:{os.environ['PATH']}", "FAKE_LOG": str(log), "FAKE_STATE": state,
            "BAO_ADDR": "https://openbao-active.openbao.svc:8200",
            "BAO_CACERT": "/openbao/tls/ca.crt", "BAO_TOKEN": TOKEN}
     env.update(env_over)
@@ -117,6 +119,7 @@ def test_dry_run_no_writes(tmp_path):
 def test_token_never_printed(tmp_path):
     for args in ((), ("--dry-run",)):
         res, _ = run(tmp_path, *args)
+        assert res.returncode == 0, res.stderr
         assert TOKEN not in res.stdout and TOKEN not in res.stderr
 
 
