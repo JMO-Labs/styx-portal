@@ -1,0 +1,11 @@
+# RGW bucket for registry blobs. Rook writes Secret + ConfigMap "harbor-registry-bucket"
+# (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY); s3-credentials.yaml maps them for Harbor.
+# Not "harbor-registry": the chart already renders a Secret and ConfigMap with that name.
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: harbor-registry-bucket
+  namespace: harbor
+spec:
+  bucketName: harbor-registry           # fixed name, referenced by values.yaml
+  storageClassName: ceph-bucket         # PLACEHOLDER(#3)
