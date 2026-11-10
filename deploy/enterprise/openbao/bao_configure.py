@@ -29,15 +29,18 @@ def check_env() -> None:
     for var in ("BAO_ADDR", "BAO_CACERT"):
         if not os.environ.get(var):
             die(f"{var} must be set")
+    if not os.environ["BAO_ADDR"].startswith("https://"):
+        die("BAO_ADDR must be https://; refusing to send the token in cleartext")
     for var in ("BAO_SKIP_VERIFY", "VAULT_SKIP_VERIFY"):
         if var in os.environ:
             die(f"{var} is set; refusing to talk to OpenBao without TLS verification")
 
 
 def read(*args: str) -> dict | None:
-    """Run a read-only bao command; None when the path does not exist."""
+    """Run a read-only bao command; None only when the path does not exist."""
     res = subprocess.run(["bao", *args], capture_output=True, text=True)
-    if res.returncode == 2:
+    # bao also exits 2 on 403, TLS and connection errors: those must not read as "absent".
+    if res.returncode == 2 and "No value found" in res.stderr:
         return None
     if res.returncode != 0:
         die(f"bao {args[0]} {args[1]} failed: {res.stderr.strip()}")
@@ -107,7 +110,7 @@ def apply_roles(conf: Path, bao: Applier) -> None:
             "bound_service_account_names=" + ",".join(r["bound_service_account_names"]),
             "bound_service_account_namespaces=" + ",".join(r["bound_service_account_namespaces"]),
             "policies=" + ",".join(r["policies"]),
-            f"token_ttl={int(r['token_ttl'])}")
+            f"token_ttl={int(r['token_ttl'])}", f"token_max_ttl={int(r['token_ttl'])}")
 
 
 def main(argv: list[str] | None = None) -> int:

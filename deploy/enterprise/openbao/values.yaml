@@ -1,5 +1,5 @@
 # Helm values for openbao/openbao chart 0.30.7 (OpenBao v2.7.2), issue #4, ADR-0042.
-# Render: helm template openbao charts/openbao-0.30.7.tgz -n openbao -f values.yaml
+# Render: helm template openbao charts/openbao-0.30.7.tgz --skip-tests -n openbao -f values.yaml
 # The release name must be "openbao": pod DNS (openbao-N.openbao-internal), the TLS SANs
 # and the ClusterSecretStore URL all depend on it.
 global:

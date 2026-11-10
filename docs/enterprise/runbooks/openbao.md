@@ -33,6 +33,8 @@ Each step needs the previous one. Commands assume the repository root.
    `openbao-raft-rke2-server-0N` PVs are `Available` and their hostnames match the real control-plane node names.
 6. **Helm.** `helm install openbao deploy/enterprise/openbao/charts/openbao-0.30.7.tgz -n openbao
    -f deploy/enterprise/openbao/values.yaml`. The pods start sealed and uninitialised.
+   Warning: never run `helm test` on this release: the chart's test pod copies the seal-key hostPath
+   without control-plane pinning (render with `helm template --skip-tests`).
 7. **Init** (below).
 8. **Configure.** With the root token in `BAO_TOKEN`, a port-forward to `openbao-active`, and
    `BAO_CACERT` pointing at the bootstrap `ca.crt`: run `bao_configure.py --dry-run`, review,

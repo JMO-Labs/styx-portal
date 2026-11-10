@@ -86,7 +86,10 @@ openbao-iac:
       tar xzf kubeconform-linux-amd64.tar.gz kubeconform
       export PATH="$T:$PATH"
       cd "$CI_PROJECT_DIR/deploy/enterprise"
-      helm template openbao openbao/charts/openbao-0.30.7.tgz -n openbao -f openbao/values.yaml > "$T/openbao-chart.yaml"
+      helm template openbao openbao/charts/openbao-0.30.7.tgz --skip-tests -n openbao \
+        -f openbao/values.yaml > "$T/openbao-chart.yaml"
+      # Only the server StatefulSet may mount the seal-key hostPath (the chart test pod copies it).
+      test "$(grep -c "path: /etc/openbao/seal" "$T/openbao-chart.yaml")" = 1
       helm template external-secrets external-secrets/charts/external-secrets-2.14.0.tgz \
         -n external-secrets -f external-secrets/values.yaml > "$T/eso-chart.yaml"
       kustomize build openbao > "$T/openbao.yaml"

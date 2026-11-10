@@ -42,7 +42,7 @@ upstream GitHub releases. CI renders from these files, so it never needs the cha
 ## Render and validate
 
 ```sh
-helm template openbao charts/openbao-0.30.7.tgz -n openbao -f values.yaml
+helm template openbao charts/openbao-0.30.7.tgz --skip-tests -n openbao -f values.yaml
 kubectl kustomize .
 ansible-playbook -i ansible/inventory.example.yml ansible/seal-key.yml --syntax-check
 ```
