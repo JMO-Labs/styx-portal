@@ -29,8 +29,12 @@ approval-gate:
   after_script: []
   variables:
     GIT_STRATEGY: none
-    # Set both before use: URL-encoded ci-policy project path and the reviewed commit SHA of
-    # approval_gate.py in it. The job token needs access to ci-policy (job token allowlist).
+    # Set all four before use. Literals, not $VARS: an MR's same-named job can add variables
+    # but cannot replace keys set here, so the token and the project cannot be redirected.
+    CI_API_V4_URL: "https://gitlab.example.internal/api/v4"
+    CI_PROJECT_ID: "0"  # numeric id of the product project
+    # URL-encoded ci-policy path and the reviewed commit SHA of approval_gate.py in it.
+    # The job token needs access to ci-policy (job token allowlist).
     GATE_PROJECT: "group%2Fci-policy"
     GATE_REF: "0000000000000000000000000000000000000000"
   script:

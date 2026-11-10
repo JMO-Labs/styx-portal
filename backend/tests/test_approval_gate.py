@@ -159,3 +159,6 @@ def test_ci_policy_yaml_defines_gate_before_include():
     script = "\n".join(job["script"])
     assert "approval_gate.py/raw?ref=$GATE_REF" in script and "python3 -I" in script
     assert "$GATE_REF" in script and job["variables"]["GATE_REF"]
+    for var in ("CI_API_V4_URL", "CI_PROJECT_ID", "GATE_PROJECT"):
+        assert "$" not in str(job["variables"][var]), var  # pinned literal, not overridable
+    assert job["variables"]["CI_API_V4_URL"].startswith("https://")

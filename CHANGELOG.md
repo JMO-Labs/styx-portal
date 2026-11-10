@@ -2,10 +2,15 @@
 
 ### Features
 
+* **enterprise:** protected branches, tags and merge checks on the federal GitLab as code (ADR-0048): stdlib `protect_bootstrap.py` (`enterprise`/`release/*` push and merge Maintainers, no force push, `v*` tags, pipeline must succeed, external `ci_config_path`, optional Premium approvals with `GITLAB_APPROVALS=native`), Free-tier `approval-gate` job (`approval_gate.py` in an external `ci-policy` config: non-author approval after the latest push), GitHub push-lock ruleset `github_lock.py` (not applied), shared `gitlab-common/glapi.py`, OpenBao JWT role `gitlab-protect`, CI jobs `gitlab-protect-iac`, manual `gitlab-protect-apply` and scheduled `gitlab-protect-drift`; not deployed (`deploy/enterprise/gitlab-protect/`, styx-portal#16)
 * **enterprise:** GitLab -> GitHub push mirror as code (ADR-0048): stdlib `mirror_bootstrap.py` (protected branches only, `keep_divergent_refs`, pinned GitHub host keys, GitLab-generated SSH key as GitHub write deploy key `federal-gitlab-mirror`, `--dry-run`), OpenBao JWT role `gitlab-mirror` for GitLab CI `id_tokens`, CI jobs `gitlab-mirror-iac` and manual `gitlab-mirror-apply`; not deployed (`deploy/enterprise/gitlab-mirror/`, styx-portal#10)
 * **harbor:** Harbor 2.15.4 registry IaC for enterprise Phase 1 (chart 1.19.4, CNPG `harbor-db`, RGW S3, ESO secrets, `harbor_bootstrap.py`), not deployed (#5)
 * **enterprise:** OpenBao 2.7.2 HA (3 Raft nodes on control-plane local PVs) with `seal "static"` auto-unseal, offline bootstrap TLS, declarative stdout audit, idempotent `bao_configure.py`, seal-key Ansible playbook and nightly Raft snapshot CronJob (`deploy/enterprise/openbao/`, styx-portal#4)
 * **enterprise:** External Secrets Operator 2.14.0 with `ClusterSecretStore` `openbao` (Vault provider, Kubernetes auth, namespace-label gated) (`deploy/enterprise/external-secrets/`, styx-portal#4)
+
+### Bug Fixes
+
+* **ci:** `gitlab-mirror-apply` fails on a failed OpenBao login and continues only on dry-run rc 0 or 2 (styx-portal#16)
 
 ## 1.0.0 (2026-06-15)
 
