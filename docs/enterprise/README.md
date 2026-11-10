@@ -6,3 +6,4 @@
 - [Control matrix](control-matrix.md) - NIST 800-53 Rev 5 Moderate skeleton for the SSP/eMASS
 - [Full-site restore runbook](runbooks/full-site-restore.md) - rebuild from IaC and offsite data, RTO 8 h (CP-9, CP-10, R03)
 - [OpenBao and External Secrets runbook](runbooks/openbao.md) - install, init, static seal rotation, CA renewal, ESO onboarding, snapshot restore (SC-12, IA-5)
+- [DMZ HAProxy pair runbook](runbooks/dmz-haproxy.md) - install, cert rotation, failover test, header verification (SC-7, SC-8, SC-23)
