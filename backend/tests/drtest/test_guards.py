@@ -72,9 +72,13 @@ def test_velero_mapping_must_cover_all_namespaces(h):
     assert "keycloak" in refused(h).stderr
 
 
-@pytest.mark.parametrize("inc", [[], ["*"], [""]])
+@pytest.mark.parametrize("inc", [[], ["*"], [""], ["styx*"], ["sty?"], ["[s]tyx"], ["s*"],
+                                 ["Styx"], ["styx-"]])
 def test_velero_refuses_empty_or_wildcard_include(h, inc):
+    # Velero expands globs but mappings match literal names: unmapped matches
+    # would be restored in place into production.
     h.cfg["velero"]["include_namespaces"] = inc
+    h.cfg["velero"]["namespace_mappings"] = {n: NS for n in inc}
     refused(h)
 
 
@@ -170,3 +174,14 @@ def test_failed_write_step_aborts(h, health, step):
     r = h.cli("run", "--confirm", RUN)
     assert r.returncode == 3, r.stdout + r.stderr
     assert json.loads((h.run_dir() / "report.json").read_text())["pass"] is False
+
+
+def test_error_after_writes_aborts_with_report(h, health):
+    full_run_setup(h, health)
+    h.on(r"^kopia .*snapshot list", out='[{"id": "s1"}]')  # no startTime
+    r = h.cli("run", "--confirm", RUN)
+    assert r.returncode == 3, r.stdout + r.stderr
+    assert "ABORTED" in r.stderr and "REFUSED" not in r.stderr
+    rep = json.loads((h.run_dir() / "report.json").read_text())
+    assert rep["pass"] is False
+    assert (h.run_dir() / "report.md").exists()
