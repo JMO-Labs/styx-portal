@@ -24,6 +24,7 @@ cd backend
 Conventions:
 
 * In-memory SQLite engine per test (`session` fixture); the FastAPI `get_session` dependency is overridden.
+* Postgres: set `STYX_TEST_DATABASE_URL=postgresql+asyncpg://user:pass@host/db` (a throwaway database; the suite drops its `public` schema). The schema is built once with Alembic and each test runs in a rolled-back transaction. `@pytest.mark.sqlite_only` / `@pytest.mark.pg_only` limit a test to one backend. CI runs both (`test` and `test-postgres` jobs). Locally: `docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=pw -e POSTGRES_DB=styx_test postgres:17`.
 * Docker is always mocked (`get_docker_manager` override, or patching `docker.DockerClient.from_env`); k8s tests use a fake client.
 * `conftest.py` sets `JWT_SECRET`, `COOKIE_SECURE=false`, `DEV_CORS=true` and generous rate limits **before** importing `app`, and resets abuse trackers and the settings cache between tests (autouse fixtures).
 * Prefer testing pure builders (`build_routes_config`, `build_objects`, `resolve_stream_settings`) directly; they are pure on purpose.

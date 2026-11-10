@@ -70,6 +70,7 @@ Most day-to-day behaviour is in the [Settings reference](settings.md) and applie
 | `COMPOSE_PROFILES` / `DEPLOY_MODE` | `tunnel` | `tunnel` (Cloudflare) or `direct` (Traefik + Let's Encrypt). Keep both equal |
 | `CF_TUNNEL_TOKEN` | empty | Tunnel mode only |
 | `LE_EMAIL`, `CF_DNS_API_TOKEN` | unset | Direct mode, DNS-01 wildcard certificates |
+| `DATABASE_URL` | `sqlite+aiosqlite:///./data/styx-portal.db` | Database. SQLite (default) or Postgres, see below |
 | `JWT_SECRET` | auto | Pin your own with `openssl rand -base64 48` |
 | `COOKIE_SECURE` | `true` | `false` only for local plain-HTTP dev |
 | `MAX_INSTANCES_PER_USER` | `3` | Seed for the live setting of the same name |
@@ -80,5 +81,19 @@ Most day-to-day behaviour is in the [Settings reference](settings.md) and applie
 | `STYX_TUNNEL_SUBNET` | `172.31.254.0/28` | Subnet of the cloudflared-to-Traefik network |
 | `REGISTRY`, `STYX_TAG` | `ghcr.io/jmo-labs`, `latest` | Image namespace and pinned tag |
 | `OAUTH_REDIRECT_BASE` | `https://${DOMAIN}` | Override the OAuth redirect base |
+
+### Database (`DATABASE_URL`)
+
+Styx runs on SQLite or Postgres. The URL scheme picks the backend.
+
+| Backend | Example |
+|---|---|
+| SQLite (default, homelab) | `sqlite+aiosqlite:///./data/styx-portal.db` |
+| Postgres 17 | `postgresql+asyncpg://styx:<password>@db.example.internal:5432/styx` |
+
+* The schema is created and upgraded by Alembic when the backend starts. Point Postgres at an **empty** database; Styx refuses to start on a Postgres database that has tables but no `alembic_version`.
+* With several backend replicas on Postgres, only one migrates at a time (`pg_advisory_xact_lock`); the others wait.
+* The URL holds the database password: keep it in `.env` or a Kubernetes Secret. Styx logs it with the password masked.
+* SQLite files (and the one-time `.pre-alembic.bak`) are chmod `0600`. Nothing is chmod-ed on Postgres.
 
 Next: [Production](production.md).

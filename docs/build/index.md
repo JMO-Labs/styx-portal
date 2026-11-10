@@ -20,6 +20,7 @@ this section explains the code.
 5. [Streaming](streaming.md): pixelflux and selkies pipeline, transports, the A/B latency harness.
 6. [Security](security.md): threat model, auth, brute-force layers, secrets at rest.
 7. [Testing](testing.md): pytest, vitest, Playwright e2e, CI.
+   [Database migrations](migrations.md): Alembic, dual SQLite/Postgres, how to add a revision.
 8. [Releases](releases.md): semantic-release, images, agent versioning, CI/CD design.
 9. [Contributing](contributing.md): dev setup, commit and PR rules.
 10. [Upstream contributions](upstream.md): patches sent to selkies and pixelflux.

@@ -1,3 +1,15 @@
+## Unreleased
+
+### Features
+
+* **db:** Postgres support (`postgresql+asyncpg://` in `DATABASE_URL`) next to SQLite (styx-portal#21)
+* **db:** Alembic manages the schema (`0001_baseline`); existing SQLite databases are backed up to `<db>.pre-alembic.bak` and stamped once at startup (styx-portal#21)
+
+### Bug Fixes
+
+* **db:** timezone-aware datetimes are stored as naive UTC on every backend (`UTCDateTime`)
+* **db:** TURN byte counters are 64-bit; instance delete keeps session events; new users are flushed before their refresh token (Postgres foreign keys)
+
 ## 1.0.0 (2026-06-15)
 
 ### Features

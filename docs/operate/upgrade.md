@@ -20,6 +20,24 @@ After a portal upgrade, rebuild the agent artifacts so workstations get matching
 scripts/build_agent_artifacts.sh ./data/artifacts
 ```
 
+### One-time Alembic stamp (SQLite)
+
+Releases from this one on manage the schema with Alembic. The first time a new
+backend starts on an existing SQLite database (one without an `alembic_version`
+table), it:
+
+1. copies the database to `<db>.pre-alembic.bak` (for example
+   `data/styx-portal.db.pre-alembic.bak`, mode `0600`) before any schema change;
+2. runs the old built-in column migrations once, so databases that skipped
+   releases get every column;
+3. stamps the database at revision `0001_baseline`, then upgrades to the latest
+   revision.
+
+Later starts only run Alembic. An existing `.pre-alembic.bak` is never
+overwritten. Once the new release works, you may delete it; to undo the switch,
+stop the backend, roll back the image and copy the `.bak` over the database
+file. Postgres databases always start from an empty schema, so there is no stamp.
+
 ## Kubernetes
 
 Bump the `newTag` values in `deploy/k8s/kustomization.yaml`, then:
