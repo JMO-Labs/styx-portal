@@ -76,6 +76,17 @@ jobs:
       - run: yamllint .
       - run: ansible-lint
       - run: ansible-playbook -i inventory/hosts.example.yml site.yml --syntax-check
+      - name: Cilium HelmChartConfig (helm template + kubeconform, pinned, sha256-checked)
+        run: |
+          T="$RUNNER_TEMP/k8stools"; mkdir -p "$T"
+          curl -sSfL -o "$T/helm.tgz" https://get.helm.sh/helm-v3.22.1-linux-amd64.tar.gz
+          curl -sSfL -o "$T/kc.tgz" https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz
+          printf '%s  %s\n' \
+            896cf63684a42a723d61c980369d6e588330927deb13676ca0d85006dd6da0ea "$T/helm.tgz" \
+            9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883 "$T/kc.tgz" | sha256sum -c -
+          tar xzf "$T/helm.tgz" -C "$T" --strip-components=1 linux-amd64/helm
+          tar xzf "$T/kc.tgz" -C "$T" kubeconform
+          PATH="$T:$PATH" ./validate-cilium.sh "$T/out"
 
   plugin-test:
     runs-on: homelab

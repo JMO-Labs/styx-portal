@@ -11,6 +11,8 @@ rules:
     allowed-values: ["true", "false"]
   comments:
     min-spaces-from-content: 1
+    ignore: |  # Ansible only honours "#jinja2:" (no space) as the template header.
+      templates/rke2-cilium.yaml
   comments-indentation: false
   braces:
     max-spaces-inside: 1

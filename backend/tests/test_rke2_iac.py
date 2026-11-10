@@ -45,8 +45,9 @@ def _has_literal_secret(line: str) -> bool:
 def _tracked_files():
     assert ROOT.is_dir(), ROOT
     # roles/, collections/ and .ansible/ hold installed upstream deps (gitignored).
+    # *.tgz: vendored Helm charts (binary, upstream).
     return [p for p in ROOT.rglob("*")
-            if p.is_file() and not {"roles", "collections", ".ansible"} & set(p.relative_to(ROOT).parts)]
+            if p.is_file() and p.suffix != ".tgz" and not {"roles", "collections", ".ansible"} & set(p.relative_to(ROOT).parts)]
 
 
 def test_required_files_exist():
@@ -145,9 +146,3 @@ def test_site_asserts_token_present():
     # always: --tags runs must not skip the guard.
     assert "always" in task["tags"]
 
-
-def test_no_kube_proxy_or_cilium_tuning_here():
-    for p in _tracked_files():
-        text = p.read_text()
-        assert "disable-kube-proxy" not in text, p
-        assert "HelmChartConfig" not in text, p
