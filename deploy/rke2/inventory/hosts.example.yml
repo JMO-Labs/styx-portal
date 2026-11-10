@@ -1,0 +1,31 @@
+---
+# Placeholder inventory: copy to hosts.yml and set real names and IPs.
+# IPs are RFC 5737 documentation addresses.
+all:
+  children:
+    masters:
+      hosts:
+        rke2-server-01:
+          ansible_host: 192.0.2.11
+        rke2-server-02:
+          ansible_host: 192.0.2.12
+        rke2-server-03:
+          ansible_host: 192.0.2.13
+    workers:
+      hosts:
+        rke2-agent-01:
+          ansible_host: 192.0.2.21
+        rke2-agent-02:
+          ansible_host: 192.0.2.22
+        rke2-agent-03:
+          ansible_host: 192.0.2.23
+        rke2-agent-04:
+          ansible_host: 192.0.2.24
+        rke2-agent-05:
+          ansible_host: 192.0.2.25
+        rke2-agent-06:
+          ansible_host: 192.0.2.26
+        rke2-agent-07:
+          ansible_host: 192.0.2.27
+        rke2-agent-08:
+          ansible_host: 192.0.2.28

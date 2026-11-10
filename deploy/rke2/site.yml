@@ -1,0 +1,17 @@
+---
+- name: Install RKE2 on HA servers and agents
+  hosts: masters:workers
+  become: true
+  any_errors_fatal: true
+  pre_tasks:
+    - name: Fail fast when the cluster token is missing
+      ansible.builtin.assert:
+        that:
+          - rke2_token | trim | length > 0
+          # The role's default token, hashed so the literal stays out of this tree.
+          - rke2_token | hash('sha1') != 'c4d5837ac0de356888bbc8b8955d1351aa973b81'
+        fail_msg: Set RKE2_TOKEN in the environment or rke2_token in Ansible Vault.
+        quiet: true
+      tags: [always]
+  roles:
+    - role: lablabs.rke2

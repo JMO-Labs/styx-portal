@@ -1,0 +1,25 @@
+---
+# Pinned from the RKE2 stable channel on 2026-11-10.
+rke2_version: v1.36.6+rke2r1
+rke2_allow_downgrade: false
+rke2_airgap_mode: false  # TODO: air-gap + Harbor images, see README
+
+# Never commit the token: env var (CI masked variable) or override in Vault.
+rke2_token: "{{ lookup('env', 'RKE2_TOKEN') }}"
+
+rke2_cis_profile: cis
+rke2_kube_apiserver_args:
+  - service-account-extend-token-expiration=false
+
+# HA API: keepalived VIP (kube-vip IPVS conflicts with Cilium kube-proxy replacement, #18).
+rke2_ha_mode: true
+rke2_ha_mode_keepalived: true
+rke2_ha_mode_kubevip: false
+rke2_api_ip: 192.0.2.10
+rke2_additional_sans:
+  - 192.0.2.10
+  - rke2-api.example.internal
+
+# Cilium tuning lives in #18; only select the CNI here.
+rke2_cni: [cilium]
+rke2_ingress_controller: none
