@@ -1,0 +1,35 @@
+# AU-5: alert when audit/log shipping fails. retry_limit is unlimited, so records are only
+# lost when the filesystem buffer (storage.total_limit_size) is full and chunks are dropped.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: fluent-bit
+  namespace: logging
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: fluent-bit
+      rules:
+        - alert: FluentBitOutputFailing
+          expr: >-
+            sum by (pod, name) (increase(fluentbit_output_dropped_records_total{namespace="logging"}[10m])
+            + increase(fluentbit_output_retries_failed_total{namespace="logging"}[10m])) > 0
+            or sum by (pod, name) (rate(fluentbit_output_errors_total{namespace="logging"}[5m])) > 0
+          for: 15m
+          labels: {severity: critical}
+          annotations:
+            summary: Fluent Bit cannot deliver logs to Elastic (audit records may be lost, AU-5)
+            runbook_url: docs/operate/logging.md#outage-and-buffering
+        - alert: FluentBitRetriesHigh
+          expr: sum by (pod, name) (rate(fluentbit_output_retries_total{namespace="logging"}[5m])) > 1
+          for: 15m
+          labels: {severity: warning}
+          annotations:
+            summary: Fluent Bit is retrying Elastic writes; the filesystem buffer is filling
+        - alert: FluentBitDown
+          expr: absent(fluentbit_uptime{namespace="logging"})
+          for: 10m
+          labels: {severity: critical}
+          annotations:
+            summary: No Fluent Bit metrics; log and audit shipping is not running

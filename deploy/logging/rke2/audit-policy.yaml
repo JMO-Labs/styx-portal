@@ -1,0 +1,33 @@
+# kube-apiserver audit policy (issue #11). RKE2's default policy is `level: None`, so
+# nothing is logged until #2 wires this file:
+#   rke2 config: audit-policy-file: /etc/rancher/rke2/audit-policy.yaml
+# RKE2 keeps writing /var/lib/rancher/rke2/server/logs/audit.log (rotation: maxage 30,
+# maxbackup 10, maxsize 100); fluent-bit-audit ships it. First matching rule wins.
+apiVersion: audit.k8s.io/v1
+kind: Policy
+omitStages: ["RequestReceived"]
+rules:
+  # High-volume noise.
+  - level: None
+    nonResourceURLs: ["/healthz*", "/livez*", "/readyz*", "/version", "/metrics"]
+  - level: None
+    verbs: ["get", "list", "watch"]
+    resources:
+      - {group: "", resources: ["events", "endpoints"]}
+      - {group: "coordination.k8s.io", resources: ["leases"]}
+      - {group: "discovery.k8s.io", resources: ["endpointslices"]}
+  # Never log bodies that carry secrets or tokens. Must stay above any Request* rule.
+  - level: Metadata
+    resources:
+      - {group: "", resources: ["secrets", "configmaps", "serviceaccounts/token"]}
+      - {group: "authentication.k8s.io", resources: ["tokenreviews"]}
+  # Privilege changes and interactive access to pods: full detail.
+  - level: RequestResponse
+    verbs: ["create", "update", "patch", "delete", "deletecollection"]
+    resources:
+      - {group: "rbac.authorization.k8s.io"}
+  - level: RequestResponse
+    resources:
+      - {group: "", resources: ["pods/exec", "pods/attach", "pods/portforward"]}
+  # Everything else: who did what to which object, without bodies.
+  - level: Metadata

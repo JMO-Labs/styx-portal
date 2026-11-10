@@ -1,0 +1,7 @@
+{
+  "index_patterns": ["logs-styx.egress-*"],
+  "data_stream": {},
+  "priority": 250,
+  "composed_of": ["styx@settings", "styx-ecs@mappings"],
+  "_meta": {"managed_by": "styx-portal deploy/logging"}
+}

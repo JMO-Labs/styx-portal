@@ -1,0 +1,2 @@
+# Placeholder: replace with the org CA bundle (PEM) that signed the Elastic SIEM certificate.
+# Fluent Bit refuses to connect until this is a real certificate (tls.verify On).

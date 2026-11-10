@@ -1,0 +1,21 @@
+# Fluent Bit -> org Elastic SIEM (issue #11, ADR-0044). Not deployed.
+# Build: kubectl kustomize deploy/logging   Docs: docs/operate/logging.md
+# With OpenBao/ESO live (#4): add `components: [components/external-secret]`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - helmchart.yaml
+  - lua-configmap.yaml
+  - networkpolicy.yaml
+  - prometheusrule.yaml
+generatorOptions:
+  disableNameSuffixHash: true  # the HelmChart values reference these by fixed name
+secretGenerator:
+  - name: elastic-shipper
+    namespace: logging
+    envs: [secrets.example.env]
+configMapGenerator:
+  - name: elastic-ca
+    namespace: logging
+    files: [ca.crt=elastic-ca.example.crt]
