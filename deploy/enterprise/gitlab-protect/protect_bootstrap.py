@@ -120,7 +120,8 @@ def plan_native(gl, proj):
 
 
 def plan(gl, env):
-    """Return (actions, manual): actions are (description, method, path, body)."""
+    """Return (actions, native, manual): actions are (description, method, path, body);
+    native are the Premium approval actions, the only ones allowed to fail softly."""
     proj, manual = project_path(env["GITLAB_PROJECT"]), []
     want = {**PROJECT, "ci_config_path": env["GITLAB_CI_CONFIG_PATH"]}
     cur = gl.call("GET", proj)
@@ -129,9 +130,8 @@ def plan(gl, env):
     for name in BRANCHES:
         actions += plan_branch(gl, proj, name)
     actions += plan_tag(gl, proj, manual)
-    if env["GITLAB_APPROVALS"] == "native":
-        actions += plan_native(gl, proj)
-    return actions, manual
+    native = plan_native(gl, proj) if env["GITLAB_APPROVALS"] == "native" else []
+    return actions, native, manual
 
 
 def apply(args):
@@ -139,21 +139,22 @@ def apply(args):
     gl = Client(env["GITLAB_URL"].rstrip("/") + "/api/v4",
                 {"PRIVATE-TOKEN": env["GITLAB_TOKEN"], "Accept": "application/json"},
                 ssl_context(env.get("GITLAB_CA_FILE")))
-    actions, manual = plan(gl, env)
-    for desc, *_ in actions:
+    actions, native, manual = plan(gl, env)
+    for desc, *_ in actions + native:
         print(f"plan: {desc}")
     for m in manual:
         print(f"plan: manual: {m}")
-    if not actions and not manual:
+    if not actions and not native and not manual:
         print("nothing to do")
         return 0
     if args.dry_run:
         return 2
-    for desc, method, path, body in actions:
+    for act in actions + native:
+        desc, method, path, body = act
         try:
             gl.call(method, path, body)
         except ApiError as e:
-            if e.code in (403, 404) and "approval" in path:
+            if e.code in (403, 404) and act in native:
                 print(f"warning: {TIER_WARNING}")
                 continue
             raise
