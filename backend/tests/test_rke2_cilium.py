@@ -77,8 +77,9 @@ def test_kpr_on_accepts_ansible_truthy_strings(on):
     assert v["k8sServiceHost"] == "localhost"
 
 
-# Strings from `-e key=false` must match the role's `disable_kube_proxy | bool`.
-@pytest.mark.parametrize("off", [False, "false", "False", "no", "0", "off"])
+# Strings from `-e key=false` must match the role's `disable_kube_proxy | bool` filter
+# (ansible-core to_bool: only yes/on/true/1 are true; y, t, 1.0 are false).
+@pytest.mark.parametrize("off", [False, "false", "False", "no", "0", "off", "y", "t", "1.0"])
 def test_kpr_off_omits_service_host(off):
     _, v = _render(cilium_kube_proxy_replacement=off)
     assert v["kubeProxyReplacement"] is False
