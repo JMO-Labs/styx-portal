@@ -146,6 +146,54 @@ harbor-iac:
         -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
         harbor-chart.yaml harbor-extra.yaml
 
+gitlab-mirror-iac:
+  # deploy/enterprise/gitlab-mirror (issue #10): lint + offline tests against a local stub.
+  stage: test
+  <<: *backend_setup
+  <<: *on_push_or_mr
+  script:
+    - .venv/bin/python -m ruff check ../deploy/enterprise/gitlab-mirror/mirror_bootstrap.py
+    - .venv/bin/python -m pytest -q tests/test_gitlab_mirror_bootstrap.py
+
+gitlab-mirror-apply:
+  # Configures the GitLab -> GitHub push mirror (docs/operate/gitlab-mirror.md). Manual,
+  # protected refs only. Tokens come from OpenBao (JWT role gitlab-mirror, kv
+  # gitlab-mirror/bootstrap) and never touch the job log. Set BAO_ADDR and BAO_CACERT (file).
+  stage: release
+  image: python:3.12
+  rules:
+    - if: '$CI_COMMIT_REF_PROTECTED == "true"'
+      when: manual
+      allow_failure: true
+  id_tokens:
+    BAO_ID_TOKEN:
+      aud: $BAO_ADDR
+  variables:
+    GITLAB_URL: $CI_SERVER_URL
+    GITLAB_PROJECT: $CI_PROJECT_PATH
+    GITHUB_REPO: JMO-Labs/styx-portal
+  script:
+    - |
+      set -eu
+      eval "$(python3 - <<'EOF'
+      import json, os, shlex, ssl, urllib.request
+      addr, ctx = os.environ["BAO_ADDR"], ssl.create_default_context(cafile=os.environ["BAO_CACERT"])
+      def call(path, body=None, token=None):
+          req = urllib.request.Request(addr + "/v1/" + path, json.dumps(body).encode() if body else None)
+          if token:
+              req.add_header("X-Vault-Token", token)
+          with urllib.request.urlopen(req, context=ctx, timeout=30) as r:
+              return json.load(r)
+      tok = call("auth/jwt/login", {"role": "gitlab-mirror", "jwt": os.environ["BAO_ID_TOKEN"]})["auth"]["client_token"]
+      data = call("kv/data/gitlab-mirror/bootstrap", token=tok)["data"]["data"]
+      print("export GITLAB_TOKEN=" + shlex.quote(data["gitlab_token"]))
+      print("export GITHUB_TOKEN=" + shlex.quote(data["github_token"]))
+      EOF
+      )"
+      rc=0; python3 deploy/enterprise/gitlab-mirror/mirror_bootstrap.py --dry-run || rc=$?
+      [ "$rc" -le 2 ] || exit "$rc"
+      python3 deploy/enterprise/gitlab-mirror/mirror_bootstrap.py
+
 plugin-test:
   stage: test
   image: golang:1.22
