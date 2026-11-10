@@ -1,0 +1,4 @@
+core:
+  image:
+    repository: harbor.example.internal/goharbor/harbor-core
+    tag: v2.15.4
