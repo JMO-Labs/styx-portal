@@ -80,6 +80,20 @@ cutover, GitHub's mirrored branches must be push-locked so that only the deploy 
 (ruleset with the deploy key as bypass actor). That is #16, together with protected-branch
 and approval rules on the federal GitLab.
 
+## Known issues
+
+Follow-ups from the #10 review. They fail safe today (nothing is written), but the errors can
+mislead:
+
+- `gitlab-mirror-apply` runs `eval "$(python3 ...)"`. If the OpenBao login fails, the job
+  fails later with `missing env var GITLAB_TOKEN` instead of the login error. Check
+  `BAO_ADDR`, `BAO_CACERT` and the JWT role first.
+- The job goes on to the apply run when `--dry-run` exits 1 (it checks `rc -le 2`). The
+  apply run fails on its own GETs, so no write happens.
+- An empty `GITHUB_API_URL` CI variable makes the script exit 1. Leave it unset.
+- Drift in the pinned host keys of an existing mirror is not detected. After GitHub changes
+  its host keys, update `github_known_hosts`, delete the mirror and rerun (as in rotation).
+
 ## Compliance debt
 
 ADR-0011 is still **Proposed**: the FIPS and STIG exception references (issuer, date, scope,
