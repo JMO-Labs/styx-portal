@@ -28,6 +28,7 @@ Conventions:
 * `conftest.py` sets `JWT_SECRET`, `COOKIE_SECURE=false`, `DEV_CORS=true` and generous rate limits **before** importing `app`, and resets abuse trackers and the settings cache between tests (autouse fixtures).
 * Prefer testing pure builders (`build_routes_config`, `build_objects`, `resolve_stream_settings`) directly; they are pure on purpose.
 * No sleeping on real time: loops are tested through single-pass functions (`_monitor_tick`, `_run_monitor_pass`).
+* `test_enterprise_docs.py` is a doc-lint for `docs/enterprise`. It checks that ADR statuses match the index, that no ADR reference dangles, that each decision ID in design.md maps to exactly one ADR, and that the owner's Rounds 1-5 amendments are present. It also checks that no FIPS/STIG exception reference has been invented (R05 stays a `TODO (owner)` placeholder). When you change an ADR's status or add an ADR, update `adr/README.md` in the same commit.
 
 ## Frontend (vitest)
 
