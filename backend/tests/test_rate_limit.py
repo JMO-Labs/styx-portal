@@ -295,3 +295,42 @@ def test_matrix_remove_is_strict():
 
 def test_change_password_is_strict():
     assert is_strict_auth("POST", "/api/auth/change-password") is True
+
+
+class _Boom:
+    async def rate_allow(self, *a, **k):
+        raise RuntimeError("db down")
+
+
+async def test_default_bucket_fails_open_on_db_error(client, monkeypatch, caplog):
+    from app.services import abuse_store
+    monkeypatch.setattr(abuse_store, "get_abuse_store", lambda: _Boom())
+    with caplog.at_level("WARNING"):
+        r = await client.get("/api/auth/setup-required")
+    assert r.status_code != 429
+    assert any("abuse store" in m.message for m in caplog.records)
+
+
+async def test_strict_bucket_fails_closed_on_db_error(client, monkeypatch):
+    from app.services import abuse_store
+    monkeypatch.setattr(abuse_store, "get_abuse_store", lambda: _Boom())
+    r = await client.post("/api/auth/login", json={"username": "x", "password": "y"})
+    assert r.status_code == 429
+
+
+@pytest.mark.pg_only
+async def test_shared_limit_across_two_stores(_pg_schema):
+    from sqlalchemy.ext.asyncio import create_async_engine
+    from sqlalchemy.pool import NullPool
+    from app.services.abuse_store_pg import PgAbuseStore
+    from tests.conftest import TEST_DB_URL
+    engines = [create_async_engine(TEST_DB_URL, poolclass=NullPool) for _ in range(2)]
+    a, b = (PgAbuseStore(e) for e in engines)
+    key = f"shared:{__import__('uuid').uuid4()}"
+    try:
+        limit = 5
+        assert all([await (a if i % 2 else b).rate_allow(key, limit, 3600) for i in range(limit)])
+        assert await a.rate_allow(key, limit, 3600) is False
+    finally:
+        for e in engines:
+            await e.dispose()

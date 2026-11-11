@@ -19,7 +19,7 @@ from app.services import gpu_access, instance_readiness, profiles
 from app.services.traefik_labels import generate_traefik_labels
 from app.services.audit import audit
 from app.services.settings_store import settings as sys_settings
-from app.middleware.rate_limit import SlidingWindow
+from app.services.abuse_store import get_abuse_store
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,23 @@ _settings = Settings()
 
 # Parse rate limit config and create instance creation limiter
 _limit, _window = _settings.RATE_LIMIT_INSTANCE_CREATE.split("/")
-_create_limiter = SlidingWindow(int(_limit), int(_window))
+
+
+class _CreateLimiter:
+    """Instance-create rate limit on the abuse store; fails open (warns) on store errors."""
+
+    def __init__(self, limit: int, window: int) -> None:
+        self.limit, self.window = limit, window
+
+    async def allow(self, key: str) -> bool:
+        try:
+            return await get_abuse_store().rate_allow(f"create:{key}", self.limit, self.window)
+        except Exception:
+            logger.warning("abuse store failed; allowing instance create", exc_info=True)
+            return True
+
+
+_create_limiter = _CreateLimiter(int(_limit), int(_window))
 
 # Field allowlist for instance updates. Only these fields can be modified via PATCH.
 _INSTANCE_UPDATE_FIELDS = {"name", "env_overrides", "session_config"}
@@ -278,7 +294,7 @@ async def create_instance(
 
     # Rate limit check for non-admin users
     if user.role != "admin":
-        if not _create_limiter.allow(user.id):
+        if not await _create_limiter.allow(user.id):
             raise HTTPException(429, "Too many instances created recently — try again later")
 
         # Quota check for non-admin users
