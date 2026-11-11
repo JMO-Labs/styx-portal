@@ -75,6 +75,10 @@ def test_no_kube_system_in_any_allow_selector_changes():
     for c in ccnps:
         sel = c["spec"].get("endpointSelector", {})
         assert "kube-system" not in sel.get("matchLabels", {}).values()
+        ns = sel.get("matchLabels", {}).get("k8s:io.kubernetes.pod.namespace")
+        if ns:  # pod-specific selector (e.g. squid) pinned to one namespace
+            assert ns != "kube-system"
+            continue
         assert {"key": "k8s:io.kubernetes.pod.namespace", "operator": "NotIn",
                 "values": ["kube-system"]} in sel.get("matchExpressions", [])
 
