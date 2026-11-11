@@ -238,6 +238,17 @@ def test_scoped_npm_packages_keep_namespace(tmp_path):
                    ("d3-geo", "BSD-3-Clause", "https://example.org/l")}
 
 
+def test_unscoped_npm_keeps_own_license_without_overrides(tmp_path):
+    comps = [{"type": "library", "name": "d3-geo", "version": "3.1.1",
+              "purl": "pkg:npm/d3-geo@3.1.1", "licenses": [{"license": {"id": "ISC"}}]},
+             {"type": "library", "name": "d3-geo", "version": "3.1.1", "group": "@types",
+              "purl": "pkg:npm/%40types/d3-geo@3.1.1", "licenses": [{"license": {"id": "MIT"}}]}]
+    entries = lr.build([sbom(tmp_path, comps)], {"first_party": [], "components": [], "overrides": []})
+    got = {(e["name"], e["license"], e["source_url"]) for e in entries}
+    assert ("d3-geo", "ISC", "pkg:npm/d3-geo@3.1.1") in got
+    assert all("AND" not in e["license"] for e in entries)
+
+
 BAD_SBOM = {"no_components": {"bomFormat": "CycloneDX"},
             "str_component": {"components": ["x"]},
             "null_component": {"components": [None]},
