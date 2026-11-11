@@ -19,6 +19,10 @@ _TS = sa.DateTime(timezone=True)
 
 
 def upgrade() -> None:
+    # Legacy SQLite startup runs metadata.create_all before stamping the baseline,
+    # which already creates these tables from the current models: skip then.
+    if 'auth_fail_events' in sa.inspect(op.get_bind()).get_table_names():
+        return
     op.create_table(
         'auth_fail_events',
         sa.Column('id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'),
