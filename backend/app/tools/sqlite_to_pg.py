@@ -41,7 +41,7 @@ def code_head() -> str:
 
 
 async def check_version(engine: AsyncEngine) -> str:
-    """Require source alembic_version == code head (the target is migrated to that head)."""
+    """Require source alembic_version == code head (the target is checked by check_target_version)."""
     head = code_head()
     hint = (f"start the new release once on SQLite so it migrates the source to {head}, "
             "then re-run (this tool never upgrades the source)")
@@ -55,6 +55,28 @@ async def check_version(engine: AsyncEngine) -> str:
     if rows[0][0] != head:
         raise PreflightError(f"source version {rows[0][0]} != code head {head}: {hint}")
     return head
+
+
+async def check_target_version(target: str) -> None:
+    """Require the target's alembic_version == code head. Never echoes driver errors (DSN leak)."""
+    head = code_head()
+    hint = f"start the new release once on PostgreSQL so it migrates the target to {head}, then re-run"
+    shown = _safe(target)
+    try:
+        engine = create_async_engine(target)
+    except Exception:
+        raise PreflightError(f"cannot open target {shown}") from None
+    try:
+        async with engine.connect() as conn:
+            rows = (await conn.execute(sqlalchemy.text("SELECT version_num FROM alembic_version"))).all()
+    except Exception:
+        raise PreflightError(
+            f"target {shown} is unreachable or not stamped with an Alembic version: {hint}") from None
+    finally:
+        await engine.dispose()
+    if len(rows) != 1 or rows[0][0] != head:
+        found = rows[0][0] if len(rows) == 1 else "<none>"
+        raise PreflightError(f"target {shown} version {found} != code head {head}: {hint}")
 
 
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -96,6 +118,7 @@ async def _run(args: argparse.Namespace) -> int:
         await check_version(engine)
     finally:
         await engine.dispose()
+    await check_target_version(target)
     return EXIT_OK
 
 

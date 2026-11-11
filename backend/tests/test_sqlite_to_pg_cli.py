@@ -42,7 +42,19 @@ def test_unstamped_source_exits_2_and_hides_password(tmp_path, capsys):
     assert "secretpw" not in out.out + out.err
 
 
-def test_ok_exit_0(tmp_path):
+def test_source_version_mismatch_exits_2(tmp_path, capsys, monkeypatch):
+    src = asyncio.run(make_source(tmp_path / "s.db"))
+    raw_exec(src, "UPDATE alembic_version SET version_num='old'")
+    called = []
+    monkeypatch.setattr(tool, "check_target_version", lambda t: called.append(t))
+    assert tool.main(["--source", str(src), "--target", PG]) == 2
+    assert "!= code head" in capsys.readouterr().err
+
+
+def test_ok_exit_0(tmp_path, monkeypatch):
+    async def ok(_t):
+        return None
+    monkeypatch.setattr(tool, "check_target_version", ok)
     src = asyncio.run(make_source(tmp_path / "s.db"))
     rc = tool.main(["--source", str(src), "--target", PG])
     assert rc == 0

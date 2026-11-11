@@ -23,6 +23,17 @@ async def test_source_engine_rejects_writes(tmp_path):
         await eng.dispose()
 
 
+async def test_source_engine_rejects_insert(tmp_path):
+    src = await make_source(tmp_path / "s.db")
+    eng = tool.open_source(src)
+    try:
+        async with eng.begin() as conn:
+            with pytest.raises(OperationalError):
+                await conn.execute(sqlalchemy.text("INSERT INTO alembic_version VALUES ('x')"))
+    finally:
+        await eng.dispose()
+
+
 async def test_version_gate_ok(tmp_path):
     src = await make_source(tmp_path / "s.db")
     eng = tool.open_source(src)
