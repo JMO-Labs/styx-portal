@@ -84,3 +84,11 @@ def test_maintenance_gauge_unset_is_zero(monkeypatch):
     monkeypatch.delenv("SLO_MAINTENANCE_END", raising=False)
     _freeze(monkeypatch, "2026-05-01T03:00")
     assert _gauge("styx_maintenance_active") == 0.0
+
+
+def test_misconfigured_scope_gauge_reports_zero_and_logs(monkeypatch, caplog):
+    _freeze(monkeypatch, "2026-03-09T11:30")
+    monkeypatch.setenv("SLO_BUSINESS_HOURS", "garbage")
+    with caplog.at_level("ERROR"):
+        assert _gauge("styx_slo_business_hours") == 0.0
+    assert "SLO scope gauge misconfigured" in caplog.text
