@@ -69,7 +69,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
-| CP-2 | Contingency Plan | HA design, availability targets (ADR-0006, 0008) | Hybrid | Planned |
+| CP-2 | Contingency Plan | HA design, availability targets (ADR-0006, 0008); [runbooks/rook-ceph.md](runbooks/rook-ceph.md), ADR-0055 (IaC done, not deployed) | Hybrid | Planned |
 | CP-4 | Contingency Plan Testing | Full-site restore test (phase 1), 200-session load-test gate (ADR-0037, 0047); full-site restore test repeats annually, each result filed as eMASS evidence (R03); restore test harness deploy/dr/restore-test ([dr-restore-test.md](../operate/dr-restore-test.md)) writes the evidence report, IaC done, not run | Hybrid | Planned |
 | CP-6 | Alternate Storage Site | Encrypted CephFS-snapshot export to CUI-authorized cloud bucket (ADR-0037); Kopia component deploy/k8s/offsite-export, IaC done, not deployed | Hybrid | Planned |
 | CP-7 | Alternate Processing Site | Not provided; exception R03 (ADR-0037) | Hybrid | Planned |
@@ -154,7 +154,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
-| SC-5 | Denial-of-Service Protection | DMZ proxy limits, resource caps (ADR-0009, 0031) | System | Planned |
+| SC-5 | Denial-of-Service Protection | DMZ proxy limits, resource caps (ADR-0009, 0031); [runbooks/rook-ceph.md](runbooks/rook-ceph.md), ADR-0055 (IaC done, not deployed) | System | Planned |
 | SC-7 | Boundary Protection | HAProxy DMZ pair, Cilium, Squid; SC-7(5) tailored, R01 (ADR-0007, 0012, 0040, 0050) | System | Planned |
 | SC-7(5) | Deny by Default - Allow by Exception | Tailored: internet allowed with category blocking; Cilium denies all non-proxy egress; risk acceptance R01 (ADR-0040); allowlist mode per group stays; monthly review of the uncategorised hostnames report in Elastic | System | Planned |
 | SC-8 | Transmission Confidentiality and Integrity | TLS at DMZ, separate banner/login/provision/portal hosts, mTLS webhook (ADR-0012, 0020, 0049); Harbor internal TLS is off, pod-to-pod traffic is encrypted by Cilium WireGuard (#18), Harbor to `harbor-db` uses `verify-full` | System | Planned |

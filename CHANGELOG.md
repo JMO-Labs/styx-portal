@@ -23,6 +23,7 @@
 
 ### Documentation
 
+* **docs:** Rook-Ceph alerts and runbook: PrometheusRule `CephPGsDegraded` (4h) and `CephThrottleJobFailing` (1h), runbook `docs/enterprise/runbooks/rook-ceph.md` (install order, node prep, NVMe add/replace, forcing recovery, #20 before data, SC-13/CM-6 debt), SC-5/CP-2 pointers to ADR-0055 (styx-portal#30)
 * **operate:** DR restore test runbook (`docs/operate/dr-restore-test.md`): Velero glob refusal wording and known issues (0-item Velero restore passes, no report after SIGTERM/SIGHUP, moved evidence dir, no `--context` pinning, check targets not proven scratch, CNPG CRs in Velero restores after #6, minor redaction and parse gaps); testing guide and `deploy/dr/` layout (styx-portal#15)
 * **deploy:** RKE2 node IaC README known issues (worker label is `node.kubernetes.io/*` so `ROLES` shows `<none>`, padded-default token gap, Jinja-literal gap in the secret scan, never applied); testing guide and `deploy/rke2/` layout (styx-portal#2)
 * **operate:** offsite backup runbook (`docs/operate/offsite-backup.md`): bucket lifecycle rule prerequisite, escrow and one-page restore, key rotation with an explicit delete date and destruction of the old password, deleted-user data bound per whole pack, known issues (CI gap, sticky failed-job alert, byte-length password check, escaped orphan names); ADR-0037 consequences and CP-6/CP-9/SC-28 rows (styx-portal#13)

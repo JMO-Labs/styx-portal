@@ -217,3 +217,33 @@ def test_throttle_cephclient_least_privilege():
     assert set(caps) == {"mon"}
     assert caps["mon"] == 'allow r, allow command "config set", allow command "config get"'
     assert "allow *" not in caps["mon"]
+
+
+# --- alerts, runbook, docs (issue #30) ----------------------------------------
+
+
+def test_prometheus_rules_present():
+    pr = _load("prometheusrule.yaml")
+    assert pr["kind"] == "PrometheusRule"
+    rules = {r["alert"]: r for g in pr["spec"]["groups"] for r in g["rules"]}
+    assert rules["CephPGsDegraded"]["for"] == "4h"
+    assert "ceph_pg_degraded" in rules["CephPGsDegraded"]["expr"]
+    thr = rules["CephThrottleJobFailing"]
+    assert thr["for"] == "1h"
+    assert "ceph-mclock-throttle" in thr["expr"]
+    assert "prometheusrule.yaml" in _load("kustomization.yaml")["resources"]
+
+
+def test_rook_ceph_runbook_and_docs():
+    docs = ROOT / "docs/enterprise"
+    rb = (docs / "runbooks/rook-ceph.md").read_text()
+    for needle in ("sgdisk --zap-all", "blkdiscard", "ceph-throttle-config",
+                   "harbor.example.internal", "#20", "SC-13", "CM-6", "ADR-0011",
+                   "Proposed", "gen_nvme_pvs.py"):
+        assert needle in rb, needle
+    assert "runbooks/rook-ceph.md" in (ROOT / "zensical.toml").read_text()
+    cm = (docs / "control-matrix.md").read_text()
+    for cid in ("| SC-5 |", "| CP-2 |"):
+        (row,) = [ln for ln in cm.splitlines() if ln.startswith(cid)]
+        assert "ADR-0055" in row and "runbooks/rook-ceph.md" in row
+    assert "rook-ceph" in (ROOT / "CHANGELOG.md").read_text().split("## 1.0.0")[0]
