@@ -18,6 +18,7 @@ data:
   WORKSTATION_ALLOW_CIDRS: 192.168.1.0/24
   TEMPLATES_DIR: /app/templates
   DOCKER_SOCKET: unix:///nonexistent.sock
+  METRICS_PORT: "9000"
   ENABLE_DOCS: "false"
   DEV_CORS: "false"
   # frontend (nginx)

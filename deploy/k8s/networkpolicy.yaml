@@ -58,3 +58,20 @@ spec:
           podSelector:
             matchLabels: {app.kubernetes.io/name: alertmanager}
       ports: [{port: 8000, protocol: TCP}]
+---
+# Metrics port is separate from the API port: only the monitoring namespace
+# (Prometheus) may reach it. backend-ingress deliberately does not allow 9000.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-metrics-ingress
+  namespace: styx
+spec:
+  podSelector:
+    matchLabels: {app: styx-backend}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: monitoring}
+      ports: [{port: 9000, protocol: TCP}]

@@ -20,8 +20,7 @@
           },
           "required": [
             "ingress"
-          ],
-          "additionalProperties": false
+          ]
         },
         {
           "properties": {
@@ -29,8 +28,7 @@
           },
           "required": [
             "ingressDeny"
-          ],
-          "additionalProperties": false
+          ]
         },
         {
           "properties": {
@@ -38,8 +36,7 @@
           },
           "required": [
             "egress"
-          ],
-          "additionalProperties": false
+          ]
         },
         {
           "properties": {
@@ -47,8 +44,7 @@
           },
           "required": [
             "egressDeny"
-          ],
-          "additionalProperties": false
+          ]
         }
       ],
       "description": "Spec is the desired Cilium specific rule specification.",
@@ -59,8 +55,7 @@
           },
           "required": [
             "endpointSelector"
-          ],
-          "additionalProperties": false
+          ]
         },
         {
           "properties": {
@@ -68,8 +63,7 @@
           },
           "required": [
             "nodeSelector"
-          ],
-          "additionalProperties": false
+          ]
         }
       ],
       "properties": {
@@ -169,8 +163,7 @@
                       },
                       "required": [
                         "cidr"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "properties": {
@@ -178,8 +171,7 @@
                       },
                       "required": [
                         "cidrGroupRef"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "properties": {
@@ -187,8 +179,7 @@
                       },
                       "required": [
                         "cidrGroupSelector"
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   ],
                   "properties": {
@@ -366,8 +357,7 @@
                       },
                       "required": [
                         "matchName"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "properties": {
@@ -375,8 +365,7 @@
                       },
                       "required": [
                         "matchPattern"
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   ],
                   "properties": {
@@ -641,8 +630,7 @@
                           },
                           "required": [
                             "http"
-                          ],
-                          "additionalProperties": false
+                          ]
                         },
                         {
                           "properties": {
@@ -650,8 +638,7 @@
                           },
                           "required": [
                             "dns"
-                          ],
-                          "additionalProperties": false
+                          ]
                         }
                       ],
                       "properties": {
@@ -666,8 +653,7 @@
                                 },
                                 "required": [
                                   "matchName"
-                                ],
-                                "additionalProperties": false
+                                ]
                               },
                               {
                                 "properties": {
@@ -675,8 +661,7 @@
                                 },
                                 "required": [
                                   "matchPattern"
-                                ],
-                                "additionalProperties": false
+                                ]
                               }
                             ],
                             "properties": {
@@ -1022,8 +1007,7 @@
                       },
                       "required": [
                         "cidr"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "properties": {
@@ -1031,8 +1015,7 @@
                       },
                       "required": [
                         "cidrGroupRef"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "properties": {
@@ -1040,8 +1023,7 @@
                       },
                       "required": [
                         "cidrGroupSelector"
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   ],
                   "properties": {
@@ -1585,8 +1567,7 @@
                       },
                       "required": [
                         "cidr"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "properties": {
@@ -1594,8 +1575,7 @@
                       },
                       "required": [
                         "cidrGroupRef"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "properties": {
@@ -1603,8 +1583,7 @@
                       },
                       "required": [
                         "cidrGroupSelector"
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   ],
                   "properties": {
@@ -2071,8 +2050,7 @@
                           },
                           "required": [
                             "http"
-                          ],
-                          "additionalProperties": false
+                          ]
                         },
                         {
                           "properties": {
@@ -2080,8 +2058,7 @@
                           },
                           "required": [
                             "dns"
-                          ],
-                          "additionalProperties": false
+                          ]
                         }
                       ],
                       "properties": {
@@ -2096,8 +2073,7 @@
                                 },
                                 "required": [
                                   "matchName"
-                                ],
-                                "additionalProperties": false
+                                ]
                               },
                               {
                                 "properties": {
@@ -2105,8 +2081,7 @@
                                 },
                                 "required": [
                                   "matchPattern"
-                                ],
-                                "additionalProperties": false
+                                ]
                               }
                             ],
                             "properties": {
@@ -2303,8 +2278,7 @@
                       },
                       "required": [
                         "cidr"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "properties": {
@@ -2312,8 +2286,7 @@
                       },
                       "required": [
                         "cidrGroupRef"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "properties": {
@@ -2321,8 +2294,7 @@
                       },
                       "required": [
                         "cidrGroupSelector"
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   ],
                   "properties": {
@@ -2813,8 +2785,7 @@
             },
             "required": [
               "ingress"
-            ],
-            "additionalProperties": false
+            ]
           },
           {
             "properties": {
@@ -2822,8 +2793,7 @@
             },
             "required": [
               "ingressDeny"
-            ],
-            "additionalProperties": false
+            ]
           },
           {
             "properties": {
@@ -2831,8 +2801,7 @@
             },
             "required": [
               "egress"
-            ],
-            "additionalProperties": false
+            ]
           },
           {
             "properties": {
@@ -2840,8 +2809,7 @@
             },
             "required": [
               "egressDeny"
-            ],
-            "additionalProperties": false
+            ]
           }
         ],
         "description": "Rule is a policy rule which must be applied to all endpoints which match the\nlabels contained in the endpointSelector\n\nEach rule is split into an ingress section which contains all rules\napplicable at ingress, and an egress section applicable at egress. For rule\ntypes such as `L4Rule` and `CIDR` which can be applied at both ingress and\negress, both ingress and egress side have to either specifically allow the\nconnection or one side has to be omitted.\n\nEither ingress, egress, or both can be provided. If both ingress and egress\nare omitted, the rule has no effect.",
@@ -2852,8 +2820,7 @@
             },
             "required": [
               "endpointSelector"
-            ],
-            "additionalProperties": false
+            ]
           },
           {
             "properties": {
@@ -2861,8 +2828,7 @@
             },
             "required": [
               "nodeSelector"
-            ],
-            "additionalProperties": false
+            ]
           }
         ],
         "properties": {
@@ -2962,8 +2928,7 @@
                         },
                         "required": [
                           "cidr"
-                        ],
-                        "additionalProperties": false
+                        ]
                       },
                       {
                         "properties": {
@@ -2971,8 +2936,7 @@
                         },
                         "required": [
                           "cidrGroupRef"
-                        ],
-                        "additionalProperties": false
+                        ]
                       },
                       {
                         "properties": {
@@ -2980,8 +2944,7 @@
                         },
                         "required": [
                           "cidrGroupSelector"
-                        ],
-                        "additionalProperties": false
+                        ]
                       }
                     ],
                     "properties": {
@@ -3159,8 +3122,7 @@
                         },
                         "required": [
                           "matchName"
-                        ],
-                        "additionalProperties": false
+                        ]
                       },
                       {
                         "properties": {
@@ -3168,8 +3130,7 @@
                         },
                         "required": [
                           "matchPattern"
-                        ],
-                        "additionalProperties": false
+                        ]
                       }
                     ],
                     "properties": {
@@ -3434,8 +3395,7 @@
                             },
                             "required": [
                               "http"
-                            ],
-                            "additionalProperties": false
+                            ]
                           },
                           {
                             "properties": {
@@ -3443,8 +3403,7 @@
                             },
                             "required": [
                               "dns"
-                            ],
-                            "additionalProperties": false
+                            ]
                           }
                         ],
                         "properties": {
@@ -3459,8 +3418,7 @@
                                   },
                                   "required": [
                                     "matchName"
-                                  ],
-                                  "additionalProperties": false
+                                  ]
                                 },
                                 {
                                   "properties": {
@@ -3468,8 +3426,7 @@
                                   },
                                   "required": [
                                     "matchPattern"
-                                  ],
-                                  "additionalProperties": false
+                                  ]
                                 }
                               ],
                               "properties": {
@@ -3815,8 +3772,7 @@
                         },
                         "required": [
                           "cidr"
-                        ],
-                        "additionalProperties": false
+                        ]
                       },
                       {
                         "properties": {
@@ -3824,8 +3780,7 @@
                         },
                         "required": [
                           "cidrGroupRef"
-                        ],
-                        "additionalProperties": false
+                        ]
                       },
                       {
                         "properties": {
@@ -3833,8 +3788,7 @@
                         },
                         "required": [
                           "cidrGroupSelector"
-                        ],
-                        "additionalProperties": false
+                        ]
                       }
                     ],
                     "properties": {
@@ -4378,8 +4332,7 @@
                         },
                         "required": [
                           "cidr"
-                        ],
-                        "additionalProperties": false
+                        ]
                       },
                       {
                         "properties": {
@@ -4387,8 +4340,7 @@
                         },
                         "required": [
                           "cidrGroupRef"
-                        ],
-                        "additionalProperties": false
+                        ]
                       },
                       {
                         "properties": {
@@ -4396,8 +4348,7 @@
                         },
                         "required": [
                           "cidrGroupSelector"
-                        ],
-                        "additionalProperties": false
+                        ]
                       }
                     ],
                     "properties": {
@@ -4864,8 +4815,7 @@
                             },
                             "required": [
                               "http"
-                            ],
-                            "additionalProperties": false
+                            ]
                           },
                           {
                             "properties": {
@@ -4873,8 +4823,7 @@
                             },
                             "required": [
                               "dns"
-                            ],
-                            "additionalProperties": false
+                            ]
                           }
                         ],
                         "properties": {
@@ -4889,8 +4838,7 @@
                                   },
                                   "required": [
                                     "matchName"
-                                  ],
-                                  "additionalProperties": false
+                                  ]
                                 },
                                 {
                                   "properties": {
@@ -4898,8 +4846,7 @@
                                   },
                                   "required": [
                                     "matchPattern"
-                                  ],
-                                  "additionalProperties": false
+                                  ]
                                 }
                               ],
                               "properties": {
@@ -5096,8 +5043,7 @@
                         },
                         "required": [
                           "cidr"
-                        ],
-                        "additionalProperties": false
+                        ]
                       },
                       {
                         "properties": {
@@ -5105,8 +5051,7 @@
                         },
                         "required": [
                           "cidrGroupRef"
-                        ],
-                        "additionalProperties": false
+                        ]
                       },
                       {
                         "properties": {
@@ -5114,8 +5059,7 @@
                         },
                         "required": [
                           "cidrGroupSelector"
-                        ],
-                        "additionalProperties": false
+                        ]
                       }
                     ],
                     "properties": {

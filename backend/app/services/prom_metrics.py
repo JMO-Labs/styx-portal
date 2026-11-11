@@ -7,7 +7,7 @@ import logging
 import time
 
 import prometheus_client
-from prometheus_client import REGISTRY, Counter, Histogram
+from prometheus_client import REGISTRY, Histogram
 from app.services.prom_collectors import DbGaugesCollector
 from starlette.routing import Match
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -20,15 +20,6 @@ HTTP_DURATION = Histogram(
     "styx_http_request_duration_seconds",
     "HTTP request duration by method, route template and status",
     ["method", "route", "status"],
-)
-
-LAUNCH_DURATION = Histogram(
-    "styx_instance_launch_duration_seconds",
-    "Instance launch duration (successful launches only)",
-)
-LAUNCH_FAILURES = Counter(
-    "styx_instance_launch_failures_total",
-    "Instance launches that failed",
 )
 
 REGISTRY.register(DbGaugesCollector())

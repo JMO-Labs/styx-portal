@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -109,7 +109,7 @@ async def test_start_endpoint_backend_behaviour(
     assert sw.call_count == waits
     if waits:
         assert r.json()["status_detail"] == "Starting"
-        sw.assert_called_once_with(inst.id)
+        sw.assert_called_once_with(inst.id, requested_at=ANY, kind="start")
 
 
 @pytest.mark.asyncio
