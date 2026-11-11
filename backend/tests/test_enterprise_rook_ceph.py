@@ -68,14 +68,27 @@ def test_ceph_image_pinned_not_20_2_0():
     assert img.startswith(HARBOR + "/")
 
 
+CSI_KEYS = {"cephcsi", "registrar", "provisioner", "snapshotter", "attacher",
+            "resizer", "csiAddons"}
+
+
+def _assert_pinned(d, path):
+    assert set(d) == {"repository", "tag"}, (path, sorted(d))
+    assert d["repository"].startswith(HARBOR + "/"), path
+    assert DIGEST.search(d["tag"]), path
+
+
 def test_operator_images_digest_pinned():
     vals = yaml.safe_load((DIR / "operator-values.yaml").read_text())
-    imgs = _images(vals)
-    assert len(imgs) >= 9
-    for i in imgs:
-        assert i.startswith(HARBOR + "/"), i
-        assert DIGEST.search(i), i
-    assert any("/rook/ceph:v1.21.2@" in i for i in imgs)
+    _assert_pinned(vals["image"], "image")
+    assert vals["image"]["repository"].endswith("/rook/ceph")
+    assert vals["image"]["tag"].startswith("v1.21.2@")
+    assert set(vals["csi"]) == CSI_KEYS
+    for k in CSI_KEYS:
+        _assert_pinned(vals["csi"][k], f"csi.{k}")
+    mgr = vals["ceph-csi-operator"]["controllerManager"]["manager"]
+    _assert_pinned(mgr["image"], "ceph-csi-operator.controllerManager.manager.image")
+    assert "snapshotMetadata" not in vals["csi"]
 
 
 def test_no_host_based_osds():
@@ -157,6 +170,7 @@ def _keys(node):
 def test_mclock_profile_not_in_cephconfig():
     c = _cluster()
     assert not any("mclock_profile" in str(k) for k in _keys(c))
+    assert "mclock_profile" not in str(c)
     glob = c["spec"]["cephConfig"]["global"]
     osd = c["spec"]["cephConfig"].get("osd", {})
     merged = {**glob, **osd}
