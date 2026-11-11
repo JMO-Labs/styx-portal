@@ -34,7 +34,15 @@ an unset `JWT_SECRET` a startup error).
 
 ## Forced credential rotation
 
-CNPG-managed role passwords rotate every 30 days (NIST IA-5; configurable).
+The `styx-db-app` password is rotated from OpenBao via ESO every 30 days
+(NIST IA-5; configurable via the ExternalSecret `refreshInterval`); CNPG applies
+the updated Secret to the role.
+
+!!! note
+    This section assumes the `styx-db-app` ExternalSecret and the Reloader
+    annotation on `deploy/backend` are provisioned. They are not yet in
+    `deploy/enterprise` or `deploy/k8s`; do not run `kubectl annotate` until they exist.
+
 To rotate now, bump the `force-sync` annotation on the ExternalSecret:
 
 ```bash
