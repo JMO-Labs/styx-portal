@@ -178,7 +178,11 @@ tests:
               summary: "Free desktop slots are fewer than the largest node holds: cannot survive a node loss (N+1)"
       - eval_time: 20m
         alertname: StyxHeadroomCritical
-        exp_alerts: []
+        # 12 free < 10% of 200-desktop peak (20): critical also fires
+        exp_alerts:
+          - exp_labels: {severity: page}
+            exp_annotations:
+              summary: "Free desktop slots below 10% of peak capacity"
 
   - name: headroom_below_10pct_of_peak_critical
     interval: 1m
