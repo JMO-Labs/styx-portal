@@ -19,7 +19,10 @@ fail() { echo "FAIL: $*" >&2; diag; exit 1; }
 diag() {
   kubectl -n "$RK" get pods -o wide || true
   kubectl -n "$RK" describe pods -l app=rook-ceph-osd | tail -60 || true
-  kubectl -n "$BAO_NS" get pods || true
+  kubectl -n "$BAO_NS" get pods -o wide || true
+  kubectl -n "$BAO_NS" describe pod openbao-0 | tail -40 || true
+  kubectl -n "$BAO_NS" logs openbao-0 -c openbao --tail=40 || true
+  kubectl -n "$BAO_NS" logs openbao-0 -c openbao --previous --tail=20 || true
   kubectl -n "$RK" logs deploy/rook-ceph-operator --tail=60 || true
 }
 bao() { # run bao CLI inside the openbao pod (root token never printed)
@@ -84,6 +87,8 @@ spec:
 YAML
 
 step "OpenBao ${BAO_IMAGE} (file storage on hostPath so data survives stop/start)"
+# /openbao/file: the image entrypoint chowns it to the openbao user before dropping root
+# (a root-owned hostPath elsewhere is unwritable). disable_mlock: pods lack IPC_LOCK.
 kubectl create ns "$BAO_NS" --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f - <<YAML
 apiVersion: v1
@@ -102,9 +107,10 @@ metadata: {name: openbao-config, namespace: $BAO_NS}
 data:
   config.hcl: |
     ui = false
+    disable_mlock = true
     listener "tcp" { address = "0.0.0.0:8200"
       tls_disable = 1 }
-    storage "file" { path = "/openbao/data" }
+    storage "file" { path = "/openbao/file" }
     api_addr = "http://openbao.$BAO_NS.svc:8200"
 ---
 apiVersion: v1
@@ -135,7 +141,7 @@ spec:
           periodSeconds: 3
         volumeMounts:
         - {name: cfg, mountPath: /etc/bao}
-        - {name: data, mountPath: /openbao/data}
+        - {name: data, mountPath: /openbao/file}
       volumes:
       - {name: cfg, configMap: {name: openbao-config}}
       - {name: data, hostPath: {path: /var/lib/spike-openbao, type: DirectoryOrCreate}}
