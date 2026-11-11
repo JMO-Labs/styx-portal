@@ -40,6 +40,7 @@ from app.routers import service_mounts as service_mounts_router
 from app.routers import service_icons as service_icons_router
 from app.routers import services_auth as services_auth_router
 from app.routers import ops_alerts as ops_alerts_router
+from app.routers import stream_rtt as stream_rtt_router
 from app.security.deps import get_current_user, require_admin
 from app.services.docker_manager import DockerManager
 from app.services.k8s_runtime import instance_runtime
@@ -216,6 +217,7 @@ app.include_router(service_icons_router.router, prefix="/api/services", tags=["s
 app.include_router(services_router.router, prefix="/api/services", tags=["services"])
 app.include_router(services_auth_router.router, prefix="/api/services", tags=["services"])
 app.include_router(services_auth_router.internal_router, prefix="/internal", tags=["services"])
+app.include_router(stream_rtt_router.router, prefix="/api/stream", tags=["stream"])
 app.include_router(ops_alerts_router.internal_router, prefix="/internal", tags=["ops"])
 app.include_router(ops_alerts_router.router, prefix="/api/admin", tags=["ops"])
 app.include_router(instance_auth_router.internal_router, prefix="/internal/instances",

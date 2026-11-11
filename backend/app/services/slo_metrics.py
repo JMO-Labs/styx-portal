@@ -39,3 +39,26 @@ def observe_since(kind: str, outcome: str, requested_at: float | None) -> None:
 
 def record_launch_failure(reason: str) -> None:
     LAUNCH_FAILURES.labels(reason if reason in REASONS else "other").inc()
+
+
+RTT_KEYS = (".01", ".02", ".04", ".06", ".08", ".1", ".15", ".25", ".5", "1", "+Inf")
+RTT_BUCKETS = (0.01, 0.02, 0.04, 0.06, 0.08, 0.1, 0.15, 0.25, 0.5, 1.0)
+TRANSPORTS = ("webrtc", "websocket")
+
+STREAM_RTT = Histogram(
+    "styx_stream_rtt_seconds",
+    "Client-reported stream network round-trip time (proxy for latency, not input-to-photon)",
+    ["transport"],
+    buckets=RTT_BUCKETS,
+)
+for _t in TRANSPORTS:  # fixed series set, created up front
+    STREAM_RTT.labels(_t)
+
+
+def observe_rtt_buckets(transport: str, counts: dict[str, int], total_sum: float) -> None:
+    """Add pre-bucketed (non-cumulative) client counts; keys must be in RTT_KEYS (validated)."""
+    child = STREAM_RTT.labels(transport)
+    for key, n in counts.items():
+        if n:
+            child._buckets[RTT_KEYS.index(key)].inc(n)  # prometheus_client has no bulk observe
+    child._sum.inc(total_sum)
