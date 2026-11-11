@@ -90,6 +90,50 @@ def test_kustomize_build():
                                              for d in _build(HOMELAB)}
 
 
+def _of_kind(kind):
+    return [d for (k, _), d in _index().items() if k == kind]
+
+
+def test_db_secret_rotation():
+    (gen,) = _of_kind("Password")
+    assert gen["apiVersion"] == "generators.external-secrets.io/v1alpha1"
+    (es,) = [d for d in _of_kind("ExternalSecret") if d["spec"]["target"]["name"] == "styx-db-app"]
+    assert es["spec"]["refreshInterval"] == "720h"
+    assert es["spec"]["dataFrom"][0]["sourceRef"]["generatorRef"]["kind"] == "Password"
+    tpl = es["spec"]["target"]["template"]
+    assert tpl["type"] == "kubernetes.io/basic-auth"
+    assert tpl["metadata"]["labels"]["cnpg.io/reload"] == "true"
+    assert tpl["data"]["username"] == "styx"
+    assert tpl["data"]["pgpass"].startswith("styx-db-rw:5432:styx:styx:")
+    assert "{{ .password }}" in tpl["data"]["pgpass"]
+    assert es["spec"]["target"]["creationPolicy"] == "Merge"
+    assert "IA-5" in (ENT / "db-credentials.yaml").read_text()
+
+
+def test_password_generator_safe_charset():
+    (gen,) = _of_kind("Password")
+    spec = gen["spec"]
+    assert spec["length"] >= 32
+    if not spec.get("noSymbols"):
+        assert not set(spec.get("symbolCharacters", "")) & set(":\\@/#?")
+
+
+def test_jwt_secret_from_openbao():
+    by_target = {d["spec"]["target"]["name"]: d for d in _of_kind("ExternalSecret")}
+    for name in ("styx-secrets", "styx-db-bucket"):
+        store = by_target[name]["spec"]["secretStoreRef"]
+        assert (store["kind"], store["name"]) == ("ClusterSecretStore", "openbao")
+    keys = {r["secretKey"] for r in by_target["styx-secrets"]["spec"]["data"]}
+    assert "JWT_SECRET" in keys
+    assert by_target["styx-secrets"]["spec"]["data"][0]["remoteRef"]["key"]
+    assert {"SSE_C_KEY"} <= {r["secretKey"] for r in by_target["styx-db-bucket"]["spec"]["data"]}
+
+
+def test_listed_in_kustomization():
+    res = _kustomization()["resources"]
+    assert "db-credentials.yaml" in res and "external-secrets.yaml" in res
+
+
 def _walk(o):
     if isinstance(o, dict):
         for k, v in o.items():
