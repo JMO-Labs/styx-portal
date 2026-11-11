@@ -221,11 +221,34 @@ def npm_name(purl, fallback):
     return path.rpartition("@")[0] or path or fallback
 
 
+HOMELAB_DIRS = ("e2e/", "scripts/diagrams/")
+
+
+def lockfile_origins(path):
+    """bom-ref -> lockfile paths, from Trivy's application components and dependencies."""
+    components = load_sbom(path)  # validates shape, raises InputError
+    data = json.loads(Path(path).read_text())
+    apps = {c.get("bom-ref"): c.get("name") or "" for c in components
+            if c.get("type") == "application" and c.get("bom-ref")}
+    out = {}
+    for d in data.get("dependencies") or []:
+        if isinstance(d, dict) and d.get("ref") in apps:
+            for ref in d.get("dependsOn") or []:
+                out.setdefault(ref, set()).add(apps[d["ref"]])
+    return out
+
+
+def _homelab(origins):
+    """True when every known lockfile origin is an e2e or diagrams one."""
+    return bool(origins) and all(o.startswith(HOMELAB_DIRS) for o in origins)
+
+
 def build(sbom_paths, manifest):
     """Merged, sorted register entries."""
     first_party = set(manifest["first_party"])
-    found = {}
+    found, origins = {}, {}
     for path in sbom_paths:
+        by_ref = lockfile_origins(path)
         for c in load_sbom(path):
             purl = c.get("purl") or ""
             if c.get("type") != "library" or not purl.startswith("pkg:"):
@@ -240,6 +263,7 @@ def build(sbom_paths, manifest):
                 continue
             key = (eco, name, str(c.get("version") or ""))
             found.setdefault(key, set()).update(_license_text(c))
+            origins.setdefault(key, set()).update(by_ref.get(c.get("bom-ref"), {""}))
     overrides = {(o["name"].lower(), o["version"]): o for o in manifest["overrides"]}
     entries = []
     for (eco, name, version), lics in found.items():
@@ -248,6 +272,8 @@ def build(sbom_paths, manifest):
                                      for x in sorted(lics)),
              "source_url": f"pkg:{eco}/{name}@{version}", "cost": "free",
              "scope": "enterprise", "origin": "sbom"}
+        if eco == "npm" and _homelab(origins[(eco, name, version)]):
+            e["scope"] = "homelab"
         if o := overrides.get((name.lower(), version)):
             e.update(license=o["license"], source_url=o.get("source_url", ""), origin="override")
         entries.append(e)
@@ -278,6 +304,12 @@ def problems_for(e, policy):
         elif e["adr"] not in policy["accepted_adrs"]:
             out.append(f"cost: paid with {e['adr']}, which is not an accepted ADR")
     return out
+
+
+def unused_overrides(entries, manifest):
+    used = {(e["name"].lower(), e["version"]) for e in entries if e["origin"] == "override"}
+    return [f"unused override {o['name']}@{o['version']}" for o in manifest["overrides"]
+            if (o["name"].lower(), o["version"]) not in used]
 
 
 def check(entries, policy):
@@ -343,7 +375,9 @@ def main(argv=None):
     a = ap.parse_args(argv)
     try:
         policy = load_policy(a.policy)
-        files = render(build(a.sbom, load_components(a.components)))
+        manifest = load_components(a.components)
+        entries = build(a.sbom, manifest)
+        files = render(entries)
     except InputError as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
@@ -357,6 +391,7 @@ def main(argv=None):
         path = a.out_dir / name
         if not path.is_file() or path.read_text() != text:
             errors.append(f"stale register: {path} differs from a fresh generate; run {REGEN}")
+    warnings += unused_overrides(entries, manifest)
     for w in warnings:
         print(f"WARN: {w}")
     for e in errors:
