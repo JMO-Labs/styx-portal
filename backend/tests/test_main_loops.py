@@ -82,12 +82,24 @@ class _FakeElector:
         pass
 
 
-async def _run_lifespan(monkeypatch, leader, tmp_path):
+async def _run_lifespan(monkeypatch, leader):
     import asyncio
     import app.main as m
 
-    (tmp_path / "data").mkdir()
-    monkeypatch.chdir(tmp_path)  # DATABASE_URL is relative (./data/...)
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+    from sqlalchemy.pool import StaticPool
+    from sqlmodel import SQLModel
+
+    # Hermetic DB: never touch the configured on-disk DATABASE_URL.
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:", poolclass=StaticPool)
+
+    async def init_db():
+        async with engine.begin() as conn:
+            await conn.run_sync(SQLModel.metadata.create_all)
+
+    monkeypatch.setattr(m, "init_db", init_db)
+    monkeypatch.setattr(m, "async_session",
+                        async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False))
 
     started = []
 
@@ -111,12 +123,13 @@ async def _run_lifespan(monkeypatch, leader, tmp_path):
     monkeypatch.setattr(m._settings, "JWT_SECRET", "x" * 40, raising=False)
     async with m.lifespan(m.app):
         await asyncio.sleep(0.05)
+    await engine.dispose()
     return started
 
 
 @pytest.mark.asyncio
-async def test_lifespan_gates_leader_only_loops(monkeypatch, tmp_path):
-    started = await _run_lifespan(monkeypatch, leader=False, tmp_path=tmp_path)
+async def test_lifespan_gates_leader_only_loops(monkeypatch):
+    started = await _run_lifespan(monkeypatch, leader=False)
     for name in ("_session_monitor_loop", "_service_health_loop", "_metrics_db_loop", "prepull_loop"):
         assert name not in started
     for name in ("_metrics_sampler_loop", "_health_sample_loop", "service_thumbnail_loop"):
@@ -124,8 +137,8 @@ async def test_lifespan_gates_leader_only_loops(monkeypatch, tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_lifespan_sqlite_starts_all_loops_as_before(monkeypatch, tmp_path):
-    started = await _run_lifespan(monkeypatch, leader=True, tmp_path=tmp_path)
+async def test_lifespan_sqlite_starts_all_loops_as_before(monkeypatch):
+    started = await _run_lifespan(monkeypatch, leader=True)
     for name in ("_session_monitor_loop", "_service_health_loop", "_metrics_db_loop",
                  "prepull_loop", "_metrics_sampler_loop", "_health_sample_loop",
                  "service_thumbnail_loop"):
