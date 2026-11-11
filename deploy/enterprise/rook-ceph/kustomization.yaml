@@ -1,0 +1,6 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Every manifest in this directory except operator-values.yaml and
+# nvme-inventory.yaml (non-manifests) must be listed here.
+resources:
+  - local-pvs.yaml
