@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from sqlmodel import select
@@ -40,6 +41,7 @@ from app.routers import service_mounts as service_mounts_router
 from app.routers import service_icons as service_icons_router
 from app.routers import services_auth as services_auth_router
 from app.routers import ops_alerts as ops_alerts_router
+from app.routers import stream_rtt as stream_rtt_router
 from app.security.deps import get_current_user, require_admin
 from app.services.docker_manager import DockerManager
 from app.services.k8s_runtime import instance_runtime
@@ -185,6 +187,13 @@ app.add_middleware(
 )
 app.add_middleware(PrometheusMiddleware)  # outermost: also records 403/429 from inner middleware
 
+@app.exception_handler(RequestValidationError)
+async def _validation_error(_: Request, exc: RequestValidationError):
+    # Drop echoed input/ctx: NaN/Infinity inputs are not JSON-serialisable.
+    errs = [{k: v for k, v in e.items() if k not in ("input", "ctx", "url")} for e in exc.errors()]
+    return JSONResponse({"detail": errs}, status_code=422)
+
+
 app.include_router(templates.router, prefix="/api/templates", tags=["templates"])
 app.include_router(instance_thumbs.router, prefix="/api/instances", tags=["instances"])
 app.include_router(instances.router, prefix="/api/instances", tags=["instances"])
@@ -216,6 +225,7 @@ app.include_router(service_icons_router.router, prefix="/api/services", tags=["s
 app.include_router(services_router.router, prefix="/api/services", tags=["services"])
 app.include_router(services_auth_router.router, prefix="/api/services", tags=["services"])
 app.include_router(services_auth_router.internal_router, prefix="/internal", tags=["services"])
+app.include_router(stream_rtt_router.router, prefix="/api/stream", tags=["stream"])
 app.include_router(ops_alerts_router.internal_router, prefix="/internal", tags=["ops"])
 app.include_router(ops_alerts_router.router, prefix="/api/admin", tags=["ops"])
 app.include_router(instance_auth_router.internal_router, prefix="/internal/instances",
