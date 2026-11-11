@@ -226,8 +226,9 @@ HOMELAB_DIRS = ("e2e/", "scripts/diagrams/")
 
 def lockfile_origins(path):
     """bom-ref -> lockfile paths, from Trivy's application components and dependencies."""
+    components = load_sbom(path)  # validates shape, raises InputError
     data = json.loads(Path(path).read_text())
-    apps = {c.get("bom-ref"): c.get("name") or "" for c in data["components"]
+    apps = {c.get("bom-ref"): c.get("name") or "" for c in components
             if c.get("type") == "application" and c.get("bom-ref")}
     out = {}
     for d in data.get("dependencies") or []:
