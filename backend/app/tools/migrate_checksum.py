@@ -16,7 +16,11 @@ import app.models  # noqa: F401  (registers every table on SQLModel.metadata)
 
 
 def copy_tables() -> list[sa.Table]:
-    """App tables in FK-dependency order; alembic_version is never copied or hashed."""
+    """App tables in FK-dependency order; alembic_version is never copied or hashed.
+
+    All metadata tables are copied, including the abuse tables (auth_fail_events,
+    auth_blocks, rate_counters): active lockouts/bans must survive the cutover.
+    """
     return [t for t in SQLModel.metadata.sorted_tables if t.name != "alembic_version"]
 
 

@@ -86,7 +86,7 @@ from app.tools import migrate_copy  # noqa: E402
 from app.tools.migrate_checksum import checksum  # noqa: E402
 
 NOW = "2026-01-01 00:00:00.000000"
-SEQ_TABLES = ("session_events", "audit_log", "workstation_access")
+SEQ_TABLES = ("session_events", "audit_log", "workstation_access", "auth_fail_events")
 
 
 def _setting(path, key="k", val='"v"'):
