@@ -1,0 +1,228 @@
+# Fluent Bit via the RKE2 helm-controller (helm.cattle.io/v1), chart and image pulled
+# through Harbor (proxy project "fluent"). Two releases:
+#   fluent-bit        every node: container logs (incl. Styx audit lines) -> 2 data streams
+#   fluent-bit-audit  control-plane only: kube-apiserver audit log (read-only hostPath)
+# ELASTIC_HOST must match the FQDN in networkpolicy.yaml; ELASTIC_API_KEY comes from the
+# elastic-shipper Secret. Buffers live on the node (hostPath) so restarts lose nothing.
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: fluent-bit
+  namespace: kube-system
+spec:
+  chart: oci://harbor.example.internal/fluent/fluent-bit
+  version: 0.58.3
+  targetNamespace: logging
+  valuesContent: |-
+    image:
+      repository: harbor.example.internal/fluent/fluent-bit
+      tag: "5.1.3"
+    tolerations:
+      - {key: CriticalAddonsOnly, operator: Exists}
+    serviceMonitor:
+      enabled: true
+      selector: {release: kube-prometheus-stack}
+    env:
+      - {name: ELASTIC_HOST, value: siem.example.internal}
+      - {name: ELASTIC_PORT, value: "9200"}
+    envFrom:
+      - secretRef: {name: elastic-shipper}
+    extraVolumes:
+      - name: lua
+        configMap: {name: fluent-bit-lua}
+      - name: elastic-ca
+        configMap: {name: elastic-ca}
+      - name: buffer
+        hostPath: {path: /var/lib/fluent-bit/main, type: DirectoryOrCreate}
+    extraVolumeMounts:
+      - {name: lua, mountPath: /fluent-bit/scripts, readOnly: true}
+      - {name: elastic-ca, mountPath: /fluent-bit/ca, readOnly: true}
+      - {name: buffer, mountPath: /var/lib/fluent-bit}
+    config:
+      service: |
+        [SERVICE]
+            daemon off
+            flush 1
+            log_level info
+            parsers_file /fluent-bit/etc/parsers.conf
+            http_server on
+            http_listen 0.0.0.0
+            http_port 2020
+            health_check on
+            storage.path /var/lib/fluent-bit/buffer
+            storage.sync normal
+            storage.backlog.mem_limit 32M
+            storage.metrics on
+      inputs: |
+        [INPUT]
+            name tail
+            tag kube.*
+            path /var/log/containers/*.log
+            exclude_path /var/log/containers/*_logging_*.log
+            multiline.parser cri
+            db /var/lib/fluent-bit/tail.db
+            mem_buf_limit 32MB
+            skip_long_lines on
+            storage.type filesystem
+      filters: |
+        [FILTER]
+            name kubernetes
+            match kube.*
+            merge_log on
+            keep_log off
+            k8s-logging.parser off
+            k8s-logging.exclude on
+            labels on
+            annotations off
+
+        [FILTER]
+            name lua
+            match kube.*
+            script /fluent-bit/scripts/styx.lua
+            call styx_route
+
+        [FILTER]
+            name rewrite_tag
+            match kube.*
+            rule $_styx_audit ^1$ styx.audit false
+            emitter_name styx_audit_emitter
+            emitter_storage.type filesystem
+
+        [FILTER]
+            name record_modifier
+            match styx.audit
+            remove_key _styx_audit
+      outputs: |
+        [OUTPUT]
+            name es
+            match styx.audit
+            host ${ELASTIC_HOST}
+            port ${ELASTIC_PORT}
+            index logs-styx.audit-default
+            id_key event.id
+            http_api_key ${ELASTIC_API_KEY}
+            tls on
+            tls.verify on
+            tls.verify_hostname on
+            tls.ca_file /fluent-bit/ca/ca.crt
+            suppress_type_name on
+            write_operation create
+            compress gzip
+            time_key event.ingested
+            retry_limit false
+            storage.total_limit_size 2G
+
+        [OUTPUT]
+            name es
+            match kube.*
+            host ${ELASTIC_HOST}
+            port ${ELASTIC_PORT}
+            index logs-kubernetes.container_logs-default
+            generate_id on
+            http_api_key ${ELASTIC_API_KEY}
+            tls on
+            tls.verify on
+            tls.verify_hostname on
+            tls.ca_file /fluent-bit/ca/ca.crt
+            suppress_type_name on
+            write_operation create
+            compress gzip
+            time_key event.ingested
+            retry_limit false
+            storage.total_limit_size 8G
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: fluent-bit-audit
+  namespace: kube-system
+spec:
+  chart: oci://harbor.example.internal/fluent/fluent-bit
+  version: 0.58.3
+  targetNamespace: logging
+  valuesContent: |-
+    image:
+      repository: harbor.example.internal/fluent/fluent-bit
+      tag: "5.1.3"
+    rbac: {create: false}  # no kubernetes filter, no API access needed
+    nodeSelector:
+      node-role.kubernetes.io/control-plane: "true"
+    tolerations:
+      - {key: CriticalAddonsOnly, operator: Exists}
+      - {key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule}
+      - {key: node-role.kubernetes.io/etcd, operator: Exists, effect: NoExecute}
+    serviceMonitor:
+      enabled: true
+      selector: {release: kube-prometheus-stack}
+    env:
+      - {name: ELASTIC_HOST, value: siem.example.internal}
+      - {name: ELASTIC_PORT, value: "9200"}
+    envFrom:
+      - secretRef: {name: elastic-shipper}
+    daemonSetVolumes: []
+    daemonSetVolumeMounts: []
+    extraVolumes:
+      - name: lua
+        configMap: {name: fluent-bit-lua}
+      - name: elastic-ca
+        configMap: {name: elastic-ca}
+      - name: rke2-audit
+        hostPath: {path: /var/lib/rancher/rke2/server/logs, type: Directory}
+      - name: buffer
+        hostPath: {path: /var/lib/fluent-bit/audit, type: DirectoryOrCreate}
+    extraVolumeMounts:
+      - {name: lua, mountPath: /fluent-bit/scripts, readOnly: true}
+      - {name: elastic-ca, mountPath: /fluent-bit/ca, readOnly: true}
+      - {name: rke2-audit, mountPath: /var/lib/rancher/rke2/server/logs, readOnly: true}
+      - {name: buffer, mountPath: /var/lib/fluent-bit}
+    config:
+      service: |
+        [SERVICE]
+            daemon off
+            flush 1
+            log_level info
+            parsers_file /fluent-bit/etc/parsers.conf
+            http_server on
+            http_listen 0.0.0.0
+            http_port 2020
+            health_check on
+            storage.path /var/lib/fluent-bit/buffer
+            storage.sync full
+            storage.backlog.mem_limit 32M
+            storage.metrics on
+      inputs: |
+        [INPUT]
+            name tail
+            tag k8s.audit
+            path /var/lib/rancher/rke2/server/logs/audit.log
+            parser json
+            db /var/lib/fluent-bit/audit.db
+            buffer_max_size 4MB
+            mem_buf_limit 64MB
+            skip_long_lines on
+            storage.type filesystem
+      filters: |
+        [FILTER]
+            name lua
+            match k8s.audit
+            script /fluent-bit/scripts/styx.lua
+            call k8s_audit_ecs
+      outputs: |
+        [OUTPUT]
+            name es
+            match k8s.audit
+            host ${ELASTIC_HOST}
+            port ${ELASTIC_PORT}
+            index logs-kubernetes.audit_logs-default
+            generate_id on
+            http_api_key ${ELASTIC_API_KEY}
+            tls on
+            tls.verify on
+            tls.verify_hostname on
+            tls.ca_file /fluent-bit/ca/ca.crt
+            suppress_type_name on
+            write_operation create
+            compress gzip
+            time_key event.ingested
+            retry_limit false
+            storage.total_limit_size 8G

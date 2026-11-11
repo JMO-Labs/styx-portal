@@ -1,0 +1,72 @@
+{
+  "template": {
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "@timestamp": {"type": "date"},
+        "message": {"type": "match_only_text"},
+        "log": {"type": "match_only_text"},
+        "stream": {"type": "keyword"},
+        "ecs": {"properties": {"version": {"type": "keyword"}}},
+        "event": {
+          "properties": {
+            "id": {"type": "keyword"},
+            "kind": {"type": "keyword"},
+            "module": {"type": "keyword"},
+            "dataset": {"type": "keyword"},
+            "provider": {"type": "keyword"},
+            "action": {"type": "keyword"},
+            "category": {"type": "keyword"},
+            "type": {"type": "keyword"},
+            "outcome": {"type": "keyword"},
+            "ingested": {"type": "date"}
+          }
+        },
+        "user": {"properties": {"id": {"type": "keyword"}, "name": {"type": "keyword"}}},
+        "source": {"properties": {"ip": {"type": "ip"}}},
+        "destination": {"properties": {"domain": {"type": "keyword"}}},
+        "url": {"properties": {"domain": {"type": "keyword"}, "path": {"type": "keyword"}}},
+        "http": {
+          "properties": {
+            "request": {"properties": {"method": {"type": "keyword"}}},
+            "response": {"properties": {"status_code": {"type": "long"}}}
+          }
+        },
+        "user_agent": {"properties": {"original": {"type": "keyword", "ignore_above": 1024}}},
+        "rule": {"properties": {"category": {"type": "keyword"}}},
+        "file": {"properties": {"size": {"type": "long"}, "mime_type": {"type": "keyword"}}},
+        "kubernetes": {
+          "properties": {
+            "namespace_name": {"type": "keyword"},
+            "pod_name": {"type": "keyword"},
+            "container_name": {"type": "keyword"},
+            "host": {"type": "keyword"},
+            "labels": {"type": "flattened"},
+            "audit": {"type": "flattened", "ignore_above": 8191}
+          }
+        },
+        "styx": {
+          "properties": {
+            "audit": {
+              "properties": {
+                "resource": {"type": "keyword"},
+                "detail": {"type": "flattened"}
+              }
+            },
+            "identity": {
+              "properties": {"card_key": {"type": "keyword"}, "card_type": {"type": "keyword"}}
+            },
+            "dlp": {
+              "properties": {
+                "direction": {"type": "keyword"},
+                "channel": {"type": "keyword"},
+                "filename_sha256": {"type": "keyword"}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "_meta": {"description": "ECS subset + reserved styx.* hook fields (no file.hash: D38 metadata only)", "managed_by": "styx-portal deploy/logging"}
+}

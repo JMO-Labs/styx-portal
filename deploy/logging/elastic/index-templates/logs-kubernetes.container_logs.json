@@ -1,0 +1,7 @@
+{
+  "index_patterns": ["logs-kubernetes.container_logs-*"],
+  "data_stream": {},
+  "priority": 250,
+  "composed_of": ["styx@settings", "styx-ecs@mappings"],
+  "_meta": {"managed_by": "styx-portal deploy/logging"}
+}

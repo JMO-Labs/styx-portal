@@ -1,0 +1,54 @@
+# Lua filters for both Fluent Bit releases (mounted at /fluent-bit/scripts).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-lua
+  namespace: logging
+data:
+  styx.lua: |
+    local function iso(ts)
+      local s = math.floor(ts)
+      return os.date("!%Y-%m-%dT%H:%M:%S", s) .. string.format(".%03dZ", math.floor((ts - s) * 1000))
+    end
+
+    -- Container logs: guarantee @timestamp (data streams need it) and mark Styx audit
+    -- lines. Only the styx/backend container may feed logs-styx.audit; an ECS-looking
+    -- line from any other pod stays in container_logs.
+    function styx_route(tag, ts, record)
+      if record["@timestamp"] == nil then
+        record["@timestamp"] = iso(ts)
+      end
+      local ev, k = record["event"], record["kubernetes"]
+      if type(ev) == "table" and ev["dataset"] == "styx.audit" and type(k) == "table"
+          and k["namespace_name"] == "styx" and k["container_name"] == "backend" then
+        -- es id_key takes a top-level key only; ES maps the dotted key back to event.id.
+        record["event.id"] = ev["id"]
+        ev["id"] = nil
+        record["_styx_audit"] = "1"
+      end
+      return 2, ts, record
+    end
+
+    -- kube-apiserver audit.k8s.io/v1 Event -> ECS; the raw event stays under kubernetes.audit.
+    function k8s_audit_ecs(tag, ts, r)
+      local status = r["responseStatus"]
+      local code = type(status) == "table" and status["code"] or nil
+      local outcome = "unknown"
+      if code ~= nil then
+        outcome = (code < 400) and "success" or "failure"
+      end
+      local u, ips = r["user"], r["sourceIPs"]
+      local out = {
+        ["@timestamp"] = r["requestReceivedTimestamp"] or iso(ts),
+        ecs = {version = "8.17.0"},
+        event = {kind = "event", module = "kubernetes", dataset = "kubernetes.audit_logs",
+                 provider = "kube-apiserver", action = r["verb"], outcome = outcome},
+        user = {name = type(u) == "table" and u["username"] or nil},
+        source = {ip = type(ips) == "table" and ips[1] or nil},
+        url = {path = r["requestURI"]},
+        user_agent = {original = r["userAgent"]},
+        http = {response = {status_code = code}},
+        kubernetes = {audit = r},
+      }
+      return 2, ts, out
+    end

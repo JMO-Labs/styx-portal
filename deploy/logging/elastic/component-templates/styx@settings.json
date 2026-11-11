@@ -1,0 +1,9 @@
+{
+  "template": {
+    "settings": {
+      "index.lifecycle.name": "styx-logs",
+      "index.codec": "best_compression"
+    }
+  },
+  "_meta": {"managed_by": "styx-portal deploy/logging"}
+}

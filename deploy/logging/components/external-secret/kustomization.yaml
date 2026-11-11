@@ -1,0 +1,21 @@
+# Opt-in once OpenBao + ESO (#4) are live: replaces the placeholder Secret with an
+# ExternalSecret from OpenBao kv/styx/logging/elastic (property api_key).
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - externalsecret.yaml
+patches:
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: elastic-shipper
+        namespace: logging
+  - patch: |-
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: logging
+        labels:
+          styx.io/openbao-secrets: "true"

@@ -1,0 +1,10 @@
+{
+  "cluster": [],
+  "indices": [
+    {
+      "names": ["logs-styx.*-*", "logs-kubernetes.*-*"],
+      "privileges": ["create_doc", "auto_configure"]
+    }
+  ],
+  "metadata": {"managed_by": "styx-portal deploy/logging", "purpose": "Fluent Bit shipper API key (append only)"}
+}

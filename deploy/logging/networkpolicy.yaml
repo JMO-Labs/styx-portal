@@ -1,0 +1,30 @@
+# Shipper egress: DNS, the Elastic SIEM (443/9200) and the API server (kubernetes filter
+# metadata). Replace the placeholder FQDN with ELASTIC_HOST (helmchart.yaml).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: fluent-bit
+  namespace: logging
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports: [{port: "53", protocol: ANY}]
+          rules:
+            dns: [{matchPattern: "*"}]
+    - toFQDNs:
+        - matchName: siem.example.internal
+      toPorts:
+        - ports: [{port: "443", protocol: TCP}, {port: "9200", protocol: TCP}]
+    - toEntities: [kube-apiserver]
+  ingress:
+    # Prometheus scrape of /api/v2/metrics/prometheus (namespace per #8).
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports: [{port: "2020", protocol: TCP}]

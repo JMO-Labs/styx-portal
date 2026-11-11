@@ -1,0 +1,25 @@
+{
+  "policy": {
+    "_meta": {"description": "Styx logs: 90 d hot, then cold until delete (AU-11, ADR-0044). Phase ages count from rollover.", "managed_by": "styx-portal deploy/logging"},
+    "phases": {
+      "hot": {
+        "min_age": "0ms",
+        "actions": {
+          "rollover": {"max_primary_shard_size": "50gb", "max_age": "30d"},
+          "set_priority": {"priority": 100}
+        }
+      },
+      "cold": {
+        "min_age": "90d",
+        "actions": {
+          "readonly": {},
+          "set_priority": {"priority": 0}
+        }
+      },
+      "delete": {
+        "min_age": "${RETENTION_DELETE_DAYS}d",
+        "actions": {"delete": {}}
+      }
+    }
+  }
+}
