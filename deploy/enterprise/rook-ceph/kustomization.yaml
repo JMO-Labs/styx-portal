@@ -5,3 +5,11 @@ kind: Kustomization
 resources:
   - local-pvs.yaml
   - cephcluster.yaml
+  - throttle-cephclient.yaml
+  - throttle-config.yaml
+  - throttle-cronjob.yaml
+configMapGenerator:
+  - name: ceph-throttle-script
+    namespace: rook-ceph
+    files:
+      - throttle/mclock_throttle.py

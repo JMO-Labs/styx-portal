@@ -176,3 +176,44 @@ def test_mclock_profile_not_in_cephconfig():
     merged = {**glob, **osd}
     assert isinstance(merged["osd_scrub_begin_hour"], str)
     assert isinstance(merged["osd_scrub_end_hour"], str)
+
+
+# --- mClock throttle (issue #29) ---------------------------------------------
+
+
+def _load(name):
+    return yaml.safe_load((DIR / name).read_text())
+
+
+def test_throttle_cronjob():
+    cj = _load("throttle-cronjob.yaml")
+    assert cj["kind"] == "CronJob"
+    s = cj["spec"]
+    assert s["schedule"] == "*/15 * * * *"
+    assert s["timeZone"] == "America/New_York"
+    assert s["concurrencyPolicy"] == "Forbid"
+    pod = s["jobTemplate"]["spec"]["template"]["spec"]
+    c = pod["containers"][0]
+    assert ":v20.2.5@sha256:4337ac8ac81d40df136e5eac92ca53bb52360a5e039f3d1f7935e729eb5ef42c" in c["image"]
+    secrets = {v["secret"]["secretName"] for v in pod["volumes"] if "secret" in v}
+    assert secrets == {"rook-ceph-client-throttle"}
+    text = (DIR / "throttle-cronjob.yaml").read_text()
+    assert "rook-ceph-admin-keyring" not in text
+    assert "rook-ceph-mon\n" not in text and "secretName: rook-ceph-mon" not in text
+    k = _load("kustomization.yaml")
+    gen_ = k["configMapGenerator"][0]
+    assert any(f.endswith("throttle/mclock_throttle.py") for f in gen_["files"])
+    cm = _load("throttle-config.yaml")
+    assert cm["metadata"]["name"] == "ceph-throttle-config"
+    assert cm["data"]["window"] == "Mon-Fri 07:00-19:00 America/New_York"
+    assert cm["data"]["force"] == ""
+
+
+def test_throttle_cephclient_least_privilege():
+    cc = _load("throttle-cephclient.yaml")
+    assert cc["kind"] == "CephClient"
+    assert cc["metadata"]["name"] == "throttle"
+    caps = cc["spec"]["caps"]
+    assert set(caps) == {"mon"}
+    assert caps["mon"] == 'allow r, allow command "config set", allow command "config get"'
+    assert "allow *" not in caps["mon"]
