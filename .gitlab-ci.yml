@@ -81,6 +81,15 @@ k8s-policy:
     - cd backend && python -m venv .venv && .venv/bin/pip install -e ".[dev]" -q
     - REQUIRE_KUSTOMIZE=1 .venv/bin/python -m pytest tests/test_cilium_baseline.py -q
 
+slo-rules:
+  stage: test
+  image:
+    name: prom/prometheus:v2.55.1
+    entrypoint: [""]
+  <<: *on_push_or_mr
+  script:
+    - sh scripts/slo_rules_test.sh
+
 plugin-test:
   stage: test
   image: golang:1.22

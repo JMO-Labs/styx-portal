@@ -13,6 +13,7 @@ resources:
   - networkpolicy.yaml
   - backup-cronjob.yaml
   - prometheusrule.yaml
+  - slo-rules.yaml
   - servicemonitor.yaml
   - alertmanager-config.yaml
 # Tag must be >= v2.3.0 (first release with ROUTE_BACKEND=k8s); older tags boot
