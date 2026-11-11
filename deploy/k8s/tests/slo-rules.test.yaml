@@ -304,10 +304,10 @@ tests:
       - expr: 'styx:node_slots_cpu{node="a"}'
         eval_time: 20m
         exp_samples:
-          - labels: 'styx:node_slots_cpu{kind="free",node="a",resource="cpu"}'
+          - labels: 'styx:node_slots_cpu{kind="free",node="a"}'
             value: 39
       - expr: 'styx:node_slots_memory{node="a"}'
         eval_time: 20m
         exp_samples:
-          - labels: 'styx:node_slots_memory{kind="free",node="a",resource="memory"}'
+          - labels: 'styx:node_slots_memory{kind="free",node="a"}'
             value: 120
