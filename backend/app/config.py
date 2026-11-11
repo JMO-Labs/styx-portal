@@ -119,6 +119,13 @@ class Settings(BaseSettings):
     LAN_CERT_DIR: str = "/app/data/lan-certs"      # backend-side path (lan-certs volume)
     TRAEFIK_LAN_CERT_DIR: str = "/lan-certs"       # same volume as seen by Traefik
 
+    # SLO scope gauges (styx_slo_business_hours / styx_maintenance_active)
+    SLO_TIMEZONE: str = "America/New_York"
+    SLO_BUSINESS_DAYS: str = "Mon,Tue,Wed,Thu,Fri"
+    SLO_BUSINESS_HOURS: str = "07:00-18:00"   # HH:MM-HH:MM local, end exclusive
+    SLO_MAINTENANCE_START: str = ""           # ISO datetime (naive = UTC); empty = none
+    SLO_MAINTENANCE_END: str = ""
+
     # extra="ignore": the repo-root .env is shared with docker-compose,
     # cloudflared, and authentik, so it carries keys the backend does not
     # declare (CF_TUNNEL_TOKEN, AUTHENTIK_HOST, COMPOSE_PROFILES, ...).
