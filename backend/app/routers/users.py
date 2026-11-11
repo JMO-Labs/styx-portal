@@ -242,6 +242,7 @@ async def reset_matrix(user_id: str, request: Request,
 
 
 async def _user_out(u: User) -> UserOut:
+    # Display only: a store failure shows "unlocked" here. Never use this as a lock check.
     try:
         left = await get_abuse_store().locked_for(u.username)
     except Exception:
