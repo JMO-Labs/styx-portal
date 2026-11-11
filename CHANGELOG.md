@@ -30,6 +30,10 @@
 * **operate:** offsite backup runbook (`docs/operate/offsite-backup.md`): bucket lifecycle rule prerequisite, escrow and one-page restore, key rotation with an explicit delete date and destruction of the old password, deleted-user data bound per whole pack, known issues (CI gap, sticky failed-job alert, byte-length password check, escaped orphan names); ADR-0037 consequences and CP-6/CP-9/SC-28 rows (styx-portal#13)
 * **enterprise:** GitLab protect runbook: Free/CE cannot PATCH protected-branch levels (re-protect by hand), runner tags have no access control (restrict project-runner creation); enterprise IaC layout and OpenBao `gitlab-protect` role (styx-portal#16)
 
+### Documentation
+
+* **docs:** enterprise Kubernetes guide, first-boot and rotation runbooks, full-site restore runbook with SSE-C note (#82)
+
 ## 1.0.0 (2026-06-15)
 
 ### Features
