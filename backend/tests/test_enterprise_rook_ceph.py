@@ -122,14 +122,6 @@ def test_device_sets_match_inventory():
         assert spec["volumeMode"] == "Block"
         assert spec["storageClassName"] == "local-nvme"
         assert spec["accessModes"] == ["ReadWriteOnce"]
-        assert "encrypted" not in ds
-
-
-def test_encryption_left_for_20():
-    s = _spec_()
-    assert "security" not in s or "kms" not in s["security"]
-    for ds in s["storage"]["storageClassDeviceSets"]:
-        assert "encrypted" not in ds
 
 
 def test_osd_resources():

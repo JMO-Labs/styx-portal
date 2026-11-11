@@ -35,6 +35,22 @@ spec:
         memory: 8Gi
       limits:
         memory: 8Gi
+  security:
+    kms:
+      connectionDetails:
+        KMS_PROVIDER: vault
+        VAULT_ADDR: https://openbao.openbao.svc:8200
+        VAULT_BACKEND_PATH: rook
+        VAULT_SECRET_ENGINE: kv
+        VAULT_BACKEND: v2
+        VAULT_AUTH_METHOD: kubernetes
+        VAULT_AUTH_MOUNT_PATH: kubernetes
+        VAULT_AUTH_KUBERNETES_ROLE: rook-ceph
+        VAULT_CACERT: openbao-ca
+        VAULT_TLS_SERVER_NAME: openbao.openbao.svc
+    keyRotation:
+      enabled: true
+      schedule: 0 2 1 * *
   storage:
     useAllNodes: false
     useAllDevices: false
@@ -42,6 +58,7 @@ spec:
     - name: worker-01
       count: 2
       portable: false
+    encrypted: true
       placement:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -65,6 +82,7 @@ spec:
     - name: worker-02
       count: 2
       portable: false
+    encrypted: true
       placement:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -88,6 +106,7 @@ spec:
     - name: worker-03
       count: 2
       portable: false
+    encrypted: true
       placement:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -111,6 +130,7 @@ spec:
     - name: worker-04
       count: 2
       portable: false
+    encrypted: true
       placement:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -134,6 +154,7 @@ spec:
     - name: worker-05
       count: 2
       portable: false
+    encrypted: true
       placement:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -157,6 +178,7 @@ spec:
     - name: worker-06
       count: 2
       portable: false
+    encrypted: true
       placement:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -180,6 +202,7 @@ spec:
     - name: worker-07
       count: 2
       portable: false
+    encrypted: true
       placement:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -203,6 +226,7 @@ spec:
     - name: worker-08
       count: 2
       portable: false
+    encrypted: true
       placement:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

@@ -132,6 +132,7 @@ def _device_set(node: dict) -> dict:
         "name": host,
         "count": len(node["nvme"]),
         "portable": False,
+        "encrypted": True,
         "placement": {"nodeAffinity": affinity},
         "volumeClaimTemplates": [
             {
@@ -180,6 +181,23 @@ def build_cluster(inv: dict) -> dict:
                     "requests": {"cpu": cpu, "memory": OSD_MEMORY},
                     "limits": {"memory": OSD_MEMORY},
                 }
+            },
+            "security": {
+                "kms": {
+                    "connectionDetails": {
+                        "KMS_PROVIDER": "vault",
+                        "VAULT_ADDR": "https://openbao.openbao.svc:8200",
+                        "VAULT_BACKEND_PATH": "rook",
+                        "VAULT_SECRET_ENGINE": "kv",
+                        "VAULT_BACKEND": "v2",
+                        "VAULT_AUTH_METHOD": "kubernetes",
+                        "VAULT_AUTH_MOUNT_PATH": "kubernetes",
+                        "VAULT_AUTH_KUBERNETES_ROLE": "rook-ceph",
+                        "VAULT_CACERT": "openbao-ca",
+                        "VAULT_TLS_SERVER_NAME": "openbao.openbao.svc",
+                    }
+                },
+                "keyRotation": {"enabled": True, "schedule": "0 2 1 * *"},
             },
             "storage": {
                 "useAllNodes": False,
