@@ -58,7 +58,7 @@ spec:
     - name: worker-01
       count: 2
       portable: false
-    encrypted: true
+      encrypted: true
       placement:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -82,7 +82,7 @@ spec:
     - name: worker-02
       count: 2
       portable: false
-    encrypted: true
+      encrypted: true
       placement:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -106,7 +106,7 @@ spec:
     - name: worker-03
       count: 2
       portable: false
-    encrypted: true
+      encrypted: true
       placement:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -130,7 +130,7 @@ spec:
     - name: worker-04
       count: 2
       portable: false
-    encrypted: true
+      encrypted: true
       placement:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -154,7 +154,7 @@ spec:
     - name: worker-05
       count: 2
       portable: false
-    encrypted: true
+      encrypted: true
       placement:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -178,7 +178,7 @@ spec:
     - name: worker-06
       count: 2
       portable: false
-    encrypted: true
+      encrypted: true
       placement:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -202,7 +202,7 @@ spec:
     - name: worker-07
       count: 2
       portable: false
-    encrypted: true
+      encrypted: true
       placement:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -226,7 +226,7 @@ spec:
     - name: worker-08
       count: 2
       portable: false
-    encrypted: true
+      encrypted: true
       placement:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
