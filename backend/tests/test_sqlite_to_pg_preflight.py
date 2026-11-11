@@ -20,7 +20,7 @@ def src(tmp_path):
 
 def _user(path, uid="u1", **over):
     cols = {"id": uid, "username": f"n{uid}", "password_hash": "x", "role": "user",
-            "is_active": 1, "must_change_pw": 0, "token_version": 0, "created_at": NOW}
+            "is_active": 1, "must_change_pw": 0, "token_version": 0, "failed_count": 0, "created_at": NOW}
     cols.update(over)
     raw_exec(path, f"INSERT INTO users ({','.join(cols)}) VALUES ({','.join('?' * len(cols))})",
              tuple(cols.values()))
