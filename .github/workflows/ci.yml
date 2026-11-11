@@ -26,6 +26,7 @@ jobs:
       plugin: ${{ github.event_name != 'pull_request' || steps.f.outputs.plugin == 'true' }}
       rke2: ${{ github.event_name != 'pull_request' || steps.f.outputs.rke2 == 'true' }}
       code: ${{ github.event_name != 'pull_request' || steps.code.outputs.code == 'true' }}
+      license: ${{ github.event_name != 'pull_request' || steps.f.outputs.license == 'true' }}
     steps:
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: f
@@ -37,6 +38,8 @@ jobs:
             pg: ['backend/app/database.py', 'backend/app/db_migrate.py', 'backend/app/db_types.py', 'backend/app/models.py', 'backend/alembic/**', 'backend/alembic.ini', 'backend/pyproject.toml', 'backend/uv.lock', '.github/actions/setup-backend/**', '.github/workflows/ci.yml']
             plugin: ['traefik/**', '.github/workflows/ci.yml']
             rke2: ['deploy/rke2/**', '.github/workflows/ci.yml']
+            # Component/license register inputs live partly under docs/ (excluded from `code`).
+            license: ['backend/uv.lock', 'docs/enterprise/components.yaml', 'docs/enterprise/license-policy.yaml', 'docs/enterprise/component-register.*', 'scripts/license_*', '.github/workflows/ci.yml']
       # Anything that is not docs/images: gates quality + security.
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: code
@@ -187,7 +190,7 @@ jobs:
 
   security:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' || needs.changes.outputs.license == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -205,3 +208,12 @@ jobs:
           severity: HIGH,CRITICAL
           exit-code: "1"
           ignore-unfixed: true
+      - name: Component and license register (issue #17, blocking)
+        run: |
+          set -eu
+          T="$RUNNER_TEMP/trivy-bin"; mkdir -p "$T"
+          curl -sSfL -o "$T/trivy.tar.gz" https://github.com/aquasecurity/trivy/releases/download/v0.76.2/trivy_0.76.2_Linux-64bit.tar.gz
+          echo "bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf  $T/trivy.tar.gz" | sha256sum -c -
+          tar xzf "$T/trivy.tar.gz" -C "$T" trivy
+          scripts/license_scan.sh "$T/trivy"
+          backend/.venv/bin/python scripts/license_register.py check --sbom repo.cdx.json venv.cdx.json
