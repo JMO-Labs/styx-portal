@@ -1,0 +1,39 @@
+# Traefik: ingress from the world on web ports, egress to Styx and instances.
+# PLACEHOLDER(#7): DMZ HAProxy fronts Traefik; once its IPs are fixed replace
+# fromEntities: [world] with fromCIDRSet. 8000/8443 are the pod entrypoints,
+# 80/443 cover the Service ports.
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: traefik
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: traefik
+    matchExpressions:
+      - {key: k8s:io.kubernetes.pod.namespace, operator: NotIn, values: [kube-system]}
+  ingress:
+    - fromEntities: [world]
+      toPorts:
+        - ports:
+            - {port: "80", protocol: TCP}
+            - {port: "443", protocol: TCP}
+            - {port: "8000", protocol: TCP}
+            - {port: "8443", protocol: TCP}
+  egress:
+    # backend 8000, frontend 3000
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: styx
+      toPorts:
+        - ports:
+            - {port: "8000", protocol: TCP}
+            - {port: "3000", protocol: TCP}
+    # desktop web port is per template (internal_port in templates/*.json: 3000, 3001)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: styx-instances
+      toPorts:
+        - ports:
+            - {port: "3000", protocol: TCP}
+            - {port: "3001", protocol: TCP}

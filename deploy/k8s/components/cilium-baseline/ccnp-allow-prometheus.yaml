@@ -1,0 +1,47 @@
+# Prometheus scraping. Two CCNPs because ingress and egress select different pods.
+# Cilium/Hubble/node-exporter are host-network: only Prometheus egress is needed
+# for them (host firewall off). Pod targets accept Prometheus on ANY port (a fixed
+# port list would go stale). Release kube-prometheus-stack, ns monitoring (#8).
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: allow-prometheus
+spec:
+  # Desktops (styx-instances) are never scrape targets: enterprise invariant.
+  endpointSelector:
+    matchExpressions:
+      - {key: k8s:io.kubernetes.pod.namespace, operator: NotIn, values: [kube-system]}
+      - {key: k8s:io.kubernetes.pod.namespace, operator: NotIn, values: [styx-instances]}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: allow-prometheus-egress
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: monitoring
+      app.kubernetes.io/name: prometheus
+    matchExpressions:
+      - {key: k8s:io.kubernetes.pod.namespace, operator: NotIn, values: [kube-system]}
+  egress:
+    # cilium-agent 9962, hubble 9965, cilium-operator 9963, node-exporter 9100,
+    # kubelet 10250, etcd 2381, controller-manager 10257, scheduler 10259
+    - toEntities: [host, remote-node, kube-apiserver]
+      toPorts:
+        - ports:
+            - {port: "9962", protocol: TCP}
+            - {port: "9963", protocol: TCP}
+            - {port: "9965", protocol: TCP}
+            - {port: "9100", protocol: TCP}
+            - {port: "10250", protocol: TCP}
+            - {port: "2381", protocol: TCP}
+            - {port: "10257", protocol: TCP}
+            - {port: "10259", protocol: TCP}
+    - toEndpoints:
+        - {}

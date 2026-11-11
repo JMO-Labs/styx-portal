@@ -4,6 +4,10 @@ resources:
   - ccnp-default-deny.yaml
   - ccnp-squid-proxy.yaml
   - proxy-params.yaml
+  - ccnp-allow-intra-ns.yaml
+  - ccnp-allow-prometheus.yaml
+  - ccnp-styx.yaml
+  - ccnp-traefik.yaml
 patches:
   - path: patch-desktop-egress.yaml
     target:
