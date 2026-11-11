@@ -249,6 +249,57 @@ def test_unscoped_npm_keeps_own_license_without_overrides(tmp_path):
     assert all("AND" not in e["license"] for e in entries)
 
 
+def app_sbom(tmp, groups, name="app.cdx.json"):
+    """Trivy-style SBOM: one application component per lockfile, linked via dependencies."""
+    comps, deps = [], []
+    for i, (path, libs) in enumerate(groups.items()):
+        comps.append({"type": "application", "bom-ref": f"app{i}", "name": path})
+        refs = []
+        for c in libs:
+            c["bom-ref"] = f"{c['purl']}#{i}"
+            refs.append(c["bom-ref"])
+        comps += libs
+        deps.append({"ref": f"app{i}", "dependsOn": refs})
+    p = tmp / name
+    p.write_text(json.dumps({"bomFormat": "CycloneDX", "components": comps,
+                             "dependencies": deps}))
+    return p
+
+
+EMPTY = {"first_party": [], "components": [], "overrides": []}
+
+
+def test_e2e_and_diagrams_npm_are_homelab(tmp_path):
+    s = app_sbom(tmp_path, {
+        "package-lock.json": [lib("a", "1.0.0", "MIT")],
+        "frontend/package-lock.json": [lib("b", "1.0.0", "MIT")],
+        "e2e/package-lock.json": [lib("c", "1.0.0", "GPL-3.0")],
+        "scripts/diagrams/package-lock.json": [lib("d", "1.0.0", "MIT"),
+                                               lib("a", "1.0.0", "MIT")],
+        "backend/uv.lock": [lib("e", "1.0", "MIT", eco="pypi")]})
+    scopes = {e["name"]: e["scope"] for e in lr.build([s], EMPTY)}
+    assert scopes == {"a": "enterprise", "b": "enterprise", "c": "homelab",
+                      "d": "homelab", "e": "enterprise"}
+
+
+def test_homelab_npm_only_warns_in_check(tmp_path, capsys):
+    s = app_sbom(tmp_path, {"e2e/package-lock.json": [lib("c", "1.0.0", "GPL-3.0")]})
+    m = manifest(tmp_path)
+    assert lr.main(args(tmp_path, [s], m, "generate")) == 0
+    capsys.readouterr()
+    assert lr.main(args(tmp_path, [s], m, "check")) == 0
+    assert "WARN: npm c@1.0.0 [homelab]" in capsys.readouterr().out
+
+
+def test_unused_override_warns_without_failing(tmp_path, capsys):
+    ov = [{"name": "ghost", "version": "2.0", "license": "MIT", "source_url": "https://x.org"},
+          {"name": "a", "version": "1.0.0", "license": "MIT", "source_url": "https://x.org"}]
+    code, out = run(tmp_path, capsys, [lib("a", "1.0.0")], overrides=ov)
+    assert code == 0
+    assert "WARN: unused override ghost@2.0" in out
+    assert "unused override a@" not in out
+
+
 BAD_SBOM = {"no_components": {"bomFormat": "CycloneDX"},
             "str_component": {"components": ["x"]},
             "null_component": {"components": [None]},
