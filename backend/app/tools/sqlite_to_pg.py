@@ -91,7 +91,7 @@ async def check_target_empty(target: str) -> None:
             names = await conn.run_sync(lambda c: set(sqlalchemy.inspect(c).get_table_names()))
             for name in sorted(SQLModel.metadata.tables):
                 if name in names and (await conn.execute(
-                        sqlalchemy.text(f'SELECT 1 FROM "{name}" LIMIT 1'))).first():
+                        sqlalchemy.text(f'SELECT 1 FROM "{name}" LIMIT 1'))).first():  # nosec B608 - metadata table name
                     raise PreflightError(f"target {shown} is not empty (table {name}); use --replace")
     except PreflightError:
         raise

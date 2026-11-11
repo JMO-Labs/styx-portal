@@ -76,7 +76,7 @@ def _scan_values(con, table: sa.Table, res: ScanResult) -> list[tuple]:
     cols = [c.name for c in table.columns]
     sel = ", ".join(f'"{c}"' for c in cols)
     rows = []
-    for raw in con.execute(f'SELECT rowid, {sel} FROM "{table.name}"'):
+    for raw in con.execute(f'SELECT rowid, {sel} FROM "{table.name}"'):  # nosec B608 - identifiers from SQLModel metadata
         row = dict(zip(cols, raw[1:]))
         pk = tuple(row[c] for c in pks) if pks else (raw[0],)
         rows.append((pk, row))
