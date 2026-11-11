@@ -4,7 +4,7 @@ import subprocess
 import pytest
 import yaml
 
-from backup_checks import RULE_FILE, alerts, check_stale_alerts, load_rule
+from tests.backup_checks import RULE_FILE, alerts, check_stale_alerts, load_rule
 
 NAMES = {
     "CnpgBackupStale", "CnpgBackupFailed", "CnpgWalArchivingFailing",

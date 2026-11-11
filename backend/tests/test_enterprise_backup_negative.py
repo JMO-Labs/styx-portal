@@ -1,6 +1,6 @@
 import pytest
 
-from backup_checks import alerts, check_stale_alerts, load_rule
+from tests.backup_checks import alerts, check_stale_alerts, load_rule
 
 
 def test_stale_without_absent_is_error():
