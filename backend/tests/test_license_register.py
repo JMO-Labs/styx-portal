@@ -231,6 +231,7 @@ def test_scoped_npm_packages_keep_namespace(tmp_path):
            "source_url": "https://example.org/l"}]
     entries = lr.build([sbom(tmp_path, comps)],
                        {"first_party": [], "components": [], "overrides": ov})
+    assert len(entries) == 3
     got = {(e["name"], e["license"], e["source_url"]) for e in entries}
     assert got == {("@babel/core", "MIT", "pkg:npm/@babel/core@7.29.0"),
                    ("@types/d3-geo", "MIT", "pkg:npm/@types/d3-geo@3.1.1"),
