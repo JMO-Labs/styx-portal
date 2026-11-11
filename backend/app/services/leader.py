@@ -159,6 +159,52 @@ class LeaderElector:
             await self._close(unlock=True)
 
 
+class LeaderTasks:
+    """Leader-only work: boot steps run on every promotion, then the loops start.
+    On loss or shutdown the loops are cancelled and awaited. Failures are logged
+    and never propagate into the elector."""
+
+    def __init__(self, boot=(), loops=()):
+        self._boot = list(boot)
+        self._loops = list(loops)
+        self._tasks: list[asyncio.Task] = []
+
+    @property
+    def running(self) -> bool:
+        return bool(self._tasks)
+
+    async def on_elected(self) -> None:
+        await self._cancel()  # defensive: never double-start
+        for step in self._boot:
+            try:
+                await step()
+            except Exception:  # noqa: BLE001
+                log.warning("leader boot step %s failed", getattr(step, "__name__", step),
+                            exc_info=True)
+        self._tasks = [asyncio.create_task(self._guard(f)) for f in self._loops]
+
+    async def _guard(self, factory) -> None:
+        try:
+            await factory()
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            log.warning("leader task %s crashed", getattr(factory, "__name__", factory),
+                        exc_info=True)
+
+    async def _cancel(self) -> None:
+        tasks, self._tasks = self._tasks, []
+        for t in tasks:
+            t.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def on_lost(self) -> None:
+        await self._cancel()
+
+    async def stop(self) -> None:
+        await self._cancel()
+
+
 _elector: LeaderElector | None = None
 
 

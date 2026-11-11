@@ -50,3 +50,65 @@ async def test_diagnostics_reports_leader(session, tmp_path, monkeypatch):
     r = await diagnostics.run_diagnostics(session, docker=_D())
     assert r["leader"] is True
     assert "leader" not in {c["key"] for c in r["checks"]}
+
+
+# --- LeaderTasks ---
+from app.services.leader import LeaderTasks  # noqa: E402
+
+
+async def test_leader_tasks_cancelled_on_loss():
+    started, cancelled = asyncio.Event(), asyncio.Event()
+
+    async def loop():
+        started.set()
+        try:
+            await asyncio.sleep(3600)
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    lt = LeaderTasks(boot=[], loops=[loop])
+    await lt.on_elected()
+    await asyncio.wait_for(started.wait(), 1)
+    await lt.on_lost()
+    assert cancelled.is_set()
+    assert lt.running is False
+
+
+async def test_promotion_runs_boot_steps_each_time():
+    calls = []
+
+    async def boot():
+        calls.append("boot")
+
+    async def loop():
+        await asyncio.sleep(3600)
+
+    lt = LeaderTasks(boot=[boot], loops=[loop])
+    await lt.on_elected()
+    await lt.on_lost()
+    await lt.on_elected()
+    await lt.stop()
+    assert calls == ["boot", "boot"]
+
+
+async def test_task_crash_does_not_kill_elector(caplog):
+    ran = asyncio.Event()
+
+    async def bad_boot():
+        raise RuntimeError("boom")
+
+    async def bad_loop():
+        ran.set()
+        raise RuntimeError("loop boom")
+
+    lt = LeaderTasks(boot=[bad_boot], loops=[bad_loop])
+    el = _sqlite_elector()
+    task = asyncio.create_task(el.run(lt.on_elected, lt.on_lost))
+    await asyncio.wait_for(ran.wait(), 1)
+    await asyncio.sleep(0.05)
+    assert not task.done()
+    await el.stop()
+    await lt.stop()
+    await asyncio.wait_for(task, 1)
+    assert "boom" in caplog.text
