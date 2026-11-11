@@ -52,7 +52,8 @@ async def test_only_one_leader_then_failover(admin):
         assert await _until(lambda: other.is_leader, 2)
         assert not leader.is_leader
     finally:
-        await a.stop(); await b.stop()
+        await a.stop()
+        await b.stop()
         await asyncio.gather(ta, tb)
 
 
