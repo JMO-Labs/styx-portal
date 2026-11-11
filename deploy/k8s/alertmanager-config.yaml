@@ -1,0 +1,50 @@
+# Portal webhook gets every alert 24x7 (incl. Watchdog, needs matcher strategy None). Optional Matrix/SMTP
+# receivers live in components/ (disabled by default; see kustomization.yaml).
+# NOTE: prometheus-operator injects namespace="styx" on this config's root route
+# (alertmanagerConfigMatcherStrategy OnNamespace, default). Watchdog from
+# kube-prometheus-stack has namespace=monitoring, so set the strategy to `None`
+# in the Alertmanager spec (kube-prometheus-stack values:
+# alertmanager.alertmanagerSpec.alertmanagerConfigMatcherStrategy.type: None;
+# the Alertmanager CR is not in this repo) for Watchdog to reach the portal.
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: styx
+  namespace: styx
+  labels:
+    release: kube-prometheus-stack
+spec:
+  route:
+    receiver: portal
+    groupBy: [alertname, severity]
+    routes:
+      - receiver: portal
+        matchers:
+          - {name: alertname, value: Watchdog, matchType: "="}
+        repeatInterval: 5m
+      - receiver: portal
+  receivers:
+    - name: portal
+      webhookConfigs:
+        - url: http://backend.styx.svc:8000/internal/alerts/alertmanager
+          sendResolved: true
+          httpConfig:
+            authorization:
+              type: Bearer
+              credentials:
+                name: alertmanager-webhook-token
+                key: token
+---
+# Placeholder: token comes from OpenBao via External Secrets (ADR-0042).
+# The same value is checked by the backend (hmac.compare_digest).
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: alertmanager-webhook-token
+  namespace: styx
+spec:
+  secretStoreRef: {kind: ClusterSecretStore, name: openbao}
+  target: {name: alertmanager-webhook-token}
+  data:
+    - secretKey: token
+      remoteRef: {key: styx/alertmanager, property: webhook_token}

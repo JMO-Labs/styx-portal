@@ -56,6 +56,11 @@ jobs:
       - name: pytest
         working-directory: backend
         run: .venv/bin/python -m pytest -q
+      - name: kustomize render (base + matrix/smtp components)
+        run: |
+          if ! command -v kubectl >/dev/null; then echo "kubectl missing, skipped"; exit 0; fi
+          kubectl kustomize deploy/k8s >/dev/null
+          kubectl kustomize deploy/k8s-ci-overlay >/dev/null
       - uses: ./.github/actions/setup-node
       - name: vitest
         working-directory: frontend

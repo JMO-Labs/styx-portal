@@ -38,3 +38,23 @@ spec:
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: traefik}
       ports: [{port: 3000, protocol: TCP}]
+---
+# NetworkPolicy is L3/L4: it cannot match the /internal/alerts path. This opens
+# the backend port to Alertmanager's namespace; the path stays cluster-Service
+# only (no Traefik route, ADR-0059) and is token-checked by the backend.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-alerts-ingress
+  namespace: styx
+spec:
+  podSelector:
+    matchLabels: {app: styx-backend}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: monitoring}
+          podSelector:
+            matchLabels: {app.kubernetes.io/name: alertmanager}
+      ports: [{port: 8000, protocol: TCP}]
