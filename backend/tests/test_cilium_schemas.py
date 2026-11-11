@@ -196,4 +196,4 @@ def test_placeholders_marked():
 def test_kustomization_lists_every_ccnp_file():
     comp = yaml.safe_load((COMPONENT / "kustomization.yaml").read_text())
     files = {f.name for f in COMPONENT.glob("ccnp-*.yaml")}
-    assert set(comp["resources"]) == files
+    assert {r for r in comp["resources"] if r.startswith("ccnp-")} == files

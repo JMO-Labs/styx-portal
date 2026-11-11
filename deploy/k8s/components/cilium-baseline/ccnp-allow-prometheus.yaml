@@ -7,9 +7,11 @@ kind: CiliumClusterwideNetworkPolicy
 metadata:
   name: allow-prometheus
 spec:
+  # Desktops (styx-instances) are never scrape targets: enterprise invariant.
   endpointSelector:
     matchExpressions:
       - {key: k8s:io.kubernetes.pod.namespace, operator: NotIn, values: [kube-system]}
+      - {key: k8s:io.kubernetes.pod.namespace, operator: NotIn, values: [styx-instances]}
   ingress:
     - fromEndpoints:
         - matchLabels:
