@@ -165,10 +165,14 @@ tests:
       - series: 'kube_node_status_allocatable{node="b",resource="memory"}'
         values: '206158430208x30'
       # a has 12 free slots by CPU (12 CPU requested -> 36 free), b 0 free (memory bound irrelevant)
-      - series: 'kube_pod_container_resource_requests{node="a",pod="p",resource="cpu"}'
+      - series: 'kube_pod_container_resource_requests{namespace="n",node="a",pod="p",resource="cpu"}'
         values: '12x30'
-      - series: 'kube_pod_container_resource_requests{node="b",pod="q",resource="cpu"}'
+      - series: 'kube_pod_container_resource_requests{namespace="n",node="b",pod="q",resource="cpu"}'
         values: '48x30'
+      - series: 'kube_pod_status_phase{namespace="n",pod="p",phase="Running"}'
+        values: '1x30'
+      - series: 'kube_pod_status_phase{namespace="n",pod="q",phase="Running"}'
+        values: '1x30'
     alert_rule_test:
       - eval_time: 20m
         alertname: StyxHeadroomLow
@@ -191,8 +195,10 @@ tests:
         values: '120x30'
       - series: 'kube_node_status_allocatable{node="a",resource="memory"}'
         values: '515396075520x30'
-      - series: 'kube_pod_container_resource_requests{node="a",pod="p",resource="cpu"}'
+      - series: 'kube_pod_container_resource_requests{namespace="n",node="a",pod="p",resource="cpu"}'
         values: '90x30'
+      - series: 'kube_pod_status_phase{namespace="n",pod="p",phase="Running"}'
+        values: '1x30'
     alert_rule_test:
       - eval_time: 20m
         alertname: StyxHeadroomCritical
@@ -215,3 +221,93 @@ tests:
           - exp_labels: {severity: ticket}
             exp_annotations:
               summary: "Traefik 5xx ratio above 5% for 10m"
+
+  - name: traefik_5xx_ratio_under_5pct_no_alert
+    interval: 1m
+    input_series:
+      - series: 'traefik_service_requests_total{code="200",service="s"}'
+        values: '0+97x30'
+      - series: 'traefik_service_requests_total{code="502",service="s"}'
+        values: '0+3x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: StyxTraefik5xxRatio
+        exp_alerts: []
+
+  - name: headroom_ample_no_alerts
+    interval: 1m
+    input_series:
+      - series: 'kube_node_status_allocatable{node="a",resource="cpu"}'
+        values: '120x30'
+      - series: 'kube_node_status_allocatable{node="a",resource="memory"}'
+        values: '515396075520x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: StyxHeadroomLow
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: StyxHeadroomCritical
+        exp_alerts: []
+
+  - name: headroom_low_without_critical
+    interval: 1m
+    input_series:
+      # two nodes of 40 slots; 10 free each = 20 free: < largest (40), not < 20 (10% of peak)
+      - series: 'kube_node_status_allocatable{node="a",resource="cpu"}'
+        values: '120x30'
+      - series: 'kube_node_status_allocatable{node="a",resource="memory"}'
+        values: '515396075520x30'
+      - series: 'kube_node_status_allocatable{node="b",resource="cpu"}'
+        values: '120x30'
+      - series: 'kube_node_status_allocatable{node="b",resource="memory"}'
+        values: '515396075520x30'
+      - series: 'kube_pod_container_resource_requests{namespace="n",node="a",pod="p",resource="cpu"}'
+        values: '90x30'
+      - series: 'kube_pod_container_resource_requests{namespace="n",node="b",pod="q",resource="cpu"}'
+        values: '90x30'
+      - series: 'kube_pod_status_phase{namespace="n",pod="p",phase="Running"}'
+        values: '1x30'
+      - series: 'kube_pod_status_phase{namespace="n",pod="q",phase="Running"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: StyxHeadroomLow
+        exp_alerts:
+          - exp_labels: {severity: ticket}
+            exp_annotations:
+              summary: "Free desktop slots are fewer than the largest node holds: cannot survive a node loss (N+1)"
+      - eval_time: 20m
+        alertname: StyxHeadroomCritical
+        exp_alerts: []
+
+  - name: headroom_ignores_succeeded_pod_requests
+    interval: 1m
+    input_series:
+      - series: 'kube_node_status_allocatable{node="a",resource="cpu"}'
+        values: '120x30'
+      - series: 'kube_node_status_allocatable{node="a",resource="memory"}'
+        values: '515396075520x30'
+      - series: 'kube_pod_container_resource_requests{namespace="n",node="a",pod="job",resource="cpu"}'
+        values: '119x30'
+      - series: 'kube_pod_container_resource_requests{namespace="n",node="a",pod="run",resource="cpu"}'
+        values: '3x30'
+      - series: 'kube_pod_container_resource_requests{namespace="n",node="a",pod="job",resource="memory"}'
+        values: '515396075520x30'
+      - series: 'kube_pod_status_phase{namespace="n",pod="job",phase="Succeeded"}'
+        values: '1x30'
+      - series: 'kube_pod_status_phase{namespace="n",pod="job",phase="Running"}'
+        values: '0x30'
+      - series: 'kube_pod_status_phase{namespace="n",pod="run",phase="Running"}'
+        values: '1x30'
+    promql_expr_test:
+      # only the Running pod counts: (120-3)/3 = 39 CPU slots; Succeeded memory ignored: 120
+      - expr: 'styx:node_slots_cpu{node="a"}'
+        eval_time: 20m
+        exp_samples:
+          - labels: 'styx:node_slots_cpu{kind="free",node="a",resource="cpu"}'
+            value: 39
+      - expr: 'styx:node_slots_memory{node="a"}'
+        eval_time: 20m
+        exp_samples:
+          - labels: 'styx:node_slots_memory{kind="free",node="a",resource="memory"}'
+            value: 120

@@ -46,19 +46,4 @@ spec:
     staticConfig:
       # In-cluster: bypasses the DMZ (login. needs a client cert). Adjust svc/realm.
       static: ["http://keycloak.keycloak.svc.cluster.local:8080/realms/styx/.well-known/openid-configuration"]
----
-# One probe per proxied service (copy this block per service; targets are the
-# service's public URL through the DMZ VIP). Example: sonarr.
-apiVersion: monitoring.coreos.com/v1
-kind: Probe
-metadata:
-  name: styx-service-sonarr
-  namespace: styx
-  labels: {release: kube-prometheus-stack, styx.probe: service}
-spec:
-  interval: 30s
-  module: http_2xx
-  prober: {url: blackbox-exporter.monitoring.svc:9115}
-  targets:
-    staticConfig:
-      static: ["https://sonarr.g.jmolabs.dev/"]
+# Per-service probes: see components/probe-services (disabled; copy per service).
