@@ -1,6 +1,12 @@
 ## Unreleased
 
+### Features
+
+* **monitoring:** kube-prometheus-stack in `monitoring`, styx ServiceMonitor and alert rules, SLO recording rules and burn-rate alerts, launch metrics (#185, #46, #189)
+
 ### Documentation
+
+* **docs:** monitoring runbook: install order, Harbor mirroring (ADR-0029), RKE2 bind addresses, storage class swap, verification, R05/ADR-0011 compliance debt (#35)
 
 * **docs:** enterprise Kubernetes guide, first-boot and rotation runbooks, full-site restore runbook with SSE-C note (#82)
 
