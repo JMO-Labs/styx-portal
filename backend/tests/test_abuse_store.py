@@ -62,3 +62,13 @@ def test_get_abuse_store_picks_memory_on_sqlite(monkeypatch):
     store_mod.get_abuse_store.cache_clear()
     assert isinstance(get_abuse_store(), MemoryAbuseStore)
     assert get_abuse_store() is get_abuse_store()
+
+
+def test_get_abuse_store_picks_pg_on_postgres(monkeypatch):
+    from app.services.abuse_store_pg import PgAbuseStore
+    monkeypatch.setattr(store_mod._settings, "DATABASE_URL", "postgresql+asyncpg://u:p@h/d")
+    store_mod.get_abuse_store.cache_clear()
+    try:
+        assert isinstance(get_abuse_store(), PgAbuseStore)
+    finally:
+        store_mod.get_abuse_store.cache_clear()

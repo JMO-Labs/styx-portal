@@ -88,7 +88,11 @@ class MemoryAbuseStore:
 
 @lru_cache(maxsize=1)
 def get_abuse_store() -> AbuseStore:
-    """Memory on SQLite. No other dialect has a store yet, so it falls back to memory."""
+    """PgAbuseStore on Postgres (state shared across replicas); memory on SQLite."""
+    if _settings.DATABASE_URL.startswith("postgresql"):
+        from app.database import engine
+        from app.services.abuse_store_pg import PgAbuseStore
+        return PgAbuseStore(engine)
     if not _settings.DATABASE_URL.startswith("sqlite"):
-        logger.warning("no shared abuse store for this database yet; using per-process memory")
+        logger.warning("no shared abuse store for this database; using per-process memory")
     return MemoryAbuseStore()

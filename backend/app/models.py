@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import NaiveDatetime
 from sqlmodel import Field, SQLModel, Column
-from sqlalchemy import JSON, BigInteger, UniqueConstraint
+from sqlalchemy import JSON, BigInteger, DateTime, Index, Integer, UniqueConstraint
 
 from app.db_types import NAMING_CONVENTION, UTCDateTime
 
@@ -460,3 +460,37 @@ class MountJob(SQLModel, table=True):
     log_excerpt: str | None = None
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
     finished_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+
+
+_TSTZ = DateTime(timezone=True)
+
+
+class AuthFailEvent(SQLModel, table=True):
+    """One failed attempt (shared across replicas). kind: user_ip|user|ip|device."""
+    __tablename__ = "auth_fail_events"
+    __table_args__ = (Index("ix_auth_fail_events_kind_key_at", "kind", "key", "at"),)
+    id: int | None = Field(default=None, sa_column=Column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True))
+    kind: str
+    key: str
+    username: str | None = Field(default=None, index=True)   # lowercased
+    at: datetime = Field(sa_column=Column(_TSTZ, nullable=False))
+
+
+class AuthBlock(SQLModel, table=True):
+    """Active lock/brake/device block, written with DB time. kind: user_ip|brake|device."""
+    __tablename__ = "auth_blocks"
+    kind: str = Field(primary_key=True)
+    key: str = Field(primary_key=True)
+    username: str | None = Field(default=None, index=True)   # lowercased
+    until: datetime = Field(sa_column=Column(_TSTZ, nullable=False, index=True))
+
+
+class RateCounter(SQLModel, table=True):
+    """Fixed-window request counter for the shared rate limit."""
+    __tablename__ = "rate_counters"
+    __table_args__ = {"postgresql_with": {"fillfactor": "70"}}
+    key: str = Field(primary_key=True)
+    window_start: datetime = Field(sa_column=Column(_TSTZ, primary_key=True))
+    count: int = 0
+    expires_at: datetime = Field(sa_column=Column(_TSTZ, nullable=False, index=True))
