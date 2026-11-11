@@ -1,0 +1,30 @@
+# Homelab-only resources (Longhorn, SQLite PVCs, backup CronJob, cloudflared RBAC).
+apiVersion: batch/v1
+kind: CronJob
+metadata: {name: styx-db-backup, namespace: styx}
+$patch: delete
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: styx-data, namespace: styx}
+$patch: delete
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: styx-backups, namespace: styx}
+$patch: delete
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata: {name: longhorn-styx}
+$patch: delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: styx-cloudflared-pods, namespace: cloudflared}
+$patch: delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: styx-cloudflared-pods, namespace: cloudflared}
+$patch: delete
