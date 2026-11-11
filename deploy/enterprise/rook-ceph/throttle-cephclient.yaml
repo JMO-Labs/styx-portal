@@ -1,0 +1,8 @@
+apiVersion: ceph.rook.io/v1
+kind: CephClient
+metadata:
+  name: throttle
+  namespace: rook-ceph
+spec:
+  caps:
+    mon: 'allow r, allow command "config set", allow command "config get"'

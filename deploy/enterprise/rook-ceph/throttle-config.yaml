@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ceph-throttle-config
+  namespace: rook-ceph
+data:
+  # "<days> <HH:MM-HH:MM> <IANA tz>"; client-priority inside, recovery-priority outside.
+  window: "Mon-Fri 07:00-19:00 America/New_York"
+  # Ops override: "", "high_client_ops" or "high_recovery_ops". Invalid values are ignored.
+  force: ""
