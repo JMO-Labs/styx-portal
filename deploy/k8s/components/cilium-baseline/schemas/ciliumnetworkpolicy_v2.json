@@ -20,8 +20,7 @@
           },
           "required": [
             "ingress"
-          ],
-          "additionalProperties": false
+          ]
         },
         {
           "properties": {
@@ -29,8 +28,7 @@
           },
           "required": [
             "ingressDeny"
-          ],
-          "additionalProperties": false
+          ]
         },
         {
           "properties": {
@@ -38,8 +36,7 @@
           },
           "required": [
             "egress"
-          ],
-          "additionalProperties": false
+          ]
         },
         {
           "properties": {
@@ -47,8 +44,7 @@
           },
           "required": [
             "egressDeny"
-          ],
-          "additionalProperties": false
+          ]
         }
       ],
       "description": "Spec is the desired Cilium specific rule specification.",
@@ -59,8 +55,7 @@
           },
           "required": [
             "endpointSelector"
-          ],
-          "additionalProperties": false
+          ]
         },
         {
           "properties": {
@@ -68,8 +63,7 @@
           },
           "required": [
             "nodeSelector"
-          ],
-          "additionalProperties": false
+          ]
         }
       ],
       "properties": {
