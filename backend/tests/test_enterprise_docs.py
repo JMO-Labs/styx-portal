@@ -5,11 +5,22 @@ ROOT = Path(__file__).resolve().parents[2]
 PAGE = ROOT / "docs/operate/backup-schedules.md"
 
 
+def _nav_values(node):
+    if isinstance(node, str):
+        yield node
+    elif isinstance(node, dict):
+        for v in node.values():
+            yield from _nav_values(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from _nav_values(v)
+
+
 def test_backup_schedules_page_exists_and_in_nav():
     assert PAGE.is_file()
-    nav = (ROOT / "zensical.toml").read_text()
-    tomllib.loads(nav)
-    assert "operate/backup-schedules.md" in nav
+    cfg = tomllib.loads((ROOT / "zensical.toml").read_text())
+    nav = cfg.get("project", cfg)["nav"]
+    assert "operate/backup-schedules.md" in _nav_values(nav)
 
 
 def test_backup_schedules_page_content():

@@ -33,6 +33,15 @@ def test_other_cnpg_kinds_are_errors(tmp_path, kind):
         check_backup_dir(tmp_path)
 
 
+def test_cnpg_object_in_subdir_is_error(tmp_path):
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "x.yaml").write_text(
+        "apiVersion: barmancloud.cnpg.io/v1\nkind: ObjectStore\nmetadata: {name: a}\n"
+    )
+    with pytest.raises(ValueError, match="ObjectStore"):
+        check_backup_dir(tmp_path)
+
+
 def test_plain_secret_stringdata_is_error(tmp_path):
     (tmp_path / "s.yaml").write_text(
         "apiVersion: v1\nkind: Secret\nmetadata: {name: s}\nstringData: {k: v}\n"

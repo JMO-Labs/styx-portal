@@ -34,12 +34,12 @@ FORBIDDEN_KINDS = {"ObjectStore", "ScheduledBackup", "Cluster"}  # owned by the 
 
 
 def check_backup_dir(path: Path = BACKUP_DIR) -> None:
-    for f in sorted(path.glob("*.y*ml")):
+    for f in sorted(path.rglob("*.y*ml")):
         for doc in yaml.safe_load_all(f.read_text()):
             if not isinstance(doc, dict):
                 continue
             kind = doc.get("kind")
             if kind in FORBIDDEN_KINDS:
-                raise ValueError(f"{f.name}: {kind} belongs in the CNPG overlay, not backup/")
+                raise ValueError(f"{f.relative_to(path)}: {kind} belongs in the CNPG overlay, not backup/")
             if kind == "Secret" and "stringData" in doc:
-                raise ValueError(f"{f.name}: plain Secret with stringData is not allowed")
+                raise ValueError(f"{f.relative_to(path)}: plain Secret with stringData is not allowed")
