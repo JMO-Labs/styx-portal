@@ -24,6 +24,7 @@ async def test_user_out_shows_unlocked_on_store_error(monkeypatch):
     u = User(username="bob", email="b@x.io", role="user", password_hash="x")
     out = await users._user_out(u)
     assert out.username == "bob"
+    assert out.locked_until is None
 
 
 async def test_non_sqlite_falls_back_to_memory(monkeypatch, caplog):
@@ -47,7 +48,7 @@ async def test_locked_trusted_device_not_locked(monkeypatch):
     assert await login_flow.locked("u", "1.2.3.4", "rnd-1") is False
 
 
-async def test_clear_lockout_survives_store_error(monkeypatch):
+async def test_clear_lockout_survives_store_error(monkeypatch, caplog):
     monkeypatch.setattr(abuse_store, "get_abuse_store", lambda: _Boom())
 
     class Sess:
@@ -56,5 +57,7 @@ async def test_clear_lockout_survives_store_error(monkeypatch):
 
     u = User(username="bob", email="b@x.io", role="user", password_hash="x", failed_count=3)
     s = Sess()
-    await login_flow.clear_lockout(s, u, "1.2.3.4", "rnd")
+    with caplog.at_level(logging.ERROR, logger="styx-portal"):
+        await login_flow.clear_lockout(s, u, "1.2.3.4", "rnd")
     assert u.failed_count == 0 and s.added is u
+    assert "abuse store failed clearing lockout" in caplog.text
