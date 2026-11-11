@@ -194,7 +194,7 @@ def test_two_scheduled_backups():
 
 
 def _alerts(rule):
-    return {r["alert"]: r for g in rule["spec"]["groups"] for r in g["rules"]}
+    return {r["alert"]: r for g in rule["spec"]["groups"] for r in g["rules"] if "alert" in r}
 
 
 def test_backup_alerts_replaced():

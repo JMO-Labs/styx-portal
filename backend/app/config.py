@@ -17,6 +17,15 @@ PLACEHOLDER_SECRETS = {
 class Settings(BaseSettings):
     DOMAIN: str = "localhost"
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/styx-portal.db"
+    # Leader election: dedicated session connection, straight to the primary
+    # (never a pooler). Empty = same as DATABASE_URL.
+    LEADER_DATABASE_URL: str = ""
+    LEADER_RETRY_S: float = 5.0
+    LEADER_HEARTBEAT_S: float = 5.0
+    LEADER_HEARTBEAT_TIMEOUT_S: float = 3.0
+    LEADER_FENCE_S: float = 15.0  # must stay below server-side detection (~25 s)
+    # Internal Prometheus port (never Traefik-routed). 0 = metrics server off.
+    METRICS_PORT: int = 0
     DOCKER_SOCKET: str = "unix:///var/run/docker.sock"
     DOCKER_NETWORK: str = "styx-portal"
     # Proxied docker-local services join this network; only Traefik shares it
@@ -124,6 +133,9 @@ class Settings(BaseSettings):
         "env_file_encoding": "utf-8",
         "extra": "ignore",
     }
+
+    def leader_url(self) -> str:
+        return self.LEADER_DATABASE_URL or self.DATABASE_URL
 
     def jwt_secret_or_raise(self) -> str:
         if self.JWT_SECRET:
