@@ -65,10 +65,17 @@ def test_no_secrets_committed():
                 assert not d.get("data") and not d.get("stringData"), f.name
 
 
+class _Loader(yaml.SafeLoader):
+    """Kustomize emits bare `=` (matchType), a YAML 1.1 'value' tag in PyYAML."""
+
+
+_Loader.add_constructor("tag:yaml.org,2002:value", lambda l, n: n.value)
+
+
 def _build(path):
     tool = ["kustomize", "build"] if shutil.which("kustomize") else ["kubectl", "kustomize"]
     out = subprocess.run([*tool, str(path)], capture_output=True, text=True, check=True)
-    return [d for d in yaml.safe_load_all(out.stdout) if d]
+    return [d for d in yaml.load_all(out.stdout, Loader=_Loader) if d]
 
 
 @pytest.mark.skipif(not (shutil.which("kustomize") or shutil.which("kubectl")),
