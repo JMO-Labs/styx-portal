@@ -2,7 +2,7 @@ import { act, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const reportRtt = vi.fn(() => Promise.resolve());
+const reportRtt = vi.fn((_body: unknown) => Promise.resolve());
 vi.mock("@/api/client", () => ({ api: { reportRtt: (b: unknown) => reportRtt(b) } }));
 vi.mock("@/hooks/use-instances", () => ({
   useInstances: () => ({ data: [{ id: "i1", name: "My Desk", subdomain: "desk", status: "running" }], isPending: false }),
