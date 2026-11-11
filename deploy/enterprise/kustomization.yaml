@@ -4,8 +4,13 @@ resources:
   - ../k8s
   - db-credentials.yaml
   - external-secrets.yaml
+  - cluster.yaml
+  - objectstore.yaml
+  - scheduledbackup.yaml
+  - networkpolicy.yaml
 patches:
   - path: delete-homelab.yaml
+  - path: prometheusrule-patch.yaml
 replicas:
   - name: backend
     count: 3
