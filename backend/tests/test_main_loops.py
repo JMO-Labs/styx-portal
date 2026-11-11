@@ -66,3 +66,64 @@ async def test_boot_reconcile_docker_up_unchanged(session):
     await session.refresh(up)
     await session.refresh(gone)
     assert (up.status, gone.status) == ("running", "stopped")
+
+
+class _FakeElector:
+    def __init__(self, leader):
+        self.is_leader = leader
+
+    async def run(self, on_elected=None, on_lost=None):
+        import asyncio
+        if self.is_leader and on_elected:
+            await on_elected()
+        await asyncio.Event().wait()
+
+    async def stop(self):
+        pass
+
+
+async def _run_lifespan(monkeypatch, leader):
+    import asyncio
+    import app.main as m
+
+    started = []
+
+    def fake(name):
+        async def _loop(*a, **k):
+            started.append(name)
+            await asyncio.Event().wait()
+        return _loop
+
+    async def noop(*a, **k):
+        return None
+
+    for attr in ("_session_monitor_loop", "_service_health_loop", "_metrics_db_loop",
+                 "_metrics_sampler_loop", "_screenshot_capture_loop", "_health_sample_loop",
+                 "service_thumbnail_loop", "prepull_loop"):
+        monkeypatch.setattr(m, attr, fake(attr))
+    monkeypatch.setattr(m, "_reconcile_instances_at_boot", noop)
+    monkeypatch.setattr(m, "get_elector", lambda: _FakeElector(leader))
+    monkeypatch.setattr(m, "start_metrics_server", lambda *a: None)
+    monkeypatch.setattr(m._settings, "ROUTE_BACKEND", "k8s")
+    monkeypatch.setattr(m._settings, "JWT_SECRET", "x" * 40, raising=False)
+    async with m.lifespan(m.app):
+        await asyncio.sleep(0.05)
+    return started
+
+
+@pytest.mark.asyncio
+async def test_lifespan_gates_leader_only_loops(monkeypatch):
+    started = await _run_lifespan(monkeypatch, leader=False)
+    for name in ("_session_monitor_loop", "_service_health_loop", "_metrics_db_loop", "prepull_loop"):
+        assert name not in started
+    for name in ("_metrics_sampler_loop", "_health_sample_loop", "service_thumbnail_loop"):
+        assert name in started
+
+
+@pytest.mark.asyncio
+async def test_lifespan_sqlite_starts_all_loops_as_before(monkeypatch):
+    started = await _run_lifespan(monkeypatch, leader=True)
+    for name in ("_session_monitor_loop", "_service_health_loop", "_metrics_db_loop",
+                 "prepull_loop", "_metrics_sampler_loop", "_health_sample_loop",
+                 "service_thumbnail_loop"):
+        assert name in started
