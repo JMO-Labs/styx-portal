@@ -1,3 +1,9 @@
+## Unreleased
+
+### Documentation
+
+* **docs:** enterprise Kubernetes guide, first-boot and rotation runbooks, full-site restore runbook with SSE-C note (#82)
+
 ## 1.0.0 (2026-06-15)
 
 ### Features
