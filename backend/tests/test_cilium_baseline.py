@@ -63,7 +63,7 @@ def _check(manifest: str):
 def test_vendored_schema_is_used_by_check_script():
     ok = _check(CNP)
     assert ok.returncode == 0, ok.stdout + ok.stderr
-    assert "1 resources checked" in ok.stdout
+    assert "Valid: 1, Invalid: 0, Errors: 0, Skipped: 0" in ok.stdout
     bad = _check(CNP.replace("endpointSelector: {}", "bogusField: 1"))
     assert bad.returncode != 0
 
