@@ -49,7 +49,7 @@ async def test_only_one_leader_then_failover(admin):
         assert a.is_leader != b.is_leader
         leader, other = (a, b) if a.is_leader else (b, a)
         await admin.execute("SELECT pg_terminate_backend($1)", leader.backend_pid)
-        assert await _until(lambda: other.is_leader, 2)
+        assert await _until(lambda: other.is_leader, 0.8)
         assert not leader.is_leader
     finally:
         await a.stop()

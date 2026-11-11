@@ -50,6 +50,8 @@ class LeaderElector:
         self._conn = None
         self._leader = False
         self._stop = asyncio.Event()
+        self._running = False
+        self._done = asyncio.Event()
 
     @property
     def is_leader(self) -> bool:
@@ -71,6 +73,15 @@ class LeaderElector:
         return self._stop.is_set()
 
     async def run(self, on_elected=None, on_lost=None) -> None:
+        self._running = True
+        self._done.clear()
+        try:
+            await self._run(on_elected, on_lost)
+        finally:
+            self._running = False
+            self._done.set()
+
+    async def _run(self, on_elected, on_lost) -> None:
         if not self._pg:
             await _call(on_elected)
             await self._stop.wait()
@@ -137,8 +148,12 @@ class LeaderElector:
         conn.terminate()
 
     async def stop(self) -> None:
+        """Signal stop and wait for run() to finish; only its finally unlocks."""
         self._stop.set()
-        await self._close(unlock=True)
+        if self._running:
+            await self._done.wait()
+        else:
+            await self._close(unlock=True)
 
 
 _elector: LeaderElector | None = None
