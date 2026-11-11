@@ -166,6 +166,8 @@ helm upgrade --install rook-ceph rook-release/rook-ceph --version "$ROOK_CHART_V
   --set monitoring.enabled=false --wait --timeout 8m
 
 step "CephCluster: encrypted PVC OSD, KMS=vault (kubernetes auth), key rotation on"
+# NOTE: KMS connectionDetails below mirror deploy/enterprise/rook-ceph/cephcluster.yaml (Child 1)
+# except VAULT_CACERT and VAULT_TLS_SERVER_NAME (kind: plain HTTP). Keep in sync.
 kubectl apply -f - <<YAML
 apiVersion: ceph.rook.io/v1
 kind: CephCluster
