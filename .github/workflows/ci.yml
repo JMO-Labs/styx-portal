@@ -35,7 +35,7 @@ jobs:
           filters: |
             backend: ['backend/**', '.github/actions/setup-backend/**', '.github/workflows/ci.yml']
             frontend: ['frontend/**', '.github/actions/setup-node/**', '.github/workflows/ci.yml']
-            pg: ['backend/app/database.py', 'backend/app/db_migrate.py', 'backend/app/db_types.py', 'backend/app/models.py', 'backend/alembic/**', 'backend/alembic.ini', 'backend/pyproject.toml', 'backend/uv.lock', '.github/actions/setup-backend/**', '.github/workflows/ci.yml']
+            pg: ['backend/app/database.py', 'backend/app/db_migrate.py', 'backend/app/db_types.py', 'backend/app/models.py', 'backend/app/tools/**', 'backend/tests/test_sqlite_to_pg*.py', 'backend/tests/migrate_fixtures.py', 'backend/alembic/**', 'backend/alembic.ini', 'backend/pyproject.toml', 'backend/uv.lock', '.github/actions/setup-backend/**', '.github/workflows/ci.yml']
             plugin: ['traefik/**', '.github/workflows/ci.yml']
             rke2: ['deploy/rke2/**', '.github/workflows/ci.yml']
             # Component/license register inputs live partly under docs/ (excluded from `code`).

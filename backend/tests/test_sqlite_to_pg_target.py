@@ -46,7 +46,20 @@ def pg_version():
         asyncio.run(_set_target_version(original))
 
 
+async def _clear_abuse_state():
+    """The PG abuse store commits on its own engine (outside per-test rollback); start clean."""
+    eng = create_async_engine(PG_URL)
+    try:
+        async with eng.begin() as c:
+            await c.execute(sqlalchemy.text("DELETE FROM auth_fail_events"))
+            await c.execute(sqlalchemy.text("DELETE FROM auth_blocks"))
+            await c.execute(sqlalchemy.text("DELETE FROM rate_counters"))
+    finally:
+        await eng.dispose()
+
+
 def _run(tmp_path):
+    asyncio.run(_clear_abuse_state())
     src = asyncio.run(make_source(tmp_path / "s.db"))
     return tool.main(["--source", str(src), "--target", PG_URL])
 
