@@ -25,6 +25,9 @@ diag() {
 bao() { # run bao CLI inside the openbao pod (root token never printed)
   kubectl -n "$BAO_NS" exec -i openbao-0 -- env BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="$ROOT_TOKEN" bao "$@"
 }
+bao_up() { # container started and exec works (pod phase Running is not enough)
+  kubectl -n "$BAO_NS" exec openbao-0 -c openbao -- true
+}
 wait_for() { # wait_for <timeout-s> <desc> <cmd...>
   local t=$1 d=$2; shift 2
   local end=$((SECONDS + t))
@@ -137,11 +140,11 @@ spec:
       - {name: cfg, configMap: {name: openbao-config}}
       - {name: data, hostPath: {path: /var/lib/spike-openbao, type: DirectoryOrCreate}}
 YAML
-wait_for 180 "openbao-0 running" kubectl -n "$BAO_NS" wait --for=jsonpath='{.status.phase}'=Running pod/openbao-0 --timeout=5s
-INIT=$(kubectl -n "$BAO_NS" exec openbao-0 -- env BAO_ADDR=http://127.0.0.1:8200 bao operator init -key-shares=1 -key-threshold=1 -format=json)
+wait_for 180 "openbao container running" bao_up
+INIT=$(kubectl -n "$BAO_NS" exec openbao-0 -c openbao -- env BAO_ADDR=http://127.0.0.1:8200 bao operator init -key-shares=1 -key-threshold=1 -format=json)
 UNSEAL_KEY=$(jq -r '.unseal_keys_b64[0]' <<<"$INIT")
 ROOT_TOKEN=$(jq -r '.root_token' <<<"$INIT")
-unseal() { kubectl -n "$BAO_NS" exec openbao-0 -- env BAO_ADDR=http://127.0.0.1:8200 bao operator unseal "$UNSEAL_KEY" >/dev/null; }
+unseal() { kubectl -n "$BAO_NS" exec openbao-0 -c openbao -- env BAO_ADDR=http://127.0.0.1:8200 bao operator unseal "$UNSEAL_KEY" >/dev/null; }
 unseal
 wait_for 60 "openbao ready" kubectl -n "$BAO_NS" wait --for=condition=Ready pod/openbao-0 --timeout=5s
 
@@ -232,7 +235,7 @@ kubectl -n "$RK" logs -l app=rook-ceph-osd -c encryption-kms-get-kek --tail=15 |
 
 step "ASSERT 4: OpenBao started again -> OSD recovers"
 kubectl -n "$BAO_NS" scale sts/openbao --replicas=1
-wait_for 180 "openbao-0 running" kubectl -n "$BAO_NS" wait --for=jsonpath='{.status.phase}'=Running pod/openbao-0 --timeout=5s
+wait_for 180 "openbao container running" bao_up
 unseal
 wait_for 600 "OSD Ready after OpenBao back" osd_ready
 [ "$(key_version "$KEY")" = "$V0" ] || fail "key version changed by outage"
