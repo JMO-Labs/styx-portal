@@ -24,7 +24,7 @@ class VerifyMismatch(Exception):
 
 def sequence_tables(tables: list[sa.Table] | None = None) -> list[sa.Table]:
     """Tables with an integer autoincrement PK, derived from metadata."""
-    return [t for t in (tables or copy_tables())
+    return [t for t in (tables if tables is not None else copy_tables())
             if t.autoincrement_column is not None and isinstance(t.autoincrement_column.type, sa.Integer)]
 
 
@@ -34,6 +34,8 @@ async def read_source(src: AsyncEngine, tables: list[sa.Table], skipped: dict[st
     async with src.connect() as conn:
         for t in tables:
             pks = [c.name for c in t.primary_key.columns]
+            if not pks:  # skip keys are PK tuples; PK-less tables are unsupported
+                raise PreflightError(f"table {t.name} has no primary key")
             order = list(t.primary_key.columns) or list(t.c)
             skip = skipped.get(t.name, set())
             rows = [dict(r._mapping) for r in

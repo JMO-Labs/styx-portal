@@ -191,6 +191,7 @@ async def test_23_verify_mismatch_rolls_back(tmp_path, scratch_url, monkeypatch)
         pytest.skip("needs PostgreSQL")
     src, argv = await _setup(tmp_path, scratch_url)
     before_src = _sha(src)
+    before_dst = await _dst_sums(scratch_url)
     real = migrate_copy.target_checksum
 
     async def bad(conn, tables):
@@ -202,6 +203,7 @@ async def test_23_verify_mismatch_rolls_back(tmp_path, scratch_url, monkeypatch)
     monkeypatch.setattr(migrate_copy, "target_checksum", bad)
     assert await asyncio.to_thread(tool.main, argv) == 3
     assert await _q(scratch_url, "SELECT count(*) FROM system_settings", scalar=True) == 0
+    assert await _dst_sums(scratch_url) == before_dst
     assert _sha(src) == before_src
 
 
