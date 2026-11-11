@@ -1,0 +1,31 @@
+# Replaces the base rules: the CronJob-based StyxBackupFailed/StyxBackupStale
+# are swapped for CNPG ones (CronJob is removed in this overlay). Lists in CRDs
+# are replaced wholesale, so StyxBackendDown is restated unchanged.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: styx
+  namespace: styx
+spec:
+  groups:
+    - name: styx
+      rules:
+        - alert: StyxBackendDown
+          expr: kube_deployment_status_replicas_available{namespace="styx",deployment="backend"} < 1
+          for: 2m
+          labels: {severity: critical}
+          annotations:
+            summary: Styx backend has no available replicas
+        - alert: StyxCnpgBackupStale
+          # absent() fires until the first backup exists, so there is no alerting gap
+          expr: (time() - max(cnpg_collector_last_available_backup_timestamp{namespace="styx"})) > 93600 or absent(cnpg_collector_last_available_backup_timestamp{namespace="styx"})
+          for: 30m
+          labels: {severity: warning}
+          annotations:
+            summary: No CNPG backup available in the last 26h
+        - alert: StyxCnpgWalArchiveFailing
+          expr: increase(cnpg_pg_stat_archiver_failed_count{namespace="styx"}[15m]) > 0
+          for: 5m
+          labels: {severity: critical}
+          annotations:
+            summary: CNPG WAL archiving is failing

@@ -5,8 +5,10 @@ resources:
   - cluster.yaml
   - objectstore.yaml
   - scheduledbackup.yaml
+  - networkpolicy.yaml
 patches:
   - path: delete-homelab.yaml
+  - path: prometheusrule-patch.yaml
 replicas:
   - name: backend
     count: 3

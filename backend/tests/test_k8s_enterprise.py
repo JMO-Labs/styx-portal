@@ -147,3 +147,39 @@ def test_two_scheduled_backups():
         assert d["spec"]["schedule"]
     plug = [d for d in sb if d["spec"]["method"] == "plugin"][0]
     assert plug["spec"]["pluginConfiguration"]["name"] == "barman-cloud.cloudnative-pg.io"
+
+
+def _alerts(rule):
+    return {r["alert"]: r for g in rule["spec"]["groups"] for r in g["rules"]}
+
+
+def test_backup_alerts_replaced():
+    a = _alerts(_index()[("PrometheusRule", "styx")])
+    assert not {"StyxBackupFailed", "StyxBackupStale"} & set(a)
+    assert "StyxBackendDown" in a
+    assert any("cnpg_collector_last_available_backup_timestamp" in r["expr"] and "93600" in r["expr"]
+               and "absent(" in r["expr"] for r in a.values())
+    assert any("increase(cnpg_pg_stat_archiver_failed_count" in r["expr"] for r in a.values())
+    assert {"networkpolicy.yaml"} <= set(_kustomization()["resources"])
+    assert "prometheusrule-patch.yaml" in [p["path"] for p in _kustomization()["patches"]]
+
+
+def test_networkpolicy_db_operator_s3():
+    idx = _index()
+    ing = idx[("NetworkPolicy", "styx-db-ingress")]["spec"]["ingress"]
+    ports = {(r["from"][0].get("podSelector", {}).get("matchLabels", {}).get("app"),
+              r["from"][0].get("namespaceSelector", {}).get("matchLabels", {}).get("kubernetes.io/metadata.name"),
+              r["ports"][0]["port"]) for r in ing}
+    assert ("styx-backend", None, 5432) in ports
+    assert (None, "cnpg-system", 8000) in ports
+    eg = idx[("NetworkPolicy", "styx-db-egress")]["spec"]["egress"]
+    assert any("ipBlock" in t for r in eg for t in r.get("to", []))
+
+
+@pytest.mark.skipif(not (shutil.which("kustomize") or shutil.which("kubectl")),
+                    reason="kustomize/kubectl not installed")
+def test_kustomize_build_alerts():
+    (r,) = [d for d in _build(ENT) if d["kind"] == "PrometheusRule"]
+    assert "StyxBackupStale" not in _alerts(r)
+    (h,) = [d for d in _build(HOMELAB) if d["kind"] == "PrometheusRule"]
+    assert "StyxBackupStale" in _alerts(h)
