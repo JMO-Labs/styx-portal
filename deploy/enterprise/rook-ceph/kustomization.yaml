@@ -5,3 +5,5 @@ kind: Kustomization
 resources:
   - local-pvs.yaml
   - cephcluster.yaml
+  - pools.yaml
+  - storageclasses.yaml
