@@ -49,3 +49,33 @@ async def test_verify_only_reports_mismatch(tmp_path, capsys, scratch_url):
     assert hashlib.sha256(src.read_bytes()).hexdigest() == before
     val = await _q(scratch_url, "SELECT value::text FROM system_settings WHERE key = 'k'", scalar=True)
     assert "changed" in val  # verify performed no writes
+
+
+async def _migrated(url):
+    eng = create_async_engine(url, poolclass=NullPool)
+    try:
+        await migrate(eng)
+    finally:
+        await eng.dispose()
+
+
+async def test_24_orphan_source_exits_2_target_empty(tmp_path, scratch_url):
+    if not scratch_url.startswith("postgresql"):
+        pytest.skip("needs PostgreSQL")
+    await _migrated(scratch_url)
+    src = await make_source(tmp_path / "s.db")
+    raw_exec(src, "INSERT INTO refresh_tokens (jti, user_id, family_id, expires_at, revoked, session_only, "
+                  "created_at) VALUES ('j','ghost','','2026-01-01 00:00:00','0','0','2026-01-01 00:00:00')")
+    argv = ["--source", str(src), "--target", scratch_url]
+    assert await asyncio.to_thread(tool.main, argv) == 2
+    assert await _q(scratch_url, "SELECT count(*) FROM refresh_tokens", scalar=True) == 0
+
+
+async def test_26_dry_run_exits_0_target_empty(tmp_path, scratch_url):
+    if not scratch_url.startswith("postgresql"):
+        pytest.skip("needs PostgreSQL")
+    await _migrated(scratch_url)
+    src = await make_source(tmp_path / "s.db")
+    argv = ["--source", str(src), "--target", scratch_url, "--dry-run"]
+    assert await asyncio.to_thread(tool.main, argv) == 0
+    assert await _q(scratch_url, "SELECT count(*) FROM refresh_tokens", scalar=True) == 0

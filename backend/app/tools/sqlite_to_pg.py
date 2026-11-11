@@ -17,8 +17,10 @@ from alembic.script import ScriptDirectory
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlmodel import SQLModel
 
 from app.db_migrate import alembic_config
+from app.tools import migrate_preflight
 from app.tools.migrate_checksum import checksum
 
 EXIT_OK, EXIT_PREFLIGHT, EXIT_VERIFY = 0, 2, 3
@@ -80,6 +82,41 @@ async def check_target_version(target: str) -> None:
         raise PreflightError(f"target {shown} version {found} != code head {head}: {hint}")
 
 
+async def check_target_empty(target: str) -> None:
+    """Require every known table in the target to be empty. Never echoes driver errors."""
+    shown = _safe(target)
+    engine = create_async_engine(target)
+    try:
+        async with engine.connect() as conn:
+            names = await conn.run_sync(lambda c: set(sqlalchemy.inspect(c).get_table_names()))
+            for name in sorted(SQLModel.metadata.tables):
+                if name in names and (await conn.execute(
+                        sqlalchemy.text(f'SELECT 1 FROM "{name}" LIMIT 1'))).first():
+                    raise PreflightError(f"target {shown} is not empty (table {name}); use --replace")
+    except PreflightError:
+        raise
+    except Exception:
+        raise PreflightError(f"cannot inspect target {shown}") from None
+    finally:
+        await engine.dispose()
+
+
+def run_preflight(source: Path, drop_orphans: bool) -> migrate_preflight.ScanResult:
+    """Scan the source; print findings; raise on anything that blocks."""
+    res = migrate_preflight.scan(source, drop_orphans=drop_orphans)
+    blocking = res.blocking if drop_orphans else res.findings
+    for pk_table, pks in sorted(res.skipped.items()):
+        for pk in sorted(pks, key=str):
+            print(f"skipped {pk_table} {','.join(map(str, pk))}")
+    if blocking:
+        for f in blocking:
+            print(f"finding: {f}", file=sys.stderr)
+        hint = "" if drop_orphans or not any(f.kind == "orphan" for f in blocking) else \
+            " (orphan FK rows can be skipped with --drop-orphans)"
+        raise PreflightError(f"{len(blocking)} source finding(s); target untouched{hint}")
+    return res
+
+
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
     p = argparse.ArgumentParser(prog="python -m app.tools.sqlite_to_pg",
                                 description="Copy a Styx SQLite database to PostgreSQL.")
@@ -131,6 +168,7 @@ async def _run(args: argparse.Namespace) -> int:
         await check_version(engine)
     finally:
         await engine.dispose()
+    res = run_preflight(source, args.drop_orphans)
     await check_target_version(target)
     if args.verify_only:
         src, dst = open_source(source), create_async_engine(target)
@@ -139,6 +177,12 @@ async def _run(args: argparse.Namespace) -> int:
         finally:
             await src.dispose()
             await dst.dispose()
+    if args.dry_run:
+        if not args.replace:
+            await check_target_empty(target)
+        for table, n in res.counts.items():
+            print(f"{table}: {n}")
+        print("dry-run: no changes made")
     return EXIT_OK
 
 
