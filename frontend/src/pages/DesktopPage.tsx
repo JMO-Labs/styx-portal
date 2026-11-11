@@ -7,6 +7,8 @@ import { useInstances, useKeepalive } from "@/hooks/use-instances";
 import { useTemplates } from "@/hooks/use-templates";
 import { startActivityHeartbeat } from "@/lib/activity";
 import { startThumbUploader } from "@/lib/stream-thumb";
+import { api } from "@/api/client";
+import { createRttReporter, type RttTransport } from "@/lib/rttReporter";
 
 const ALLOW = "fullscreen; clipboard-read; clipboard-write; autoplay; gamepad; microphone; camera; display-capture; pointer-lock";
 const WAITING = ["created", "creating", "pulling", "starting"];
@@ -66,6 +68,31 @@ export function DesktopPage() {
     window.addEventListener("focus", focus);
     return () => { stop(); stopBeat(); window.removeEventListener("focus", focus); };
   }, [live, id]);
+
+  useEffect(() => {
+    if (!live) return;
+    const rep = createRttReporter({
+      send: (r) => { api.reportRtt(r).catch(() => {}); },
+      beacon: (r) => { navigator.sendBeacon?.("/api/stream/rtt", new Blob([JSON.stringify(r)], { type: "application/json" })); },
+    });
+    const onMessage = (e: MessageEvent) => {
+      const win = frameRef.current?.contentWindow;
+      if (e.origin !== window.location.origin || !win || e.source !== win) return;
+      if (document.visibilityState === "hidden") return;
+      const d = e.data as { type?: unknown; rtt_ms?: unknown; transport?: unknown } | null;
+      if (!d || d.type !== "styx-rtt" || typeof d.rtt_ms !== "number") return;
+      if (d.transport !== "webrtc" && d.transport !== "websocket") return;
+      rep.add(d.rtt_ms, d.transport as RttTransport);
+    };
+    const onHide = () => rep.flush(true);
+    window.addEventListener("message", onMessage);
+    window.addEventListener("pagehide", onHide);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      window.removeEventListener("pagehide", onHide);
+      rep.stop();
+    };
+  }, [live]);
 
   const onLoad = useCallback(() => frameRef.current?.focus(), []);
 
