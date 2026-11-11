@@ -100,7 +100,7 @@ jobs:
       - name: pytest
         if: needs.changes.outputs.backend == 'true' && !(github.event_name == 'pull_request' && github.base_ref == 'dev')
         working-directory: backend
-        run: .venv/bin/python -m pytest -q -n auto
+        run: .venv/bin/python -m pytest -q
       - name: kustomize render (base + matrix/smtp components)
         if: needs.changes.outputs.deploy == 'true'
         run: |
