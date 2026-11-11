@@ -114,3 +114,16 @@ async def test_rtt_no_extra_labels(member_client, session):
     assert (await member_client.post(URL, json=_body())).status_code == 204
     assert len(_samples()) == one
     assert {frozenset(set(s.labels) - {"le"}) for s in _samples()} == {frozenset({"transport"})}
+
+
+async def test_rtt_rate_limit_window_expires(member_client, session, monkeypatch):
+    await _open(session)
+    t = [1000.0]
+    from types import SimpleNamespace
+    monkeypatch.setattr(stream_rtt, "time", SimpleNamespace(monotonic=lambda: t[0]))
+    for _ in range(2):
+        assert (await member_client.post(URL, json=_body())).status_code == 204
+    assert (await member_client.post(URL, json=_body())).status_code == 429
+    t[0] += stream_rtt.WINDOW
+    assert (await member_client.post(URL, json=_body())).status_code == 204
+    assert len(next(iter(stream_rtt._hits.values()))) == 1
