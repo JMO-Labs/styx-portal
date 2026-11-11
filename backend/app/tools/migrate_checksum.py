@@ -61,10 +61,13 @@ async def table_digest(conn, table: sa.Table) -> tuple[int, str]:
     order = list(table.primary_key.columns) or list(table.c)
     h, n = hashlib.sha256(), 0
     result = await conn.stream(sa.select(table).order_by(*order))
-    async for row in result:
-        h.update(canonical_row(table, row._mapping).encode())
-        h.update(b"\n")
-        n += 1
+    try:
+        async for row in result:
+            h.update(canonical_row(table, row._mapping).encode())
+            h.update(b"\n")
+            n += 1
+    finally:
+        await result.close()  # release the server-side cursor: TRUNCATE in the same tx needs it gone
     return n, h.hexdigest()
 
 
