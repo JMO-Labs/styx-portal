@@ -8,6 +8,7 @@ resources:
   - objectstore.yaml
   - scheduledbackup.yaml
   - networkpolicy.yaml
+  - backup
 patches:
   - path: delete-homelab.yaml
   - path: prometheusrule-patch.yaml
