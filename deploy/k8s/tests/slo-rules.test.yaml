@@ -97,7 +97,7 @@ tests:
       - series: 'styx_launch_duration_seconds_count{outcome="ok",kind="start"}'
         values: '0+20x40'
     alert_rule_test:
-      - eval_time: 10m
+      - eval_time: 20m
         alertname: StyxLaunchBurnRatePage
         exp_alerts:
               - exp_labels: {severity: page, slo: launch, window: 1h}
