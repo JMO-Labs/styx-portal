@@ -332,6 +332,8 @@ export const api = {
     ),
   getInstanceStatus: (id: string) =>
     request<InstanceStatus>(`/instances/${id}/status`),
+  reportRtt: (body: { transport: string; buckets: Record<string, number>; sum: number }) =>
+    request<void>("/stream/rtt", { method: "POST", body: JSON.stringify(body) }),
   keepalive: (id: string) =>
     request<Instance>(`/instances/${id}/keepalive`, { method: "POST" }),
   getInstanceStats: (id: string) =>
