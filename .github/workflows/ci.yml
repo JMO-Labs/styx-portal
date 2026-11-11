@@ -165,6 +165,16 @@ jobs:
         working-directory: backend
         run: REQUIRE_KUSTOMIZE=1 .venv/bin/python -m pytest tests/test_cilium_baseline.py -q
 
+  slo-rules:
+    needs: changes
+    if: needs.changes.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: promtool test rules
+        run: docker run --rm --entrypoint sh -v "$PWD:/repo" -w /repo prom/prometheus:v2.55.1 scripts/slo_rules_test.sh
+
   plugin-test:
     needs: changes
     if: needs.changes.outputs.plugin == 'true'

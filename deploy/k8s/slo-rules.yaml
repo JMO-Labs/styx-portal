@@ -1,0 +1,221 @@
+# SLI recording rules + multi-window burn-rate alerts (Google SRE workbook).
+# Tests: deploy/k8s/tests/slo-rules.test.yaml (scripts/slo_rules_test.sh, run in CI).
+# Thresholds are the constants below: styx:slo_error_budget (per SLO), burn factors
+# and windows in the alerts. `spec` must stay the last top-level key (the test
+# script strips the CRD envelope with sed).
+#
+# Assumptions: RTT histogram is styx_stream_rtt_seconds (no backend emitter yet);
+# availability uses every blackbox `probe_success` series (probes: Child 7).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: styx-slo
+  namespace: styx
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: styx-slo-sli
+      interval: 5m
+      rules:
+        # Fail-safe: absent business-hours gauge => in scope; maintenance gauge only
+        # removes scope when it is exactly 1. Value 0 = out of scope.
+        - record: styx:slo_in_scope
+          expr: (max(styx_slo_business_hours) or on() vector(1)) unless on() (max(styx_maintenance_active) == 1)
+        - record: styx:slo_error_budget
+          labels: {slo: availability}
+          expr: vector(0.001)
+        - record: styx:slo_error_budget
+          labels: {slo: launch}
+          expr: vector(0.05)
+        - record: styx:slo_error_budget
+          labels: {slo: rtt}
+          expr: vector(0.05)
+        - record: styx:sli_good
+          labels: {slo: availability}
+          expr: sum(avg_over_time(probe_success[5m])) and on() styx:slo_in_scope == 1
+        - record: styx:sli_total
+          labels: {slo: availability}
+          expr: count(probe_success) and on() styx:slo_in_scope == 1
+        - record: styx:sli_bad
+          labels: {slo: availability}
+          expr: styx:sli_total{slo="availability"} - on(slo) (styx:sli_good{slo="availability"} or on(slo) (styx:sli_total{slo="availability"} * 0))
+        - record: styx:sli_error_ratio
+          labels: {slo: availability, window: 5m}
+          expr: sum_over_time(styx:sli_bad{slo="availability"}[5m]) / on(slo) sum_over_time(styx:sli_total{slo="availability"}[5m])
+        - record: styx:sli_error_ratio
+          labels: {slo: availability, window: 30m}
+          expr: sum_over_time(styx:sli_bad{slo="availability"}[30m]) / on(slo) sum_over_time(styx:sli_total{slo="availability"}[30m])
+        - record: styx:sli_error_ratio
+          labels: {slo: availability, window: 1h}
+          expr: sum_over_time(styx:sli_bad{slo="availability"}[1h]) / on(slo) sum_over_time(styx:sli_total{slo="availability"}[1h])
+        - record: styx:sli_error_ratio
+          labels: {slo: availability, window: 2h}
+          expr: sum_over_time(styx:sli_bad{slo="availability"}[2h]) / on(slo) sum_over_time(styx:sli_total{slo="availability"}[2h])
+        - record: styx:sli_error_ratio
+          labels: {slo: availability, window: 6h}
+          expr: sum_over_time(styx:sli_bad{slo="availability"}[6h]) / on(slo) sum_over_time(styx:sli_total{slo="availability"}[6h])
+        - record: styx:sli_error_ratio
+          labels: {slo: availability, window: 1d}
+          expr: sum_over_time(styx:sli_bad{slo="availability"}[1d]) / on(slo) sum_over_time(styx:sli_total{slo="availability"}[1d])
+        - record: styx:sli_error_ratio
+          labels: {slo: availability, window: 3d}
+          expr: sum_over_time(styx:sli_bad{slo="availability"}[3d]) / on(slo) sum_over_time(styx:sli_total{slo="availability"}[3d])
+        - record: styx:sli_good
+          labels: {slo: launch}
+          expr: sum(increase(styx_launch_duration_seconds_bucket{le="10",outcome="ok"}[5m])) and on() styx:slo_in_scope == 1
+        - record: styx:sli_total
+          labels: {slo: launch}
+          expr: sum(increase(styx_launch_duration_seconds_count[5m])) and on() styx:slo_in_scope == 1
+        - record: styx:sli_bad
+          labels: {slo: launch}
+          expr: styx:sli_total{slo="launch"} - on(slo) (styx:sli_good{slo="launch"} or on(slo) (styx:sli_total{slo="launch"} * 0))
+        - record: styx:sli_error_ratio
+          labels: {slo: launch, window: 5m}
+          expr: sum_over_time(styx:sli_bad{slo="launch"}[5m]) / on(slo) sum_over_time(styx:sli_total{slo="launch"}[5m])
+        - record: styx:sli_error_ratio
+          labels: {slo: launch, window: 30m}
+          expr: sum_over_time(styx:sli_bad{slo="launch"}[30m]) / on(slo) sum_over_time(styx:sli_total{slo="launch"}[30m])
+        - record: styx:sli_error_ratio
+          labels: {slo: launch, window: 1h}
+          expr: sum_over_time(styx:sli_bad{slo="launch"}[1h]) / on(slo) sum_over_time(styx:sli_total{slo="launch"}[1h])
+        - record: styx:sli_error_ratio
+          labels: {slo: launch, window: 2h}
+          expr: sum_over_time(styx:sli_bad{slo="launch"}[2h]) / on(slo) sum_over_time(styx:sli_total{slo="launch"}[2h])
+        - record: styx:sli_error_ratio
+          labels: {slo: launch, window: 6h}
+          expr: sum_over_time(styx:sli_bad{slo="launch"}[6h]) / on(slo) sum_over_time(styx:sli_total{slo="launch"}[6h])
+        - record: styx:sli_error_ratio
+          labels: {slo: launch, window: 1d}
+          expr: sum_over_time(styx:sli_bad{slo="launch"}[1d]) / on(slo) sum_over_time(styx:sli_total{slo="launch"}[1d])
+        - record: styx:sli_error_ratio
+          labels: {slo: launch, window: 3d}
+          expr: sum_over_time(styx:sli_bad{slo="launch"}[3d]) / on(slo) sum_over_time(styx:sli_total{slo="launch"}[3d])
+        - record: styx:sli_good
+          labels: {slo: rtt}
+          expr: sum(increase(styx_stream_rtt_seconds_bucket{le="0.08"}[5m])) and on() styx:slo_in_scope == 1
+        - record: styx:sli_total
+          labels: {slo: rtt}
+          expr: sum(increase(styx_stream_rtt_seconds_count[5m])) and on() styx:slo_in_scope == 1
+        - record: styx:sli_bad
+          labels: {slo: rtt}
+          expr: styx:sli_total{slo="rtt"} - on(slo) (styx:sli_good{slo="rtt"} or on(slo) (styx:sli_total{slo="rtt"} * 0))
+        - record: styx:sli_error_ratio
+          labels: {slo: rtt, window: 5m}
+          expr: sum_over_time(styx:sli_bad{slo="rtt"}[5m]) / on(slo) sum_over_time(styx:sli_total{slo="rtt"}[5m])
+        - record: styx:sli_error_ratio
+          labels: {slo: rtt, window: 30m}
+          expr: sum_over_time(styx:sli_bad{slo="rtt"}[30m]) / on(slo) sum_over_time(styx:sli_total{slo="rtt"}[30m])
+        - record: styx:sli_error_ratio
+          labels: {slo: rtt, window: 1h}
+          expr: sum_over_time(styx:sli_bad{slo="rtt"}[1h]) / on(slo) sum_over_time(styx:sli_total{slo="rtt"}[1h])
+        - record: styx:sli_error_ratio
+          labels: {slo: rtt, window: 2h}
+          expr: sum_over_time(styx:sli_bad{slo="rtt"}[2h]) / on(slo) sum_over_time(styx:sli_total{slo="rtt"}[2h])
+        - record: styx:sli_error_ratio
+          labels: {slo: rtt, window: 6h}
+          expr: sum_over_time(styx:sli_bad{slo="rtt"}[6h]) / on(slo) sum_over_time(styx:sli_total{slo="rtt"}[6h])
+        - record: styx:sli_error_ratio
+          labels: {slo: rtt, window: 1d}
+          expr: sum_over_time(styx:sli_bad{slo="rtt"}[1d]) / on(slo) sum_over_time(styx:sli_total{slo="rtt"}[1d])
+        - record: styx:sli_error_ratio
+          labels: {slo: rtt, window: 3d}
+          expr: sum_over_time(styx:sli_bad{slo="rtt"}[3d]) / on(slo) sum_over_time(styx:sli_total{slo="rtt"}[3d])
+    - name: styx-slo-alerts
+      rules:
+        # availability page
+        - alert: StyxAvailabilityBurnRatePage
+          expr: >-
+            (styx:sli_error_ratio{slo="availability",window="1h"} > scalar(styx:slo_error_budget{slo="availability"}) * 14.4) and on(slo) (styx:sli_error_ratio{slo="availability",window="5m"} > scalar(styx:slo_error_budget{slo="availability"}) * 14.4)
+          for: 2m
+          labels: {severity: page}
+          annotations:
+            summary: "availability below 99.9%: burning error budget at >14.4x (1h/5m)"
+        - alert: StyxAvailabilityBurnRatePage
+          expr: >-
+            (styx:sli_error_ratio{slo="availability",window="6h"} > scalar(styx:slo_error_budget{slo="availability"}) * 6) and on(slo) (styx:sli_error_ratio{slo="availability",window="30m"} > scalar(styx:slo_error_budget{slo="availability"}) * 6)
+          for: 2m
+          labels: {severity: page}
+          annotations:
+            summary: "availability below 99.9%: burning error budget at >6x (6h/30m)"
+    # availability ticket
+        - alert: StyxAvailabilityBurnRateTicket
+          expr: >-
+            (styx:sli_error_ratio{slo="availability",window="1d"} > scalar(styx:slo_error_budget{slo="availability"}) * 3) and on(slo) (styx:sli_error_ratio{slo="availability",window="2h"} > scalar(styx:slo_error_budget{slo="availability"}) * 3)
+          for: 15m
+          labels: {severity: ticket}
+          annotations:
+            summary: "availability below 99.9%: burning error budget at >3x (1d/2h)"
+        - alert: StyxAvailabilityBurnRateTicket
+          expr: >-
+            (styx:sli_error_ratio{slo="availability",window="3d"} > scalar(styx:slo_error_budget{slo="availability"}) * 1) and on(slo) (styx:sli_error_ratio{slo="availability",window="6h"} > scalar(styx:slo_error_budget{slo="availability"}) * 1)
+          for: 15m
+          labels: {severity: ticket}
+          annotations:
+            summary: "availability below 99.9%: burning error budget at >1x (3d/6h)"
+    # launch page
+        - alert: StyxLaunchBurnRatePage
+          expr: >-
+            (styx:sli_error_ratio{slo="launch",window="1h"} > scalar(styx:slo_error_budget{slo="launch"}) * 14.4) and on(slo) (styx:sli_error_ratio{slo="launch",window="5m"} > scalar(styx:slo_error_budget{slo="launch"}) * 14.4) and on() (sum_over_time(styx:sli_total{slo="launch"}[1h]) > 5)
+          for: 2m
+          labels: {severity: page}
+          annotations:
+            summary: "launches slower than 10s: burning error budget at >14.4x (1h/5m)"
+        - alert: StyxLaunchBurnRatePage
+          expr: >-
+            (styx:sli_error_ratio{slo="launch",window="6h"} > scalar(styx:slo_error_budget{slo="launch"}) * 6) and on(slo) (styx:sli_error_ratio{slo="launch",window="30m"} > scalar(styx:slo_error_budget{slo="launch"}) * 6) and on() (sum_over_time(styx:sli_total{slo="launch"}[6h]) > 5)
+          for: 2m
+          labels: {severity: page}
+          annotations:
+            summary: "launches slower than 10s: burning error budget at >6x (6h/30m)"
+    # launch ticket
+        - alert: StyxLaunchBurnRateTicket
+          expr: >-
+            (styx:sli_error_ratio{slo="launch",window="1d"} > scalar(styx:slo_error_budget{slo="launch"}) * 3) and on(slo) (styx:sli_error_ratio{slo="launch",window="2h"} > scalar(styx:slo_error_budget{slo="launch"}) * 3) and on() (sum_over_time(styx:sli_total{slo="launch"}[1d]) > 5)
+          for: 15m
+          labels: {severity: ticket}
+          annotations:
+            summary: "launches slower than 10s: burning error budget at >3x (1d/2h)"
+        - alert: StyxLaunchBurnRateTicket
+          expr: >-
+            (styx:sli_error_ratio{slo="launch",window="3d"} > scalar(styx:slo_error_budget{slo="launch"}) * 1) and on(slo) (styx:sli_error_ratio{slo="launch",window="6h"} > scalar(styx:slo_error_budget{slo="launch"}) * 1) and on() (sum_over_time(styx:sli_total{slo="launch"}[3d]) > 5)
+          for: 15m
+          labels: {severity: ticket}
+          annotations:
+            summary: "launches slower than 10s: burning error budget at >1x (3d/6h)"
+    # rtt page
+        - alert: StyxStreamRttBurnRatePage
+          expr: >-
+            (styx:sli_error_ratio{slo="rtt",window="1h"} > scalar(styx:slo_error_budget{slo="rtt"}) * 14.4) and on(slo) (styx:sli_error_ratio{slo="rtt",window="5m"} > scalar(styx:slo_error_budget{slo="rtt"}) * 14.4)
+          for: 2m
+          labels: {severity: page}
+          annotations:
+            summary: "stream RTT above 80ms: burning error budget at >14.4x (1h/5m)"
+        - alert: StyxStreamRttBurnRatePage
+          expr: >-
+            (styx:sli_error_ratio{slo="rtt",window="6h"} > scalar(styx:slo_error_budget{slo="rtt"}) * 6) and on(slo) (styx:sli_error_ratio{slo="rtt",window="30m"} > scalar(styx:slo_error_budget{slo="rtt"}) * 6)
+          for: 2m
+          labels: {severity: page}
+          annotations:
+            summary: "stream RTT above 80ms: burning error budget at >6x (6h/30m)"
+    # rtt ticket
+        - alert: StyxStreamRttBurnRateTicket
+          expr: >-
+            (styx:sli_error_ratio{slo="rtt",window="1d"} > scalar(styx:slo_error_budget{slo="rtt"}) * 3) and on(slo) (styx:sli_error_ratio{slo="rtt",window="2h"} > scalar(styx:slo_error_budget{slo="rtt"}) * 3)
+          for: 15m
+          labels: {severity: ticket}
+          annotations:
+            summary: "stream RTT above 80ms: burning error budget at >3x (1d/2h)"
+        - alert: StyxStreamRttBurnRateTicket
+          expr: >-
+            (styx:sli_error_ratio{slo="rtt",window="3d"} > scalar(styx:slo_error_budget{slo="rtt"}) * 1) and on(slo) (styx:sli_error_ratio{slo="rtt",window="6h"} > scalar(styx:slo_error_budget{slo="rtt"}) * 1)
+          for: 15m
+          labels: {severity: ticket}
+          annotations:
+            summary: "stream RTT above 80ms: burning error budget at >1x (3d/6h)"
+        - alert: StyxLaunchP50AboveGoal
+          expr: histogram_quantile(0.5, sum by (le) (increase(styx_launch_duration_seconds_bucket{outcome="ok"}[1d]))) > 5
+          for: 15m
+          labels: {severity: ticket}
+          annotations:
+            summary: "Median launch time above the 5s goal over 1d"

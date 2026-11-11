@@ -75,7 +75,7 @@ def test_unknown_kind_fails():
 def test_servicemonitor_is_skipped_not_errored():
     sm = (
         "apiVersion: monitoring.coreos.com/v1\nkind: ServiceMonitor\n"
-        "metadata: {name: x}\nspec: {}\n"
+        "metadata: {name: t}\nspec: {}\n"
     )
     r = _check(sm)
     assert r.returncode == 0, r.stdout + r.stderr
