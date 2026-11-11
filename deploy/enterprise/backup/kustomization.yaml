@@ -1,0 +1,7 @@
+# Velero backup plain manifests (issue #36). The server itself comes from the vendored Helm chart:
+# helm template velero charts/velero-12.2.4.tgz --skip-tests -n velero -f velero-values.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - velero-externalsecrets.yaml

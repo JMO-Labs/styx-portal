@@ -1,0 +1,17 @@
+# Velero server namespace and the styx-backup namespace for Styx backup jobs (issue #36).
+# Both carry styx.io/openbao-secrets so ExternalSecrets may use ClusterSecretStore openbao.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: velero
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    styx.io/openbao-secrets: "true"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: styx-backup
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    styx.io/openbao-secrets: "true"

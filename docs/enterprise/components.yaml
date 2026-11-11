@@ -19,6 +19,8 @@ components:
      source_url: https://github.com/goharbor/harbor-helm, cost: free, scope: enterprise}
   - {ecosystem: helm, name: openbao, version: 0.30.7, license: MPL-2.0,
      source_url: https://github.com/openbao/openbao-helm, cost: free, scope: enterprise}
+  - {ecosystem: helm, name: velero, version: 12.2.4, license: Apache-2.0,
+     source_url: https://github.com/vmware-tanzu/helm-charts, cost: free, scope: enterprise}
 
   # ---- enterprise images (deploy/enterprise/**, digest-pinned via Harbor) ---------------------
   - {ecosystem: image, name: external-secrets/external-secrets, version: v2.14.0, license: Apache-2.0,
