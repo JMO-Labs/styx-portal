@@ -8,6 +8,7 @@ def _val(name, labels):
 
 
 def test_launch_histogram_buckets_include_5_and_10():
+    slo_metrics.observe_launch("create", "ok", 0.5)
     les = {s.labels["le"] for m in REGISTRY.collect() if m.name == "styx_launch_duration_seconds"
            for s in m.samples if s.name.endswith("_bucket")}
     assert les == {"1.0", "2.0", "3.0", "4.0", "5.0", "6.0", "8.0", "10.0", "15.0",

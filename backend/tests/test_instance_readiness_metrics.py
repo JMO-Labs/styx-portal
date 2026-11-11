@@ -54,7 +54,7 @@ async def test_no_requested_at_observes_nothing(session):
 
 @pytest.mark.asyncio
 async def test_docker_start_path_observes_launch(admin_client, session, monkeypatch):
-    from tests.test_instances_api import _make_owned_instance, shared_docker  # noqa: F401
+    from tests.test_instances_api import _make_owned_instance
     monkeypatch.setenv("ROUTE_BACKEND", "file")
     inst = await _make_owned_instance(session, status="stopped")
     before = _c("start", "ok")
