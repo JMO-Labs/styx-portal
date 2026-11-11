@@ -16,7 +16,7 @@ from app.security.deps import get_current_user, require_owner_or_admin
 from app.services.docker_manager import DockerManager
 from app.services.k8s_runtime import ensure_instance_supported, instance_runtime
 from app.services.screenshot import ScreenshotService
-from app.services import gpu_access, instance_readiness, profiles, slo_metrics
+from app.services import gpu_access, instance_readiness, profiles, prom_metrics, slo_metrics
 from app.services.traefik_labels import generate_traefik_labels
 from app.services.audit import audit
 from app.services.settings_store import settings as sys_settings
@@ -160,6 +160,7 @@ async def list_instances(
 async def _launch_instance_background(instance_id: str, template_id: str, t0: float | None = None):
     """Background task: pull image, create container, start it."""
     docker = instance_runtime()
+    launch_start = time.monotonic()
     async with async_session() as session:
         instance = await session.get(Instance, instance_id)
         template = await session.get(ServiceTemplate, template_id)
@@ -267,8 +268,10 @@ async def _launch_instance_background(instance_id: str, template_id: str, t0: fl
             await session.commit()
             instance_readiness.kick(instance, t0, "create")
             await _refresh_routes(session)
+            prom_metrics.INSTANCE_LAUNCH_DURATION.observe(time.monotonic() - launch_start)
 
         except Exception as e:
+            prom_metrics.INSTANCE_LAUNCH_FAILURES.inc()
             slo_metrics.observe_since("create", "error", t0)
             slo_metrics.record_launch_failure("other")
             logger.error(f"Instance {instance_id} launch failed: {e}")
