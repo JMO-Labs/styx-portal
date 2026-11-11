@@ -35,6 +35,7 @@ outside `scope: service`, proprietary licenses without an ADR exception and a st
 | helm | external-secrets | 2.14.0 | Apache-2.0 | enterprise | free |  | https://github.com/external-secrets/external-secrets |
 | helm | harbor | 1.19.4 | Apache-2.0 | enterprise | free |  | https://github.com/goharbor/harbor-helm |
 | helm | openbao | 0.30.7 | MPL-2.0 | enterprise | free |  | https://github.com/openbao/openbao-helm |
+| helm | velero | 12.2.4 | Apache-2.0 | enterprise | free |  | https://github.com/vmware-tanzu/helm-charts |
 | image | aquasec/trivy | 0.58.0 | Apache-2.0 | build-only | free |  | https://github.com/aquasecurity/trivy |
 | image | busybox | 1.36 | GPL-2.0 | homelab | free |  | https://github.com/docker-library/busybox |
 | image | cloudflare/cloudflared | latest | Apache-2.0 | homelab | free |  | https://github.com/cloudflare/cloudflared |
