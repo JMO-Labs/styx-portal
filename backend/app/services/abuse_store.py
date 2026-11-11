@@ -3,7 +3,6 @@
 Callers own the fail policy: when a store call raises, lockout/ban/strict-auth checks
 deny and the default rate limit allows (with a warning).
 """
-import time
 from functools import lru_cache
 from typing import Callable, Protocol
 
