@@ -18,12 +18,12 @@ spec:
             summary: Ceph PGs degraded for over 4h
             runbook: docs/enterprise/runbooks/rook-ceph.md#force-recovery
         - alert: CephThrottleJobFailing
-          # Failed job, or no successful run for over 1h (schedule is every 15 min).
+          # No successful run for over 1h (schedule is every 15 min). Staleness
+          # covers failing and not running; kube_job_failed would stick until GC.
           expr: |
-            kube_job_failed{namespace="rook-ceph",job_name=~"ceph-mclock-throttle.*",condition="true"} > 0
-            or (time() - kube_cronjob_status_last_successful_time{namespace="rook-ceph",cronjob="ceph-mclock-throttle"}) > 3600
+            (time() - kube_cronjob_status_last_successful_time{namespace="rook-ceph",cronjob="ceph-mclock-throttle"}) > 3600
             or absent(kube_cronjob_status_last_successful_time{namespace="rook-ceph",cronjob="ceph-mclock-throttle"})
-          for: 1h
+          for: 5m
           labels: {severity: warning}
           annotations:
             summary: Ceph mClock throttle CronJob failing or not running for over 1h

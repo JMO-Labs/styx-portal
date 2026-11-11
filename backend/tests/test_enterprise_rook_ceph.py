@@ -229,8 +229,10 @@ def test_prometheus_rules_present():
     assert rules["CephPGsDegraded"]["for"] == "4h"
     assert "ceph_pg_degraded" in rules["CephPGsDegraded"]["expr"]
     thr = rules["CephThrottleJobFailing"]
-    assert thr["for"] == "1h"
     assert "ceph-mclock-throttle" in thr["expr"]
+    # staleness only (a failed Job lingers); 3600s + for 5m ~= 1h total
+    assert "kube_job_failed" not in thr["expr"]
+    assert "> 3600" in thr["expr"] and thr["for"] == "5m"
     assert "prometheusrule.yaml" in _load("kustomization.yaml")["resources"]
 
 
