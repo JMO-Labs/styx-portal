@@ -1,0 +1,11 @@
+# Placeholders: set FS_NAME and MON_HOSTS per site (#3). GROUPS is read via printenv (bash special var).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: styx-home-snapshots
+  namespace: styx-backup
+data:
+  FS_NAME: CHANGE-ME-fs
+  GROUPS: "homes profiles"
+  KEEP_DAILY: "7"
+  MON_HOSTS: CHANGE-ME-mon-a:6789,CHANGE-ME-mon-b:6789

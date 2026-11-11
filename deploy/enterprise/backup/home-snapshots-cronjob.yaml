@@ -1,0 +1,65 @@
+# Nightly CephFS snapshots of homes/profiles (issue #38). Must finish before the 04:30 UTC offsite
+# export (#13). Ceph snap_schedule is unusable: it hard-codes scheduled-... names.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: styx-home-snapshots
+  namespace: styx-backup
+spec:
+  schedule: "0 3 * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app: styx-home-snapshots
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 167
+            runAsGroup: 167
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: snapshot
+              image: harbor.example.internal/quay.io/ceph/ceph:v20.2.5@sha256:4337ac8ac81d40df136e5eac92ca53bb52360a5e039f3d1f7935e729eb5ef42c
+              command: ["bash", "/opt/snapshots/home-snapshots.sh"]
+              envFrom:
+                - configMapRef:
+                    name: styx-home-snapshots
+              env:
+                - {name: CEPH_ID, value: home-snapshots}
+                - {name: KEY_FILE, value: /etc/ceph-client/key}
+              securityContext:
+                privileged: false
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: [ALL]}
+                seccompProfile:
+                  type: RuntimeDefault
+              resources:
+                requests: {cpu: 50m, memory: 128Mi}
+                limits: {memory: 512Mi}
+              volumeMounts:
+                - {name: script, mountPath: /opt/snapshots, readOnly: true}
+                - {name: keyring, mountPath: /etc/ceph-client, readOnly: true}
+                - {name: tmp, mountPath: /tmp}
+          volumes:
+            - name: script
+              configMap:
+                name: styx-home-snapshots-script
+            - name: keyring
+              secret:
+                secretName: rook-ceph-client-home-snapshots
+                items:
+                  - {key: home-snapshots, path: key}
+            - name: tmp
+              emptyDir: {}

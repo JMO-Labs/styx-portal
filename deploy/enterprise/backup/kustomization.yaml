@@ -5,4 +5,13 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - velero-externalsecrets.yaml
+  - networkpolicy.yaml
+  - home-snapshots-client.yaml
+  - home-snapshots-params.yaml
+  - home-snapshots-cronjob.yaml
   - velero-schedules.yaml
+configMapGenerator:
+  - name: styx-home-snapshots-script
+    namespace: styx-backup
+    files:
+      - home-snapshots.sh
