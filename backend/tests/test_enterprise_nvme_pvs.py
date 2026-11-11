@@ -72,6 +72,35 @@ def test_rejects_kernel_name_path():
         gen.render(inv)
 
 
+@pytest.mark.parametrize(
+    "bad",
+    [
+        PFX + "x/../../../nvme0n1",
+        "/dev/disk/by-id/nvme-x/../../../sda",
+        PFX + "a/b",
+        PFX,
+    ],
+)
+def test_rejects_traversal_path(bad):
+    inv = _bad(lambda i: i["nodes"][0]["nvme"][0].update(path=bad))
+    with pytest.raises(gen.InventoryError, match="by-id"):
+        gen.render(inv)
+
+
+def test_rejects_missing_keys():
+    inv = _bad(lambda i: i["nodes"][0]["nvme"][0].pop("size"))
+    with pytest.raises(gen.InventoryError, match="size"):
+        gen.render(inv)
+
+
+def test_rejects_other_nodes_os_disk():
+    def m(i):
+        i["nodes"][0]["nvme"][0]["path"] = i["nodes"][1]["os_disk"]
+
+    with pytest.raises(gen.InventoryError, match="os_disk"):
+        gen.render(_bad(m))
+
+
 def test_rejects_os_disk():
     def m(i):
         n = i["nodes"][0]
