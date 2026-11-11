@@ -102,8 +102,9 @@ def test_extra_mounts_file(tmp_path):
     assert "secrets enable -path=kv kv-v2" in calls
 
 
-def test_shipped_extra_mounts_empty():
-    assert json.loads((OPENBAO / "extra-mounts.json").read_text()) == []
+def test_shipped_extra_mounts_rook_only():
+    assert json.loads((OPENBAO / "extra-mounts.json").read_text()) == [
+        {"path": "rook", "type": "kv-v2"}]
 
 
 def test_dry_run_no_writes(tmp_path):

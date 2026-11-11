@@ -148,3 +148,69 @@ def test_bad_fixtures_rejected(fixture):
 
 def test_fixtures_present():
     assert {p.stem for p in BAD} >= {"unencrypted_set", "host_nodes", "skip_verify"}
+
+
+# ---- OpenBao side of the KMS (issue #63) ------------------------------------------------
+
+from tests.openbao_checks import (  # noqa: E402
+    CEPH, OPENBAO, ceph_storage_refs, check_policy, load_docs, load_yaml, policy_paths,
+)
+
+ROOK_POLICY = OPENBAO / "policies/rook-ceph.hcl"
+EXPECTED_ROOK_POLICY = {
+    "rook/data/*": {"create", "read", "update", "delete", "list"},
+    "rook/metadata/*": {"read", "list", "delete"},
+    "sys/mounts": {"read"},
+}
+BAD_POLICIES = Path(__file__).parent / "fixtures/ceph_bad"
+
+
+def _rook_role():
+    import json
+    roles = {r["name"]: r for r in json.loads((OPENBAO / "auth-roles.json").read_text())}
+    return roles["rook-ceph"]
+
+
+def test_openbao_rook_policy_least_privilege():
+    hcl = ROOK_POLICY.read_text()
+    assert policy_paths(hcl) == EXPECTED_ROOK_POLICY
+    assert check_policy(hcl) == []
+
+
+def test_wildcard_rook_policy_fixture_rejected():
+    hcl = (BAD_POLICIES / "rook_wild.hcl").read_text()
+    assert policy_paths(hcl) != EXPECTED_ROOK_POLICY
+    assert check_policy(hcl)
+
+
+def test_openbao_rook_mount_is_kv_v2():
+    import json
+    mounts = json.loads((OPENBAO / "extra-mounts.json").read_text())
+    assert {"path": "rook", "type": "kv-v2"} in mounts
+
+
+def test_openbao_rook_role_bindings():
+    r = _rook_role()
+    assert sorted(r["bound_service_account_names"]) == ["rook-ceph-osd", "rook-ceph-system"]
+    assert r["bound_service_account_namespaces"] == ["rook-ceph"]
+    assert r["policies"] == ["rook-ceph"]
+    assert 0 < r["token_ttl"] <= 3600
+
+
+def test_openbao_not_on_ceph():
+    """OSDs need OpenBao, so OpenBao must never need OSDs (bootstrap deadlock)."""
+    docs = [load_yaml(OPENBAO / "values.yaml")]
+    for p in sorted(OPENBAO.glob("*.yaml")):
+        docs += load_docs(p)
+    for d in docs:
+        assert ceph_storage_refs(d) == []
+        if d.get("kind") == "StorageClass":
+            assert not CEPH.search(d.get("provisioner", ""))
+    scs = [d for d in docs if d.get("kind") == "StorageClass"]
+    assert [d["metadata"]["name"] for d in scs] == ["openbao-local"]
+    assert load_yaml(OPENBAO / "values.yaml")["server"]["dataStorage"]["storageClass"] == "openbao-local"
+
+
+def test_ceph_storageclass_fixture_detected():
+    bad = load_yaml(Path(__file__).parent / "fixtures/openbao_bad/raft_on_ceph.yaml")
+    assert ceph_storage_refs(bad)

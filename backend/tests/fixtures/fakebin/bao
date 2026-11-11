@@ -20,7 +20,7 @@ esac
 case "$*" in
   "secrets list -format=json")
     if [ "$state" = configured ]; then
-      echo '{"kv/":{"type":"kv","options":{"version":"2"}},"sys/":{"type":"system"}}'
+      echo '{"kv/":{"type":"kv","options":{"version":"2"}},"rook/":{"type":"kv","options":{"version":"2"}},"sys/":{"type":"system"}}'
     else
       echo '{"sys/":{"type":"system"}}'
     fi ;;
