@@ -109,24 +109,49 @@ def test_desktop_egress_only_dns_and_proxy():
     assert cnp["spec"]["ingress"] == base["spec"]["ingress"]
 
 
+NS_KEY = "k8s:io.kubernetes.pod.namespace"
+INFRA_ALLOWS = {"allow-apiserver", "allow-prometheus"}
+
+
+def _can_select_desktops(sel):
+    """False only if the selector provably cannot match styx-instances pods."""
+    ns = sel.get("matchLabels", {}).get(NS_KEY)
+    if ns is not None and ns != "styx-instances":
+        return False
+    for e in sel.get("matchExpressions", []):
+        if e["key"] == NS_KEY:
+            if e["operator"] == "NotIn" and "styx-instances" in e["values"]:
+                return False
+            if e["operator"] == "In" and "styx-instances" not in e["values"]:
+                return False
+    return True
+
+
 def test_no_world_egress_for_desktops():
     for d in _render(OVERLAY):
         if d["kind"] not in {"CiliumNetworkPolicy", "CiliumClusterwideNetworkPolicy"}:
             continue
+        name = d["metadata"]["name"]
         sel = d["spec"].get("endpointSelector", {})
-        if d["metadata"].get("namespace") not in (None, "styx-instances"):
+        if d["kind"] == "CiliumNetworkPolicy":
+            if d["metadata"].get("namespace") not in (None, "styx-instances"):
+                continue
+            selects = True
+        else:
+            selects = _can_select_desktops(sel)
+        if name in INFRA_ALLOWS:  # asserted, not exempted
+            assert not selects, f"{name} must not select desktops"
             continue
-        if sel.get("matchLabels") and d["kind"] == "CiliumClusterwideNetworkPolicy":
-            continue  # selects specific pods (e.g. squid), not desktops
-        if d["metadata"]["name"] in {"allow-apiserver", "allow-prometheus"}:
+        if not selects:
             continue
         for r in d["spec"].get("egress", []):
-            assert not FORBIDDEN_EGRESS & r.keys(), d["metadata"]["name"]
+            assert not FORBIDDEN_EGRESS & r.keys(), name
             for p in r.get("toPorts", []):
                 for port in p.get("ports", []):
-                    assert port["port"] != "22"
-                    if port["protocol"] == "UDP":
-                        pytest.fail("UDP egress")
+                    assert port["port"] != "22", name
+                    if port["protocol"] in {"UDP", "ANY"}:  # ANY includes UDP
+                        assert port["protocol"] == "ANY" and port["port"] == "53" \
+                            and "toEndpoints" in r, f"{name}: {port}"
 
 
 def test_proxy_params_single_source():

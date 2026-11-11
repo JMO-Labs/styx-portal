@@ -105,6 +105,8 @@ jobs:
       - name: pytest
         if: needs.changes.outputs.backend == 'true' && !(github.event_name == 'pull_request' && github.base_ref == 'enterprise')
         working-directory: backend
+        env:
+          REQUIRE_KUSTOMIZE: "1"  # render-based netpol tests must run, not skip
         run: .venv/bin/python -m pytest -q
       - name: Frontend deps
         if: needs.changes.outputs.frontend == 'true'
