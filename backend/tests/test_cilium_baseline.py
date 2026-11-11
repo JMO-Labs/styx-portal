@@ -72,6 +72,15 @@ def test_unknown_kind_fails():
     assert _check(CNP.replace("CiliumNetworkPolicy", "NoSuchKind")).returncode != 0
 
 
+def test_servicemonitor_kind_is_skipped():
+    sm = (
+        "apiVersion: monitoring.coreos.com/v1\nkind: ServiceMonitor\n"
+        "metadata: {name: t}\nspec: {}\n"
+    )
+    r = _check(sm)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
 def _closed_branches(node, path=""):
     """Yield paths of anyOf/oneOf/allOf branches closed with additionalProperties:false."""
     if isinstance(node, dict):
