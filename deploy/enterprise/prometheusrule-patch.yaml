@@ -17,12 +17,22 @@ spec:
           annotations:
             summary: Styx backend has no available replicas
         - alert: StyxCnpgBackupStale
-          # absent() fires until the first backup exists, so there is no alerting gap
-          expr: (time() - max(cnpg_collector_last_available_backup_timestamp{namespace="styx"})) > 93600 or absent(cnpg_collector_last_available_backup_timestamp{namespace="styx"})
+          # barman-cloud plugin metrics (in-core cnpg_collector_* are not filled for plugin backups).
+          # absent() and a 0 value (no backup yet) both count as stale.
+          expr: >-
+            (time() - max(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="styx"}) > 93600)
+            or (max(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="styx"}) == 0)
+            or absent(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="styx"})
           for: 30m
           labels: {severity: warning}
           annotations:
             summary: No CNPG backup available in the last 26h
+        - alert: StyxCnpgBackupFailed
+          expr: max(barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace="styx"}) > max(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="styx"})
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: Most recent CNPG backup failed
         - alert: StyxCnpgWalArchiveFailing
           expr: increase(cnpg_pg_stat_archiver_failed_count{namespace="styx"}[15m]) > 0
           for: 5m

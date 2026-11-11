@@ -157,8 +157,12 @@ def test_backup_alerts_replaced():
     a = _alerts(_index()[("PrometheusRule", "styx")])
     assert not {"StyxBackupFailed", "StyxBackupStale"} & set(a)
     assert "StyxBackendDown" in a
-    assert any("cnpg_collector_last_available_backup_timestamp" in r["expr"] and "93600" in r["expr"]
-               and "absent(" in r["expr"] for r in a.values())
+    M = "barman_cloud_cloudnative_pg_io_last_available_backup_timestamp"
+    assert any(M in r["expr"] and "93600" in r["expr"] and "absent(" in r["expr"]
+               and "== 0" in r["expr"] for r in a.values())
+    assert not any("cnpg_collector_last_available_backup_timestamp" in r["expr"] for r in a.values())
+    assert any("barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp" in r["expr"]
+               and M in r["expr"] for r in a.values())
     assert any("increase(cnpg_pg_stat_archiver_failed_count" in r["expr"] for r in a.values())
     assert {"networkpolicy.yaml"} <= set(_kustomization()["resources"])
     assert "prometheusrule-patch.yaml" in [p["path"] for p in _kustomization()["patches"]]
