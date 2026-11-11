@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 SCHEMAS=deploy/k8s/components/cilium-baseline/schemas
 # Third-party kinds with no vendored schema. Unlisted unknown kinds FAIL (no blanket ignore).
-SKIP=AlertmanagerConfig,ExternalSecret,PrometheusRule,Cluster,ScheduledBackup,ObjectStore
+SKIP=AlertmanagerConfig,ServiceMonitor,ExternalSecret,PrometheusRule,Cluster,ScheduledBackup,ObjectStore
 validate() {
   kubeconform -strict -summary -skip "$SKIP" \
     -schema-location default \
