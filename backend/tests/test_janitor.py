@@ -3,8 +3,10 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import DateTime, bindparam, text
 
-from app.config import settings
+from app.config import Settings
 from app.services.janitor import fail_window, purge_expired
+
+settings = Settings()
 
 _DDL = (
     "CREATE TABLE auth_fail_events (id INTEGER PRIMARY KEY AUTOINCREMENT, kind VARCHAR NOT NULL,"

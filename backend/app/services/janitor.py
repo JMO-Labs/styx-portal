@@ -7,10 +7,11 @@ from sqlalchemy import DateTime, bindparam, delete, inspect, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.config import settings
+from app.config import Settings
 from app.models import BannedIP, RevokedAccessToken
 
 log = logging.getLogger("styx.janitor")
+_settings = Settings()
 INTERVAL_S = 60
 BATCH = 1000
 # Abuse tables (alembic 0002): table -> expiry column. Skipped if absent.
@@ -24,7 +25,7 @@ _MODELS = ((RevokedAccessToken, RevokedAccessToken.jti, RevokedAccessToken.expir
 
 def fail_window() -> int:
     """Seconds a fail event can still count toward any lockout or ban window."""
-    return max(settings.LOCKOUT_DURATION, settings.BAN_FAIL_WINDOW, settings.BAN_DURATION)
+    return max(_settings.LOCKOUT_DURATION, _settings.BAN_FAIL_WINDOW, _settings.BAN_DURATION)
 
 
 async def purge_expired(session: AsyncSession, batch: int = BATCH,
