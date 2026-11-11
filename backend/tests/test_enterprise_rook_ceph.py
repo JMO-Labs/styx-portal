@@ -170,6 +170,51 @@ def test_mclock_profile_not_in_cephconfig():
     assert isinstance(merged["osd_scrub_end_hour"], str)
 
 
+# --- pools and StorageClasses (issue #28) ---
+
+
+def _docs(name):
+    return [d for d in yaml.safe_load_all((DIR / name).read_text()) if d]
+
+
+def _kind(docs, kind):
+    return [d for d in docs if d["kind"] == kind]
+
+
+def _assert_pool(pool, where):
+    assert pool["failureDomain"] == "host", where
+    assert pool["replicated"]["size"] == 3, where
+    assert "min_size" not in pool["replicated"], where
+
+
+def test_pools_host_failure_domain_size_3():
+    docs = _docs("pools.yaml")
+    (block,) = _kind(docs, "CephBlockPool")
+    _assert_pool(block["spec"], "block")
+    (fs,) = _kind(docs, "CephFilesystem")
+    _assert_pool(fs["spec"]["metadataPool"], "fs metadata")
+    assert fs["spec"]["dataPools"]
+    for i, p in enumerate(fs["spec"]["dataPools"]):
+        _assert_pool(p, f"fs data {i}")
+    (os_,) = _kind(docs, "CephObjectStore")
+    _assert_pool(os_["spec"]["metadataPool"], "rgw metadata")
+    _assert_pool(os_["spec"]["dataPool"], "rgw data")
+
+
+def test_storageclasses():
+    docs = _docs("storageclasses.yaml")
+    scs = {d["metadata"]["name"]: d for d in _kind(docs, "StorageClass")}
+    assert set(scs) == {"local-nvme", "ceph-rbd", "ceph-cephfs", "ceph-bucket"}
+    ln = scs["local-nvme"]
+    assert ln["provisioner"] == "kubernetes.io/no-provisioner"
+    assert ln["volumeBindingMode"] == "WaitForFirstConsumer"
+    assert ln["reclaimPolicy"] == "Retain"
+    for sc in scs.values():
+        ann = sc["metadata"].get("annotations", {})
+        assert ann.get("storageclass.kubernetes.io/is-default-class") != "true"
+    assert scs["ceph-bucket"]["provisioner"] == "rook-ceph.ceph.rook.io/bucket"
+
+
 # --- mClock throttle (issue #29) ---------------------------------------------
 
 

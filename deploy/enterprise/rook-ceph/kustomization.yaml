@@ -5,6 +5,8 @@ kind: Kustomization
 resources:
   - local-pvs.yaml
   - cephcluster.yaml
+  - pools.yaml
+  - storageclasses.yaml
   - throttle-cephclient.yaml
   - throttle-config.yaml
   - throttle-cronjob.yaml
