@@ -21,7 +21,7 @@ Postgres cluster with offsite backups. It builds on
 
 The setup token is a per-pod file with a per-process lock, so with several
 replicas each pod issues its own token and setup can fail on another pod.
-Until styx-portal#86 (setup token in the DB) ships; styx-portal#85 makes unset `JWT_SECRET` a startup error:
+Until styx-portal#86 (setup token in the DB) ships, use this procedure:
 
 1. Apply the overlay and override the backend to one replica
    (`kubectl -n styx scale deploy/backend --replicas=1`).
@@ -29,7 +29,8 @@ Until styx-portal#86 (setup token in the DB) ships; styx-portal#85 makes unset `
 3. Scale up: `kubectl -n styx scale deploy/backend --replicas=3`.
 
 Set `JWT_SECRET` in `styx-secrets`. If it is unset each pod writes its own
-`/app/data/secrets.json` and tokens fail across replicas.
+`/app/data/secrets.json` and tokens fail across replicas (styx-portal#85 will make
+an unset `JWT_SECRET` a startup error).
 
 ## Forced credential rotation
 
@@ -41,20 +42,24 @@ kubectl -n styx annotate externalsecret styx-db-app \
   force-sync="$(date +%s)" --overwrite
 ```
 
-Then check the new password works:
+Wait for Reloader to restart the pods, then check the new password works with a
+real DB query (the command does not print the secret):
 
 ```bash
 kubectl -n styx get secret styx-db-app -o jsonpath='{.metadata.resourceVersion}'
 kubectl -n styx rollout status deploy/backend
-kubectl -n styx exec deploy/backend -- python -c \
-  "import urllib.request as u;print(u.urlopen('http://localhost:8000/api/health').status)"
+kubectl -n styx exec deploy/backend -- python -c "import asyncio,os;from sqlalchemy import text;from sqlalchemy.ext.asyncio import create_async_engine as c
+async def m():
+    async with c(os.environ['DATABASE_URL']).connect() as k: await k.execute(text('select 1'))
+    print('db ok')
+asyncio.run(m())"
 ```
 
 Expect a rotation gap: new connections from a pod still holding the old
 password fail until it has the new one (Secret volume refresh takes about
 60-90 s, then Reloader restarts the pod). `/api/health` does not touch the DB,
-so it cannot confirm the password; log in through the portal or run
-`kubectl -n styx logs deploy/backend` and look for DB errors.
+so do not use it to confirm the password. Also check
+`kubectl -n styx logs deploy/backend` for DB errors.
 
 ## Restore
 
@@ -65,8 +70,10 @@ escrow sets (B1). If the provider lacks SSE-C, use SSE-KMS.
 
 **From a snapshot.** Nightly `styx-db-snapshot-daily` produces volume snapshots.
 Create a new `Cluster` with `bootstrap.recovery.volumeSnapshots.storage`
-referencing the snapshot (`kubectl -n styx get volumesnapshot`), then repoint
-`styx-db-app` and scale the backend to 1, then 3.
+referencing the snapshot (`kubectl -n styx get volumesnapshot`). Give it the same
+name `styx-db` as the original (delete the broken Cluster first) so the `styx-db-rw`
+service and `styx-db-app` secret the backend uses stay valid. Apply it before the
+rest of `deploy/enterprise`, then scale the backend to 1, then 3.
 
 ## Migrations: expand/contract
 

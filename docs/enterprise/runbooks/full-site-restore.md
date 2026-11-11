@@ -8,8 +8,13 @@ Cluster-level detail: [Enterprise Kubernetes](../../operate/kubernetes-enterpris
    with cert-manager, ESO, Reloader).
 2. Recover the escrowed secrets from OpenBao (both escrow sets).
 3. Create namespace `styx` and the `styx-db-bucket` Secret.
-4. Apply `deploy/enterprise` with `replicas: 1` for the backend.
-5. Create a `Cluster` with `bootstrap.recovery` pointing at the `styx-db-offsite` ObjectStore.
+4. Apply the recovery `Cluster` first: name `styx-db` (same as `cluster.yaml`),
+   `bootstrap.recovery` from the `styx-db-offsite` ObjectStore, no `initdb`.
+   Wait until it is healthy.
+5. Apply the rest of `deploy/enterprise` **excluding `cluster.yaml`** (it holds
+   `Cluster styx-db` with `bootstrap.initdb`, which would clash on name and
+   `styx-db-rw` service), with `replicas: 1` for the backend. Scale to 3 after
+   setup is verified.
 6. Verify the restore: wait for the cluster to be healthy, then check `/api/auth/status` and log in.
 
 !!! warning "SSE-C key (step 6)"
