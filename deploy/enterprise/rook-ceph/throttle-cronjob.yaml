@@ -1,0 +1,50 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ceph-mclock-throttle
+  namespace: rook-ceph
+spec:
+  schedule: "*/15 * * * *"
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 120
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: throttle
+              image: harbor.example.internal/quay.io/ceph/ceph:v20.2.5@sha256:4337ac8ac81d40df136e5eac92ca53bb52360a5e039f3d1f7935e729eb5ef42c
+              command: ["python3", "/opt/throttle/mclock_throttle.py"]
+              env:
+                - name: THROTTLE_WINDOW
+                  valueFrom:
+                    configMapKeyRef: {name: ceph-throttle-config, key: window}
+                - name: THROTTLE_FORCE
+                  valueFrom:
+                    configMapKeyRef: {name: ceph-throttle-config, key: force}
+                - name: ROOK_MON_ENDPOINTS
+                  valueFrom:
+                    configMapKeyRef: {name: rook-ceph-mon-endpoints, key: data}
+                - name: THROTTLE_KEY_FILE
+                  value: /etc/ceph-client/throttle
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities: {drop: [ALL]}
+              volumeMounts:
+                - {name: script, mountPath: /opt/throttle, readOnly: true}
+                - {name: keyring, mountPath: /etc/ceph-client, readOnly: true}
+                - {name: tmp, mountPath: /tmp}
+          volumes:
+            - name: script
+              configMap:
+                name: ceph-throttle-script
+            - name: keyring
+              secret:
+                secretName: rook-ceph-client-throttle
+            - name: tmp
+              emptyDir: {}
