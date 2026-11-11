@@ -88,3 +88,60 @@ def test_kustomize_build():
     assert be[0]["spec"]["replicas"] == 3
     assert ("CronJob", "styx-db-backup") in {(d["kind"], d["metadata"]["name"])
                                              for d in _build(HOMELAB)}
+
+
+def _walk(o):
+    if isinstance(o, dict):
+        for k, v in o.items():
+            yield k
+            yield from _walk(v)
+    elif isinstance(o, list):
+        for v in o:
+            yield from _walk(v)
+
+
+def test_cluster_spec():
+    c = _index()[("Cluster", "styx-db")]
+    assert c["metadata"]["namespace"] == "styx"
+    s = c["spec"]
+    assert s["instances"] == 3
+    assert s["imageName"].split(":")[1].split(".")[0].split("-")[0] == "17"
+    assert s["enableSuperuserAccess"] is False
+    terms = s["affinity"]["podAntiAffinity"]
+    assert "kubernetes.io/hostname" in str(terms)
+    init = s["bootstrap"]["initdb"]
+    assert (init["database"], init["owner"], init["secret"]["name"]) == ("styx", "styx", "styx-db-app")
+    assert s["postgresql"]["synchronous"] == {"method": "any", "number": 1, "dataDurability": "preferred"}
+    assert "rook" in s["storage"]["storageClass"]
+    assert s["plugins"] == [{"name": "barman-cloud.cloudnative-pg.io", "isWALArchiver": True,
+                             "parameters": {"barmanObjectName": "styx-db-offsite"}}]
+    assert s["backup"]["volumeSnapshot"]["className"]
+
+
+def test_no_in_tree_barman():
+    for f in ENT.glob("*.yaml"):
+        for d in yaml.safe_load_all(f.read_text()):
+            assert "barmanObjectStore" not in set(_walk(d)), f.name
+
+
+def test_objectstore_retention_and_ssec():
+    o = _index()[("ObjectStore", "styx-db-offsite")]
+    assert o["apiVersion"] == "barmancloud.cnpg.io/v1"
+    c = o["spec"]["configuration"]
+    assert o["spec"]["retentionPolicy"] == "30d"
+    assert c["destinationPath"]
+    cr = c["s3Credentials"]
+    for k in ("accessKeyId", "secretAccessKey", "sseCustomerKey"):
+        assert cr[k]["name"] == "styx-db-bucket"
+    assert c["wal"]["compression"] and c["data"]["compression"]
+
+
+def test_two_scheduled_backups():
+    sb = [d for (k, _), d in _index().items() if k == "ScheduledBackup"]
+    assert {d["spec"]["method"] for d in sb} == {"plugin", "volumeSnapshot"}
+    assert len(sb) == 2
+    for d in sb:
+        assert d["spec"]["cluster"]["name"] == "styx-db"
+        assert d["spec"]["schedule"]
+    plug = [d for d in sb if d["spec"]["method"] == "plugin"][0]
+    assert plug["spec"]["pluginConfiguration"]["name"] == "barman-cloud.cloudnative-pg.io"
