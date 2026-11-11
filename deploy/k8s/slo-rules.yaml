@@ -5,7 +5,7 @@
 # script strips the CRD envelope with sed).
 #
 # Assumptions: RTT histogram is styx_stream_rtt_seconds (no backend emitter yet);
-# availability uses every blackbox `probe_success` series (probes: Child 7).
+# availability uses every blackbox `probe_success` series (probes: deploy/k8s/probes.yaml).
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -219,3 +219,47 @@ spec:
           labels: {severity: ticket}
           annotations:
             summary: "Median launch time above the 5s goal over 1d"
+    - name: styx-capacity
+      interval: 1m
+      rules:
+        # Desktop slot = 3 CPU + 4 GiB (ADR-0031). Free = allocatable - pod requests.
+        - record: styx:node_slots_cpu
+          labels: {kind: free}
+          expr: floor(clamp_min(kube_node_status_allocatable{resource="cpu"} - on(node) (sum by (node) (kube_pod_container_resource_requests{resource="cpu"}) or on(node) (kube_node_status_allocatable{resource="cpu"} * 0)), 0) / 3)
+        - record: styx:node_slots_memory
+          labels: {kind: free}
+          expr: floor(clamp_min(kube_node_status_allocatable{resource="memory"} - on(node) (sum by (node) (kube_pod_container_resource_requests{resource="memory"}) or on(node) (kube_node_status_allocatable{resource="memory"} * 0)), 0) / (4 * 1024 ^ 3))
+        - record: styx:node_free_desktop_slots
+          expr: min by (node) ({__name__=~"styx:node_slots_(cpu|memory)", kind="free"})
+        - record: styx:node_desktop_slots
+          expr: min by (node) (floor(kube_node_status_allocatable{resource="cpu"} / 3) or floor(kube_node_status_allocatable{resource="memory"} / (4 * 1024 ^ 3)))
+        - record: styx:free_desktop_slots
+          expr: sum(styx:node_free_desktop_slots)
+        - record: styx:largest_node_desktop_slots
+          expr: max(styx:node_desktop_slots)
+        # Peak sizing 150-200 desktops (ADR-0009); override by editing this value.
+        - record: styx_capacity_peak_desktops
+          expr: vector(200)
+    - name: styx-capacity-alerts
+      rules:
+        - alert: StyxHeadroomLow
+          expr: styx:free_desktop_slots < on() styx:largest_node_desktop_slots
+          for: 10m
+          labels: {severity: ticket}
+          annotations:
+            summary: "Free desktop slots are fewer than the largest node holds: cannot survive a node loss (N+1)"
+        - alert: StyxHeadroomCritical
+          expr: styx:free_desktop_slots < on() styx_capacity_peak_desktops * 0.1
+          for: 10m
+          labels: {severity: page}
+          annotations:
+            summary: "Free desktop slots below 10% of peak capacity"
+    - name: styx-traefik-alerts
+      rules:
+        - alert: StyxTraefik5xxRatio
+          expr: >-
+            sum(rate(traefik_service_requests_total{code=~"5.."}[5m])) / sum(rate(traefik_service_requests_total[5m])) > 0.05
+          for: 10m
+          labels: {severity: ticket}
+          annotations:
+            summary: "Traefik 5xx ratio above 5% for 10m"

@@ -152,3 +152,62 @@ tests:
               - exp_labels: {severity: ticket}
                 exp_annotations:
                   summary: "Median launch time above the 5s goal over 1d"
+
+  - name: headroom_below_largest_node_warns
+    interval: 1m
+    input_series:
+      - series: 'kube_node_status_allocatable{node="a",resource="cpu"}'
+        values: '48x30'
+      - series: 'kube_node_status_allocatable{node="a",resource="memory"}'
+        values: '206158430208x30'
+      - series: 'kube_node_status_allocatable{node="b",resource="cpu"}'
+        values: '48x30'
+      - series: 'kube_node_status_allocatable{node="b",resource="memory"}'
+        values: '206158430208x30'
+      # a has 12 free slots by CPU (12 CPU requested -> 36 free), b 0 free (memory bound irrelevant)
+      - series: 'kube_pod_container_resource_requests{node="a",pod="p",resource="cpu"}'
+        values: '12x30'
+      - series: 'kube_pod_container_resource_requests{node="b",pod="q",resource="cpu"}'
+        values: '48x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: StyxHeadroomLow
+        exp_alerts:
+          - exp_labels: {severity: ticket}
+            exp_annotations:
+              summary: "Free desktop slots are fewer than the largest node holds: cannot survive a node loss (N+1)"
+      - eval_time: 20m
+        alertname: StyxHeadroomCritical
+        exp_alerts: []
+
+  - name: headroom_below_10pct_of_peak_critical
+    interval: 1m
+    input_series:
+      - series: 'kube_node_status_allocatable{node="a",resource="cpu"}'
+        values: '120x30'
+      - series: 'kube_node_status_allocatable{node="a",resource="memory"}'
+        values: '515396075520x30'
+      - series: 'kube_pod_container_resource_requests{node="a",pod="p",resource="cpu"}'
+        values: '90x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: StyxHeadroomCritical
+        exp_alerts:
+          - exp_labels: {severity: page}
+            exp_annotations:
+              summary: "Free desktop slots below 10% of peak capacity"
+
+  - name: traefik_5xx_ratio_fires
+    interval: 1m
+    input_series:
+      - series: 'traefik_service_requests_total{code="200",service="s"}'
+        values: '0+90x30'
+      - series: 'traefik_service_requests_total{code="502",service="s"}'
+        values: '0+10x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: StyxTraefik5xxRatio
+        exp_alerts:
+          - exp_labels: {severity: ticket}
+            exp_annotations:
+              summary: "Traefik 5xx ratio above 5% for 10m"

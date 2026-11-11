@@ -1,0 +1,64 @@
+# Blackbox availability probes feeding the availability SLI (probe_success in slo-rules.yaml).
+# Prober: kube-prometheus-stack blackbox exporter (module http_2xx). 30 s interval.
+# Hostnames follow ADR-0049 with DOMAIN=g.jmolabs.dev (configmap.yaml); edit per site.
+# DMZ-VIP probes must resolve the public names to the DMZ VIP from the prober's network
+# (split-horizon DNS or the exporter's hostAliases), so HAProxy and Traefik are exercised.
+# login.<domain> (CAC mTLS) is NOT probed here: see components/probe-login-mtls (disabled).
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: styx-portal-health
+  namespace: styx
+  labels: {release: kube-prometheus-stack, styx.probe: portal}
+spec:
+  interval: 30s
+  module: http_2xx
+  prober: {url: blackbox-exporter.monitoring.svc:9115}
+  targets:
+    staticConfig:
+      static: ["https://portal.g.jmolabs.dev/api/health"]
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: styx-banner
+  namespace: styx
+  labels: {release: kube-prometheus-stack, styx.probe: banner}
+spec:
+  interval: 30s
+  module: http_2xx
+  prober: {url: blackbox-exporter.monitoring.svc:9115}
+  targets:
+    staticConfig:
+      static: ["https://banner.g.jmolabs.dev/"]
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: styx-keycloak-oidc
+  namespace: styx
+  labels: {release: kube-prometheus-stack, styx.probe: keycloak}
+spec:
+  interval: 30s
+  module: http_2xx
+  prober: {url: blackbox-exporter.monitoring.svc:9115}
+  targets:
+    staticConfig:
+      # In-cluster: bypasses the DMZ (login. needs a client cert). Adjust svc/realm.
+      static: ["http://keycloak.keycloak.svc.cluster.local:8080/realms/styx/.well-known/openid-configuration"]
+---
+# One probe per proxied service (copy this block per service; targets are the
+# service's public URL through the DMZ VIP). Example: sonarr.
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: styx-service-sonarr
+  namespace: styx
+  labels: {release: kube-prometheus-stack, styx.probe: service}
+spec:
+  interval: 30s
+  module: http_2xx
+  prober: {url: blackbox-exporter.monitoring.svc:9115}
+  targets:
+    staticConfig:
+      static: ["https://sonarr.g.jmolabs.dev/"]
