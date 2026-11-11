@@ -35,3 +35,38 @@ def test_base_builds_with_kustomize():
         capture_output=True, text=True, check=True,
     )
     assert "kind: NetworkPolicy" in out.stdout
+
+
+CNP = """\
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: t}
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels: {app: x}
+"""
+
+
+def _check(manifest: str):
+    if not (shutil.which("kubeconform") or os.environ.get("REQUIRE_KUSTOMIZE") != "1"):
+        pytest.fail("kubeconform required but not installed")
+    if not shutil.which("kubeconform"):
+        pytest.skip("kubeconform not installed")
+    return subprocess.run(
+        [str(ROOT / "scripts/k8s_policy_check.sh"), "--stdin"],
+        input=manifest, capture_output=True, text=True,
+    )
+
+
+def test_vendored_schema_is_used_by_check_script():
+    ok = _check(CNP)
+    assert ok.returncode == 0, ok.stdout + ok.stderr
+    assert "1 resources checked" in ok.stdout
+    bad = _check(CNP.replace("endpointSelector: {}", "bogusField: 1"))
+    assert bad.returncode != 0
+
+
+def test_unknown_kind_fails():
+    assert _check(CNP.replace("CiliumNetworkPolicy", "NoSuchKind")).returncode != 0
