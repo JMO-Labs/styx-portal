@@ -13,7 +13,7 @@ FILES = [
     "local-pvs.yaml", "networkpolicy.yaml", "snapshot-cronjob.yaml", "snapshot-params.yaml",
     "snapshot-externalsecret.yaml", "snapshot-sa.yaml", "gen-bootstrap-tls.sh",
     "bao_configure.py", "auth-roles.json", "extra-mounts.json", "policies/eso-read.hcl",
-    "policies/raft-snapshot.hcl", "ansible/seal-key.yml", "ansible/inventory.example.yml",
+    "policies/raft-snapshot.hcl", "policies/rook-ceph.hcl", "ansible/seal-key.yml", "ansible/inventory.example.yml",
 ]
 ESO_FILES = ["values.yaml", "kustomization.yaml", "namespace.yaml", "clustersecretstore.yaml"]
 DOCS = ROOT / "docs/enterprise"

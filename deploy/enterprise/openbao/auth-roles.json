@@ -12,5 +12,12 @@
     "bound_service_account_namespaces": ["openbao"],
     "policies": ["raft-snapshot"],
     "token_ttl": 900
+  },
+  {
+    "name": "rook-ceph",
+    "bound_service_account_names": ["rook-ceph-system", "rook-ceph-osd"],
+    "bound_service_account_namespaces": ["rook-ceph"],
+    "policies": ["rook-ceph"],
+    "token_ttl": 3600
   }
 ]
