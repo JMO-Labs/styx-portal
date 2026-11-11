@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -14,9 +15,10 @@ from app.schemas import UserOut, CreateInviteRequest, InviteOut, PendingInviteOu
 from app.security.deps import require_admin
 from app.security.passwords import hash_password, current_policy
 from app.services.audit import audit_request
-from app.services.abuse import login_lockout
+from app.services.abuse_store import get_abuse_store
 from app.services.workstations import kick_unqualified
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 INVITE_TTL_HOURS = 72
 
@@ -31,7 +33,8 @@ async def list_users(admin: User = Depends(require_admin),
     names: dict[str, list[str]] = {}
     for uid, gname in rows:
         names.setdefault(uid, []).append(gname)
-    return [_user_out(u).model_copy(update={"groups": names.get(u.id, [])}) for u in result.all()]
+    return [(await _user_out(u)).model_copy(update={"groups": names.get(u.id, [])})
+            for u in result.all()]
 
 
 @router.get("/invites", response_model=list[PendingInviteOut])
@@ -86,7 +89,7 @@ async def disable_user(user_id: str, request: Request,
     await audit_request(session, request, "user.disable", user_id=admin.id,
                         resource=user.id)
     await session.commit()
-    return _user_out(user)
+    return await _user_out(user)
 
 
 @router.patch("/{user_id}/role", response_model=UserOut)
@@ -112,7 +115,7 @@ async def change_role(user_id: str, role: str, request: Request,
     await audit_request(session, request, "user.role_change", user_id=admin.id,
                         resource=user.id, detail={"new_role": role, "via": "manual"})
     await session.commit()
-    return _user_out(user)
+    return await _user_out(user)
 
 
 @router.post("/{user_id}/unlock", response_model=UserOut)
@@ -124,11 +127,11 @@ async def unlock_user(user_id: str, request: Request,
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     user.failed_count = 0
     user.locked_until = None
-    login_lockout.clear_user(user.username)
+    await get_abuse_store().clear_user(user.username)
     session.add(user)
     await audit_request(session, request, "user.unlock", user_id=admin.id, resource=user.id)
     await session.commit()
-    return _user_out(user)
+    return await _user_out(user)
 
 
 def _gen_temp_password(policy) -> str:
@@ -162,7 +165,7 @@ async def reset_password(user_id: str, request: Request,
     user.token_version += 1
     user.failed_count = 0
     user.locked_until = None
-    login_lockout.clear_user(user.username)
+    await get_abuse_store().clear_user(user.username)
     session.add(user)
     await session.exec(update(RefreshToken)
                        .where(RefreshToken.user_id == user.id)
@@ -185,7 +188,7 @@ async def force_password_change(user_id: str, request: Request,
     await audit_request(session, request, "user.force_password_change",
                         user_id=admin.id, resource=user.id)
     await session.commit()
-    return _user_out(user)
+    return await _user_out(user)
 
 
 @router.delete("/{user_id}")
@@ -238,8 +241,13 @@ async def reset_matrix(user_id: str, request: Request,
     return {"ok": True}
 
 
-def _user_out(u: User) -> UserOut:
-    left = login_lockout.locked_for(u.username)
+async def _user_out(u: User) -> UserOut:
+    # Display only: a store failure shows "unlocked" here. Never use this as a lock check.
+    try:
+        left = await get_abuse_store().locked_for(u.username)
+    except Exception:
+        logger.exception("abuse store failed reading lock state")
+        left = 0.0
     mem_until = (datetime.now(timezone.utc) + timedelta(seconds=left)).isoformat() if left > 0 else None
     return UserOut(
         id=u.id, username=u.username, email=u.email, role=u.role,

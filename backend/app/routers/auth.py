@@ -176,7 +176,7 @@ async def login(body: LoginRequest, request: Request, response: Response,
     # distributed throttle (not Argon2, not the per-IP ban): the owner is never shut out.
     # Each device token has its own failure budget; once spent it bypasses nothing.
     rnd = tokens.device_rnd(request.cookies.get(DEVICE_COOKIE), user)
-    if login_flow.blocked(body.username, ip, rnd):
+    if await login_flow.blocked(body.username, ip, rnd):
         verify_password(body.password, _dummy_hash())
         await audit_request(session, request, "auth.login_locked",
                             user_id=user.id if user else None)
@@ -195,7 +195,7 @@ async def login(body: LoginRequest, request: Request, response: Response,
 
     if user.matrix_card:   # second step pending: no session, no lockout clears yet
         return await login_flow.start_matrix(session, request, response, user)
-    login_flow.clear_lockout(session, user, ip, rnd)
+    await login_flow.clear_lockout(session, user, ip, rnd)
     await _issue_session(response, session, user, request)
     set_device_cookie(response, tokens.create_device_token(user.id, user.token_version))
     await audit_request(session, request, "auth.login", user_id=user.id)
@@ -364,7 +364,7 @@ async def change_password(body: ChangePasswordRequest, request: Request, respons
                           user: User = Depends(get_current_user)):
     # Same brute-force accounting as login: a stolen session must not guess the password.
     ip, resolved = client_ip_resolved(request)
-    if login_flow.blocked(user.username, ip, None):
+    if await login_flow.blocked(user.username, ip, None):
         await audit_request(session, request, "auth.password_change_locked", user_id=user.id)
         await session.commit()
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Current password is incorrect")
