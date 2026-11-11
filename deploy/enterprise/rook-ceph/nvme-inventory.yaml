@@ -1,0 +1,59 @@
+# Placeholder inventory: replace with real by-id paths (ls -l /dev/disk/by-id/nvme-*).
+# os_disk is never used for Ceph; data NVMe only in `nvme`. One OSD per NVMe.
+nodes:
+  - hostname: worker-01
+    os_disk: /dev/disk/by-id/nvme-EXAMPLE_OS_M2_OS010001
+    nvme:
+      - path: /dev/disk/by-id/nvme-EXAMPLE_DC_U2_3T84_SN010001
+        size: 3840Gi
+      - path: /dev/disk/by-id/nvme-EXAMPLE_DC_U2_3T84_SN010002
+        size: 3840Gi
+  - hostname: worker-02
+    os_disk: /dev/disk/by-id/nvme-EXAMPLE_OS_M2_OS020001
+    nvme:
+      - path: /dev/disk/by-id/nvme-EXAMPLE_DC_U2_3T84_SN020001
+        size: 3840Gi
+      - path: /dev/disk/by-id/nvme-EXAMPLE_DC_U2_3T84_SN020002
+        size: 3840Gi
+  - hostname: worker-03
+    os_disk: /dev/disk/by-id/nvme-EXAMPLE_OS_M2_OS030001
+    nvme:
+      - path: /dev/disk/by-id/nvme-EXAMPLE_DC_U2_3T84_SN030001
+        size: 3840Gi
+      - path: /dev/disk/by-id/nvme-EXAMPLE_DC_U2_3T84_SN030002
+        size: 3840Gi
+  - hostname: worker-04
+    os_disk: /dev/disk/by-id/nvme-EXAMPLE_OS_M2_OS040001
+    nvme:
+      - path: /dev/disk/by-id/nvme-EXAMPLE_DC_U2_3T84_SN040001
+        size: 3840Gi
+      - path: /dev/disk/by-id/nvme-EXAMPLE_DC_U2_3T84_SN040002
+        size: 3840Gi
+  - hostname: worker-05
+    os_disk: /dev/disk/by-id/nvme-EXAMPLE_OS_M2_OS050001
+    nvme:
+      - path: /dev/disk/by-id/nvme-EXAMPLE_DC_U2_3T84_SN050001
+        size: 3840Gi
+      - path: /dev/disk/by-id/nvme-EXAMPLE_DC_U2_3T84_SN050002
+        size: 3840Gi
+  - hostname: worker-06
+    os_disk: /dev/disk/by-id/nvme-EXAMPLE_OS_M2_OS060001
+    nvme:
+      - path: /dev/disk/by-id/nvme-EXAMPLE_DC_U2_3T84_SN060001
+        size: 3840Gi
+      - path: /dev/disk/by-id/nvme-EXAMPLE_DC_U2_3T84_SN060002
+        size: 3840Gi
+  - hostname: worker-07
+    os_disk: /dev/disk/by-id/nvme-EXAMPLE_OS_M2_OS070001
+    nvme:
+      - path: /dev/disk/by-id/nvme-EXAMPLE_DC_U2_3T84_SN070001
+        size: 3840Gi
+      - path: /dev/disk/by-id/nvme-EXAMPLE_DC_U2_3T84_SN070002
+        size: 3840Gi
+  - hostname: worker-08
+    os_disk: /dev/disk/by-id/nvme-EXAMPLE_OS_M2_OS080001
+    nvme:
+      - path: /dev/disk/by-id/nvme-EXAMPLE_DC_U2_3T84_SN080001
+        size: 3840Gi
+      - path: /dev/disk/by-id/nvme-EXAMPLE_DC_U2_3T84_SN080002
+        size: 3840Gi
