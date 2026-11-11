@@ -139,7 +139,7 @@ async def test_18_sequences_reset_no_pk_clash(tmp_path, scratch_url):
     await _q(scratch_url, "INSERT INTO audit_log (ts, action) VALUES (now(), 'y')")
     assert await _q(scratch_url, "SELECT max(id) FROM audit_log", scalar=True) == 42
     # empty sequenced table: first insert gets id 1
-    await _q(scratch_url, "INSERT INTO session_events (ts) VALUES (now())")
+    await _q(scratch_url, "INSERT INTO session_events (instance_id, event_type, details, timestamp) VALUES ('i','e','{}',now())")
     assert await _q(scratch_url, "SELECT min(id) FROM session_events", scalar=True) == 1
 
 
