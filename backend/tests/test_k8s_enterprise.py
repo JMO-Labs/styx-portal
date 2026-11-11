@@ -69,7 +69,7 @@ class _Loader(yaml.SafeLoader):
     """Kustomize emits bare `=` (matchType), a YAML 1.1 'value' tag in PyYAML."""
 
 
-_Loader.add_constructor("tag:yaml.org,2002:value", lambda l, n: n.value)
+_Loader.add_constructor("tag:yaml.org,2002:value", lambda _loader, node: node.value)
 
 
 def _build(path):
