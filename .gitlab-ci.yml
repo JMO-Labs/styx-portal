@@ -401,7 +401,7 @@ k8s-policy:
     - tar -xzf /tmp/kc.tgz -C /usr/local/bin kubeconform
     - scripts/k8s_policy_check.sh
     - cd backend && python -m venv .venv && .venv/bin/pip install -e ".[dev]" -q
-    - REQUIRE_KUSTOMIZE=1 .venv/bin/python -m pytest tests/test_cilium_baseline.py tests/test_cilium_schemas.py -q
+    - REQUIRE_KUSTOMIZE=1 REQUIRE_KUBECONFORM=1 .venv/bin/python -m pytest tests/test_cilium_baseline.py tests/test_cilium_schemas.py -q
 
 plugin-test:
   stage: test

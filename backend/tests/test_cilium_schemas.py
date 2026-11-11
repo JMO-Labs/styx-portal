@@ -51,7 +51,7 @@ spec:
 
 
 def _check(manifest: str):
-    if not (shutil.which("kubeconform") or os.environ.get("REQUIRE_KUSTOMIZE") != "1"):
+    if not shutil.which("kubeconform") and os.environ.get("REQUIRE_KUBECONFORM") == "1":
         pytest.fail("kubeconform required but not installed")
     if not shutil.which("kubeconform"):
         pytest.skip("kubeconform not installed")

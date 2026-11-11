@@ -200,7 +200,7 @@ jobs:
       - uses: ./.github/actions/setup-backend
       - name: pytest (kustomize required)
         working-directory: backend
-        run: REQUIRE_KUSTOMIZE=1 .venv/bin/python -m pytest tests/test_cilium_baseline.py tests/test_cilium_schemas.py -q
+        run: REQUIRE_KUSTOMIZE=1 REQUIRE_KUBECONFORM=1 .venv/bin/python -m pytest tests/test_cilium_baseline.py tests/test_cilium_schemas.py -q
 
   plugin-test:
     needs: changes
