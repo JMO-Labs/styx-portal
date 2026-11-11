@@ -1,0 +1,32 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: styx-backup
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: home-snapshots-egress
+  namespace: styx-backup
+spec:
+  podSelector:
+    matchLabels:
+      app: styx-home-snapshots
+  policyTypes: [Egress]
+  egress:
+    - ports:  # DNS
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    # Ceph mon (3300 msgr2, 6789 msgr1) and mgr/mds/osd (6800-7300). Placeholder CIDR: set to the
+    # Ceph public network (#3).
+    - to:
+        - ipBlock:
+            cidr: 192.0.2.0/24
+      ports:
+        - {protocol: TCP, port: 3300}
+        - {protocol: TCP, port: 6789}
+        - {protocol: TCP, port: 6800, endPort: 7300}

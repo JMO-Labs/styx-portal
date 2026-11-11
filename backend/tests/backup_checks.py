@@ -38,9 +38,9 @@ def images(node) -> list[str]:
     return found
 
 
-def check_images(values: dict) -> list[str]:
+def check_images(values: dict, minimum: int = 3) -> list[str]:
     refs = images(values)
-    errs = [] if len(refs) >= 3 else [f"expected velero, aws plugin and kubectl images, got {refs}"]
+    errs = [] if len(refs) >= minimum else [f"expected at least {minimum} images, got {refs}"]
     for ref in refs:
         if not ref.startswith(HARBOR):
             errs.append(f"image not from {HARBOR}: {ref}")
@@ -94,6 +94,45 @@ def check_externalsecrets(docs: list[dict], text: str = "") -> list[str]:
             errs.append("velero-repo-credentials needs key repository-password")
     if len(names) < 2:
         errs.append("need BSL credentials and repo-credentials ExternalSecrets")
+    return errs
+
+
+# ---- home snapshots (issue #38) ---------------------------------------------------------
+
+NIGHTLY = re.compile(r"^nightly-\d{4}-\d{2}-\d{2}$")
+ADMIN = re.compile(r"rook-ceph-admin|client\.admin|ceph-admin")
+
+
+def check_snapshot_name(name: str) -> list[str]:
+    return [] if NIGHTLY.match(name) else [f"snapshot name must match nightly-YYYY-MM-DD: {name}"]
+
+
+def check_no_ceph_admin(text: str) -> list[str]:
+    return [f"ceph admin credentials referenced: {m}" for m in sorted(set(ADMIN.findall(text)))]
+
+
+def check_cronjob(cj: dict) -> list[str]:
+    errs = check_no_ceph_admin(yaml.safe_dump(cj))
+    spec = cj["spec"]
+    if spec.get("concurrencyPolicy") != "Forbid":
+        errs.append("concurrencyPolicy must be Forbid")
+    if spec.get("timeZone") != "Etc/UTC":
+        errs.append("timeZone must be Etc/UTC")
+    deadline = spec["jobTemplate"]["spec"].get("activeDeadlineSeconds", 0)
+    if not 0 < deadline <= 4800:
+        errs.append("activeDeadlineSeconds must be in (0, 4800]")
+    pod = spec["jobTemplate"]["spec"]["template"]["spec"]
+    for c in pod["containers"]:
+        sc = c.get("securityContext", {})
+        if not sc.get("readOnlyRootFilesystem"):
+            errs.append("readOnlyRootFilesystem must be true")
+        if sc.get("privileged"):
+            errs.append("privileged must be false")
+        if sc.get("capabilities", {}).get("drop") != ["ALL"]:
+            errs.append("capabilities.drop must be [ALL]")
+        if not (pod.get("securityContext", {}).get("runAsNonRoot") or sc.get("runAsNonRoot")):
+            errs.append("runAsNonRoot must be true")
+        errs += check_images({"image": c["image"]}, minimum=1)
     return errs
 
 

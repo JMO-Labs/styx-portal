@@ -1,0 +1,15 @@
+# Least-privilege cephx client for `ceph fs subvolume snapshot create/ls/rm` (never the cluster admin key).
+# TODO(#3): validate these caps against the real cluster; document in README (Child 5).
+# Rook writes the keyring to secret rook-ceph-client-home-snapshots in rook-ceph; replicate it into
+# styx-backup (ESO/reflector) so the CronJob can mount it.
+apiVersion: ceph.rook.io/v1
+kind: CephClient
+metadata:
+  name: home-snapshots
+  namespace: rook-ceph
+spec:
+  caps:
+    mon: 'allow r fsname=CHANGE-ME-fs'
+    mgr: 'allow rw'
+    mds: 'allow rw fsname=CHANGE-ME-fs'
+    osd: 'allow rw tag cephfs data=CHANGE-ME-fs'
