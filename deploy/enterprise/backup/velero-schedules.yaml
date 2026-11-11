@@ -1,0 +1,32 @@
+# Offsite schedules (issue #37). Timeline (UTC): CNPG 01:00, OpenBao 02:00, Velero 03:00, Kopia export 04:30.
+# Retention is a builder default. Excluded: Ceph/OpenBao/system namespaces and CNPG Cluster objects
+# (DB is backed up by CNPG barman; home data by the Kopia export), so nothing is backed up twice.
+# Same exclusions as the runbook restore (--exclude-namespaces ... --exclude-resources clusters.postgresql.cnpg.io).
+# Where possible, label PVCs to skip with velero.io/exclude-from-backup=true (cnpg.io/cluster PVCs, home/profile CephFS).
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: daily
+  namespace: velero
+spec:
+  schedule: "0 3 * * *"
+  template:
+    ttl: 720h0m0s
+    storageLocation: offsite
+    snapshotMoveData: true
+    excludedNamespaces: [rook-ceph, openbao, kube-system, velero, styx-backup]
+    excludedResources: [clusters.postgresql.cnpg.io]
+---
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: weekly
+  namespace: velero
+spec:
+  schedule: "0 3 * * 0"
+  template:
+    ttl: 2160h0m0s
+    storageLocation: offsite
+    snapshotMoveData: true
+    excludedNamespaces: [rook-ceph, openbao, kube-system, velero, styx-backup]
+    excludedResources: [clusters.postgresql.cnpg.io]
