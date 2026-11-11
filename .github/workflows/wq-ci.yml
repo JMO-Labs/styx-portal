@@ -1,0 +1,14 @@
+name: wq-ci
+on:
+  pull_request:
+    branches: [dev]
+permissions: {contents: read, pull-requests: write}
+jobs:
+  wq:
+    uses: JMO-Labs/wq-ci/.github/workflows/wq-ci.yml@v1
+    with:
+      test-cmd: >-
+        cd backend && python3 -m venv .venv && .venv/bin/pip install -q -e ".[dev]" pytest-cov
+        && .venv/bin/python -m pytest -q --cov=app --cov-report=xml:../coverage.xml --junitxml=../junit.xml
+      fix-cmd: pip install -q ruff==0.15.14 && ruff check --fix backend/app backend/tests
+    secrets: inherit
