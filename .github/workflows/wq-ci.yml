@@ -4,11 +4,27 @@ on:
     branches: [dev, enterprise]
 permissions: {contents: read, pull-requests: write}
 jobs:
+  # Docs/frontend-only PRs skip the gate (skipped = success). Backend changes run it.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {contents: read, pull-requests: read}
+    outputs:
+      backend: ${{ steps.f.outputs.backend }}
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: f
+        with:
+          filters: |
+            backend: ['backend/**', '.github/workflows/wq-ci.yml']
   wq:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     uses: JMO-Labs/wq-ci/.github/workflows/wq-ci.yml@v1
     with:
+      # The one backend run for PRs to dev (ci.yml skips its duplicate): -n auto on the 4-vCPU hosted runner.
       test-cmd: >-
-        cd backend && python3 -m venv .venv && .venv/bin/pip install -q -e ".[dev]" pytest-cov
-        && .venv/bin/python -m pytest -q --cov=app --cov-report=xml:../coverage.xml --junitxml=../junit.xml
+        cd backend && python3 -m venv .venv && .venv/bin/pip install -q -e ".[dev]" pytest-cov pytest-xdist
+        && .venv/bin/python -m pytest -q -n auto --cov=app --cov-report=xml:../coverage.xml --junitxml=../junit.xml
       fix-cmd: pip install -q ruff==0.15.14 && ruff check --fix backend/app backend/tests
     secrets: inherit
