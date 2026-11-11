@@ -231,3 +231,71 @@ def test_kustomize_build_alerts():
     assert "StyxBackupStale" not in _alerts(r)
     (h,) = [d for d in _build(HOMELAB) if d["kind"] == "PrometheusRule"]
     assert "StyxBackupStale" in _alerts(h)
+
+
+def _backend():
+    return _index()[("Deployment", "backend")]
+
+
+def _pod():
+    return _backend()["spec"]["template"]
+
+
+def _container():
+    (c,) = [c for c in _pod()["spec"]["containers"] if c["name"] == "backend"]
+    return c
+
+
+def _env():
+    return {e["name"]: e.get("value") for e in _container()["env"]}
+
+
+def test_backend_patch_multi_replica():
+    spec = _backend()["spec"]
+    assert spec["replicas"] == 3
+    assert spec["strategy"] == {"type": "RollingUpdate",
+                                "rollingUpdate": {"maxSurge": 1, "maxUnavailable": 0}}
+    ann = _pod()["metadata"]["annotations"]
+    assert ann["secret.reloader.stakater.com/reload"] == "styx-db-app,styx-secrets"
+    (tsc,) = _pod()["spec"]["topologySpreadConstraints"]
+    assert tsc["topologyKey"] == "kubernetes.io/hostname"
+    assert _container()["startupProbe"]["failureThreshold"] == 60
+    assert "backend-patch.yaml" in [p["path"] for p in _kustomization()["patches"]]
+    assert "pdb.yaml" in _kustomization()["resources"]
+
+
+def test_backend_db_urls_have_no_password():
+    import re
+    env = _env()
+    for k in ("DATABASE_URL", "LEADER_DATABASE_URL"):
+        url = env[k]
+        assert url == "postgresql+asyncpg://styx@styx-db-rw:5432/styx?ssl=verify-full"
+        assert not re.search(r"//[^:/@]+:[^@]*@", url)
+        assert re.search(r"//[^:/@]+@", url)
+    assert "pooler" not in env["LEADER_DATABASE_URL"]
+
+
+def test_backend_mounts_pgpass_without_subpath():
+    c, p = _container(), _pod()["spec"]
+    mounts = {m["name"]: m for m in c["volumeMounts"]}
+    vols = {v["name"]: v for v in p["volumes"]}
+    for secret in ("styx-db-app", "styx-db-ca"):
+        (v,) = [v for v in vols.values() if v.get("secret", {}).get("secretName") == secret]
+        m = mounts[v["name"]]
+        assert "subPath" not in m and "subPathExpr" not in m
+    app_v = [v for v in vols.values() if v.get("secret", {}).get("secretName") == "styx-db-app"][0]
+    ca_v = [v for v in vols.values() if v.get("secret", {}).get("secretName") == "styx-db-ca"][0]
+    env = _env()
+    assert env["PGPASSFILE"] == mounts[app_v["name"]]["mountPath"] + "/pgpass"
+    assert env["PGSSLROOTCERT"] == mounts[ca_v["name"]]["mountPath"] + "/ca.crt"
+
+
+def test_data_volume_is_emptydir():
+    (v,) = [v for v in _pod()["spec"]["volumes"] if v["name"] == "data"]
+    assert "emptyDir" in v and v.get("persistentVolumeClaim") is None
+
+
+def test_pdb():
+    pdb = _index()[("PodDisruptionBudget", "styx-backend")]
+    assert pdb["spec"]["minAvailable"] == 1
+    assert pdb["spec"]["selector"]["matchLabels"] == {"app": "styx-backend"}

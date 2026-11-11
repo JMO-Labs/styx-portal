@@ -8,9 +8,8 @@ resources:
   - objectstore.yaml
   - scheduledbackup.yaml
   - networkpolicy.yaml
+  - pdb.yaml
 patches:
   - path: delete-homelab.yaml
   - path: prometheusrule-patch.yaml
-replicas:
-  - name: backend
-    count: 3
+  - path: backend-patch.yaml
