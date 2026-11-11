@@ -29,6 +29,7 @@
 * **deploy:** RKE2 node IaC README known issues (worker label is `node.kubernetes.io/*` so `ROLES` shows `<none>`, padded-default token gap, Jinja-literal gap in the secret scan, never applied); testing guide and `deploy/rke2/` layout (styx-portal#2)
 * **operate:** offsite backup runbook (`docs/operate/offsite-backup.md`): bucket lifecycle rule prerequisite, escrow and one-page restore, key rotation with an explicit delete date and destruction of the old password, deleted-user data bound per whole pack, known issues (CI gap, sticky failed-job alert, byte-length password check, escaped orphan names); ADR-0037 consequences and CP-6/CP-9/SC-28 rows (styx-portal#13)
 * **enterprise:** GitLab protect runbook: Free/CE cannot PATCH protected-branch levels (re-protect by hand), runner tags have no access control (restrict project-runner creation); enterprise IaC layout and OpenBao `gitlab-protect` role (styx-portal#16)
+* **docs:** leader election runbook (who is leader, failover times, SQLite = one replica, ban cache staleness), settings, ADR-0056 follow-up note (#76)
 
 ### Documentation
 

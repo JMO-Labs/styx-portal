@@ -41,6 +41,7 @@ nav = [
     { "Log and audit shipping (enterprise)" = "operate/logging.md" },
     { "Offsite backup" = "operate/offsite-backup.md" },
     { "DR restore test" = "operate/dr-restore-test.md" },
+    { "Leader election" = "operate/leader-election.md" },
     { "Upgrade" = "operate/upgrade.md" },
     { "SQLite to PostgreSQL" = "operate/sqlite-to-postgres.md" },
     { "Enterprise: OpenBao" = "enterprise/runbooks/openbao.md" },
