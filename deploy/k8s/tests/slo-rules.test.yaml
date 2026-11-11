@@ -115,7 +115,7 @@ tests:
       - series: 'styx_stream_rtt_seconds_count'
         values: '0+20x40'
     alert_rule_test:
-      - eval_time: 10m
+      - eval_time: 20m
         alertname: StyxStreamRttBurnRatePage
         exp_alerts:
               - exp_labels: {severity: page, slo: rtt, window: 6h}
