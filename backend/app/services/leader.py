@@ -92,10 +92,12 @@ class LeaderElector:
                     log.info("leader acquired")
                     await _call(on_elected)
                     await self._hold()
-                    if not self._stop.is_set():
+                    stopping = self._stop.is_set()
+                    if not stopping:
                         log.info("leader lost")
-                    await self._close(unlock=False)
-                    await _call(on_lost)
+                    await self._close(unlock=stopping)
+                    if not stopping:  # on_lost = involuntary loss only, not stop()
+                        await _call(on_lost)
                 if await self._sleep(self._s.LEADER_RETRY_S):
                     break
         finally:
@@ -148,7 +150,8 @@ class LeaderElector:
         conn.terminate()
 
     async def stop(self) -> None:
-        """Signal stop and wait for run() to finish; only its finally unlocks."""
+        """Signal stop and wait for run() to finish; the unlock runs on stop, and
+        on_lost is not called for a deliberate stop."""
         self._stop.set()
         if self._running:
             await self._done.wait()
