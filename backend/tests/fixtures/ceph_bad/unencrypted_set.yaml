@@ -1,0 +1,10 @@
+spec:
+  security:
+    kms:
+      connectionDetails: {KMS_PROVIDER: vault}
+  storage:
+    storageClassDeviceSets:
+    - name: nvme
+      encrypted: false
+      volumeClaimTemplates:
+      - spec: {volumeMode: Block}

@@ -1,0 +1,8 @@
+spec:
+  storage:
+    useAllNodes: false
+    nodes:
+    - name: worker-01
+      devices:
+      - name: nvme0n1
+        config: {encryptedDevice: "true"}
