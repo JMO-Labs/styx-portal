@@ -60,14 +60,13 @@ def canonical_row(table: sa.Table, row) -> str:
 async def table_digest(conn, table: sa.Table) -> tuple[int, str]:
     order = list(table.primary_key.columns) or list(table.c)
     h, n = hashlib.sha256(), 0
-    result = await conn.stream(sa.select(table).order_by(*order))
-    try:
-        async for row in result:
-            h.update(canonical_row(table, row._mapping).encode())
-            h.update(b"\n")
-            n += 1
-    finally:
-        await result.close()  # release the server-side cursor: TRUNCATE in the same tx needs it gone
+    # Buffered, not conn.stream(): asyncpg server-side portals stay open until the
+    # transaction ends (even after close()), and PG then refuses TRUNCATE in the same tx.
+    result = await conn.execute(sa.select(table).order_by(*order))
+    for row in result:
+        h.update(canonical_row(table, row._mapping).encode())
+        h.update(b"\n")
+        n += 1
     return n, h.hexdigest()
 
 
