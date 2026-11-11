@@ -103,3 +103,25 @@ def test_trackers_are_bounded(monkeypatch):
 def test_ip_key_maps_v4_mapped_to_v4():
     from app.services.abuse import ip_key
     assert ip_key("::ffff:203.0.113.9") == "203.0.113.9"
+
+
+async def test_ban_ip_concurrent_upsert(tmp_path):
+    import asyncio
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    from sqlmodel import SQLModel, select
+    from sqlmodel.ext.asyncio.session import AsyncSession
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path}/b.db")
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async def one(i):
+        async with factory() as s:
+            await ban_ip(s, "203.0.113.9", f"r{i}", 60 + i)
+            await s.commit()
+
+    await asyncio.gather(*(one(i) for i in range(5)))
+    async with factory() as s:
+        rows = (await s.exec(select(BannedIP))).all()
+    await engine.dispose()
+    assert len(rows) == 1

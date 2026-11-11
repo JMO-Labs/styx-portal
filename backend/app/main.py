@@ -51,6 +51,7 @@ from app.services.background_loops import (  # noqa: F401 - re-exported for test
     _metrics_db_loop, _metrics_sampler_loop, _monitor_tick, _reconcile_instances_at_boot,
     _run_monitor_pass, _screenshot_capture_loop, _service_health_loop,
     _session_monitor_loop)
+from app.services.janitor import janitor_loop
 from app.services.leader import LeaderTasks, get_elector
 from app.services.mount_jobs import sweep_interrupted
 from app.services.prom_metrics import PrometheusMiddleware, start_metrics_server
@@ -142,7 +143,7 @@ async def lifespan(app: FastAPI):
             await refresh_routes_from_db(session)
 
     # Leader-only: boot steps run on every promotion, loops start after them.
-    leader_loops = [_session_monitor_loop, _service_health_loop, _metrics_db_loop]
+    leader_loops = [_session_monitor_loop, _service_health_loop, _metrics_db_loop, janitor_loop]
     if _settings.ROUTE_BACKEND == "k8s":
         leader_loops.append(prepull_loop)
     leader = LeaderTasks(boot=[_probe_cleanup, _reconcile, _close_dangling, _refresh_routes],
