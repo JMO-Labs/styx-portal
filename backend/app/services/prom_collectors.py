@@ -20,7 +20,18 @@ def _sync_url() -> str:
     return scheme.split("+", 1)[0] + sep + rest
 
 
+def _families():
+    return (
+        GaugeMetricFamily("styx_instances", "Instances by status", labels=["status"]),
+        GaugeMetricFamily("styx_stream_sessions_active", "Open stream sessions"),
+    )
+
+
 class DbGaugesCollector:
+    def describe(self):
+        """Static families so registration never queries the DB."""
+        return list(_families())
+
     def collect(self):
         try:
             engine = create_engine(_sync_url())
@@ -37,10 +48,9 @@ class DbGaugesCollector:
         except Exception:  # noqa: BLE001 - a scrape must never fail on DB trouble
             logger.warning("DB gauges unavailable for this scrape", exc_info=True)
             return
-        inst = GaugeMetricFamily("styx_instances", "Instances by status", labels=["status"])
+        inst, sessions = _families()
         for status, n in by_status:
             inst.add_metric([str(status)], n)
         yield inst
-        yield GaugeMetricFamily(
-            "styx_stream_sessions_active", "Open stream sessions", value=active
-        )
+        sessions.add_metric([], active)
+        yield sessions

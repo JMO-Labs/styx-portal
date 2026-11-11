@@ -123,3 +123,15 @@ def test_collector_db_error_yields_no_samples(monkeypatch):
     monkeypatch.setattr(prom_collectors, "_sync_url", lambda: "sqlite:////nonexistent/dir/x.db")
     assert _gauge("styx_instances", {"status": "running"}) is None
     assert _gauge("styx_stream_sessions_active") is None
+
+
+def test_db_gauges_register_does_not_touch_db(monkeypatch):
+    from prometheus_client import CollectorRegistry
+
+    from app.services import prom_collectors
+
+    def boom(*a, **k):
+        raise AssertionError("create_engine called at register time")
+
+    monkeypatch.setattr(prom_collectors, "create_engine", boom)
+    CollectorRegistry(auto_describe=True).register(prom_collectors.DbGaugesCollector())
