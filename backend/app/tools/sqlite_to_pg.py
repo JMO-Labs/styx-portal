@@ -19,6 +19,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from app.db_migrate import alembic_config
+from app.tools.migrate_checksum import checksum
 
 EXIT_OK, EXIT_PREFLIGHT, EXIT_VERIFY = 0, 2, 3
 
@@ -107,6 +108,18 @@ def _safe(raw: str) -> str:
         return "<unparseable url>"
 
 
+async def verify(src: AsyncEngine, dst: AsyncEngine) -> int:
+    """Compare per-table row counts and checksums; no writes. 0 match, 3 mismatch."""
+    a, b = await checksum(src), await checksum(dst)
+    print("table rows_src rows_dst sha_src sha_dst")
+    bad = False
+    for name, (n_src, sha_src) in a.items():
+        n_dst, sha_dst = b[name]
+        bad |= (n_src, sha_src) != (n_dst, sha_dst)
+        print(f"{name} {n_src} {n_dst} {sha_src} {sha_dst}" + ("" if (n_src, sha_src) == (n_dst, sha_dst) else "  MISMATCH"))
+    return EXIT_VERIFY if bad else EXIT_OK
+
+
 async def _run(args: argparse.Namespace) -> int:
     source = Path(args.source).resolve()
     if not source.is_file():
@@ -119,6 +132,13 @@ async def _run(args: argparse.Namespace) -> int:
     finally:
         await engine.dispose()
     await check_target_version(target)
+    if args.verify_only:
+        src, dst = open_source(source), create_async_engine(target)
+        try:
+            return await verify(src, dst)
+        finally:
+            await src.dispose()
+            await dst.dispose()
     return EXIT_OK
 
 
