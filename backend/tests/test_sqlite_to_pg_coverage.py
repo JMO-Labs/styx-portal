@@ -1,5 +1,6 @@
 """Cover _canon branches and the --verify-only path of _run (styx-portal#91)."""
 import asyncio
+import uuid
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
@@ -24,6 +25,10 @@ def test_canon_date_time_decimal_bytes():
     assert mc._canon(b"\x01\xff") == "01ff"
     assert mc._canon(memoryview(b"\x02")) == "02"
     assert mc._canon((1, b"\x01", [Decimal("2")])) == [1, "01", ["2"]]
+
+
+def test_canon_fallback_stringifies_unknown_types():
+    assert mc._canon(uuid.UUID(int=1)) == "00000000-0000-0000-0000-000000000001"
 
 
 @pytest.mark.parametrize("flag,expected", [(0, 0), (3, 3)])
