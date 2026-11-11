@@ -17,6 +17,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from urllib.parse import unquote
 
 import yaml
 
@@ -214,6 +215,12 @@ def _license_text(c):
     return out
 
 
+def npm_name(purl, fallback):
+    """Scoped npm identity from the purl; the CycloneDX `name` drops the @scope."""
+    path = unquote(purl[len("pkg:npm/"):].split("?", 1)[0].split("#", 1)[0])
+    return path.rpartition("@")[0] or path or fallback
+
+
 def build(sbom_paths, manifest):
     """Merged, sorted register entries."""
     first_party = set(manifest["first_party"])
@@ -225,6 +232,8 @@ def build(sbom_paths, manifest):
                 continue
             eco = purl[4:].split("/", 1)[0]
             name = c.get("name") or ""
+            if eco == "npm":
+                name = npm_name(purl, name)
             if eco == "pypi":  # PEP 503: dist-info and lockfile spell names differently
                 name = re.sub(r"[-_.]+", "-", name).lower()
             if not name or name in first_party:

@@ -218,6 +218,25 @@ def test_duplicate_component_versions_listed_separately(tmp_path):
     assert len(rows) == 2
 
 
+def test_scoped_npm_packages_keep_namespace(tmp_path):
+    def c(name, purl, lic, group=None, version="3.1.1"):
+        d = {"type": "library", "name": name, "version": version, "purl": purl,
+             "licenses": [{"license": {"id": lic}}]}
+        return {**d, "group": group} if group else d
+
+    comps = [c("d3-geo", "pkg:npm/%40types/d3-geo@3.1.1", "MIT", "@types"),
+             c("d3-geo", "pkg:npm/d3-geo@3.1.1", "ISC"),
+             c("core", "pkg:npm/%40babel/core@7.29.0", "MIT", "@babel", "7.29.0")]
+    ov = [{"name": "d3-geo", "version": "3.1.1", "license": "BSD-3-Clause",
+           "source_url": "https://example.org/l"}]
+    entries = lr.build([sbom(tmp_path, comps)],
+                       {"first_party": [], "components": [], "overrides": ov})
+    got = {(e["name"], e["license"], e["source_url"]) for e in entries}
+    assert got == {("@babel/core", "MIT", "pkg:npm/@babel/core@7.29.0"),
+                   ("@types/d3-geo", "MIT", "pkg:npm/@types/d3-geo@3.1.1"),
+                   ("d3-geo", "BSD-3-Clause", "https://example.org/l")}
+
+
 BAD_SBOM = {"no_components": {"bomFormat": "CycloneDX"},
             "str_component": {"components": ["x"]},
             "null_component": {"components": [None]},
