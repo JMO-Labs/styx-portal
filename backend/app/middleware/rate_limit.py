@@ -261,30 +261,36 @@ def is_rate_limit_exempt(path: str, method: str = "GET") -> bool:
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app):
-        super().__init__(app)
-        self._windows: dict[str, SlidingWindow] = {}
-
     def _window_for(self, spec: str) -> SlidingWindow:
-        w = self._windows.get(spec)
-        if w is None:
-            w = SlidingWindow(*_parse(spec))
-            self._windows[spec] = w
-        return w
+        """The memory store's window for a spec (introspection; memory store only)."""
+        from app.services.abuse_store import get_abuse_store
+        return get_abuse_store().window_for(*_parse(spec))
 
     async def dispatch(self, request: Request, call_next):
         if is_rate_limit_exempt(request.url.path, request.method):
             return await call_next(request)
+        from app.services import abuse_store
         from app.services.settings_store import settings
         # Unresolved (unrecognised proxy) is limited by the peer IP: fail closed, never open.
         ip = client_ip_from_headers(request)
         strict = is_strict_auth(request.method, request.url.path)
         spec = settings.get("RATE_LIMIT_AUTH") if strict else settings.get("RATE_LIMIT_DEFAULT")
-        window = self._window_for(spec)
-        if not window.allow(f"{ip}:{strict}"):
+        limit, window = _parse(spec)
+        try:
+            # No session is held here: the store call completes before call_next.
+            allowed = await abuse_store.get_abuse_store().rate_allow(
+                f"{ip}:{strict}", limit, window)
+        except Exception:
+            if strict:      # brute-force bucket: fail closed
+                logger.exception("abuse store failed; denying strict-auth request")
+                allowed = False
+            else:           # default bucket: fail open
+                logger.warning("abuse store failed; allowing request unlimited", exc_info=True)
+                allowed = True
+        if not allowed:
             return JSONResponse(
                 {"detail": "Too many requests"},
                 status_code=429,
-                headers={"Retry-After": str(window.window)},
+                headers={"Retry-After": str(window)},
             )
         return await call_next(request)

@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../k8s
+  - cluster.yaml
+  - objectstore.yaml
+  - scheduledbackup.yaml
+  - networkpolicy.yaml
+patches:
+  - path: delete-homelab.yaml
+  - path: prometheusrule-patch.yaml
+replicas:
+  - name: backend
+    count: 3

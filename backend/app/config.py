@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     LEADER_HEARTBEAT_S: float = 5.0
     LEADER_HEARTBEAT_TIMEOUT_S: float = 3.0
     LEADER_FENCE_S: float = 15.0  # must stay below server-side detection (~25 s)
+    # Internal Prometheus port (never Traefik-routed). 0 = metrics server off.
+    METRICS_PORT: int = 0
     DOCKER_SOCKET: str = "unix:///var/run/docker.sock"
     DOCKER_NETWORK: str = "styx-portal"
     # Proxied docker-local services join this network; only Traefik shares it

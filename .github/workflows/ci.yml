@@ -12,11 +12,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Path filter: docs-only PRs skip the heavy jobs (skipped counts as success). Non-PR events run everything.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ github.event_name != 'pull_request' || steps.f.outputs.backend == 'true' }}
+      frontend: ${{ github.event_name != 'pull_request' || steps.f.outputs.frontend == 'true' }}
+      deploy: ${{ github.event_name != 'pull_request' || steps.f.outputs.deploy == 'true' }}
+      plugin: ${{ github.event_name != 'pull_request' || steps.f.outputs.plugin == 'true' }}
+      code: ${{ github.event_name != 'pull_request' || steps.code.outputs.code == 'true' }}
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: f
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            backend: ['backend/**', '.github/actions/setup-backend/**', '.github/workflows/ci.yml']
+            frontend: ['frontend/**', '.github/actions/setup-node/**', '.github/workflows/ci.yml']
+            deploy: ['deploy/**', '.github/workflows/ci.yml']
+            plugin: ['traefik/**', '.github/workflows/ci.yml']
+      # Anything that is not docs/images: gates quality + security.
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: code
+        if: github.event_name == 'pull_request'
+        with:
+          predicate-quantifier: every
+          filters: |
+            code: ['**', '!docs/**', '!**/*.md', '!zensical.toml', '!images/**', '!LICENSE']
+
   commitlint:
     # Enforce Conventional Commits so semantic-release can derive versions +
     # changelog. PR commits only (base..head); config in commitlint.config.js.
     if: github.event_name == 'pull_request'
-    runs-on: homelab
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
@@ -24,6 +57,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "24"
+          cache: npm
+          cache-dependency-path: package-lock.json
       - run: npm ci --no-audit --no-fund
       - name: commitlint (PR commits)
         env:
@@ -32,7 +67,10 @@ jobs:
         run: npx commitlint --from "$BASE_SHA" --to "$HEAD_SHA" --verbose
 
   quality:
-    runs-on: homelab
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-backend
@@ -49,15 +87,31 @@ jobs:
         run: npm run build
 
   test:
-    runs-on: homelab
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true' || needs.changes.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-backend
+      # PRs to dev get the backend suite (with coverage) from wq-ci; skip the duplicate run here.
+      - name: Backend deps
+        if: needs.changes.outputs.backend == 'true' && !(github.event_name == 'pull_request' && github.base_ref == 'dev')
+        uses: ./.github/actions/setup-backend
       - name: pytest
+        if: needs.changes.outputs.backend == 'true' && !(github.event_name == 'pull_request' && github.base_ref == 'dev')
         working-directory: backend
         run: .venv/bin/python -m pytest -q
-      - uses: ./.github/actions/setup-node
+      - name: kustomize render (base + matrix/smtp components)
+        if: needs.changes.outputs.deploy == 'true'
+        run: |
+          if ! command -v kubectl >/dev/null; then echo "kubectl missing, skipped"; exit 0; fi
+          kubectl kustomize deploy/k8s >/dev/null
+          kubectl kustomize deploy/k8s-ci-overlay >/dev/null
+      - name: Frontend deps
+        if: needs.changes.outputs.frontend == 'true'
+        uses: ./.github/actions/setup-node
       - name: vitest
+        if: needs.changes.outputs.frontend == 'true'
         working-directory: frontend
         run: npm test
 
@@ -85,8 +139,37 @@ jobs:
         working-directory: backend
         run: .venv/bin/python -m pytest -q -m pg
 
+  k8s-policy:
+    needs: changes
+    if: needs.changes.outputs.deploy == 'true' || needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      KUSTOMIZE_VERSION: "5.8.1"
+      KUSTOMIZE_SHA256: 029a7f0f4e1932c52a0476cf02a0fd855c0bb85694b82c338fc648dcb53a819d
+      KUBECONFORM_VERSION: "0.7.0"
+      KUBECONFORM_SHA256: c31518ddd122663b3f3aa874cfe8178cb0988de944f29c74a0b9260920d115d3
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pinned kustomize + kubeconform
+        run: |
+          curl -sfL -o /tmp/k.tgz "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          echo "${KUSTOMIZE_SHA256}  /tmp/k.tgz" | sha256sum -c -
+          sudo tar -xzf /tmp/k.tgz -C /usr/local/bin kustomize
+          curl -sfL -o /tmp/kc.tgz "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
+          echo "${KUBECONFORM_SHA256}  /tmp/kc.tgz" | sha256sum -c -
+          sudo tar -xzf /tmp/kc.tgz -C /usr/local/bin kubeconform
+      - run: scripts/k8s_policy_check.sh
+      - uses: ./.github/actions/setup-backend
+      - name: pytest (kustomize required)
+        working-directory: backend
+        run: REQUIRE_KUSTOMIZE=1 .venv/bin/python -m pytest tests/test_cilium_baseline.py -q
+
   plugin-test:
-    runs-on: homelab
+    needs: changes
+    if: needs.changes.outputs.plugin == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -97,7 +180,10 @@ jobs:
         run: go test ./...
 
   security:
-    runs-on: homelab
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-backend

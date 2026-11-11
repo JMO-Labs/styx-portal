@@ -1,0 +1,62 @@
+# Enterprise: default-deny-ingress (base) also covers the CNPG instances, so
+# open exactly what the cluster needs. Instances are selected by cnpg.io/cluster.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: styx-db-ingress
+  namespace: styx
+spec:
+  podSelector:
+    matchLabels: {cnpg.io/cluster: styx-db}
+  policyTypes: [Ingress]
+  ingress:
+    # backend -> PostgreSQL
+    - from:
+        - podSelector:
+            matchLabels: {app: styx-backend}
+      ports: [{port: 5432, protocol: TCP}]
+    # replication between instances
+    - from:
+        - podSelector:
+            matchLabels: {cnpg.io/cluster: styx-db}
+      ports: [{port: 5432, protocol: TCP}]
+    # cnpg-system operator -> instance manager status endpoint
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: cnpg-system}
+      ports: [{port: 8000, protocol: TCP}]
+    # Prometheus scrapes the instance exporter
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: monitoring}
+      ports: [{port: 9187, protocol: TCP}]
+---
+# Egress is restricted for the instances only; the rules below are the full
+# allow-list (DNS, peers, Kubernetes API, S3 for barman-cloud WAL/base backups).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: styx-db-egress
+  namespace: styx
+spec:
+  podSelector:
+    matchLabels: {cnpg.io/cluster: styx-db}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+      ports:
+        - {port: 53, protocol: UDP}
+        - {port: 53, protocol: TCP}
+    - to:
+        - podSelector:
+            matchLabels: {cnpg.io/cluster: styx-db}
+      ports: [{port: 5432, protocol: TCP}]
+    # Kubernetes API server (instance manager); tighten to the control-plane CIDR.
+    - ports: [{port: 6443, protocol: TCP}]
+    # S3 endpoint for backup egress. PLACEHOLDER CIDR: replace with the real
+    # object-store address range of the offsite bucket.
+    - to:
+        - ipBlock: {cidr: 203.0.113.0/24}
+      ports: [{port: 443, protocol: TCP}]

@@ -117,7 +117,7 @@ async def login_matrix(body: MatrixLoginBody, request: Request, response: Respon
     user = await _pending_user(request, session)
     ip, resolved = client_ip_resolved(request)
     rnd = tokens.device_rnd(request.cookies.get(DEVICE_COOKIE), user)
-    if login_flow.locked(user.username, ip, rnd):
+    if await login_flow.locked(user.username, ip, rnd):
         await audit_request(session, request, "auth.login_locked", user_id=user.id)
         await session.commit()
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid code")
@@ -128,7 +128,7 @@ async def login_matrix(body: MatrixLoginBody, request: Request, response: Respon
             track_user=True, action="auth.matrix_failed", user_id=user.id)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid code")
     user.matrix_challenge = None
-    login_flow.clear_lockout(session, user, ip, rnd)
+    await login_flow.clear_lockout(session, user, ip, rnd)
     await _issue_session(response, session, user, request, session_only=True)
     clear_mfa_cookie(response)
     await audit_request(session, request, "auth.login", user_id=user.id,
