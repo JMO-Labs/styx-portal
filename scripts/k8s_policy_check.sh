@@ -13,5 +13,5 @@ for t in "${TARGETS[@]}"; do
   echo "== $t"
   kustomize build "$t" | kubeconform -strict -summary \
     -schema-location default \
-    -schema-location "$SCHEMAS/{{ lower .ResourceKind }}_{{ .ResourceAPIVersion }}.json"
+    -schema-location "$SCHEMAS/{{ .ResourceKind }}_{{ .ResourceAPIVersion }}.json"
 done
