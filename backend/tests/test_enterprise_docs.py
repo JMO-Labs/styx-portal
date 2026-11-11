@@ -26,7 +26,7 @@ def test_backup_readme_exists():
 
 def test_control_matrix_cp9_and_adr():
     cm = (ROOT / "docs/enterprise/control-matrix.md").read_text()
-    row = next(l for l in cm.splitlines() if l.startswith("| CP-9 "))
+    row = next(ln for ln in cm.splitlines() if ln.startswith("| CP-9 "))
     assert "Planned (IaC done, not run)" in row and "deploy/enterprise/backup" in row
     adr = next((ROOT / "docs/enterprise/adr").glob("0037-*.md")).read_text()
     assert "SC-28" in adr.split("## Consequences")[1]
