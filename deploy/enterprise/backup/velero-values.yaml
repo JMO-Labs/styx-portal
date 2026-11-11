@@ -1,0 +1,43 @@
+# Velero v1.18 (issue #36). Images come from the Harbor mirror, pinned by digest.
+# TODO(digest): every all-zero digest below is a placeholder that fails closed (matches no image).
+# Replace with `crane digest` of the Harbor mirror, same approach as deploy/enterprise/openbao/values.yaml.
+image:
+  repository: harbor.example.internal/velero/velero
+  tag: v1.18.2
+  # TODO(digest): replace with real Harbor mirror digest of docker.io/velero/velero:v1.18.2
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+initContainers:
+  - name: velero-plugin-for-aws
+    # TODO(digest): replace with real Harbor mirror digest of docker.io/velero/velero-plugin-for-aws:v1.13.1
+    image: harbor.example.internal/velero/velero-plugin-for-aws@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+      - mountPath: /target
+        name: plugins
+kubectl:
+  image:
+    repository: harbor.example.internal/kubectl/kubectl
+    # TODO(digest): replace with real Harbor mirror digest of registry.k8s.io/kubectl (cluster-matching tag)
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+deployNodeAgent: false  # CSI snapshot data mover only, no pod-volume (fs) backup
+configuration:
+  defaultVolumesToFsBackup: false
+  backupStorageLocation:
+    - name: offsite
+      provider: aws
+      # Placeholders: the offsite S3 bucket and the A1 "velero/" prefix (bucket SSE protects metadata tarballs).
+      bucket: styx-offsite-backups
+      prefix: velero/
+      default: true
+      config:
+        region: us-east-1
+        s3ForcePathStyle: "true"
+        s3Url: https://s3.offsite.example.internal
+  volumeSnapshotLocation: []
+credentials:
+  useSecret: true
+  existingSecret: velero-bsl-credentials  # from velero-externalsecrets.yaml
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
