@@ -30,3 +30,57 @@ def test_launch_failure_reason_unknown_maps_to_other():
     before = _val("styx_launch_failures_total", {"reason": "capacity"})
     slo_metrics.record_launch_failure("capacity")
     assert _val("styx_launch_failures_total", {"reason": "capacity"}) == before + 1
+
+
+# --- scope gauges -----------------------------------------------------------
+from datetime import datetime, timezone  # noqa: E402
+
+import pytest  # noqa: E402
+
+
+def _freeze(monkeypatch, iso):
+    monkeypatch.setattr(slo_metrics, "_utcnow",
+                        lambda: datetime.fromisoformat(iso).replace(tzinfo=timezone.utc))
+
+
+def _gauge(name):
+    return REGISTRY.get_sample_value(name)
+
+
+@pytest.mark.parametrize("iso,expected", [
+    ("2026-03-09T11:30", 1.0),   # Mon 07:30 EDT
+    ("2026-03-07T15:00", 0.0),   # Saturday
+    ("2026-11-02T11:30", 0.0),   # Mon 06:30 EST (after DST end)
+    ("2026-11-02T12:30", 1.0),   # Mon 07:30 EST
+])
+def test_business_hours_gauge_dst(monkeypatch, iso, expected):
+    _freeze(monkeypatch, iso)
+    assert _gauge("styx_slo_business_hours") == expected
+
+
+def test_business_hours_respects_settings(monkeypatch):
+    monkeypatch.setenv("SLO_TIMEZONE", "UTC")
+    monkeypatch.setenv("SLO_BUSINESS_DAYS", "Sat,Sun")
+    monkeypatch.setenv("SLO_BUSINESS_HOURS", "09:00-10:00")
+    _freeze(monkeypatch, "2026-03-07T09:30")
+    assert _gauge("styx_slo_business_hours") == 1.0
+    _freeze(monkeypatch, "2026-03-09T09:30")
+    assert _gauge("styx_slo_business_hours") == 0.0
+
+
+def test_maintenance_gauge_inside_and_outside_window(monkeypatch):
+    monkeypatch.setenv("SLO_MAINTENANCE_START", "2026-05-01T02:00:00+00:00")
+    monkeypatch.setenv("SLO_MAINTENANCE_END", "2026-05-01T04:00:00+00:00")
+    _freeze(monkeypatch, "2026-05-01T03:00")
+    assert _gauge("styx_maintenance_active") == 1.0
+    _freeze(monkeypatch, "2026-05-01T04:00")
+    assert _gauge("styx_maintenance_active") == 0.0
+    _freeze(monkeypatch, "2026-05-01T01:59")
+    assert _gauge("styx_maintenance_active") == 0.0
+
+
+def test_maintenance_gauge_unset_is_zero(monkeypatch):
+    monkeypatch.delenv("SLO_MAINTENANCE_START", raising=False)
+    monkeypatch.delenv("SLO_MAINTENANCE_END", raising=False)
+    _freeze(monkeypatch, "2026-05-01T03:00")
+    assert _gauge("styx_maintenance_active") == 0.0
