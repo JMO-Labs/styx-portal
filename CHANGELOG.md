@@ -6,6 +6,8 @@
 
 ### Documentation
 
+* **docs:** SLO definitions and budget math (`operate/slo.md`), per-alert on-call runbook (`operate/alert-runbook.md`) (#50)
+
 * **docs:** monitoring runbook: install order, Harbor mirroring (ADR-0029), RKE2 bind addresses, storage class swap, verification, R05/ADR-0011 compliance debt (#35)
 
 * **docs:** enterprise Kubernetes guide, first-boot and rotation runbooks, full-site restore runbook with SSE-C note (#82)

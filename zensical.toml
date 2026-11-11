@@ -35,6 +35,8 @@ nav = [
     { "Streaming tuning" = "operate/streaming-tuning.md" },
     { "WebRTC and TURN" = "operate/webrtc-turn.md" },
     { "Monitoring" = "operate/monitoring.md" },
+    { "SLOs" = "operate/slo.md" },
+    { "Alert runbook" = "operate/alert-runbook.md" },
     { "Backup schedules" = "operate/backup-schedules.md" },
     { "Upgrade" = "operate/upgrade.md" },
   ] },
