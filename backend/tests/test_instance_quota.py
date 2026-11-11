@@ -108,10 +108,10 @@ async def test_create_rate_limit_per_user(member_client, session):
     template = resp.json()
 
     # Replace the limiter with a tiny window
-    from app.middleware.rate_limit import SlidingWindow
+    from app.routers.instances import _CreateLimiter
 
     # Patch with a limiter that allows only 2 creates per 3600s
-    tiny_limiter = SlidingWindow(2, 3600)
+    tiny_limiter = _CreateLimiter(2, 3600)
 
     with patch("app.routers.instances._create_limiter", tiny_limiter):
         # First two creates should succeed

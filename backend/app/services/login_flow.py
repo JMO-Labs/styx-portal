@@ -1,5 +1,6 @@
 """Lockout gate, failure path and success clears shared by password and matrix login."""
 import json
+import logging
 from datetime import timedelta
 
 from fastapi import Request, Response
@@ -10,28 +11,42 @@ from app.models import User
 from app.security import tokens
 from app.security.cookies import set_mfa_cookie
 from app.services import matrix_card
-from app.services.abuse import ban_cache, ban_ip, fail_tracker, login_lockout
+from app.services import abuse_store
+from app.services.abuse import ban_cache, ban_ip
 from app.services.audit import audit_request
 from app.services.settings_store import settings as sys_settings
 
 _settings = Settings()
+logger = logging.getLogger("styx-portal")
 
 
-def blocked(username: str, ip: str, rnd: str | None) -> bool:
-    """Locked or throttled, unless a still-trusted device cookie for this account vouches."""
-    if rnd is not None and not login_lockout.device_blocked(rnd):
-        return False
-    return (login_lockout.is_locked(username, ip)
-            or login_lockout.throttled(username, _settings.LOGIN_GLOBAL_THRESHOLD,
-                                       sys_settings.get("LOCKOUT_DURATION")))
+async def blocked(username: str, ip: str, rnd: str | None) -> bool:
+    """Locked or throttled, unless a still-trusted device cookie for this account vouches.
+    Fails closed: a store error denies."""
+    try:
+        st = abuse_store.get_abuse_store()
+        if rnd is not None and not await st.device_blocked(rnd):
+            return False
+        return (await st.is_locked(username, ip)
+                or await st.throttled(username, _settings.LOGIN_GLOBAL_THRESHOLD,
+                                      sys_settings.get("LOCKOUT_DURATION")))
+    except Exception:
+        logger.exception("abuse store failed; denying login attempt")
+        return True
 
 
-def locked(username: str, ip: str, rnd: str | None) -> bool:
+async def locked(username: str, ip: str, rnd: str | None) -> bool:
     """Card step: the password step already passed the global throttle, so only the
-    per-(user, IP) lock applies (re-spending the 10 s slot would refuse correct codes)."""
-    if rnd is not None and not login_lockout.device_blocked(rnd):
-        return False
-    return login_lockout.is_locked(username, ip)
+    per-(user, IP) lock applies (re-spending the 10 s slot would refuse correct codes).
+    Fails closed."""
+    try:
+        st = abuse_store.get_abuse_store()
+        if rnd is not None and not await st.device_blocked(rnd):
+            return False
+        return await st.is_locked(username, ip)
+    except Exception:
+        logger.exception("abuse store failed; denying login attempt")
+        return True
 
 
 def session_only_expired(session_only: bool, age: timedelta) -> bool:
@@ -48,31 +63,41 @@ def session_ttl(session_only: bool) -> int:
 async def record_failure(session: AsyncSession, request: Request, *, username: str, ip: str,
                          resolved: bool, rnd: str | None, track_user: bool,
                          action: str, **audit) -> None:
-    if rnd:
-        login_lockout.device_fail(rnd, sys_settings.get("LOCKOUT_THRESHOLD"),
-                                  sys_settings.get("LOCKOUT_DURATION"))
-    # Only real accounts are tracked (keeps the maps bounded by the user count).
-    if track_user:
-        login_lockout.record_fail(username, ip, sys_settings.get("LOCKOUT_THRESHOLD"),
-                                  sys_settings.get("LOCKOUT_DURATION"))
-    # Per-IP abuse detector -> proxy ban (L3). Thresholds are live-tunable.
-    fail_tracker.threshold = sys_settings.get("BAN_FAIL_THRESHOLD")
-    fail_tracker.window = sys_settings.get("BAN_FAIL_WINDOW")
-    # Unresolved: still tracked under the peer address, but a misconfiguration must never
-    # persist a ban on the proxy itself (it would lock out the whole portal).
-    if fail_tracker.record(ip) and resolved:
+    tripped = False
+    # Store errors must not turn a failed login into a 500; the checks above fail closed.
+    try:
+        st = abuse_store.get_abuse_store()
+        if rnd:
+            await st.device_fail(rnd, sys_settings.get("LOCKOUT_THRESHOLD"),
+                                 sys_settings.get("LOCKOUT_DURATION"))
+        # Only real accounts are tracked (keeps the maps bounded by the user count).
+        if track_user:
+            await st.record_fail(username, ip, sys_settings.get("LOCKOUT_THRESHOLD"),
+                                 sys_settings.get("LOCKOUT_DURATION"))
+        # Per-IP abuse detector -> proxy ban (L3). Thresholds are live-tunable.
+        # Unresolved: still tracked under the peer address, but a misconfiguration must
+        # never persist a ban on the proxy itself (it would lock out the whole portal).
+        tripped = await st.ip_fail(ip, sys_settings.get("BAN_FAIL_THRESHOLD"),
+                                   sys_settings.get("BAN_FAIL_WINDOW"))
+    except Exception:
+        logger.exception("abuse store failed recording a login failure")
+    if tripped and resolved:
         await ban_ip(session, ip, "brute-force: failed logins", sys_settings.get("BAN_DURATION"))
         ban_cache.invalidate()
     await audit_request(session, request, action, **audit)
     await session.commit()
 
 
-def clear_lockout(session: AsyncSession, user: User, ip: str, rnd: str | None) -> None:
+async def clear_lockout(session: AsyncSession, user: User, ip: str, rnd: str | None) -> None:
     user.failed_count = 0
     user.locked_until = None
-    login_lockout.clear(user.username, ip)
-    if rnd:
-        login_lockout.device_clear(rnd)    # the fresh device cookie carries a new rnd
+    try:
+        st = abuse_store.get_abuse_store()
+        await st.clear(user.username, ip)
+        if rnd:
+            await st.device_clear(rnd)    # the fresh device cookie carries a new rnd
+    except Exception:
+        logger.exception("abuse store failed clearing lockout")
     session.add(user)
 
 

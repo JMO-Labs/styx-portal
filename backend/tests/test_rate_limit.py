@@ -295,3 +295,24 @@ def test_matrix_remove_is_strict():
 
 def test_change_password_is_strict():
     assert is_strict_auth("POST", "/api/auth/change-password") is True
+
+
+class _Boom:
+    async def rate_allow(self, *a, **k):
+        raise RuntimeError("db down")
+
+
+async def test_default_bucket_fails_open_on_db_error(client, monkeypatch, caplog):
+    from app.services import abuse_store
+    monkeypatch.setattr(abuse_store, "get_abuse_store", lambda: _Boom())
+    with caplog.at_level("WARNING"):
+        r = await client.get("/api/auth/setup-required")
+    assert r.status_code != 429
+    assert any("abuse store" in m.message for m in caplog.records)
+
+
+async def test_strict_bucket_fails_closed_on_db_error(client, monkeypatch):
+    from app.services import abuse_store
+    monkeypatch.setattr(abuse_store, "get_abuse_store", lambda: _Boom())
+    r = await client.post("/api/auth/login", json={"username": "x", "password": "y"})
+    assert r.status_code == 429
