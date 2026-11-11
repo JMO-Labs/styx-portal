@@ -19,6 +19,9 @@ def _el(**kw):
     return LeaderElector(Settings(DATABASE_URL=PG, LEADER_DATABASE_URL=PG, **kw))
 
 
+CONNECT_MARGIN_S = 0.15  # connect/lock time allowed on top of LEADER_RETRY_S
+
+
 async def _until(pred, timeout=5):
     end = asyncio.get_running_loop().time() + timeout
     while asyncio.get_running_loop().time() < end:
@@ -49,8 +52,10 @@ async def test_only_one_leader_then_failover(admin):
         assert a.is_leader != b.is_leader
         leader, other = (a, b) if a.is_leader else (b, a)
         await admin.execute("SELECT pg_terminate_backend($1)", leader.backend_pid)
-        assert await _until(lambda: other.is_leader, 0.8)
-        assert not leader.is_leader
+        # AC: failover within one retry interval (+ small connect margin)
+        assert await _until(lambda: other.is_leader, CONNECT_MARGIN_S + 0.2)
+        # old leader self-fences at its next heartbeat
+        assert await _until(lambda: not leader.is_leader, 0.5)
     finally:
         await a.stop()
         await b.stop()
