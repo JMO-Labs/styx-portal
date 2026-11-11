@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -18,6 +19,7 @@ from app.services.screenshot import ScreenshotService
 from app.services import gpu_access, instance_readiness, profiles
 from app.services.traefik_labels import generate_traefik_labels
 from app.services.audit import audit
+from app.services.prom_metrics import LAUNCH_DURATION, LAUNCH_FAILURES
 from app.services.settings_store import settings as sys_settings
 from app.services.abuse_store import get_abuse_store
 
@@ -165,6 +167,7 @@ async def _launch_instance_background(instance_id: str, template_id: str):
         if not instance or not template:
             return
 
+        t0 = time.perf_counter()
         try:
             needs_pull = await asyncio.to_thread(docker.image_exists, template.image)
             needs_pull = not needs_pull
@@ -266,8 +269,10 @@ async def _launch_instance_background(instance_id: str, template_id: str):
             await session.commit()
             instance_readiness.kick(instance)
             await _refresh_routes(session)
+            LAUNCH_DURATION.observe(time.perf_counter() - t0)
 
         except Exception as e:
+            LAUNCH_FAILURES.inc()
             logger.error(f"Instance {instance_id} launch failed: {e}")
             instance.status = "error"
             instance.error_message = str(e)
