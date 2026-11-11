@@ -82,9 +82,12 @@ class _FakeElector:
         pass
 
 
-async def _run_lifespan(monkeypatch, leader):
+async def _run_lifespan(monkeypatch, leader, tmp_path):
     import asyncio
     import app.main as m
+
+    (tmp_path / "data").mkdir()
+    monkeypatch.chdir(tmp_path)  # DATABASE_URL is relative (./data/...)
 
     started = []
 
@@ -112,8 +115,8 @@ async def _run_lifespan(monkeypatch, leader):
 
 
 @pytest.mark.asyncio
-async def test_lifespan_gates_leader_only_loops(monkeypatch):
-    started = await _run_lifespan(monkeypatch, leader=False)
+async def test_lifespan_gates_leader_only_loops(monkeypatch, tmp_path):
+    started = await _run_lifespan(monkeypatch, leader=False, tmp_path=tmp_path)
     for name in ("_session_monitor_loop", "_service_health_loop", "_metrics_db_loop", "prepull_loop"):
         assert name not in started
     for name in ("_metrics_sampler_loop", "_health_sample_loop", "service_thumbnail_loop"):
@@ -121,8 +124,8 @@ async def test_lifespan_gates_leader_only_loops(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_lifespan_sqlite_starts_all_loops_as_before(monkeypatch):
-    started = await _run_lifespan(monkeypatch, leader=True)
+async def test_lifespan_sqlite_starts_all_loops_as_before(monkeypatch, tmp_path):
+    started = await _run_lifespan(monkeypatch, leader=True, tmp_path=tmp_path)
     for name in ("_session_monitor_loop", "_service_health_loop", "_metrics_db_loop",
                  "prepull_loop", "_metrics_sampler_loop", "_health_sample_loop",
                  "service_thumbnail_loop"):
