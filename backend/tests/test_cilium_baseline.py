@@ -77,3 +77,77 @@ def test_no_kube_system_in_any_allow_selector_changes():
         assert "kube-system" not in sel.get("matchLabels", {}).values()
         assert {"key": "k8s:io.kubernetes.pod.namespace", "operator": "NotIn",
                 "values": ["kube-system"]} in sel.get("matchExpressions", [])
+
+
+# --- desktop egress patch + Squid proxy CCNP (#58) ---------------------------
+FORBIDDEN_EGRESS = {"toCIDR", "toCIDRSet", "toFQDNs", "toEntities"}
+SQUID = {"k8s:io.kubernetes.pod.namespace": "egress-proxy",
+         "app.kubernetes.io/name": "squid"}
+
+
+def _instances_cnp(docs):
+    return next(d for d in docs if d["kind"] == "CiliumNetworkPolicy"
+                and d["metadata"]["name"] == "instances")
+
+
+def test_desktop_egress_only_dns_and_proxy():
+    cnp = _instances_cnp(_render(OVERLAY))
+    base = _instances_cnp(_render(K8S))
+    dns, proxy = cnp["spec"]["egress"]
+    assert len(cnp["spec"]["egress"]) == 2
+    assert not any(FORBIDDEN_EGRESS & r.keys() for r in cnp["spec"]["egress"])
+    assert dns["toEndpoints"] == base["spec"]["egress"][0]["toEndpoints"]
+    assert dns["toPorts"][0]["rules"]["dns"] == [{"matchPattern": "*.cluster.local"}]
+    assert dns["toPorts"][0]["ports"] == [{"port": "53", "protocol": "ANY"}]
+    assert proxy["toEndpoints"] == [{"matchLabels": SQUID}]
+    assert proxy["toPorts"] == [{"ports": [{"port": "3128", "protocol": "TCP"}]}]
+    assert cnp["spec"]["egressDeny"] == base["spec"]["egressDeny"]
+    assert cnp["spec"]["ingress"] == base["spec"]["ingress"]
+
+
+def test_no_world_egress_for_desktops():
+    for d in _render(OVERLAY):
+        if d["kind"] not in {"CiliumNetworkPolicy", "CiliumClusterwideNetworkPolicy"}:
+            continue
+        sel = d["spec"].get("endpointSelector", {})
+        if d["metadata"].get("namespace") not in (None, "styx-instances"):
+            continue
+        if sel.get("matchLabels") and d["kind"] == "CiliumClusterwideNetworkPolicy":
+            continue  # selects specific pods (e.g. squid), not desktops
+        if d["metadata"]["name"] in {"allow-apiserver", "allow-prometheus"}:
+            continue
+        for r in d["spec"].get("egress", []):
+            assert not FORBIDDEN_EGRESS & r.keys(), d["metadata"]["name"]
+            for p in r.get("toPorts", []):
+                for port in p.get("ports", []):
+                    assert port["port"] != "22"
+                    if port["protocol"] == "UDP":
+                        pytest.fail("UDP egress")
+
+
+def test_proxy_params_single_source():
+    files = [p for p in COMPONENT.iterdir()
+             if p.is_file() and p.suffix in {".yaml", ".yml", ".json"}]
+    for needle in ("egress-proxy", "3128"):
+        hits = [p.name for p in files if needle in p.read_text()]
+        assert len(hits) == 1, (needle, hits)
+    assert (COMPONENT / "proxy-params.yaml").exists()
+
+
+def test_squid_proxy_policy():
+    docs = _render(OVERLAY)
+    (c,) = [d for d in docs if d["kind"] == "CiliumClusterwideNetworkPolicy"
+            and d["metadata"]["name"] == "squid-proxy"]
+    assert c["spec"]["endpointSelector"]["matchLabels"] == SQUID
+    (ing,) = c["spec"]["ingress"]
+    assert ing["fromEndpoints"] == [{"matchLabels": {
+        "k8s:io.kubernetes.pod.namespace": "styx-instances"}}]
+    assert ing["toPorts"] == [{"ports": [{"port": "3128", "protocol": "TCP"}]}]
+    egress = c["spec"]["egress"]
+    assert {"toEntities": ["world"], "toPorts": [{"ports": [
+        {"port": "80", "protocol": "TCP"}, {"port": "443", "protocol": "TCP"}]}]} in egress
+    assert any("toEndpoints" in r and r["toPorts"][0]["ports"][0]["port"] == "53"
+               for r in egress)
+    # local-config params must not leak into the rendered output
+    assert not any(d["kind"] == "ConfigMap" and d["metadata"]["name"] == "proxy-params"
+                   for d in docs)
