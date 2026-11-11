@@ -50,7 +50,8 @@ async def test_compare_aware_param(session):
 def test_all_model_datetime_columns_use_utcdatetime():
     bad = [f"{t.name}.{c.name}" for t in SQLModel.metadata.tables.values()
            for c in t.columns
-           if isinstance(c.type, DateTime)]
+           # tz-aware columns (abuse store, DB-time compared) are intentional
+           if isinstance(c.type, DateTime) and not c.type.timezone]
     assert bad == []
     n = sum(isinstance(c.type, UTCDateTime)
             for t in SQLModel.metadata.tables.values() for c in t.columns)
