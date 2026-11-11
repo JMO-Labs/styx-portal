@@ -12,7 +12,12 @@ async def test_route_template_label(client):
     before = _count("GET", "/api/instances/{instance_id}", 401)
     r = await client.get("/api/instances/abc123")
     assert r.status_code == 401
-    assert _count("GET", "/api/instances/{instance_id}", 401) == before + 1
+    seen = sorted(
+        (x.labels["route"], x.labels["status"], x.value)
+        for m in REGISTRY.collect() if m.name == "styx_http_request_duration_seconds"
+        for x in m.samples if x.name == NAME and x.labels["method"] == "GET" and "instances" in x.labels["route"]
+    )
+    assert _count("GET", "/api/instances/{instance_id}", 401) == before + 1, seen
     assert _count("GET", "/api/instances/abc123", 401) == 0
 
 
