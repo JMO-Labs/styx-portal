@@ -43,6 +43,7 @@ nav = [
     { "Upgrade" = "operate/upgrade.md" },
     { "Enterprise: OpenBao" = "enterprise/runbooks/openbao.md" },
     { "Enterprise: DMZ HAProxy" = "enterprise/runbooks/dmz-haproxy.md" },
+    { "Enterprise: Rook-Ceph" = "enterprise/runbooks/rook-ceph.md" },
   ] },
   { "Build" = [
     "build/index.md",

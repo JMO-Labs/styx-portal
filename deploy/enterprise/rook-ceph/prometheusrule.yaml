@@ -1,0 +1,30 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: rook-ceph-recovery
+  namespace: rook-ceph
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: rook-ceph-recovery
+      rules:
+        - alert: CephPGsDegraded
+          # Ops decides whether to force recovery (runbook: forcing recovery).
+          expr: ceph_pg_degraded > 0
+          for: 4h
+          labels: {severity: warning}
+          annotations:
+            summary: Ceph PGs degraded for over 4h
+            runbook: docs/enterprise/runbooks/rook-ceph.md#force-recovery
+        - alert: CephThrottleJobFailing
+          # No successful run for over 1h (schedule is every 15 min). Staleness
+          # covers failing and not running; kube_job_failed would stick until GC.
+          expr: |
+            (time() - kube_cronjob_status_last_successful_time{namespace="rook-ceph",cronjob="ceph-mclock-throttle"}) > 3600
+            or absent(kube_cronjob_status_last_successful_time{namespace="rook-ceph",cronjob="ceph-mclock-throttle"})
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: Ceph mClock throttle CronJob failing or not running for over 1h
+            runbook: docs/enterprise/runbooks/rook-ceph.md#force-recovery

@@ -10,6 +10,7 @@ resources:
   - throttle-cephclient.yaml
   - throttle-config.yaml
   - throttle-cronjob.yaml
+  - prometheusrule.yaml
 configMapGenerator:
   - name: ceph-throttle-script
     namespace: rook-ceph
