@@ -1,9 +1,14 @@
 """Janitor purge of the abuse tables (schema per alembic 0002_abuse_tables)."""
+import asyncio
+import logging
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from sqlalchemy import DateTime, bindparam, text
 
 from app.config import Settings
+from app.services import janitor
 from app.services.janitor import fail_window, purge_expired
 
 settings = Settings()
@@ -66,3 +71,61 @@ async def test_janitor_keeps_recent_fail_events(session):
 
 async def test_janitor_skips_absent_abuse_tables(session):
     assert await purge_expired(session, now=NOW) == 0
+
+
+async def test_purge_treats_naive_now_as_utc(session):
+    await _seed(session)
+    assert await purge_expired(session, now=NOW.replace(tzinfo=None)) == 9
+
+
+def _run_loop(monkeypatch, purge, ticks):
+    """Run janitor_loop for `ticks` iterations; returns the session-factory call count."""
+    import app.database as db
+    calls = {"sessions": 0, "sleeps": 0}
+
+    @asynccontextmanager
+    async def fake_session():
+        calls["sessions"] += 1
+        yield object()
+
+    async def fake_sleep(_):
+        calls["sleeps"] += 1
+        if calls["sleeps"] > ticks:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(db, "async_session", fake_session)
+    monkeypatch.setattr(janitor, "purge_expired", purge)
+    monkeypatch.setattr(janitor.asyncio, "sleep", fake_sleep)
+    return calls
+
+
+async def test_loop_logs_purged_rows(monkeypatch, caplog):
+    async def purge(_):
+        return 3
+    calls = _run_loop(monkeypatch, purge, ticks=1)
+    with caplog.at_level(logging.INFO, logger="styx.janitor"):
+        with pytest.raises(asyncio.CancelledError):
+            await janitor.janitor_loop()
+    assert calls["sessions"] == 1
+    assert "janitor purged 3 expired rows" in caplog.text
+
+
+async def test_loop_silent_when_nothing_purged(monkeypatch, caplog):
+    async def purge(_):
+        return 0
+    _run_loop(monkeypatch, purge, ticks=1)
+    with caplog.at_level(logging.INFO, logger="styx.janitor"):
+        with pytest.raises(asyncio.CancelledError):
+            await janitor.janitor_loop()
+    assert "purged" not in caplog.text
+
+
+async def test_loop_survives_purge_failure(monkeypatch, caplog):
+    async def purge(_):
+        raise RuntimeError("db down")
+    calls = _run_loop(monkeypatch, purge, ticks=2)
+    with caplog.at_level(logging.WARNING, logger="styx.janitor"):
+        with pytest.raises(asyncio.CancelledError):
+            await janitor.janitor_loop()
+    assert calls["sessions"] == 2  # kept ticking after the first failure
+    assert "janitor tick failed" in caplog.text
