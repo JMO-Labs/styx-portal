@@ -1,0 +1,147 @@
+name: kind-spike
+
+# Runs agent-authored Kubernetes-in-Docker spike scripts (scripts/kind/*.sh) on a
+# hosted runner (has Docker). Contract: scripts/kind/README.md
+on:
+  pull_request:
+    branches: [dev, enterprise]
+    paths:
+      - "scripts/kind/**"
+      - "test/kind/**"
+      - ".github/workflows/kind-spike.yml"
+  workflow_dispatch:
+    inputs:
+      script:
+        description: "Single script under scripts/kind/ to run (default: all)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kind-spike-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  KIND_VERSION: v0.33.0
+  KIND_NODE_IMAGE: kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0
+  KUBECTL_VERSION: v1.35.4
+  HELM_VERSION: v3.19.0
+  SCRIPT_TIMEOUT: 20m
+
+jobs:
+  kind-spike:
+    name: kind-spike
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Select scripts
+        id: sel
+        env:
+          INPUT_SCRIPT: ${{ inputs.script }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          all=$(find scripts/kind -maxdepth 1 -name '*.sh' -perm -u+x | sort)
+          if [ -n "${INPUT_SCRIPT:-}" ]; then
+            s="scripts/kind/$(basename "$INPUT_SCRIPT")"
+            [ -x "$s" ] || { echo "::error::$s missing or not executable"; exit 1; }
+            sel=$s
+          elif [ -n "${BASE_SHA:-}" ] && ! git diff --name-only "$BASE_SHA"...HEAD \
+              | grep -qE '^(test/kind/|\.github/workflows/kind-spike\.yml)'; then
+            changed=$(git diff --name-only "$BASE_SHA"...HEAD -- 'scripts/kind/*.sh')
+            sel=$(printf '%s\n' "$all" | grep -Fxf <(printf '%s\n' "$changed") || true)
+          else
+            sel=$all
+          fi
+          { echo "list<<EOF"; echo "$sel"; echo "EOF"; } >> "$GITHUB_OUTPUT"
+          echo "Selected:"; echo "$sel"
+
+      - name: Install helm
+        if: steps.sel.outputs.list != ''
+        run: |
+          set -euo pipefail
+          f=helm-${HELM_VERSION}-linux-amd64.tar.gz
+          curl -fsSLO "https://get.helm.sh/$f"
+          echo "$(curl -fsSL "https://get.helm.sh/$f.sha256sum" | cut -d' ' -f1)  $f" | sha256sum -c -
+          tar -xzf "$f" linux-amd64/helm
+          sudo install linux-amd64/helm /usr/local/bin/helm
+          helm version --short
+
+      - name: Create kind cluster
+        if: steps.sel.outputs.list != ''
+        uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
+        with:
+          version: ${{ env.KIND_VERSION }}
+          node_image: ${{ env.KIND_NODE_IMAGE }}
+          kubectl_version: ${{ env.KUBECTL_VERSION }}
+          cluster_name: spike
+          config: ${{ hashFiles('test/kind/cluster.yaml') != '' && 'test/kind/cluster.yaml' || '' }}
+
+      - name: Run scripts
+        if: steps.sel.outputs.list != ''
+        env:
+          SCRIPTS: ${{ steps.sel.outputs.list }}
+        run: |
+          mkdir -p out
+          : > out/summary.txt
+          rc=0
+          for s in $SCRIPTS; do
+            n=$(basename "$s" .sh)
+            echo "::group::$s"
+            if timeout "$SCRIPT_TIMEOUT" bash "$s" 2>&1 | tee "out/$n.log"; then
+              r=PASS
+            else
+              r=FAIL; rc=1
+            fi
+            echo "::endgroup::"
+            echo "$r $s" >> out/summary.txt
+            if [ "$r" = FAIL ]; then
+              { echo "---- last 40 lines of $s ----"; tail -n 40 "out/$n.log"; } >> out/failures.txt
+            fi
+          done
+          exit $rc
+
+      - name: Diagnostics
+        if: always() && steps.sel.outputs.list != ''
+        continue-on-error: true
+        run: |
+          mkdir -p out/diag
+          kubectl get all -A -o wide > out/diag/all.txt 2>&1 || true
+          kubectl get events -A --sort-by=.lastTimestamp > out/diag/events.txt 2>&1 || true
+          kubectl get pods -A --no-headers 2>/dev/null \
+            | awk '$4!="Running" && $4!="Completed" && $4!="Succeeded" {print $1" "$2}' \
+            | while read -r ns p; do
+                kubectl -n "$ns" describe pod "$p" > "out/diag/describe-$ns-$p.txt" 2>&1 || true
+                kubectl -n "$ns" logs "$p" --all-containers --tail=200 > "out/diag/logs-$ns-$p.txt" 2>&1 || true
+                kubectl -n "$ns" logs "$p" --all-containers --previous --tail=200 \
+                  > "out/diag/logs-prev-$ns-$p.txt" 2>&1 || true
+              done
+          kind export logs out/diag/kind-logs --name spike || true
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "==== kind-spike summary ===="
+          cat out/summary.txt 2>/dev/null || echo "no scripts run"
+          if [ -s out/failures.txt ]; then cat out/failures.txt; fi
+          {
+            echo '### kind-spike'
+            echo '```'
+            cat out/summary.txt 2>/dev/null || echo "no scripts run"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kind-spike-out
+          path: out/
+          if-no-files-found: ignore
+          retention-days: 7
