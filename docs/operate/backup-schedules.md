@@ -1,6 +1,6 @@
 # Backup schedules
 
-Status: IaC written, not yet run (no deployment). See control CP-9 in the [control matrix](../enterprise/control-matrix.md) and ADR-0037.
+Status: IaC written, not yet run (no deployment). See control CP-9 in the [control matrix](../enterprise/control-matrix.md) and [ADR-0037](../enterprise/adr/0037-backup-and-dr-rpo-24-h-rto-8-h-encrypted-offsite-copy.md).
 
 ## UTC timeline
 
