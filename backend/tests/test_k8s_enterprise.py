@@ -107,8 +107,10 @@ def test_cluster_spec():
     assert s["instances"] == 3
     assert s["imageName"].split(":")[1].split(".")[0].split("-")[0] == "17"
     assert s["enableSuperuserAccess"] is False
-    terms = s["affinity"]["podAntiAffinity"]
-    assert "kubernetes.io/hostname" in str(terms)
+    aff = s["affinity"]
+    assert aff["enablePodAntiAffinity"] is True
+    assert aff["podAntiAffinityType"] == "required"
+    assert aff["topologyKey"] == "kubernetes.io/hostname"
     init = s["bootstrap"]["initdb"]
     assert (init["database"], init["owner"], init["secret"]["name"]) == ("styx", "styx", "styx-db-app")
     assert s["postgresql"]["synchronous"] == {"method": "any", "number": 1, "dataDurability": "preferred"}
