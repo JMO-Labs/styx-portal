@@ -196,3 +196,62 @@ async def test_lifespan_refreshes_routes_after_reconcile(monkeypatch):
     assert refreshes[0] < events.index("reconcile")  # per-replica initial routes
     assert refreshes[-1] > events.index("reconcile")  # leader re-writes after reconcile
     assert refreshes[-1] > events.index("close_dangling")
+
+
+class _StopLoop(BaseException):
+    pass
+
+
+def _one_tick(monkeypatch):
+    """Let the loop's first sleep pass, then stop it on the second."""
+    calls = []
+
+    async def _sleep(_s):
+        calls.append(1)
+        if len(calls) > 1:
+            raise _StopLoop
+
+    monkeypatch.setattr(main.asyncio, "sleep", _sleep)
+
+
+@pytest.mark.asyncio
+async def test_lifespan_leader_k8s_skips_probe_cleanup(monkeypatch):
+    events = await _run_lifespan(monkeypatch, _FakeElector(True), k8s=True)
+    assert "probe_cleanup" not in events
+    assert "reconcile" in events
+
+
+@pytest.mark.asyncio
+async def test_metrics_sampler_logs_when_sample_fails(monkeypatch, caplog):
+    _one_tick(monkeypatch)
+    monkeypatch.setattr(main, "instance_runtime", lambda: object())
+
+    class _Boom:
+        async def __aenter__(self):
+            raise RuntimeError("db down")
+
+        async def __aexit__(self, *a):
+            return False
+
+    monkeypatch.setattr(main, "async_session", lambda: _Boom())
+    with caplog.at_level("WARNING"), pytest.raises(_StopLoop):
+        await main._metrics_sampler_loop()
+    assert "metrics sample failed" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_metrics_db_loop_records_host_rollup(monkeypatch, session):
+    import app.services.host_metrics as hm
+    import app.services.metric_rollup as mr
+    import app.services.stream_sessions as ss
+
+    _one_tick(monkeypatch)
+    rec = []
+    monkeypatch.setattr(main, "async_session", lambda: session)
+    monkeypatch.setattr(hm, "cpu_pct", lambda: 5.0)
+    monkeypatch.setattr(hm, "ram", lambda: (40.0, 1))
+    monkeypatch.setattr(ss, "sync_instances", AsyncMock())
+    monkeypatch.setattr(mr, "record_host", lambda *a: rec.append(a))
+    with pytest.raises(_StopLoop):
+        await main._metrics_db_loop()
+    assert rec and rec[0][0] == 5.0 and rec[0][1] == 40.0 and rec[0][3] == 0
