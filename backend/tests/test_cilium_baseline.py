@@ -70,3 +70,26 @@ def test_vendored_schema_is_used_by_check_script():
 
 def test_unknown_kind_fails():
     assert _check(CNP.replace("CiliumNetworkPolicy", "NoSuchKind")).returncode != 0
+
+
+def _closed_branches(node, path=""):
+    """Yield paths of anyOf/oneOf/allOf branches closed with additionalProperties:false."""
+    if isinstance(node, dict):
+        for key in ("anyOf", "oneOf", "allOf"):
+            for i, br in enumerate(node.get(key, [])):
+                if isinstance(br, dict) and br.get("additionalProperties") is False:
+                    yield f"{path}/{key}/{i}"
+        for k, v in node.items():
+            yield from _closed_branches(v, f"{path}/{k}")
+    elif isinstance(node, list):
+        for i, v in enumerate(node):
+            yield from _closed_branches(v, f"{path}/{i}")
+
+
+@pytest.mark.parametrize(
+    "name", ["ciliumnetworkpolicy_v2.json", "ciliumclusterwidenetworkpolicy_v2.json"]
+)
+def test_schema_branches_not_closed(name):
+    """Required-only anyOf/oneOf branches must not forbid sibling spec fields."""
+    data = json.loads((SCHEMAS / name).read_text())
+    assert list(_closed_branches(data)) == []
