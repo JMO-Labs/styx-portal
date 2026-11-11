@@ -1,5 +1,9 @@
-# Portal webhook gets every alert 24x7 (incl. Watchdog). Optional Matrix/SMTP
+# Portal webhook gets every alert 24x7 (incl. Watchdog, needs matcher strategy None). Optional Matrix/SMTP
 # receivers live in components/ (disabled by default; see kustomization.yaml).
+# NOTE: prometheus-operator injects namespace="styx" on this config's root route
+# (alertmanagerConfigMatcherStrategy OnNamespace, default). Watchdog from
+# kube-prometheus-stack has namespace=monitoring, so set the strategy to `None`
+# in the Alertmanager spec for Watchdog to reach the portal.
 apiVersion: monitoring.coreos.com/v1alpha1
 kind: AlertmanagerConfig
 metadata:

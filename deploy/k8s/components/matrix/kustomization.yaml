@@ -17,12 +17,15 @@ patches:
         value:
           receiver: matrix
           continue: true
+          matchers:
+            - {name: alertname, value: Watchdog, matchType: "!="}
           activeTimeIntervals: [business-hours]
       - op: add
-        path: /spec/timeIntervals
+        path: /spec/muteTimeIntervals
         value:
           - name: business-hours
             timeIntervals:
               - weekdays: ["monday:friday"]
-                times: [{startTime: "09:00", endTime: "17:00"}]
-                location: America/New_York
+                # UTC (the CRD has no location): 09:00-17:00 ET in winter (EST);
+                # shifts 1h in summer (EDT). Adjust or use the base config for DST.
+                times: [{startTime: "14:00", endTime: "22:00"}]

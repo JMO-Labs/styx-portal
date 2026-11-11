@@ -45,20 +45,36 @@ def _patched(component):
     return c
 
 
+def _ops(component):
+    c = _patched(component)
+    (patch,) = c["patches"]
+    return {o["path"]: o for o in yaml.safe_load(patch["patch"])}
+
+
+NO_WATCHDOG = {"name": "alertname", "value": "Watchdog", "matchType": "!="}
+
+
 def test_matrix_component_stub():
-    c = _patched("matrix")
-    text = (ROOT / "components" / "matrix" / "kustomization.yaml").read_text()
-    for needle in ("matrix-alertmanager-receiver", "continue: true", "America/New_York",
-                   "business-hours", "activeTimeIntervals"):
-        assert needle in text
-    assert c["patches"]
+    ops = _ops("matrix")
+    assert "/spec/timeIntervals" not in ops
+    (ti,) = ops["/spec/muteTimeIntervals"]["value"]
+    assert ti["name"] == "business-hours"
+    assert "location" not in ti["timeIntervals"][0]
+    route = ops["/spec/route/routes/0"]["value"]
+    assert route["receiver"] == "matrix"
+    assert route["continue"] is True
+    assert route["activeTimeIntervals"] == ["business-hours"]
+    assert NO_WATCHDOG in route["matchers"]
+    url = ops["/spec/receivers/-"]["value"]["webhookConfigs"][0]["url"]
+    assert "matrix-alertmanager-receiver" in url
 
 
 def test_smtp_component_stub():
-    c = _patched("smtp")
-    text = (ROOT / "components" / "smtp" / "kustomization.yaml").read_text()
-    assert "emailConfigs" in text
-    assert c["patches"]
+    ops = _ops("smtp")
+    assert "emailConfigs" in ops["/spec/receivers/-"]["value"]
+    route = ops["/spec/route/routes/0"]["value"]
+    assert route["receiver"] == "smtp"
+    assert NO_WATCHDOG in route["matchers"]
 
 
 def test_networkpolicy_allows_monitoring_to_backend():

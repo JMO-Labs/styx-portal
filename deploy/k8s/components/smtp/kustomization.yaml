@@ -20,3 +20,5 @@ patches:
         value:
           receiver: smtp
           continue: true
+          matchers:
+            - {name: alertname, value: Watchdog, matchType: "!="}
