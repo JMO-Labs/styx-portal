@@ -159,7 +159,8 @@
                   "oneOf": [
                     {
                       "properties": {
-                        "cidr": {}
+                        "cidr": {},
+                        "except": {}
                       },
                       "required": [
                         "cidr"
@@ -1012,7 +1013,8 @@
                   "oneOf": [
                     {
                       "properties": {
-                        "cidr": {}
+                        "cidr": {},
+                        "except": {}
                       },
                       "required": [
                         "cidr"
@@ -1575,7 +1577,8 @@
                   "oneOf": [
                     {
                       "properties": {
-                        "cidr": {}
+                        "cidr": {},
+                        "except": {}
                       },
                       "required": [
                         "cidr"
@@ -2293,7 +2296,8 @@
                   "oneOf": [
                     {
                       "properties": {
-                        "cidr": {}
+                        "cidr": {},
+                        "except": {}
                       },
                       "required": [
                         "cidr"
@@ -2952,7 +2956,8 @@
                     "oneOf": [
                       {
                         "properties": {
-                          "cidr": {}
+                          "cidr": {},
+                          "except": {}
                         },
                         "required": [
                           "cidr"
@@ -3805,7 +3810,8 @@
                     "oneOf": [
                       {
                         "properties": {
-                          "cidr": {}
+                          "cidr": {},
+                          "except": {}
                         },
                         "required": [
                           "cidr"
@@ -4368,7 +4374,8 @@
                     "oneOf": [
                       {
                         "properties": {
-                          "cidr": {}
+                          "cidr": {},
+                          "except": {}
                         },
                         "required": [
                           "cidr"
@@ -5086,7 +5093,8 @@
                     "oneOf": [
                       {
                         "properties": {
-                          "cidr": {}
+                          "cidr": {},
+                          "except": {}
                         },
                         "required": [
                           "cidr"

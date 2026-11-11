@@ -10,3 +10,7 @@ Files are generated (~5.7k lines each) and exempt from the 500-line limit.
 kubeconform -strict -summary -schema-location default \
   -schema-location 'deploy/k8s/components/cilium-baseline/schemas/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' -
 ```
+
+## Local patch
+
+In the `CIDRRule` `oneOf` (`toCIDRSet`/`fromCIDRSet`/`egressDeny`/`ingressDeny` etc.), the `cidr` branch forbids `except` via `additionalProperties: false`. The apiserver ignores this inside `oneOf`, so real clusters accept `cidr` + `except`; kubeconform does not. We add `"except": {}` to those branches (8 per file). Re-apply after regenerating.
