@@ -37,6 +37,12 @@ def start_metrics_server(port: int) -> bool:
 
 def _route_template(scope: Scope) -> str:
     """Route template for the request; never the raw path (bounded cardinality)."""
+    # FastAPI >=0.16x: included routers are resolved lazily; scope["route"] is the
+    # unprefixed original route, the prefixed template lives in the effective context.
+    ctx = (scope.get("fastapi") or {}).get("effective_route_context")
+    path = getattr(ctx, "path_format", None)
+    if path:
+        return path
     route = scope.get("route")
     path = getattr(route, "path", None)
     if path:

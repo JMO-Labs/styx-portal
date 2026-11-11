@@ -60,3 +60,15 @@ async def test_metrics_not_on_app_port(client):
     r = await client.get("/metrics")
     assert "styx_http_request_duration_seconds" not in r.text
     assert "# HELP" not in r.text
+
+
+def test_template_prefers_effective_context_over_unprefixed_route():
+    from types import SimpleNamespace as NS
+
+    from app.services.prom_metrics import _route_template
+
+    scope = {
+        "route": NS(path="/{instance_id}"),
+        "fastapi": {"effective_route_context": NS(path_format="/api/instances/{instance_id}")},
+    }
+    assert _route_template(scope) == "/api/instances/{instance_id}"
