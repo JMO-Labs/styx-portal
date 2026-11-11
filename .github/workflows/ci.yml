@@ -176,6 +176,32 @@ jobs:
           tar xzf "$T/kc.tgz" -C "$T" kubeconform
           PATH="$T:$PATH" ./validate-cilium.sh "$T/out"
 
+  k8s-policy:
+    needs: changes
+    if: needs.changes.outputs.deploy == 'true' || needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      KUSTOMIZE_VERSION: "5.8.1"
+      KUSTOMIZE_SHA256: 029a7f0f4e1932c52a0476cf02a0fd855c0bb85694b82c338fc648dcb53a819d
+      KUBECONFORM_VERSION: "0.7.0"
+      KUBECONFORM_SHA256: c31518ddd122663b3f3aa874cfe8178cb0988de944f29c74a0b9260920d115d3
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pinned kustomize + kubeconform
+        run: |
+          curl -sfL -o /tmp/k.tgz "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          echo "${KUSTOMIZE_SHA256}  /tmp/k.tgz" | sha256sum -c -
+          sudo tar -xzf /tmp/k.tgz -C /usr/local/bin kustomize
+          curl -sfL -o /tmp/kc.tgz "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
+          echo "${KUBECONFORM_SHA256}  /tmp/kc.tgz" | sha256sum -c -
+          sudo tar -xzf /tmp/kc.tgz -C /usr/local/bin kubeconform
+      - run: scripts/k8s_policy_check.sh
+      - uses: ./.github/actions/setup-backend
+      - name: pytest (kustomize required)
+        working-directory: backend
+        run: REQUIRE_KUSTOMIZE=1 .venv/bin/python -m pytest tests/test_cilium_baseline.py tests/test_cilium_schemas.py -q
+
   plugin-test:
     needs: changes
     if: needs.changes.outputs.plugin == 'true'
