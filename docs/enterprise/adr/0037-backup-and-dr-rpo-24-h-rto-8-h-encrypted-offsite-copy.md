@@ -33,6 +33,7 @@ Negative:
 - No alternate processing site (CP-7); risk acceptance R03.
 - Recovery within 8 h is unproven until the phase 1 restore test.
 - Recurring cloud cost.
+- SC-28 gap: only server-side encryption protects barman-cloud and Velero metadata.
 
 Follow-up work:
 
