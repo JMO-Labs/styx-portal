@@ -41,7 +41,8 @@ def test_verify_only_runs_verify_and_disposes(tmp_path, monkeypatch, flag, expec
         return expected
 
     monkeypatch.setattr(tool, "check_target_version", ok)
-    monkeypatch.setattr(tool, "create_async_engine", lambda url: Eng())
+    monkeypatch.setattr(tool, "check_version", ok)
+    monkeypatch.setattr(tool, "create_async_engine", lambda url, **kw: Eng())
     monkeypatch.setattr(tool, "verify", fake_verify)
     assert tool.main(["--source", str(src), "--target", PG, "--verify-only"]) == expected
-    assert len(disposed) == 1  # target engine; source disposed by real engine
+    assert len(disposed) == 3  # preflight source, verify src, verify dst
