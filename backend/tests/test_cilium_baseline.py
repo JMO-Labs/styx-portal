@@ -77,3 +77,48 @@ def test_no_kube_system_in_any_allow_selector_changes():
         assert "kube-system" not in sel.get("matchLabels", {}).values()
         assert {"key": "k8s:io.kubernetes.pod.namespace", "operator": "NotIn",
                 "values": ["kube-system"]} in sel.get("matchExpressions", [])
+
+
+KS_NOT_IN = {"key": "k8s:io.kubernetes.pod.namespace", "operator": "NotIn",
+             "values": ["kube-system"]}
+
+
+def _allow(name):
+    doc = _load(COMPONENT / f"ccnp-allow-{name}.yaml")
+    assert doc["kind"] == "CiliumClusterwideNetworkPolicy"
+    assert doc["metadata"]["name"] == f"allow-{name}"
+    assert KS_NOT_IN in doc["spec"]["endpointSelector"]["matchExpressions"]
+    return doc["spec"]
+
+
+def _excluded_namespaces(spec):
+    return {v for e in spec["endpointSelector"]["matchExpressions"]
+            if e["key"] == "k8s:io.kubernetes.pod.namespace" and e["operator"] == "NotIn"
+            for v in e["values"]}
+
+
+def test_dns_allowed():
+    rule = _allow("dns")["egress"][0]
+    assert rule["toEndpoints"][0]["matchLabels"] == {
+        "k8s:io.kubernetes.pod.namespace": "kube-system", "k8s-app": "kube-dns"}
+    ports = rule["toPorts"][0]
+    assert {(p["port"], p["protocol"]) for p in ports["ports"]} == {("53", "UDP"), ("53", "TCP")}
+    assert ports["rules"]["dns"] == [{"matchPattern": "*"}]
+
+
+def test_apiserver_allowed_on_6443():
+    spec = _allow("apiserver")
+    rule = spec["egress"][0]
+    assert rule["toEntities"] == ["kube-apiserver"]
+    assert [(p["port"], p["protocol"]) for p in rule["toPorts"][0]["ports"]] == [("6443", "TCP")]
+    assert {"styx-instances", "traefik"} <= _excluded_namespaces(spec)
+
+
+def test_webhooks_ingress_from_apiserver():
+    assert _allow("webhooks")["ingress"][0]["fromEntities"] == ["kube-apiserver"]
+
+
+def test_component_lists_allow_policies():
+    res = _load(COMPONENT / "kustomization.yaml")["resources"]
+    assert res == ["ccnp-default-deny.yaml", "ccnp-allow-dns.yaml",
+                   "ccnp-allow-apiserver.yaml", "ccnp-allow-webhooks.yaml"]
