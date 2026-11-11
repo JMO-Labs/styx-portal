@@ -111,7 +111,9 @@ def test_apiserver_allowed_on_6443():
     rule = spec["egress"][0]
     assert rule["toEntities"] == ["kube-apiserver"]
     assert [(p["port"], p["protocol"]) for p in rule["toPorts"][0]["ports"]] == [("6443", "TCP")]
-    assert {"styx-instances", "traefik"} <= _excluded_namespaces(spec)
+    excluded = _excluded_namespaces(spec)
+    assert {"styx-instances", "styx-egress-proxy"} <= excluded
+    assert "traefik" not in excluded  # ingress providers watch the apiserver
 
 
 def test_webhooks_ingress_from_apiserver():
@@ -120,5 +122,5 @@ def test_webhooks_ingress_from_apiserver():
 
 def test_component_lists_allow_policies():
     res = _load(COMPONENT / "kustomization.yaml")["resources"]
-    assert res == ["ccnp-default-deny.yaml", "ccnp-allow-dns.yaml",
-                   "ccnp-allow-apiserver.yaml", "ccnp-allow-webhooks.yaml"]
+    assert res == ["ccnp-allow-dns.yaml", "ccnp-allow-apiserver.yaml",
+                   "ccnp-allow-webhooks.yaml", "ccnp-default-deny.yaml"]
