@@ -35,3 +35,7 @@ Negative:
 Follow-up work:
 
 - Dual-backend support for homelab (SQLite) in phase 1.
+
+## Follow-up note (implementation)
+
+Leader election shipped as a session advisory lock (key `0x5354, 1`) on a dedicated connection from `LEADER_DATABASE_URL`, with self-fencing (`LEADER_FENCE_S` below the ~25 s keepalive detection). Lockout, IP fail counts and bans are shared via Postgres; the ban cache is per replica with a TTL. Not covered: `settings_store` cache, metric/health series and service thumbnails remain per replica (tracked as follow-up tickets). Operations: [Leader election runbook](../../operate/leader-election.md).

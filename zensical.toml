@@ -37,6 +37,7 @@ nav = [
     { "Monitoring" = "operate/monitoring.md" },
     { "SLOs" = "operate/slo.md" },
     { "Alert runbook" = "operate/alert-runbook.md" },
+    { "Leader election" = "operate/leader-election.md" },
     { "Backup schedules" = "operate/backup-schedules.md" },
     { "Upgrade" = "operate/upgrade.md" },
   ] },
