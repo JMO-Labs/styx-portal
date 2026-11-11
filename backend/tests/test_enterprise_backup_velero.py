@@ -4,7 +4,7 @@ import copy
 
 import yaml
 
-from tests.backup_checks import BACKUP, check_bsl, check_externalsecrets, check_images, load_docs
+from tests.backup_checks import BACKUP, check_bsl, check_externalsecrets, check_images, check_schedules, load_docs
 
 
 def values() -> dict:
@@ -41,3 +41,26 @@ def test_repo_password_from_eso():
     docs = load_docs(BACKUP / "velero-externalsecrets.yaml")
     assert check_externalsecrets(docs) == []
     assert check_externalsecrets([{"kind": "Secret", "metadata": {"name": "x"}}])
+
+
+def schedules() -> dict[str, dict]:
+    return {d["metadata"]["name"]: d for d in load_docs(BACKUP / "velero-schedules.yaml")}
+
+
+def test_schedules_daily_weekly_ttl():
+    s = schedules()
+    assert set(s) == {"daily", "weekly"}
+    assert (s["daily"]["spec"]["schedule"], s["daily"]["spec"]["template"]["ttl"]) == ("0 3 * * *", "720h0m0s")
+    assert (s["weekly"]["spec"]["schedule"], s["weekly"]["spec"]["template"]["ttl"]) == ("0 3 * * 0", "2160h0m0s")
+    assert "velero-schedules.yaml" in yaml.safe_load((BACKUP / "kustomization.yaml").read_text())["resources"]
+    assert check_schedules(list(s.values())) == []
+
+
+def test_schedule_exclusions():
+    for d in schedules().values():
+        t = d["spec"]["template"]
+        assert t["storageLocation"] == "offsite"
+        assert t["snapshotMoveData"] is True
+        assert not t.get("defaultVolumesToFsBackup")
+        assert {"rook-ceph", "openbao", "kube-system", "velero", "styx-backup"} <= set(t["excludedNamespaces"])
+        assert "clusters.postgresql.cnpg.io" in t["excludedResources"]

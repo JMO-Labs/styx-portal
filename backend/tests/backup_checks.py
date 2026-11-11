@@ -95,3 +95,27 @@ def check_externalsecrets(docs: list[dict], text: str = "") -> list[str]:
     if len(names) < 2:
         errs.append("need BSL credentials and repo-credentials ExternalSecrets")
     return errs
+
+
+EXCLUDED_NS = {"rook-ceph", "openbao", "kube-system", "velero", "styx-backup"}
+CNPG = "clusters.postgresql.cnpg.io"
+
+
+def check_schedules(docs: list[dict]) -> list[str]:
+    errs = []
+    names = {d["metadata"]["name"] for d in docs}
+    if names != {"daily", "weekly"}:
+        errs.append(f"schedules must be daily and weekly, got {sorted(names)}")
+    for d in docs:
+        n, t = d["metadata"]["name"], d["spec"].get("template", {})
+        if t.get("storageLocation") != "offsite":
+            errs.append(f"{n}: storageLocation must be offsite")
+        if t.get("snapshotMoveData") is not True:
+            errs.append(f"{n}: snapshotMoveData must be true")
+        if t.get("defaultVolumesToFsBackup"):
+            errs.append(f"{n}: defaultVolumesToFsBackup must not be true")
+        if missing := EXCLUDED_NS - set(t.get("excludedNamespaces", [])):
+            errs.append(f"{n}: excludedNamespaces missing {sorted(missing)}")
+        if CNPG not in t.get("excludedResources", []):
+            errs.append(f"{n}: excludedResources missing {CNPG}")
+    return errs
