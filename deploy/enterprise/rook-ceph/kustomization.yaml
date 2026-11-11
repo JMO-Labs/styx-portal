@@ -4,3 +4,4 @@ kind: Kustomization
 # nvme-inventory.yaml (non-manifests) must be listed here.
 resources:
   - local-pvs.yaml
+  - cephcluster.yaml
