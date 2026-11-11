@@ -1,0 +1,19 @@
+# Cluster-wide default-deny (Cilium): an empty ingress/egress rule puts every
+# selected endpoint in default-deny for that direction with no allow peers.
+# kube-system is excluded so CoreDNS, helm-install jobs, metrics-server and
+# hubble-relay keep working. allow-localhost stays on (kubelet probes).
+# Apply order: allow policies first, default-deny last.
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: default-deny
+spec:
+  endpointSelector:
+    matchExpressions:
+      - key: k8s:io.kubernetes.pod.namespace
+        operator: NotIn
+        values: [kube-system]
+  ingress:
+    - {}
+  egress:
+    - {}
