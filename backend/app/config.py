@@ -17,6 +17,8 @@ PLACEHOLDER_SECRETS = {
 class Settings(BaseSettings):
     DOMAIN: str = "localhost"
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/styx-portal.db"
+    # Internal Prometheus port (never Traefik-routed). 0 = metrics server off.
+    METRICS_PORT: int = 0
     DOCKER_SOCKET: str = "unix:///var/run/docker.sock"
     DOCKER_NETWORK: str = "styx-portal"
     # Proxied docker-local services join this network; only Traefik shares it
