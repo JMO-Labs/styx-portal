@@ -1,0 +1,73 @@
+import asyncio
+from pathlib import Path
+
+import pytest
+
+from app.tools import sqlite_to_pg as tool
+from tests.migrate_fixtures import make_source, raw_exec
+
+PG = "postgresql+asyncpg://u:secretpw@localhost/db"
+
+
+def test_missing_source_exits_2_no_file(tmp_path, capsys):
+    missing = tmp_path / "nope.db"
+    assert tool.main(["--source", str(missing), "--target", PG]) == 2
+    assert not missing.exists()
+
+
+def test_non_postgres_target_exits_2(tmp_path):
+    src = tmp_path / "s.db"
+    src.touch()
+    assert tool.main(["--source", str(src), "--target", "sqlite+aiosqlite:///x"]) == 2
+
+
+def test_target_defaults_to_env(tmp_path, monkeypatch, capsys):
+    seen = []
+
+    async def stub(t):
+        seen.append(t)
+    monkeypatch.setattr(tool, "check_target_version", stub)
+    env_url = "postgresql+asyncpg://u:secretpw@h:5432/db"
+    monkeypatch.setenv("DATABASE_URL", env_url)
+    src = asyncio.run(make_source(tmp_path / "s.db"))
+    assert tool.main(["--source", str(src)]) == 0
+    assert seen == [env_url]
+    out = capsys.readouterr()
+    assert "secretpw" not in out.out + out.err
+
+
+def test_modes_mutually_exclusive(tmp_path):
+    with pytest.raises(SystemExit) as e:
+        tool.main(["--source", "x", "--dry-run", "--verify-only"])
+    assert e.value.code == 2
+
+
+def test_unstamped_source_exits_2_and_hides_password(tmp_path, capsys):
+    src = tmp_path / "u.db"
+    raw_exec(src, "CREATE TABLE t (x)")
+    assert tool.main(["--source", str(src), "--target", PG]) == 2
+    out = capsys.readouterr()
+    assert "secretpw" not in out.out + out.err
+
+
+def test_source_version_mismatch_exits_2(tmp_path, capsys, monkeypatch):
+    src = asyncio.run(make_source(tmp_path / "s.db"))
+    raw_exec(src, "UPDATE alembic_version SET version_num='old'")
+    called = []
+    monkeypatch.setattr(tool, "check_target_version", lambda t: called.append(t))
+    assert tool.main(["--source", str(src), "--target", PG]) == 2
+    assert "!= code head" in capsys.readouterr().err
+
+
+def test_ok_exit_0(tmp_path, monkeypatch):
+    async def ok(_t):
+        return None
+    monkeypatch.setattr(tool, "check_target_version", ok)
+    src = asyncio.run(make_source(tmp_path / "s.db"))
+    rc = tool.main(["--source", str(src), "--target", PG])
+    assert rc == 0
+
+
+def test_tools_files_under_500_lines():
+    for f in Path(tool.__file__).parent.glob("*.py"):
+        assert len(f.read_text().splitlines()) < 500
