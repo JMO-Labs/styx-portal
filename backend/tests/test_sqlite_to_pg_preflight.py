@@ -92,11 +92,26 @@ def test_drop_orphans_skips_only_orphans_and_null_aborts(src):
     assert [f.kind for f in pf.scan(src, drop_orphans=True).blocking] == ["boolean"]
 
 
-def test_cascade_skips_children_of_skipped_rows(src):
-    # parent orphan skipped => its children would be orphans in the target
-    _token(src, "j1")
-    res = pf.scan(src, drop_orphans=True)
-    assert ("j1",) in res.skipped["refresh_tokens"]
+def test_cascade_skips_children_of_skipped_rows(tmp_path):
+    # chain root <- mid <- leaf; mid row is a direct orphan, leaf only dangles once mid is dropped
+    path = tmp_path / "c.db"
+    raw_exec(path, "CREATE TABLE root (id INTEGER PRIMARY KEY)")
+    raw_exec(path, "CREATE TABLE mid (id INTEGER PRIMARY KEY, root_id INTEGER)")
+    raw_exec(path, "CREATE TABLE leaf (id INTEGER PRIMARY KEY, mid_id INTEGER)")
+    raw_exec(path, "INSERT INTO mid (id, root_id) VALUES (1, 99)")
+    raw_exec(path, "INSERT INTO leaf (id, mid_id) VALUES (7, 1)")
+    md = sa.MetaData()
+    sa.Table("root", md, sa.Column("id", sa.Integer, primary_key=True))
+    sa.Table("mid", md, sa.Column("id", sa.Integer, primary_key=True),
+             sa.Column("root_id", sa.ForeignKey("root.id")))
+    sa.Table("leaf", md, sa.Column("id", sa.Integer, primary_key=True),
+             sa.Column("mid_id", sa.ForeignKey("mid.id")))
+    plain = pf.scan(path, metadata=md)
+    assert {(f.table, f.pk) for f in plain.findings} == {("mid", "1")}  # leaf fine until mid is dropped
+    res = pf.scan(path, drop_orphans=True, metadata=md)
+    assert (1,) in res.skipped["mid"] and (7,) in res.skipped["leaf"]
+    assert ("leaf", "7") in {(f.table, f.pk) for f in res.findings}
+    assert res.counts["leaf"] == 0
 
 
 def test_scan_does_not_modify_source(src):
@@ -111,7 +126,8 @@ def test_orphan_exits_2_and_lists(src, capsys, monkeypatch):
     monkeypatch.setattr(tool, "check_target_version", _noop)
     before = hashlib.sha256(src.read_bytes()).hexdigest()
     assert tool.main(["--source", str(src), "--target", PG]) == 2
-    assert "refresh_tokens" in capsys.readouterr().err + ""
+    err = capsys.readouterr().err
+    assert "refresh_tokens" in err and "j1" in err and "ghost" in err
     assert hashlib.sha256(src.read_bytes()).hexdigest() == before
 
 
