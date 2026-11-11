@@ -94,7 +94,23 @@ async def test_rtt_rate_limited(member_client, session):
     assert (await member_client.post(URL, json=_body())).status_code == 429
 
 
-def test_rtt_no_extra_labels():
-    keys = {frozenset(set(s.labels) - {"le"}) for m in REGISTRY.collect()
-            if m.name == "styx_stream_rtt_seconds" for s in m.samples}
-    assert keys <= {frozenset({"transport"})}
+def _samples():
+    return [s for m in REGISTRY.collect() if m.name == "styx_stream_rtt_seconds" for s in m.samples]
+
+
+async def test_rtt_no_extra_labels(member_client, session):
+    from app.security.passwords import hash_password
+    pw = "correct horse battery staple"
+    session.add(User(username="member2", password_hash=hash_password(pw), role="member", is_active=True))
+    await session.commit()
+    await _open(session, "member")
+    await _open(session, "member2")
+    assert (await member_client.post(URL, json=_body())).status_code == 204
+    one = len(_samples())
+    assert one > 0
+    r = await member_client.post("/api/auth/login", json={"username": "member2", "password": pw})
+    assert r.status_code == 200, r.text
+    member_client.headers.update({"X-CSRF-Token": member_client.cookies.get("csrf_token")})
+    assert (await member_client.post(URL, json=_body())).status_code == 204
+    assert len(_samples()) == one
+    assert {frozenset(set(s.labels) - {"le"}) for s in _samples()} == {frozenset({"transport"})}
