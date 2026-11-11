@@ -20,14 +20,13 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlmodel import SQLModel
 
 from app.db_migrate import alembic_config
-from app.tools import migrate_preflight
+from app.tools import migrate_copy, migrate_preflight
 from app.tools.migrate_checksum import checksum
 
 EXIT_OK, EXIT_PREFLIGHT, EXIT_VERIFY = 0, 2, 3
 
 
-class PreflightError(Exception):
-    """A preflight/usage failure (exit 2). Messages must never contain secrets."""
+PreflightError = migrate_copy.PreflightError  # exit 2; messages must never contain secrets
 
 
 def source_url(path: Path) -> str:
@@ -183,6 +182,24 @@ async def _run(args: argparse.Namespace) -> int:
         for table, n in res.counts.items():
             print(f"{table}: {n}")
         print("dry-run: no changes made")
+        return EXIT_OK
+    return await _copy(source, target, res, args.replace)
+
+
+async def _copy(source: Path, target: str, res, replace: bool) -> int:
+    src, dst = open_source(source), create_async_engine(target)
+    try:
+        await migrate_copy.copy(src, dst, res.skipped, replace)
+    except migrate_copy.VerifyMismatch:
+        print("error: verification mismatch; target rolled back", file=sys.stderr)
+        return EXIT_VERIFY
+    except PreflightError:
+        raise
+    except Exception as e:  # driver messages may embed the DSN: report the type only
+        raise PreflightError(f"copy failed ({type(e).__name__}); target rolled back") from None
+    finally:
+        await src.dispose()
+        await dst.dispose()
     return EXIT_OK
 
 

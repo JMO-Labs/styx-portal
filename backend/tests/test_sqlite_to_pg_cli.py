@@ -9,6 +9,10 @@ from tests.migrate_fixtures import make_source, raw_exec
 PG = "postgresql+asyncpg://u:secretpw@localhost/db"
 
 
+async def _noop_copy(*_a, **_k):
+    return None
+
+
 def test_missing_source_exits_2_no_file(tmp_path, capsys):
     missing = tmp_path / "nope.db"
     assert tool.main(["--source", str(missing), "--target", PG]) == 2
@@ -27,6 +31,7 @@ def test_target_defaults_to_env(tmp_path, monkeypatch, capsys):
     async def stub(t):
         seen.append(t)
     monkeypatch.setattr(tool, "check_target_version", stub)
+    monkeypatch.setattr(tool.migrate_copy, "copy", _noop_copy)
     env_url = "postgresql+asyncpg://u:secretpw@h:5432/db"
     monkeypatch.setenv("DATABASE_URL", env_url)
     src = asyncio.run(make_source(tmp_path / "s.db"))
@@ -63,6 +68,7 @@ def test_ok_exit_0(tmp_path, monkeypatch):
     async def ok(_t):
         return None
     monkeypatch.setattr(tool, "check_target_version", ok)
+    monkeypatch.setattr(tool.migrate_copy, "copy", _noop_copy)
     src = asyncio.run(make_source(tmp_path / "s.db"))
     rc = tool.main(["--source", str(src), "--target", PG])
     assert rc == 0
