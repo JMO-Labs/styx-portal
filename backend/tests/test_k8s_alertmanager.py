@@ -84,3 +84,4 @@ def test_networkpolicy_allows_monitoring_to_backend():
     (rule,) = ing["ingress"]
     (frm,) = rule["from"]
     assert frm["namespaceSelector"]["matchLabels"] == {"kubernetes.io/metadata.name": "monitoring"}
+    assert frm["podSelector"]["matchLabels"] == {"app.kubernetes.io/name": "alertmanager"}

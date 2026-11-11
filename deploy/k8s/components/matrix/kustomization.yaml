@@ -26,6 +26,6 @@ patches:
           - name: business-hours
             timeIntervals:
               - weekdays: ["monday:friday"]
-                # UTC (the CRD has no location): 09:00-17:00 ET in winter (EST);
+                # UTC (v1alpha1 TimeInterval has no `location` field; verified upstream): 09:00-17:00 ET in winter (EST);
                 # shifts 1h in summer (EDT). Adjust or use the base config for DST.
                 times: [{startTime: "14:00", endTime: "22:00"}]

@@ -55,4 +55,6 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: monitoring}
+          podSelector:
+            matchLabels: {app.kubernetes.io/name: alertmanager}
       ports: [{port: 8000, protocol: TCP}]

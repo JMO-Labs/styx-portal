@@ -3,7 +3,9 @@
 # NOTE: prometheus-operator injects namespace="styx" on this config's root route
 # (alertmanagerConfigMatcherStrategy OnNamespace, default). Watchdog from
 # kube-prometheus-stack has namespace=monitoring, so set the strategy to `None`
-# in the Alertmanager spec for Watchdog to reach the portal.
+# in the Alertmanager spec (kube-prometheus-stack values:
+# alertmanager.alertmanagerSpec.alertmanagerConfigMatcherStrategy.type: None;
+# the Alertmanager CR is not in this repo) for Watchdog to reach the portal.
 apiVersion: monitoring.coreos.com/v1alpha1
 kind: AlertmanagerConfig
 metadata:
