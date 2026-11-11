@@ -70,8 +70,8 @@ def test_kpr_on_uses_localhost():
     assert v["k8sServiceHost"] not in _vars("all")["rke2_additional_sans"]
 
 
-@pytest.mark.parametrize("on", ["true", "yes", "1", "on"])
-def test_kpr_on_accepts_ansible_truthy_strings(on):
+@pytest.mark.parametrize("on", [True, "true", "yes", "1", "on", "TRUE", "Yes", "ON"])
+def test_kpr_on_accepts_ansible_bool_filter_values(on):
     _, v = _render(cilium_kube_proxy_replacement=on)
     assert v["kubeProxyReplacement"] is True
     assert v["k8sServiceHost"] == "localhost"
@@ -79,7 +79,7 @@ def test_kpr_on_accepts_ansible_truthy_strings(on):
 
 # Strings from `-e key=false` must match the role's `disable_kube_proxy | bool` filter
 # (ansible-core to_bool: only yes/on/true/1 are true; y, t, 1.0 are false).
-@pytest.mark.parametrize("off", [False, "false", "False", "no", "0", "off", "y", "t", "1.0"])
+@pytest.mark.parametrize("off", [False, "false", "False", "no", "0", "off", "y", "t", "1.0", "n", "f", "0.0"])
 def test_kpr_off_omits_service_host(off):
     _, v = _render(cilium_kube_proxy_replacement=off)
     assert v["kubeProxyReplacement"] is False
@@ -166,3 +166,10 @@ def test_ansible_render_matches_plain_jinja():
         ctx = {**_vars("all"), "cilium_encryption_type": kind}
         doc = yaml.safe_load(env.from_string(text).render(ctx))
         assert yaml.safe_load(doc["spec"]["valuesContent"]) == _render(cilium_encryption_type=kind)[1]
+
+
+def test_docs_name_ansible_bool_filter():
+    for path in (ROOT / TEMPLATE, ROOT / "README.md"):
+        text = path.read_text()
+        assert "Ansible's `bool` filter" in text, path
+        assert "truthy set" not in text, path
