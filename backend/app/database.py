@@ -10,6 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
 from app.models import ServicePreset, ServiceTemplate
+from app import models_ops  # noqa: F401 - registers ops tables
 
 logger = logging.getLogger("styx-portal")
 
