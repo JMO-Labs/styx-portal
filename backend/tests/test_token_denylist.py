@@ -163,3 +163,13 @@ async def test_auth_check_rejects_revoked_token(session):
     with pytest.raises(HTTPException) as e:
         await auth_check("ws1", req, session)
     assert e.value.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_revoke_access_stores_naive_datetimes(session):
+    """Postgres TIMESTAMP WITHOUT TIME ZONE rejects tz-aware params (asyncpg)."""
+    from app.models import RevokedAccessToken
+    await token_denylist.revoke_access(session, "tz-jti", _now() + timedelta(minutes=5))
+    await session.commit()
+    row = await session.get(RevokedAccessToken, "tz-jti")
+    assert row.revoked_at.tzinfo is None and row.expires_at.tzinfo is None

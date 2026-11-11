@@ -28,7 +28,8 @@ async def revoke_access(session: AsyncSession, jti: str, expires_at: datetime) -
     bind = session.get_bind()
     insert = pg_insert if bind.dialect.name == "postgresql" else sqlite_insert
     exp = expires_at.replace(tzinfo=None) if expires_at.tzinfo else expires_at
-    await session.exec(insert(RevokedAccessToken).values(jti=jti, expires_at=exp)
+    await session.exec(insert(RevokedAccessToken).values(jti=jti, expires_at=exp,
+                                         revoked_at=_now().replace(tzinfo=None))
                        .on_conflict_do_nothing(index_elements=["jti"]))
 
 
