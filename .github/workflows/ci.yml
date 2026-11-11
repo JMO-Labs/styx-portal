@@ -12,11 +12,46 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Path filter: docs-only PRs skip the heavy jobs (skipped counts as success). Non-PR events run everything.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ github.event_name != 'pull_request' || steps.f.outputs.backend == 'true' }}
+      frontend: ${{ github.event_name != 'pull_request' || steps.f.outputs.frontend == 'true' }}
+      pg: ${{ github.event_name != 'pull_request' || steps.f.outputs.pg == 'true' }}
+      plugin: ${{ github.event_name != 'pull_request' || steps.f.outputs.plugin == 'true' }}
+      rke2: ${{ github.event_name != 'pull_request' || steps.f.outputs.rke2 == 'true' }}
+      code: ${{ github.event_name != 'pull_request' || steps.code.outputs.code == 'true' }}
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: f
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            backend: ['backend/**', '.github/actions/setup-backend/**', '.github/workflows/ci.yml']
+            frontend: ['frontend/**', '.github/actions/setup-node/**', '.github/workflows/ci.yml']
+            pg: ['backend/app/database.py', 'backend/app/db_migrate.py', 'backend/app/db_types.py', 'backend/app/models.py', 'backend/alembic/**', 'backend/alembic.ini', 'backend/pyproject.toml', 'backend/uv.lock', '.github/actions/setup-backend/**', '.github/workflows/ci.yml']
+            plugin: ['traefik/**', '.github/workflows/ci.yml']
+            rke2: ['deploy/rke2/**', '.github/workflows/ci.yml']
+      # Anything that is not docs/images: gates quality + security.
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: code
+        if: github.event_name == 'pull_request'
+        with:
+          predicate-quantifier: every
+          filters: |
+            code: ['**', '!docs/**', '!**/*.md', '!zensical.toml', '!images/**', '!LICENSE']
+
   commitlint:
     # Enforce Conventional Commits so semantic-release can derive versions +
     # changelog. PR commits only (base..head); config in commitlint.config.js.
     if: github.event_name == 'pull_request'
-    runs-on: homelab
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
@@ -24,6 +59,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "24"
+          cache: npm
+          cache-dependency-path: package-lock.json
       - run: npm ci --no-audit --no-fund
       - name: commitlint (PR commits)
         env:
@@ -32,7 +69,10 @@ jobs:
         run: npx commitlint --from "$BASE_SHA" --to "$HEAD_SHA" --verbose
 
   quality:
-    runs-on: homelab
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-backend
@@ -49,21 +89,34 @@ jobs:
         run: npm run build
 
   test:
-    runs-on: homelab
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-backend
+      # PRs to enterprise get the sqlite backend suite (with coverage) from wq-ci; skip the duplicate run here.
+      - name: Backend deps
+        if: needs.changes.outputs.backend == 'true' && !(github.event_name == 'pull_request' && github.base_ref == 'enterprise')
+        uses: ./.github/actions/setup-backend
       - name: pytest
+        if: needs.changes.outputs.backend == 'true' && !(github.event_name == 'pull_request' && github.base_ref == 'enterprise')
         working-directory: backend
         run: .venv/bin/python -m pytest -q
-      - uses: ./.github/actions/setup-node
+      - name: Frontend deps
+        if: needs.changes.outputs.frontend == 'true'
+        uses: ./.github/actions/setup-node
       - name: vitest
+        if: needs.changes.outputs.frontend == 'true'
         working-directory: frontend
         run: npm test
 
   test-postgres:
-    # Same backend suite against Postgres (CNPG major). Needs Docker on the runner.
-    runs-on: homelab
+    # Same backend suite against Postgres (CNPG major). Only when db/models/migrations/deps change.
+    needs: changes
+    if: needs.changes.outputs.pg == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:17
@@ -87,8 +140,12 @@ jobs:
           STYX_TEST_DATABASE_URL: postgresql+asyncpg://styx:styx-ci@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/styx_test
         run: .venv/bin/python -m pytest -q
 
+  # Pure lint/syntax-check/helm-template/kubeconform on localhost: no inventory hosts or home network needed.
   rke2-iac:
-    runs-on: homelab
+    needs: changes
+    if: needs.changes.outputs.rke2 == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: deploy/rke2
@@ -115,7 +172,10 @@ jobs:
           PATH="$T:$PATH" ./validate-cilium.sh "$T/out"
 
   plugin-test:
-    runs-on: homelab
+    needs: changes
+    if: needs.changes.outputs.plugin == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -126,7 +186,10 @@ jobs:
         run: go test ./...
 
   security:
-    runs-on: homelab
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-backend
