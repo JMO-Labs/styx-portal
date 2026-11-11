@@ -134,11 +134,17 @@ async def lifespan(app: FastAPI):
     async with async_session() as session:
         await refresh_routes_from_db(session)
 
+    async def _refresh_routes():
+        # Re-write routes once reconcile has dropped stale instances.
+        async with async_session() as session:
+            await refresh_routes_from_db(session)
+
     # Leader-only: boot steps run on every promotion, loops start after them.
     leader_loops = [_session_monitor_loop, _service_health_loop, _metrics_db_loop]
     if _settings.ROUTE_BACKEND == "k8s":
         leader_loops.append(prepull_loop)
-    leader = LeaderTasks(boot=[_probe_cleanup, _reconcile, _close_dangling], loops=leader_loops)
+    leader = LeaderTasks(boot=[_probe_cleanup, _reconcile, _close_dangling, _refresh_routes],
+                         loops=leader_loops)
     elector = get_elector()
     elector_task = asyncio.create_task(elector.run(leader.on_elected, leader.on_lost))
 
