@@ -53,6 +53,7 @@ nav = [
     { "Streaming pipeline" = "build/streaming.md" },
     { "Security model" = "build/security.md" },
     { "Testing" = "build/testing.md" },
+    { "Database migrations" = "build/migrations.md" },
     { "Releases and CI/CD" = "build/releases.md" },
     { "Contributing" = "build/contributing.md" },
     { "Upstream contributions" = "build/upstream.md" },

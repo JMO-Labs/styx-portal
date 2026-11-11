@@ -5,9 +5,9 @@ from datetime import datetime, timedelta, timezone
 from sqlmodel import select, update
 
 from app.models import Invite, User, WorkstationEnrollmentToken, FederatedIdentity
+from tests.db_helpers import ensure_user
 
 PW = "correct horse battery staple"
-
 
 def _race_after_select(session, monkeypatch, table_fragment, model):
     """After the first SELECT touching `table_fragment`, a 'concurrent request' claims the row."""
@@ -62,6 +62,7 @@ async def test_sso_invite_loses_race_creates_no_account(session, monkeypatch):
     import pytest
     from app.schemas import OAuthIdentity
     from app.services import federation
+    await ensure_user(session, "adm")
     session.add(Invite(token_hash="h", email="a@b.c", role="user", created_by="adm"))
     await session.commit()
     _race_after_select(session, monkeypatch, "invites", Invite)

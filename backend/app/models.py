@@ -5,7 +5,11 @@ from typing import Any
 
 from pydantic import NaiveDatetime
 from sqlmodel import Field, SQLModel, Column
-from sqlalchemy import JSON, UniqueConstraint
+from sqlalchemy import JSON, BigInteger, UniqueConstraint
+
+from app.db_types import NAMING_CONVENTION, UTCDateTime
+
+SQLModel.metadata.naming_convention = NAMING_CONVENTION
 
 
 def _uuid() -> str:
@@ -27,10 +31,10 @@ class User(SQLModel, table=True):
     is_active: bool = True
     must_change_pw: bool = False
     token_version: int = 0   # bumped on password/role/disable; access JWTs carry it ("tv")
-    created_at: NaiveDatetime = Field(default_factory=_now)
-    last_login: NaiveDatetime | None = None
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+    last_login: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
     failed_count: int = 0
-    locked_until: NaiveDatetime | None = None
+    locked_until: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
     open_workspaces: str | None = None  # None = ask | new_tab | same_tab
     open_apps: str | None = None
     matrix_card: str | None = None       # Fernet-sealed JSON card (active)
@@ -44,8 +48,8 @@ class BannedIP(SQLModel, table=True):
 
     ip: str = Field(primary_key=True)
     reason: str = ""
-    banned_at: NaiveDatetime = Field(default_factory=_now)
-    expires_at: NaiveDatetime
+    banned_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+    expires_at: NaiveDatetime = Field(sa_type=UTCDateTime)
 
 
 class SystemSetting(SQLModel, table=True):
@@ -53,7 +57,7 @@ class SystemSetting(SQLModel, table=True):
 
     key: str = Field(primary_key=True)
     value: Any = Field(default=None, sa_column=Column(JSON))
-    updated_at: NaiveDatetime = Field(default_factory=_now)
+    updated_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
     updated_by: str | None = None
 
 
@@ -67,7 +71,7 @@ class TurnUsage(SQLModel, table=True):
     month: str = Field(index=True)   # YYYY-MM (UTC)
     workstation_id: str = Field(foreign_key="workstations.id")
     user_id: str | None = Field(default=None, foreign_key="users.id")
-    bytes: int = 0
+    bytes: int = Field(default=0, sa_type=BigInteger)  # > 2 GiB; int32 overflows on PG
 
 
 class TurnUsageDay(SQLModel, table=True):
@@ -75,14 +79,14 @@ class TurnUsageDay(SQLModel, table=True):
     __tablename__ = "turn_usage_day"
 
     day: str = Field(primary_key=True)   # YYYY-MM-DD
-    bytes: int = 0
+    bytes: int = Field(default=0, sa_type=BigInteger)  # > 2 GiB; int32 overflows on PG
 
 
 class MetricHour(SQLModel, table=True):
     """Hourly host metric rollup (kept 90 days). Percentages 0-100."""
     __tablename__ = "metric_hours"
 
-    ts_hour: NaiveDatetime = Field(primary_key=True)   # UTC, naive, top of the hour
+    ts_hour: NaiveDatetime = Field(sa_type=UTCDateTime, primary_key=True)  # UTC hour start
     cpu_avg: float | None = None                  # None = no samples
     cpu_max: float | None = None
     ram_avg: float | None = None
@@ -99,8 +103,8 @@ class StreamSession(SQLModel, table=True):
     user_id: str | None = Field(default=None, index=True)
     target_kind: str                              # workstation | instance
     target_id: str = Field(index=True)
-    started_at: NaiveDatetime = Field(default_factory=_now, index=True)
-    ended_at: NaiveDatetime | None = None
+    started_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now, index=True)
+    ended_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
     transport: str | None = None
     codec: str | None = None
     relayed: bool = False
@@ -115,9 +119,9 @@ class Invite(SQLModel, table=True):
     email: str | None = None
     role: str = "user"
     created_by: str = Field(foreign_key="users.id")
-    expires_at: NaiveDatetime | None = None
-    used_at: NaiveDatetime | None = None
-    created_at: NaiveDatetime = Field(default_factory=_now)
+    expires_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+    used_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
 class RefreshToken(SQLModel, table=True):
@@ -126,11 +130,11 @@ class RefreshToken(SQLModel, table=True):
     jti: str = Field(primary_key=True)
     user_id: str = Field(foreign_key="users.id", index=True)
     family_id: str = Field(default="", index=True)
-    expires_at: NaiveDatetime
+    expires_at: NaiveDatetime = Field(sa_type=UTCDateTime)
     revoked: bool = False
     user_agent: str | None = None
     session_only: bool = False
-    created_at: NaiveDatetime = Field(default_factory=_now)
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
 class RevokedAccessToken(SQLModel, table=True):
@@ -139,8 +143,8 @@ class RevokedAccessToken(SQLModel, table=True):
     __tablename__ = "revoked_access_tokens"
 
     jti: str = Field(primary_key=True)
-    expires_at: NaiveDatetime
-    revoked_at: NaiveDatetime = Field(default_factory=_now)
+    expires_at: NaiveDatetime = Field(sa_type=UTCDateTime)
+    revoked_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
 class OAuthProvider(SQLModel, table=True):
@@ -163,8 +167,8 @@ class OAuthProvider(SQLModel, table=True):
     auto_promote_admins: bool = True                   # IdP admin-group claim elevates role
     role_map: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     enabled: bool = True
-    created_at: NaiveDatetime = Field(default_factory=_now)
-    updated_at: NaiveDatetime = Field(default_factory=_now)
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+    updated_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
 class FederatedIdentity(SQLModel, table=True):
@@ -176,7 +180,7 @@ class FederatedIdentity(SQLModel, table=True):
     provider: str = Field(index=True)
     subject: str = Field(index=True)
     email: str | None = None
-    created_at: NaiveDatetime = Field(default_factory=_now)
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
 class ServiceTemplate(SQLModel, table=True):
@@ -227,8 +231,8 @@ class ServiceTemplate(SQLModel, table=True):
         },
         sa_column=Column(JSON),
     )
-    created_at: NaiveDatetime = Field(default_factory=_now)
-    updated_at: NaiveDatetime = Field(default_factory=_now)
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+    updated_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
 class Instance(SQLModel, table=True):
@@ -248,10 +252,10 @@ class Instance(SQLModel, table=True):
     profile_volume: str | None = None
     gpu: bool | None = None  # None = legacy: use template.gpu_enabled
     notice: str | None = None
-    created_at: NaiveDatetime = Field(default_factory=_now)
-    started_at: NaiveDatetime | None = None
-    stopped_at: NaiveDatetime | None = None
-    last_activity: NaiveDatetime | None = None
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+    started_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+    stopped_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+    last_activity: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
     session_config: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
 
 
@@ -259,10 +263,11 @@ class SessionEvent(SQLModel, table=True):
     __tablename__ = "session_events"
 
     id: int | None = Field(default=None, primary_key=True)
-    instance_id: str = Field(foreign_key="instances.id")
+    # No FK: events are history and outlive their instance ("destroyed" is written on delete).
+    instance_id: str
     event_type: str
     details: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
-    timestamp: NaiveDatetime = Field(default_factory=_now)
+    timestamp: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
 class PulledImage(SQLModel, table=True):
@@ -271,14 +276,14 @@ class PulledImage(SQLModel, table=True):
     id: str = Field(default_factory=_uuid, primary_key=True)
     image: str = Field(unique=True, index=True)
     size_mb: int | None = None
-    pulled_at: NaiveDatetime = Field(default_factory=_now)
+    pulled_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
 class AuditLog(SQLModel, table=True):
     __tablename__ = "audit_log"
 
     id: int | None = Field(default=None, primary_key=True)
-    ts: NaiveDatetime = Field(default_factory=_now, index=True)
+    ts: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now, index=True)
     user_id: str | None = Field(default=None, index=True)
     actor_ip: str | None = None
     action: str = Field(index=True)
@@ -313,15 +318,15 @@ class Workstation(SQLModel, table=True):
     update_target: str = ""
     update_state: str = ""
     update_error: str | None = None
-    update_at: NaiveDatetime | None = None
-    last_heartbeat: NaiveDatetime | None = None
+    update_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+    last_heartbeat: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
     last_error: str | None = None
     # Occupancy: live stream-connection count reported by the agent's
     # gateway each heartbeat; occupant identity recorded by forward-auth
     # when a websocket upgrade passes (single-user desktops).
     active_connections: int = 0
     occupied_by: str | None = Field(default=None, foreign_key="users.id")
-    occupied_at: NaiveDatetime | None = None
+    occupied_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
     # One-shot flag: set when a user logs out with an active session; the next
     # agent heartbeat returns disconnect_clients=True and consumes the flag.
     disconnect_pending: bool = False
@@ -332,7 +337,7 @@ class Workstation(SQLModel, table=True):
     # Re-armed when active_connections returns to 0 (a genuinely new session).
     idle_disconnect_sent: bool = False
     created_by: str = Field(foreign_key="users.id")
-    created_at: NaiveDatetime = Field(default_factory=_now)
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
 class WorkstationEnrollmentToken(SQLModel, table=True):
@@ -341,9 +346,9 @@ class WorkstationEnrollmentToken(SQLModel, table=True):
     id: str = Field(default_factory=_uuid, primary_key=True)
     token_hash: str = Field(unique=True, index=True)
     created_by: str = Field(foreign_key="users.id")
-    expires_at: NaiveDatetime
-    used_at: NaiveDatetime | None = None
-    created_at: NaiveDatetime = Field(default_factory=_now)
+    expires_at: NaiveDatetime = Field(sa_type=UTCDateTime)
+    used_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
 class WorkstationAccess(SQLModel, table=True):
@@ -353,7 +358,7 @@ class WorkstationAccess(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     workstation_id: str = Field(foreign_key="workstations.id", index=True)
     user_id: str = Field(foreign_key="users.id", index=True)
-    created_at: NaiveDatetime = Field(default_factory=_now)
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
 class Group(SQLModel, table=True):
@@ -362,7 +367,7 @@ class Group(SQLModel, table=True):
     name: str = Field(unique=True, index=True)
     description: str | None = None
     allow_gpu: bool = False
-    created_at: NaiveDatetime = Field(default_factory=_now)
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
 class UserGroup(SQLModel, table=True):
@@ -376,7 +381,7 @@ class UserProfile(SQLModel, table=True):
     user_id: str = Field(foreign_key="users.id", primary_key=True)
     template_id: str = Field(foreign_key="service_templates.id", primary_key=True)
     volume_name: str
-    created_at: NaiveDatetime = Field(default_factory=_now)
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
 class ServicePreset(SQLModel, table=True):
@@ -417,15 +422,15 @@ class ProxiedService(SQLModel, table=True):
     upstream_is_proxy: bool = False            # url kind: send the URL hostname as Host/SNI
     health_path: str | None = None
     health_status: str = "unknown"             # healthy | unhealthy | unknown
-    health_checked_at: NaiveDatetime | None = None
+    health_checked_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
     preset_id: str | None = None
     enabled: bool = True
     mount_managed: bool = False   # base path confirmed: Styx set it, or found it already set (spec §3)
     icon_custom: bool = False     # admin set the icon by hand; auto-fetch never overwrites it
     pass_identity: bool = False   # forward X-Styx-User/Email/Groups upstream
     frame_ok: bool = True         # False = "Open without overlay"
-    created_at: NaiveDatetime = Field(default_factory=_now)
-    updated_at: NaiveDatetime = Field(default_factory=_now)
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+    updated_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
 def upstream_base(svc: "ProxiedService") -> str:
@@ -453,5 +458,5 @@ class MountJob(SQLModel, table=True):
     backup_dir: str | None = None
     changed: bool = False         # True once a write to the container may have landed
     log_excerpt: str | None = None
-    created_at: NaiveDatetime = Field(default_factory=_now)
-    finished_at: NaiveDatetime | None = None
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+    finished_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)

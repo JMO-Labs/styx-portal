@@ -112,9 +112,12 @@ async def _make_owned_instance(session, *, status, container_id="container-abc12
     """Insert an Instance owned by the admin user directly (no create endpoint,
     so no racing background launch task)."""
     from sqlmodel import select
-    from app.models import User
+    from app.models import ServiceTemplate, User
 
     admin = (await session.exec(select(User).where(User.username == "admin"))).first()
+    if not await session.get(ServiceTemplate, "tmpl-x"):
+        session.add(ServiceTemplate(id="tmpl-x", name="tpl-tmpl-x", display_name="T", image="img"))
+        await session.commit()
     inst = Instance(
         template_id="tmpl-x",
         owner_id=admin.id,
@@ -373,7 +376,10 @@ async def test_launch_dind_instance_mounts_docker_store(admin_client, session):
     template_id = tr.json()["id"]
 
     # Create instance (synchronously, just to set up DB state)
-    from app.models import Instance
+    from app.models import Instance, User
+    if not await session.get(User, "test-user"):
+        session.add(User(id="test-user", username=f"u-{"test-user"}", password_hash="x"))
+        await session.commit()
     instance = Instance(
         template_id=template_id,
         owner_id="test-user",

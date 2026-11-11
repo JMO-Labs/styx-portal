@@ -8,7 +8,7 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 from sqlmodel import select
 
-from app.models import Instance, User
+from app.models import Instance, ServiceTemplate, User
 
 
 def auth(iid="i-dev"):
@@ -21,6 +21,9 @@ def _fwd(uri, **h):
 
 
 async def _inst(session, owner_id, sub="dev", status="running"):
+    if not await session.get(ServiceTemplate, "t"):
+        session.add(ServiceTemplate(id="t", name="tpl-t", display_name="T", image="img"))
+        await session.commit()
     session.add(Instance(id=f"i-{sub}", template_id="t", name=sub, subdomain=sub,
                          owner_id=owner_id, status=status))
     await session.commit()

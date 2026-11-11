@@ -4,7 +4,7 @@ from app.models import User, Invite, FederatedIdentity
 from app.schemas import OAuthIdentity
 from app.security.passwords import hash_password
 from app.services import federation
-
+from tests.db_helpers import ensure_user
 
 def _ident(sub="s1", email="a@b.c", verified=True, claims=None):
     return OAuthIdentity(sub=sub, email=email, email_verified=verified, claims=claims or {})
@@ -42,6 +42,7 @@ async def test_links_existing_user_by_verified_email(session):
 
 @pytest.mark.asyncio
 async def test_provisions_via_open_invite(session):
+    await ensure_user(session, "admin")
     session.add(Invite(token_hash="h", email="a@b.c", role="user", created_by="admin"))
     await session.commit()
     out = await federation.resolve_identity(session, "google", _ident())
@@ -57,6 +58,7 @@ async def test_rejects_when_not_preauthorized(session):
 
 @pytest.mark.asyncio
 async def test_role_map_promotes_admin(session):
+    await ensure_user(session, "admin")
     session.add(Invite(token_hash="h", email="a@b.c", role="user", created_by="admin"))
     await session.commit()
     role_map = {"claim": "groups", "admin_group": "selkies-admins"}
@@ -76,6 +78,7 @@ async def test_rejects_disabled_user(session):
 
 @pytest.mark.asyncio
 async def test_trust_email_does_not_match_invite(session):
+    await ensure_user(session, "admin")
     session.add(Invite(token_hash="h", email="a@b.c", role="user", created_by="admin"))
     await session.commit()
     with pytest.raises(federation.NotAuthorized):
@@ -139,6 +142,7 @@ async def test_bad_subject_rejected(session, sub):
 @pytest.mark.asyncio
 async def test_invite_with_naive_expiry_is_compared(session):
     from datetime import datetime, timedelta
+    await ensure_user(session, "admin")
     session.add(Invite(token_hash="h", email="a@b.c", role="user", created_by="admin",
                        expires_at=datetime.utcnow() + timedelta(hours=1)))
     await session.commit()
@@ -240,6 +244,7 @@ async def test_link_accepts_verified_email(session):
 @pytest.mark.asyncio
 async def test_no_elevation_when_auto_promote_disabled_invite(session):
     """Invite with auto_promote_admins=False: admin group claim does not elevate role."""
+    await ensure_user(session, "admin")
     session.add(Invite(token_hash="h", email="a@b.c", role="user", created_by="admin"))
     await session.commit()
     role_map = {"claim": "groups", "admin_group": "admins"}
@@ -265,6 +270,7 @@ async def test_elevation_audited_invite(session):
     from app.models import AuditLog
     from sqlmodel import select
 
+    await ensure_user(session, "admin")
     session.add(Invite(token_hash="h", email="a@b.c", role="user", created_by="admin"))
     await session.commit()
     role_map = {"claim": "groups", "admin_group": "admins"}
@@ -303,6 +309,7 @@ async def test_suppressed_claim_logged_pending_invite(session):
     from app.models import AuditLog
     from sqlmodel import select
 
+    await ensure_user(session, "admin")
     session.add(Invite(token_hash="h", email="a@b.c", role="user", created_by="admin"))
     await session.commit()
     role_map = {"claim": "groups", "admin_group": "admins"}

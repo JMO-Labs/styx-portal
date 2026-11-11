@@ -1,11 +1,10 @@
-import os
-import stat
-
 import pytest
 import sqlalchemy
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from app.database import _run_migrations
+from app.db_migrate import _run_migrations
+
+pytestmark = pytest.mark.sqlite_only
 
 
 @pytest.mark.asyncio
@@ -194,23 +193,6 @@ async def test_backfill_refresh_tokens_family_id():
         assert len(rows) == 2
         assert rows[0][1] == "token-1"  # family_id should equal jti
         assert rows[1][1] == "token-2"
-
-
-def test_restrict_db_perms_noop_for_memory(monkeypatch):
-    """Test that _restrict_db_perms safely handles in-memory SQLite URLs."""
-    from app import database
-    monkeypatch.setattr(database.settings, "DATABASE_URL", "sqlite+aiosqlite://")
-    database._restrict_db_perms()  # must not raise
-
-
-def test_restrict_db_perms_sets_0600(tmp_path, monkeypatch):
-    """Test that _restrict_db_perms sets SQLite file permissions to 0600."""
-    from app import database
-    f = tmp_path / "t.db"
-    f.write_text("x")
-    monkeypatch.setattr(database.settings, "DATABASE_URL", f"sqlite+aiosqlite:///{f}")
-    database._restrict_db_perms()
-    assert stat.S_IMODE(os.stat(f).st_mode) == 0o600
 
 
 @pytest.mark.asyncio

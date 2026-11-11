@@ -45,9 +45,9 @@ def _has_literal_secret(line: str) -> bool:
 def _tracked_files():
     assert ROOT.is_dir(), ROOT
     # roles/, collections/ and .ansible/ hold installed upstream deps (gitignored).
-    # *.tgz: vendored Helm charts (binary, upstream).
+    # charts/*.tgz: vendored Helm charts (binary, upstream).
     return [p for p in ROOT.rglob("*")
-            if p.is_file() and p.suffix != ".tgz" and not {"roles", "collections", ".ansible"} & set(p.relative_to(ROOT).parts)]
+            if p.is_file() and not (p.suffix == ".tgz" and p.parent.name == "charts") and not {"roles", "collections", ".ansible"} & set(p.relative_to(ROOT).parts)]
 
 
 def test_required_files_exist():
