@@ -22,6 +22,7 @@ jobs:
     if: needs.changes.outputs.backend == 'true'
     uses: JMO-Labs/wq-ci/.github/workflows/wq-ci.yml@v1
     with:
+      reruns: 1  # one rerun separates a flake from a real failure; a deterministic failure costs 2 runs, not 3
       # The one backend run for PRs to dev (ci.yml skips its duplicate): no xdist: tests share setup state.
       test-cmd: >-
         cd backend && python3 -m venv .venv && .venv/bin/pip install -q -e ".[dev]" pytest-cov
