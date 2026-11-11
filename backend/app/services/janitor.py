@@ -1,28 +1,39 @@
 """Leader-only janitor: batched purge of expired denylist, ban and abuse rows."""
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete, inspect, text
+from sqlalchemy import DateTime, bindparam, delete, inspect, text
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.config import settings
 from app.models import BannedIP, RevokedAccessToken
 
 log = logging.getLogger("styx.janitor")
 INTERVAL_S = 60
 BATCH = 1000
-# New abuse tables (store, Child 4): table -> expiry column. Skipped if absent.
-_ABUSE_TABLES = {"auth_fail_events": "at", "auth_blocks": "expires_at",
+# Abuse tables (alembic 0002): table -> expiry column. Skipped if absent.
+# auth_fail_events.at is an event time: purged only once older than fail_window().
+_ABUSE_TABLES = {"auth_fail_events": "at", "auth_blocks": "until",
                  "rate_counters": "expires_at"}
+_TS = DateTime(timezone=True)  # TIMESTAMPTZ on Postgres; tz-dropping text on SQLite
 _MODELS = ((RevokedAccessToken, RevokedAccessToken.jti, RevokedAccessToken.expires_at),
            (BannedIP, BannedIP.ip, BannedIP.expires_at))
+
+
+def fail_window() -> int:
+    """Seconds a fail event can still count toward any lockout or ban window."""
+    return max(settings.LOCKOUT_DURATION, settings.BAN_FAIL_WINDOW, settings.BAN_DURATION)
 
 
 async def purge_expired(session: AsyncSession, batch: int = BATCH,
                         now: datetime | None = None) -> int:
     """Delete expired rows in batches; returns rows deleted."""
-    from sqlmodel import select
-    now = (now or datetime.now(timezone.utc)).replace(tzinfo=None)
+    aware = now or datetime.now(timezone.utc)
+    if aware.tzinfo is None:
+        aware = aware.replace(tzinfo=timezone.utc)
+    now = aware.astimezone(timezone.utc).replace(tzinfo=None)  # models use naive UTC
     total = 0
     for model, pk, exp in _MODELS:
         while True:
@@ -33,15 +44,16 @@ async def purge_expired(session: AsyncSession, batch: int = BATCH,
             await session.commit()
             total += len(ids)
     existing = set(await session.run_sync(lambda s: inspect(s.connection()).get_table_names()))
+    row = "ctid" if session.get_bind().dialect.name == "postgresql" else "rowid"
     for table, col in _ABUSE_TABLES.items():
         if table not in existing:
             continue
-        while True:  # table/col names are constants above, never user input
-            res = await session.exec(text(
-                f"DELETE FROM {table} WHERE ctid IN (SELECT ctid FROM {table} "
-                f"WHERE {col} < :now LIMIT :n)" if session.get_bind().dialect.name == "postgresql"
-                else f"DELETE FROM {table} WHERE rowid IN (SELECT rowid FROM {table} "
-                     f"WHERE {col} < :now LIMIT :n)"), {"now": now, "n": batch})
+        cutoff = aware - timedelta(seconds=fail_window()) if col == "at" else aware
+        # table/col names are constants above, never user input
+        stmt = text(f"DELETE FROM {table} WHERE {row} IN (SELECT {row} FROM {table} "
+                    f"WHERE {col} < :cutoff LIMIT :n)").bindparams(bindparam("cutoff", type_=_TS))
+        while True:
+            res = await session.exec(stmt, params={"cutoff": cutoff, "n": batch})
             await session.commit()
             total += res.rowcount
             if res.rowcount < batch:
