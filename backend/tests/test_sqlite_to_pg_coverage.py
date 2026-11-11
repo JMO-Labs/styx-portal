@@ -23,6 +23,7 @@ def test_canon_date_time_decimal_bytes():
     assert mc._canon(Decimal("1.50")) == "1.50"
     assert mc._canon(b"\x01\xff") == "01ff"
     assert mc._canon(memoryview(b"\x02")) == "02"
+    assert mc._canon((1, b"\x01", [Decimal("2")])) == [1, "01", ["2"]]
 
 
 @pytest.mark.parametrize("flag,expected", [(0, 0), (3, 3)])
