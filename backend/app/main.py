@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from sqlmodel import select
@@ -185,6 +186,13 @@ app.add_middleware(
     allow_headers=["Content-Type", "X-CSRF-Token", "X-Styx-Client"],
 )
 app.add_middleware(PrometheusMiddleware)  # outermost: also records 403/429 from inner middleware
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error(_: Request, exc: RequestValidationError):
+    # Drop echoed input/ctx: NaN/Infinity inputs are not JSON-serialisable.
+    errs = [{k: v for k, v in e.items() if k not in ("input", "ctx", "url")} for e in exc.errors()]
+    return JSONResponse({"detail": errs}, status_code=422)
+
 
 app.include_router(templates.router, prefix="/api/templates", tags=["templates"])
 app.include_router(instance_thumbs.router, prefix="/api/instances", tags=["instances"])
