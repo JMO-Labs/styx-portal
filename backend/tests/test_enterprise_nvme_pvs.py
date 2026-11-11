@@ -140,3 +140,11 @@ def test_cli_exit_nonzero_on_bad_input(tmp_path, capsys):
     assert gen.main(["--inventory", str(f), "--output", str(tmp_path / "o.yaml")]) == 1
     assert "by-id" in capsys.readouterr().err
     assert not (tmp_path / "o.yaml").exists()
+
+
+def test_device_set_count_follows_nvme_count():
+    inv = _inv()
+    inv["nodes"][0]["nvme"].append({"path": PFX + "EXTRA_SN010003", "size": "3840Gi"})
+    sets = yaml.safe_load(gen.render_cluster(inv))["spec"]["storage"]["storageClassDeviceSets"]
+    assert sets[0]["count"] == 3 and sets[1]["count"] == 2
+    assert sets[0]["name"] == "worker-01"
