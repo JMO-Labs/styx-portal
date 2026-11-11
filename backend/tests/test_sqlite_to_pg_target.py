@@ -25,10 +25,25 @@ async def _set_target_version(version):
         await eng.dispose()
 
 
+async def _get_target_version():
+    eng = create_async_engine(PG_URL)
+    try:
+        async with eng.begin() as c:
+            try:
+                r = await c.execute(sqlalchemy.text("SELECT version_num FROM alembic_version"))
+                return r.scalar()
+            except sqlalchemy.exc.ProgrammingError:
+                return None
+    finally:
+        await eng.dispose()
+
+
 @pytest.fixture
 def pg_version():
+    original = asyncio.run(_get_target_version()) if PG_URL.startswith("postgresql") else None
     yield lambda v: asyncio.run(_set_target_version(v))
-    asyncio.run(_set_target_version(None))
+    if PG_URL.startswith("postgresql"):
+        asyncio.run(_set_target_version(original))
 
 
 def _run(tmp_path):

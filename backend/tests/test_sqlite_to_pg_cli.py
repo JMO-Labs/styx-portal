@@ -21,11 +21,19 @@ def test_non_postgres_target_exits_2(tmp_path):
     assert tool.main(["--source", str(src), "--target", "sqlite+aiosqlite:///x"]) == 2
 
 
-def test_target_defaults_to_env(tmp_path, monkeypatch):
-    src = tmp_path / "s.db"
-    src.touch()
-    monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///x")
-    assert tool.main(["--source", str(src)]) == 2
+def test_target_defaults_to_env(tmp_path, monkeypatch, capsys):
+    seen = []
+
+    async def stub(t):
+        seen.append(t)
+    monkeypatch.setattr(tool, "check_target_version", stub)
+    env_url = "postgresql+asyncpg://u:secretpw@h:5432/db"
+    monkeypatch.setenv("DATABASE_URL", env_url)
+    src = asyncio.run(make_source(tmp_path / "s.db"))
+    assert tool.main(["--source", str(src)]) == 0
+    assert seen == [env_url]
+    out = capsys.readouterr()
+    assert "secretpw" not in out.out + out.err
 
 
 def test_modes_mutually_exclusive(tmp_path):
