@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.orm.util import identity_key as sa_identity_key
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -277,6 +278,9 @@ async def ban_ip(session: AsyncSession, ip: str, reason: str, duration: int,
     vals = {"reason": reason, "banned_at": naive(now), "expires_at": naive(expires)}
     await session.exec(insert(BannedIP).values(ip=ip, **vals).on_conflict_do_update(
         index_elements=["ip"], set_=vals))
+    cached = session.sync_session.identity_map.get(sa_identity_key(BannedIP, ip))
+    if cached is not None:  # core upsert bypasses the ORM; drop stale state
+        session.sync_session.expire(cached)
     return True
 
 
