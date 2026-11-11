@@ -1,8 +1,8 @@
 # Egress to the kube-apiserver. With KPR the 10.43.0.1:443 VIP is translated to
 # the node's :6443 before policy, so match 6443 via the entity (not a CIDR).
 # Instance pods and the Squid desktop-egress proxy (ADR-0040, D40) must not
-# reach the apiserver. `styx-egress-proxy` is a placeholder name: that proxy is
-# not in deploy/k8s yet; rename here when it lands. Traefik is NOT excluded:
+# reach the apiserver. PROXY_NAMESPACE is filled from proxy-params.yaml by
+# kustomization.yaml `replacements`. Traefik is NOT excluded:
 # its Kubernetes providers watch the apiserver for routes.
 apiVersion: cilium.io/v2
 kind: CiliumClusterwideNetworkPolicy
@@ -16,7 +16,7 @@ spec:
         values: [kube-system]
       - key: k8s:io.kubernetes.pod.namespace
         operator: NotIn
-        values: [styx-instances, styx-egress-proxy]
+        values: [styx-instances, PROXY_NAMESPACE]
   egress:
     - toEntities: [kube-apiserver]
       toPorts:

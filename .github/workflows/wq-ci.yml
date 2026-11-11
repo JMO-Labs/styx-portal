@@ -26,6 +26,6 @@ jobs:
       # The one sqlite backend run for PRs to enterprise (ci.yml skips its duplicate); no xdist: tests share setup state.
       test-cmd: >-
         cd backend && python3 -m venv .venv && .venv/bin/pip install -q -e ".[dev]" pytest-cov
-        && .venv/bin/python -m pytest -q --cov=app --cov-report=xml:../coverage.xml --junitxml=../junit.xml
+        && REQUIRE_KUSTOMIZE=1 .venv/bin/python -m pytest -q --cov=app --cov-report=xml:../coverage.xml --junitxml=../junit.xml
       fix-cmd: pip install -q ruff==0.15.14 && ruff check --fix backend/app backend/tests
     secrets: inherit

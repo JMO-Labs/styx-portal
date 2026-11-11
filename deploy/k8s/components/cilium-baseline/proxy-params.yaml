@@ -1,0 +1,14 @@
+# Single source of truth for the egress proxy (Squid). Edit ONLY this file to
+# move/rename the proxy; kustomization.yaml `replacements` inject the values
+# into patch-desktop-egress.yaml and ccnp-squid-proxy.yaml. local-config means
+# kustomize drops this ConfigMap from the rendered output.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: proxy-params
+  annotations:
+    config.kubernetes.io/local-config: "true"
+data:
+  namespace: egress-proxy
+  name: squid
+  port: "3128"

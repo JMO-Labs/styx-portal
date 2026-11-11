@@ -6,3 +6,50 @@ resources:
   - ccnp-allow-apiserver.yaml
   - ccnp-allow-webhooks.yaml
   - ccnp-default-deny.yaml
+  - ccnp-squid-proxy.yaml
+  - proxy-params.yaml
+  - ccnp-allow-intra-ns.yaml
+  - ccnp-allow-prometheus.yaml
+  - ccnp-styx.yaml
+  - ccnp-traefik.yaml
+patches:
+  - path: patch-desktop-egress.yaml
+    target:
+      group: cilium.io
+      kind: CiliumNetworkPolicy
+      name: instances
+      namespace: styx-instances
+replacements:
+  - source: {kind: ConfigMap, name: proxy-params, fieldPath: data.namespace}
+    targets:
+      - select: {kind: CiliumNetworkPolicy, name: instances}
+        fieldPaths:
+          - "spec.egress.1.toEndpoints.0.matchLabels.[k8s:io.kubernetes.pod.namespace]"
+        options: {create: true}
+      - select: {kind: CiliumClusterwideNetworkPolicy, name: squid-proxy}
+        fieldPaths:
+          - "spec.endpointSelector.matchLabels.[k8s:io.kubernetes.pod.namespace]"
+        options: {create: true}
+      - select: {kind: CiliumClusterwideNetworkPolicy, name: allow-apiserver}
+        fieldPaths:
+          - "spec.endpointSelector.matchExpressions.1.values.1"
+  - source: {kind: ConfigMap, name: proxy-params, fieldPath: data.name}
+    targets:
+      - select: {kind: CiliumNetworkPolicy, name: instances}
+        fieldPaths:
+          - "spec.egress.1.toEndpoints.0.matchLabels.[app.kubernetes.io/name]"
+        options: {create: true}
+      - select: {kind: CiliumClusterwideNetworkPolicy, name: squid-proxy}
+        fieldPaths:
+          - "spec.endpointSelector.matchLabels.[app.kubernetes.io/name]"
+        options: {create: true}
+  - source: {kind: ConfigMap, name: proxy-params, fieldPath: data.port}
+    targets:
+      - select: {kind: CiliumNetworkPolicy, name: instances}
+        fieldPaths:
+          - "spec.egress.1.toPorts.0.ports.0.port"
+        options: {create: true}
+      - select: {kind: CiliumClusterwideNetworkPolicy, name: squid-proxy}
+        fieldPaths:
+          - "spec.ingress.0.toPorts.0.ports.0.port"
+        options: {create: true}
