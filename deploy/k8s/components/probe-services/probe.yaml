@@ -1,0 +1,15 @@
+# One probe per proxied service (copy this block per service; targets are the
+# service's public URL through the DMZ VIP). Example: sonarr.
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: styx-service-sonarr
+  namespace: styx
+  labels: {release: kube-prometheus-stack, styx.probe: service}
+spec:
+  interval: 30s
+  module: http_2xx
+  prober: {url: blackbox-exporter.monitoring.svc:9115}
+  targets:
+    staticConfig:
+      static: ["https://sonarr.g.jmolabs.dev/"]

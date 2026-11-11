@@ -1,0 +1,203 @@
+{
+  "uid": "styx-slo-stream-rtt",
+  "title": "Styx SLO: Stream RTT",
+  "description": "Target: stream RTT p95 < 80 ms.",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "tags": [
+    "styx",
+    "slo"
+  ],
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "refresh": "5m",
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "label": "Datasource"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "SLI (30d)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1 - sum_over_time(styx:sli_bad{slo=\"rtt\"}[30d]) / sum_over_time(styx:sli_total{slo=\"rtt\"}[30d])"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Error budget remaining (30d)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1 - (sum_over_time(styx:sli_bad{slo=\"rtt\"}[30d]) / sum_over_time(styx:sli_total{slo=\"rtt\"}[30d])) / scalar(styx:slo_error_budget{slo=\"rtt\"})"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Burn rate (1h)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "styx:sli_error_ratio{slo=\"rtt\",window=\"1h\"} / scalar(styx:slo_error_budget{slo=\"rtt\"})"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Burn rate by window",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "styx:sli_error_ratio{slo=\"rtt\",window=\"5m\"} / scalar(styx:slo_error_budget{slo=\"rtt\"})",
+          "legendFormat": "5m"
+        },
+        {
+          "refId": "B",
+          "expr": "styx:sli_error_ratio{slo=\"rtt\",window=\"1h\"} / scalar(styx:slo_error_budget{slo=\"rtt\"})",
+          "legendFormat": "1h"
+        },
+        {
+          "refId": "C",
+          "expr": "styx:sli_error_ratio{slo=\"rtt\",window=\"6h\"} / scalar(styx:slo_error_budget{slo=\"rtt\"})",
+          "legendFormat": "6h"
+        },
+        {
+          "refId": "D",
+          "expr": "styx:sli_error_ratio{slo=\"rtt\",window=\"1d\"} / scalar(styx:slo_error_budget{slo=\"rtt\"})",
+          "legendFormat": "1d"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "RTT p95 (target < 80ms)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(styx_stream_rtt_seconds_bucket[5m])))",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "RTT p50",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(styx_stream_rtt_seconds_bucket[5m])))",
+          "legendFormat": "p50"
+        }
+      ]
+    }
+  ]
+}

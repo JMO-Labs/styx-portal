@@ -1,0 +1,9 @@
+# DISABLED by default. Enable: add `components: [components/probe-login-mtls]` to ../../kustomization.yaml.
+# D49/D50 require CAC mTLS on login.<domain>; a probe client certificate needs a security
+# decision (follow-up, touches D15). Do NOT enable until that is made. The referenced
+# Secret (probe-login-mtls-client, keys tls.crt/tls.key/ca.crt) is intentionally not shipped,
+# and the blackbox module `http_2xx_mtls` must mount it.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - probe.yaml

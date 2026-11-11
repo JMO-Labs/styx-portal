@@ -115,6 +115,30 @@ jobs:
         working-directory: frontend
         run: npm test
 
+  test-pg:
+    runs-on: homelab
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: pg
+          POSTGRES_DB: styx
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_PG_URL: postgresql://postgres:pg@localhost:5432/styx
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-backend
+      - name: pytest -m pg (leader election)
+        working-directory: backend
+        run: .venv/bin/python -m pytest -q -m pg
+
   k8s-policy:
     needs: changes
     if: needs.changes.outputs.deploy == 'true' || needs.changes.outputs.backend == 'true'

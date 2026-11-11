@@ -1,0 +1,13 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: styx-login-mtls
+  namespace: styx
+  labels: {release: kube-prometheus-stack, styx.probe: login}
+spec:
+  interval: 30s
+  module: http_2xx_mtls
+  prober: {url: blackbox-exporter.monitoring.svc:9115}
+  targets:
+    staticConfig:
+      static: ["https://login.g.jmolabs.dev/"]
