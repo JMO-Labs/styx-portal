@@ -22,7 +22,7 @@ Constraints:
 
 - **No pooler in front of the elector.** PgBouncer (transaction mode) or any pooler silently breaks session locks. Point `LEADER_DATABASE_URL` at the CNPG `-rw` service or primary.
 - **`LEADER_FENCE_S` must stay shorter than the keepalive total** (idle 10 s + 3 x 5 s interval, `tcp_user_timeout` 20 s, about 25 s). Otherwise a partitioned leader keeps acting after another replica wins.
-- Leadership is **not** part of the readiness probe. Every replica serves traffic; `/api/...` diagnostics report `leader` for information only.
+- Leadership is **not** part of the readiness probe. Every replica serves traffic; `/api/system/diagnostics` report `leader` for information only.
 
 ## Who is leader
 
