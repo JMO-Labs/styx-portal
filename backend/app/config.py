@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     K8S_DESKTOP_IMAGE: str = "ghcr.io/jmo-labs/styx-desktop:latest"
     INSTANCE_STORAGE_CLASS: str = "longhorn"
     INSTANCE_VOLUME_SIZE: str = "20Gi"
+    CPU_TIER_RESOLUTION: str = "1920x1080"  # ADR-0031 CPU-tier launch defaults
+    CPU_TIER_FPS: int = 30
+    CPU_TIER_HIDPI: bool = False
+    CPU_TIER_CPU: str = "3"
+    CPU_TIER_MEMORY: str = "4Gi"
     PROFILE_VOLUME_SIZE: str = "20Gi"
     K8S_CLUSTER_CIDRS: str = "10.42.0.0/16,10.43.0.0/16"   # pod,service ranges
     K8S_UPSTREAM_DENY_NAMESPACES: str = (
