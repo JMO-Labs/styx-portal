@@ -147,7 +147,8 @@ def test_adr_0066_cephfs_homes():
 
 def test_adr_index_matches_files():
     index = (ADR / "README.md").read_text()
-    older = [ln for ln in index.splitlines() if not any(f"({n}-" in ln for n in ("0062", "0063", "0065", "0066", "0067"))]
+    new = ("0062", "0063", "0065", "0066", "0067", "0068")
+    older = [ln for ln in index.splitlines() if not any(f"({n}-" in ln for n in new)]
     assert "| Proposed |" not in "\n".join(older)
     assert f"accepted {DATE}" in index.lower()
     rows = dict(re.findall(r"^\| \[D\w+\]\(([^)]+)\) \|[^|]+\| ([^|]+) \|", index, re.M))
@@ -309,7 +310,7 @@ def _links_resolve(md: Path) -> None:
 
 
 def test_keycloak_runbook_and_matrix():
-    """Issue #134: Keycloak runbook, control-matrix rows and ADR-0067."""
+    """Issue #134: Keycloak runbook, control-matrix rows and ADR-0068."""
     runbook = DOCS / "runbooks/keycloak.md"
     text = runbook.read_text()
     for phrase in ("deploy order", "realm import", "CRL mirror", "KeycloakCRLStale",
@@ -321,7 +322,7 @@ def test_keycloak_runbook_and_matrix():
     for ctl in ("IA-2", "IA-5(2)", "AC-2", "AC-8", "AC-6"):
         assert "deploy/enterprise/" in row(cm, ctl), ctl
         assert "runbooks/keycloak.md" in row(cm, ctl), ctl
-    assert "0067" in row(cm, "AC-2")
+    assert "0068" in row(cm, "AC-2")
     _links_resolve(DOCS / "control-matrix.md")
-    assert "- Decision ID: D66" in adr("0067")
-    assert "(0067-" in (ADR / "README.md").read_text()
+    assert "- Decision ID: D67" in adr("0068")
+    assert "(0068-" in (ADR / "README.md").read_text()
