@@ -82,7 +82,8 @@ class KeycloakAdminClient:
         self._expires_at = self._clock() + int(data.get("expires_in", 60)) - _EXPIRY_SKEW_S
         return self._token
 
-    async def _request(self, op: str, method: str, path: str, json: dict | None = None
+    async def _request(self, op: str, method: str, path: str, json: dict | None = None,
+        allow_404: bool = False,
     ) -> httpx.Response | None:
         if not self.enabled:
             logger.info("kc_admin.disabled op=%s", op)
@@ -95,7 +96,7 @@ class KeycloakAdminClient:
                 json=json,
                 headers={"Authorization": f"Bearer {token}"},
             )
-        if resp.status_code == 404:  # already gone: idempotent
+        if resp.status_code == 404 and allow_404:  # already gone: idempotent
             return resp
         if not 200 <= resp.status_code < 300:
             raise KeycloakAdminError(f"{op} failed: {resp.status_code}")
@@ -116,6 +117,7 @@ class KeycloakAdminClient:
         await self._request("update_user", "PUT", f"/users/{_seg(kc_user_id)}", fields)
 
     async def set_attributes(self, kc_user_id: str, attributes: dict[str, list[str]]) -> None:
+        """PUT {attributes}. Keycloak replaces the whole attribute map: pass the full map."""
         await self._request(
             "set_attributes", "PUT", f"/users/{_seg(kc_user_id)}", {"attributes": attributes}
         )
@@ -128,14 +130,20 @@ class KeycloakAdminClient:
         )
 
     async def disable_user(self, kc_user_id: str) -> None:
-        await self._request("disable_user", "PUT", f"/users/{_seg(kc_user_id)}", {"enabled": False})
+        await self._request(
+            "disable_user", "PUT", f"/users/{_seg(kc_user_id)}", {"enabled": False},
+            allow_404=True,
+        )
 
     async def delete_user(self, kc_user_id: str) -> None:
-        await self._request("delete_user", "DELETE", f"/users/{_seg(kc_user_id)}")
+        await self._request(
+            "delete_user", "DELETE", f"/users/{_seg(kc_user_id)}", allow_404=True
+        )
 
     async def remove_from_group(self, kc_user_id: str, group_id: str) -> None:
         await self._request(
-            "remove_from_group", "DELETE", f"/users/{_seg(kc_user_id)}/groups/{_seg(group_id)}"
+            "remove_from_group", "DELETE", f"/users/{_seg(kc_user_id)}/groups/{_seg(group_id)}",
+            allow_404=True,
         )
 
 

@@ -80,3 +80,15 @@ def test_username_basic_and_normalised():
 def test_username_collision_appends_digit():
     assert make_username("Ada", "Lovelace", {"ada.lovelace"}) == "ada.lovelace1"
     assert make_username("Ada", "Lovelace", {"ada.lovelace", "ada.lovelace1"}) == "ada.lovelace2"
+
+
+@pytest.mark.parametrize("call", [
+    lambda c: c.add_to_group("u1", "g1"),
+    lambda c: c.update_user("u1", {"firstName": "A"}),
+    lambda c: c.set_attributes("u1", {"a": ["b"]}),
+    lambda c: c.create_user("a.b", "a@b.c", "A", "B"),
+])
+async def test_provisioning_404_raises(call):
+    h, _ = recorder(status=404)
+    with pytest.raises(KeycloakAdminError):
+        await call(make(h))

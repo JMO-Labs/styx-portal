@@ -124,7 +124,7 @@ class Settings(BaseSettings):
     KC_ADMIN_REALM: str = ""
     KC_ADMIN_CLIENT_ID: str = ""
     KC_ADMIN_CLIENT_SECRET: str = ""
-    # Comma-separated Keycloak group ids/names the admin client must never add users to.
+    # Comma-separated Keycloak group ids (not names) the admin client must never add users to.
     KEYCLOAK_ADMIN_GROUPS: str = ""
 
     # extra="ignore": the repo-root .env is shared with docker-compose,
