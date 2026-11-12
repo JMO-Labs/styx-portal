@@ -65,3 +65,4 @@ All ADRs were accepted 2026-11-09 (owner approval, Rounds 1-5; issue #1). One AD
 | [D59](0059-notifications-portal-and-matrix-smtp-optional.md) | Notifications via portal and Matrix; SMTP optional | Accepted | AU-6, IR-4, SI-4 |
 | [D45a](0060-session-takeover-without-consent-banner-logged-reviewed-reason.md) | Session takeover without consent, with banner and logged, reviewed reason | Accepted | AC-17, AC-6, AU-2, AU-3, AU-6, AU-12 |
 | [D60](0061-ceph-osd-encryption-at-rest-dm-crypt-openbao.md) | Ceph OSD encryption at rest with dm-crypt, keys in OpenBao | Accepted | SC-28, SC-28(1), SC-12 |
+| [D62](0062-keycloak-x509-flow-and-haproxy-client-cert-header-format.md) | Keycloak X.509 flow and HAProxy client-cert header format | Accepted | IA-2, IA-2(12), IA-5, IA-5(2), SC-23, AC-17 |
