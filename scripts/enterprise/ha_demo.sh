@@ -94,6 +94,7 @@ leader=$(wait_one_leader) || { say "FAIL: no single leader at start"; exit 1; }
 say "initial leader: $leader; primary: $(primary)"
 
 # ---- background samplers ---------------------------------------------------
+# shellcheck disable=SC2016  # $c/$(date) must expand inside the prober pod
 k exec prober -- sh -c 'while :; do
   c=$(curl -s -o /dev/null -w "%{http_code}" --max-time 1 http://styx-backend:8000/api/health)
   echo "$(date +%s%3N) $c"; sleep 0.2; done' >"$HEALTH" 2>/dev/null &
