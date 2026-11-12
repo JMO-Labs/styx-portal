@@ -72,7 +72,10 @@ def test_no_ssl_bump_and_port_rules():
 
 def test_category_and_allowlist_acls():
     d = "\n".join(directives())
-    assert "/etc/squid/categories/*.txt" in d
+    # dstdomain cannot glob: the entrypoint expands the category files into an included conf
+    assert "/etc/squid/categories/*.txt" in conf()
+    assert "include /tmp/categories.conf" in d
+    assert "/etc/squid/categories/*.txt" in kind("Deployment", "squid")["spec"]["template"]["spec"]["containers"][0]["args"][0]
     assert re.search(r"acl allowlist_port myportname allowlist", d)
     assert "/etc/squid/allowlist/allowlist.txt" in d
     assert "http_access allow allowlist_port allowlist_hosts" in d
