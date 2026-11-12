@@ -5,15 +5,15 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 SCHEMAS=deploy/k8s/components/cilium-baseline/schemas
-# Third-party kinds with no vendored schema. Unlisted unknown kinds FAIL (no blanket ignore).
-SKIP=AlertmanagerConfig,ExternalSecret,Probe,PrometheusRule,ServiceMonitor,Cluster,ScheduledBackup,ObjectStore
+# Third-party kinds with no vendored schema (IngressRoute: traefik.io/v1alpha1, banner route). Unlisted unknown kinds FAIL (no blanket ignore).
+SKIP=AlertmanagerConfig,ExternalSecret,Probe,PrometheusRule,ServiceMonitor,Cluster,ScheduledBackup,ObjectStore,IngressRoute
 validate() {
   kubeconform -strict -summary -skip "$SKIP" \
     -schema-location default \
     -schema-location "$SCHEMAS/{{ .ResourceKind }}_{{ .ResourceAPIVersion }}.json"
 }
 if [ "${1:-}" = "--stdin" ]; then validate; exit; fi
-TARGETS=(deploy/k8s deploy/k8s/overlays/enterprise-netpol)
+TARGETS=(deploy/k8s deploy/k8s/overlays/enterprise-netpol deploy/enterprise/banner)
 for t in "${TARGETS[@]}"; do
   if [ ! -d "$t" ]; then
     # TODO(styx-portal child ticket adding deploy/k8s/overlays/enterprise-netpol, parent #60):
