@@ -13,6 +13,8 @@ from app.models import Instance, ServiceTemplate, SessionEvent, PulledImage, Use
 from app.schemas import InstanceCreate, InstanceUpdate, SessionConfigUpdate, InstanceStatus
 from app.security.deps import get_current_user, require_owner_or_admin
 from app.services.docker_manager import DockerManager
+from app.services.egress_mode import resolve_egress_mode
+from app.services.k8s_instances import K8sInstanceRuntime
 from app.services.k8s_runtime import ensure_instance_supported, instance_runtime
 from app.services.screenshot import ScreenshotService
 from app.services import gpu_access, instance_readiness, profiles
@@ -78,6 +80,16 @@ def _pinned(docker, instance) -> str | None:
     return d if isinstance(d, str) else None
 
 
+async def _egress_kwargs(docker, session, instance) -> dict:
+    """Egress mode of the owner; k8s only (Docker launches are unchanged)."""
+    if not isinstance(docker, K8sInstanceRuntime) or not instance.owner_id:
+        return {}
+    owner = await session.get(User, instance.owner_id)
+    if owner is None:
+        return {}
+    return {"egress_mode": await resolve_egress_mode(session, owner)}
+
+
 async def _isolate_or_409(docker, instance, container_id):
     """Fail closed: never start an instance container that may share styx-portal with the backend."""
     try:
@@ -140,6 +152,7 @@ async def _build_and_start_container(instance, template, docker, session):
         command=template.command,
         privileged=template.privileged,
         extra_docker_args=template.extra_docker_args,
+        **await _egress_kwargs(docker, session, instance),
     )
     try:
         await _isolate_or_409(docker, instance, container_id)
@@ -240,6 +253,7 @@ async def _launch_instance_background(instance_id: str, template_id: str):
                 command=template.command,
                 privileged=template.privileged,
                 extra_docker_args=template.extra_docker_args,
+                **await _egress_kwargs(docker, session, instance),
             )
 
             # Track pulled image
