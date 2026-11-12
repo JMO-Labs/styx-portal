@@ -36,7 +36,8 @@ def _need(tool):
 
 def test_kustomization_lists_all_files():
     res = yaml.safe_load((ROOT / "kustomization.yaml").read_text())["resources"]
-    files = {p.name for p in ROOT.glob("*.yaml") if p.name != "kustomization.yaml"}
+    files = {p.relative_to(ROOT).as_posix() for p in ROOT.rglob("*.yaml")
+             if p.name != "kustomization.yaml"}
     assert set(res) == files
 
 
