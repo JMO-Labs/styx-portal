@@ -3,6 +3,8 @@ import ipaddress
 import re
 from urllib.parse import urlsplit
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 SERVICE_SLUG_RE = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")
@@ -214,13 +216,39 @@ class DiscoveredContainer(BaseModel):
     suggested_preset: str | None = None
 
 
-class GroupCreate(BaseModel):
+_RES_RE = r"^\d{3,5}x\d{3,5}$"
+_CPU_RE = r"^\d+(\.\d+)?$"
+# k8s (Ki/Mi/Gi/Ti) or docker (k/m/g/t[b]) sizes
+_MEM_RE = r"^\d+(\.\d+)?(Ki|Mi|Gi|Ti|[kKmMgGtT][bB]?)$"
+
+
+class _TierFields(BaseModel):
+    tier_resolution: str | None = Field(default=None, pattern=_RES_RE)
+    tier_fps: int | None = Field(default=None, gt=0, le=240)
+    tier_hidpi: bool | None = None
+    tier_cpu: str | None = Field(default=None, pattern=_CPU_RE)
+    tier_memory: str | None = Field(default=None, pattern=_MEM_RE)
+
+    @field_validator("tier_cpu")
+    @classmethod
+    def _cpu_positive(cls, v):
+        if v is not None and float(v) <= 0:
+            raise ValueError("tier_cpu must be > 0")
+        return v
+
+
+EgressMode = Literal["category", "allowlist"]
+
+
+class GroupCreate(_TierFields):
     name: str = Field(min_length=1, max_length=64, pattern=r"^[^,]+$")  # X-Styx-Groups is comma-joined
     description: str | None = Field(default=None, max_length=255)
+    egress_mode: EgressMode = "category"
 
 
-class GroupUpdate(BaseModel):
+class GroupUpdate(_TierFields):
     allow_gpu: bool | None = None
+    egress_mode: EgressMode | None = None
     description: str | None = Field(default=None, max_length=255)
 
 
@@ -229,8 +257,14 @@ class GroupOut(BaseModel):
     name: str
     description: str | None
     allow_gpu: bool = False
+    egress_mode: str = "category"
     idp_managed: bool = False
     member_count: int = 0
+    tier_resolution: str | None = None
+    tier_fps: int | None = None
+    tier_hidpi: bool | None = None
+    tier_cpu: str | None = None
+    tier_memory: str | None = None
 
 
 class UserGroupsUpdate(BaseModel):

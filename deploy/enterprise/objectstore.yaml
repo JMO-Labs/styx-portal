@@ -1,0 +1,26 @@
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: styx-db-offsite
+  namespace: styx
+spec:
+  # Object-lock retention on the bucket must be <= this retention.
+  retentionPolicy: "30d"
+  configuration:
+    # PLACEHOLDER: A1 offsite bucket (see docs/enterprise/runbooks/full-site-restore.md).
+    destinationPath: s3://REPLACE-ME-styx-db-offsite/
+    s3Credentials:
+      accessKeyId:
+        name: styx-db-bucket
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: styx-db-bucket
+        key: ACCESS_SECRET_KEY
+      # SSE-C key: must never change (escrowed in OpenBao).
+      sseCustomerKey:
+        name: styx-db-bucket
+        key: SSE_CUSTOMER_KEY
+    wal:
+      compression: gzip
+    data:
+      compression: gzip

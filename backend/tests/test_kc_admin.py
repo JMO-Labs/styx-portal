@@ -140,3 +140,32 @@ async def test_module_level_calls_share_one_client_and_token():
     finally:
         kc_admin.reset_client()
     assert len(tokens) == 1
+
+
+async def test_module_remove_from_group_delegates():
+    paths = []
+
+    def h(req: httpx.Request):
+        if req.url.path.endswith("/token"):
+            return httpx.Response(200, json={"access_token": "t", "expires_in": 60})
+        paths.append((req.method, req.url.path))
+        return httpx.Response(204)
+
+    kc_admin.reset_client()
+    kc_admin._instance = make(h)
+    try:
+        await kc_admin.remove_from_group("u1", "g1")
+    finally:
+        kc_admin.reset_client()
+    assert paths == [("DELETE", "/admin/realms/r/users/u1/groups/g1")]
+
+
+def test_client_lazily_builds_singleton(monkeypatch):
+    monkeypatch.setenv("JWT_SECRET", "x" * 40)
+    kc_admin.reset_client()
+    try:
+        first = kc_admin._client()
+        assert isinstance(first, KeycloakAdminClient)
+        assert kc_admin._client() is first
+    finally:
+        kc_admin.reset_client()

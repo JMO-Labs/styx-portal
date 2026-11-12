@@ -27,8 +27,8 @@ async def list_groups(admin: User = Depends(require_admin),
     counts = dict((await session.exec(
         select(UserGroup.group_id, func.count()).group_by(UserGroup.group_id))).all())
     groups = (await session.exec(select(Group).order_by(Group.name))).all()
-    return [GroupOut(id=g.id, name=g.name, description=g.description, allow_gpu=g.allow_gpu,
-                     idp_managed=g.idp_managed, member_count=counts.get(g.id, 0)) for g in groups]
+    return [GroupOut.model_validate(g, from_attributes=True).model_copy(
+        update={"member_count": counts.get(g.id, 0)}) for g in groups]
 
 
 @router.post("", response_model=GroupOut, status_code=201)
@@ -37,12 +37,12 @@ async def create_group(body: GroupCreate, request: Request,
                        session: AsyncSession = Depends(get_session)):
     if (await session.exec(select(Group).where(Group.name == body.name))).first():
         raise HTTPException(status.HTTP_409_CONFLICT, "Group exists")
-    g = Group(name=body.name, description=body.description)
+    g = Group(**body.model_dump())
     session.add(g)
     await audit_request(session, request, "group.create", user_id=admin.id,
                         resource=g.id, detail={"name": g.name})
     await session.commit()
-    return GroupOut(id=g.id, name=g.name, description=g.description)
+    return GroupOut.model_validate(g, from_attributes=True)
 
 
 @router.patch("/{group_id}", response_model=GroupOut)
@@ -53,13 +53,15 @@ async def update_group(group_id: str, body: GroupUpdate, request: Request,
     if g is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Group not found")
     changes = body.model_dump(exclude_unset=True)
+    if changes.get("egress_mode") is None:
+        changes.pop("egress_mode", None)
     for k, v in changes.items():
         setattr(g, k, v)
     session.add(g)
     await audit_request(session, request, "group.update", user_id=admin.id,
                         resource=g.id, detail={"name": g.name, **changes})
     await session.commit()
-    return GroupOut(id=g.id, name=g.name, description=g.description, allow_gpu=g.allow_gpu)
+    return GroupOut.model_validate(g, from_attributes=True)
 
 
 @router.delete("/{group_id}", status_code=204)

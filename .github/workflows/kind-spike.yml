@@ -88,6 +88,7 @@ jobs:
         env:
           SCRIPTS: ${{ steps.sel.outputs.list }}
         run: |
+          set -o pipefail
           mkdir -p out
           : > out/summary.txt
           rc=0

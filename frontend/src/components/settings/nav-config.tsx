@@ -16,7 +16,9 @@ import { ConnectedAccounts } from "@/components/system/connected-accounts";
 import { MyProfiles } from "@/components/settings/my-profiles";
 import { MatrixCard } from "@/components/settings/matrix-card";
 
-export type NavCfg = { cfAnalytics: boolean };
+/** `disabled`: features the deployment profile turns off (ADR-0053); their sections are hidden. */
+export type NavCfg = { cfAnalytics: boolean; disabled?: string[] };
+const on = (f: string) => (cfg: NavCfg) => !cfg.disabled?.includes(f);
 
 export type SettingsSection = {
   id: string;
@@ -72,7 +74,7 @@ export const CATEGORIES: SettingsCategory[] = [
         keywords: ["invite", "role", "lock", "unlock", "members"], Component: PeoplePane },
       { id: "sso", label: "Sign-in providers", icon: KeyRound,
         description: "Configure OIDC / OAuth identity providers.",
-        tooltip: "Add and manage single sign-on providers", keywords: ["sso", "oidc", "oauth"], Component: OAuthProvidersPanel },
+        tooltip: "Add and manage single sign-on providers", keywords: ["sso", "oidc", "oauth"], visible: on("generic_oidc"), Component: OAuthProvidersPanel },
     ],
   },
   {
@@ -80,13 +82,13 @@ export const CATEGORIES: SettingsCategory[] = [
     sections: [
       { id: "workstations", label: "Workstations", icon: MonitorSmartphone,
         description: "Enroll and manage physical Linux machines.",
-        tooltip: "Stream physical workstations via the Styx agent", keywords: ["agent", "enroll"], Component: WorkstationsPanel },
+        tooltip: "Stream physical workstations via the Styx agent", keywords: ["agent", "enroll"], visible: on("workstation_enrollment"), Component: WorkstationsPanel },
       { id: "services", label: "Apps", icon: Globe,
         description: "Proxy internal apps (Jellyfin, *arr, Nextcloud) through this host.",
         tooltip: "Add and configure proxied apps", keywords: ["proxy", "services", "jellyfin"], Component: ServicesPanel },
       { id: "images", label: "Images and setups", icon: HardDrive,
         description: "Pulled Docker images and cleanup.",
-        tooltip: "List and remove cached images", keywords: ["docker", "templates"], Component: ImageManager },
+        tooltip: "List and remove cached images", keywords: ["docker", "templates"], visible: on("docker_routers"), Component: ImageManager },
       { id: "streaming", label: "Streaming", icon: Radio,
         description: "Relay and WebRTC settings for remote viewers.",
         tooltip: "WebRTC / TURN relay", keywords: ["turn", "webrtc", "relay", "cloudflare"], Component: StreamingPane },
@@ -110,10 +112,10 @@ export const CATEGORIES: SettingsCategory[] = [
     sections: [
       { id: "signin-card", label: "Sign-in card", icon: Grid3x3,
         description: "A printable code card required at password sign-in.",
-        tooltip: "Generate, replace, or remove your sign-in card", keywords: ["2fa", "matrix", "password"], Component: MatrixCard },
+        tooltip: "Generate, replace, or remove your sign-in card", keywords: ["2fa", "matrix", "password"], visible: on("matrix_2fa"), Component: MatrixCard },
       { id: "connected", label: "Connected accounts", icon: Link2,
         description: "Link external sign-in providers to your account.",
-        tooltip: "Link or unlink Google, GitHub, and other providers", keywords: ["google", "github", "link"], Component: ConnectedAccounts },
+        tooltip: "Link or unlink Google, GitHub, and other providers", keywords: ["google", "github", "link"], visible: on("generic_oidc"), Component: ConnectedAccounts },
       { id: "profiles", label: "My profiles", icon: FolderClock,
         description: "Persistent profiles saved for your instances.",
         tooltip: "Reset a saved profile", Component: MyProfiles },

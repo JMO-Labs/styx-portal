@@ -1,0 +1,43 @@
+# No SSL-bump: HTTPS is tunnelled (CONNECT 443) and never decrypted.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: squid-config
+  namespace: egress-proxy
+data:
+  squid.conf: |
+    http_port 3128 name=category
+    http_port 3129 name=allowlist
+    pid_filename /var/run/squid/squid.pid
+    coredump_dir /tmp
+    cache deny all
+    cache_log stdio:/dev/stderr
+    cache_store_log none
+
+    acl SSL_ports port 443
+    acl Safe_ports port 80
+    acl CONNECT method CONNECT
+
+    # Category lists: /etc/squid/categories/*.txt (dstdomain files); the
+    # entrypoint expands them into /tmp/categories.conf (may be empty).
+    include /tmp/categories.conf
+
+    acl allowlist_port myportname allowlist
+    acl category_port myportname category
+    acl allowlist_hosts dstdomain "/etc/squid/allowlist/allowlist.txt"
+
+    # Port name for the access log
+    note port_name category category_port
+    note port_name allowlist allowlist_port
+
+    # Single-line JSON; %>rd is the host only (no path or query).
+    logformat styxjson {"squid":1,"ts":%ts.%03tu,"src":"%>a","host":"%>rd","method":"%rm","status":%>Hs,"action":"%Ss","port_name":"%{port_name}note","bytes":%<st}
+    access_log stdio:/dev/stdout styxjson
+
+    http_access deny CONNECT !SSL_ports
+    http_access deny !Safe_ports !CONNECT
+    http_access deny blocked_cat
+    http_access allow allowlist_port allowlist_hosts
+    http_access deny allowlist_port
+    http_access allow category_port
+    http_access deny all

@@ -9,6 +9,7 @@ import { UserProfilesDialog } from "@/components/system/user-profiles-dialog";
 import { UserGroupsDialog } from "@/components/system/user-groups-dialog";
 import { ResetMatrixDialog } from "@/components/system/reset-matrix-dialog";
 import { DeleteUserDialog, TempPasswordDialog } from "@/components/system/user-dialogs";
+import { RemoveAccessDialog } from "@/components/system/remove-access-dialog";
 import { UsersBulkBar } from "@/components/system/users-bulk-bar";
 import { UsersTable } from "@/components/system/users-table";
 import { filterUsers, isUserLocked, type UserFilter } from "@/components/system/users-filters";
@@ -36,6 +37,7 @@ export function UsersPanel() {
   const [newLink, setNewLink] = useState<string | null>(null);
   const [tempPw, setTempPw] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [removeId, setRemoveId] = useState<string | null>(null);
   const [groupsFor, setGroupsFor] = useState<Target>(null);
   const [profilesFor, setProfilesFor] = useState<Target>(null);
   const [matrixFor, setMatrixFor] = useState<Target>(null);
@@ -56,6 +58,11 @@ export function UsersPanel() {
     onError,
   });
   const disable = useAction(api.disableUser);
+  const removeAccess = useMutation({
+    mutationFn: (id: string) => api.removeAccess(id),
+    onError: (e: Error) => { toast.error(e.message); void refresh(); },  // local disable may have succeeded
+    onSuccess: () => { void refresh(); toast.success("Access removed"); setRemoveId(null); },
+  });
   const unlock = useAction(api.unlockUser, "User unlocked");
   const forceChange = useAction(api.forcePasswordChange, "User forced to change password");
   const setRole = useMutation({
@@ -72,7 +79,7 @@ export function UsersPanel() {
 
   const actions: UserActions = {
     unlock: (u) => unlock.mutate(u.id), resetPassword: (u) => reset.mutate(u.id),
-    forceChange: (u) => forceChange.mutate(u.id), disable: (u) => disable.mutate(u.id),
+    forceChange: (u) => forceChange.mutate(u.id), disable: (u) => disable.mutate(u.id), askRemoveAccess: (u) => setRemoveId(u.id),
     askDelete: (u) => setDeleteId(u.id), groups: (u) => setGroupsFor(u),
     profiles: (u) => setProfilesFor(u), matrix: (u) => setMatrixFor(u),
   };
@@ -128,6 +135,8 @@ export function UsersPanel() {
                           onOpenChange={(o) => { if (!o) setProfilesFor(null); }} />
       <ResetMatrixDialog user={matrixFor} onClose={() => setMatrixFor(null)} />
       <TempPasswordDialog password={tempPw} onClose={() => setTempPw(null)} />
+      <RemoveAccessDialog username={users.find((u) => u.id === removeId)?.username ?? null} pending={removeAccess.isPending}
+                          onCancel={() => setRemoveId(null)} onConfirm={() => removeId && removeAccess.mutate(removeId)} />
       <DeleteUserDialog username={users.find((u) => u.id === deleteId)?.username ?? null} pending={del.isPending}
                         onCancel={() => setDeleteId(null)} onConfirm={() => deleteId && del.mutate(deleteId)} />
     </section>

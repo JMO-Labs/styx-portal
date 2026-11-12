@@ -1,0 +1,15 @@
+# Desktop namespace (ADR-0057). PSA exception (CM-6, CM-7): enforce=baseline instead of
+# restricted, only because the own rootless Selkies + pixelflux base image does not meet every
+# "restricted" control (e.g. seccomp/capability drop and volume-type limits for the desktop stack).
+# What it allows: rootless desktop pods running as a non-root UID. What it does NOT allow:
+# privileged containers, hostPath volumes, host namespaces (baseline forbids them).
+# warn/audit stay on restricted so every gap is visible. Recorded in
+# docs/enterprise/control-matrix.md (CM-6, CM-7).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: desktop
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

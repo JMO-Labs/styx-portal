@@ -1,0 +1,7 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: {name: styx-backend, namespace: styx}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app: styx-backend}
