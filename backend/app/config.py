@@ -191,6 +191,12 @@ class Settings(BaseSettings):
                     "Generate one: openssl rand -base64 48"
                 )
             return self.JWT_SECRET
+        if self.DATABASE_URL.startswith("postgres"):
+            raise RuntimeError(
+                "JWT_SECRET is required when DATABASE_URL is PostgreSQL: a per-pod "
+                "secrets.json would differ between replicas and tokens would fail. "
+                "Set the same JWT_SECRET on every replica (openssl rand -base64 48)."
+            )
         return self._load_or_create_secret()
 
     def _load_or_create_secret(self) -> str:
