@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, test, expect, vi, beforeEach } from "vitest";
 
 const { a, auth } = vi.hoisted(() => ({
-  a: { oauthProviders: vi.fn(), refreshSession: vi.fn(), setupPreflight: vi.fn() },
+  a: { setupRequired: vi.fn().mockResolvedValue({ setup_required: false }), oauthProviders: vi.fn(), refreshSession: vi.fn(), setupPreflight: vi.fn() },
   auth: { user: null as null | { id: string }, loading: false, setupRequired: false,
     refresh: vi.fn(), logout: vi.fn() },
 }));

@@ -127,6 +127,7 @@ class Settings(BaseSettings):
     PASSWORD_REQUIRE_SYMBOL: bool = False
     MAX_INSTANCES_PER_USER: int = 3      # 0 = unlimited; admins exempt
     OAUTH_REDIRECT_BASE: str = ""   # e.g. https://s.jmolabs.dev ; defaults to https://{DOMAIN}
+    BANNER_URL: str = ""            # enterprise: unauthenticated login page redirects here when set
     SECRETS_FILE: str = "/app/data/secrets.json"
     # --- Workstation streaming (physical machines) ---
     SERVER_LAN_URL: str = ""        # e.g. https://192.168.1.10 — used in enrollment one-liner
@@ -191,6 +192,12 @@ class Settings(BaseSettings):
                     "Generate one: openssl rand -base64 48"
                 )
             return self.JWT_SECRET
+        if self.DATABASE_URL.startswith("postgres"):
+            raise RuntimeError(
+                "JWT_SECRET is required when DATABASE_URL is PostgreSQL: a per-pod "
+                "secrets.json would differ between replicas and tokens would fail. "
+                "Set the same JWT_SECRET on every replica (openssl rand -base64 48)."
+            )
         return self._load_or_create_secret()
 
     def _load_or_create_secret(self) -> str:

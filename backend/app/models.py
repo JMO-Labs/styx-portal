@@ -415,6 +415,7 @@ class Group(SQLModel, table=True):
     tier_hidpi: bool | None = None
     tier_cpu: str | None = None
     tier_memory: str | None = None
+    idp_managed: bool = False  # membership mirrored from the IdP groups claim; read-only in API
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
