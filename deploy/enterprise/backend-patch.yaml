@@ -1,0 +1,44 @@
+# Enterprise backend: 3 replicas on CNPG, passwordless rotating pgpass.
+# Migrations run in-app at startup under an advisory lock (no Job/initContainer),
+# hence the large startupProbe budget.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: backend, namespace: styx}
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
+  template:
+    metadata:
+      annotations:
+        secret.reloader.stakater.com/reload: "styx-db-app,styx-secrets"
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: {app: styx-backend}
+      containers:
+        - name: backend
+          env:
+            - {name: PGPASSFILE, value: /etc/styx/db/pgpass}
+            - {name: PGSSLROOTCERT, value: /etc/styx/db-ca/ca.crt}
+            - {name: DATABASE_URL, value: "postgresql+asyncpg://styx@styx-db-rw:5432/styx?ssl=verify-full"}
+            # Leader loops go straight to the primary service, never a pooler.
+            - {name: LEADER_DATABASE_URL, value: "postgresql+asyncpg://styx@styx-db-rw:5432/styx?ssl=verify-full"}
+          startupProbe:
+            failureThreshold: 60
+          volumeMounts:
+            # No subPath: subPath mounts never receive Secret updates (rotation).
+            - {name: db-app, mountPath: /etc/styx/db, readOnly: true}
+            - {name: db-ca, mountPath: /etc/styx/db-ca, readOnly: true}
+      volumes:
+        - name: data
+          persistentVolumeClaim: null
+          emptyDir: {}
+        - name: db-app
+          secret: {secretName: styx-db-app, defaultMode: 0440}
+        - name: db-ca
+          secret: {secretName: styx-db-ca, defaultMode: 0440}

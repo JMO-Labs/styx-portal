@@ -1,0 +1,66 @@
+# Dedicated CloudNativePG cluster for Keycloak (CNPG 1.30.x, barman-cloud plugin, #24 pattern).
+# CNPG creates keycloak-db-app, keycloak-db-ca (key "ca.crt") and its own
+# PodDisruptionBudgets, so pdb.yaml does not add one for keycloak-db.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: keycloak-db
+  namespace: keycloak
+spec:
+  instances: 2
+  # ghcr.io/cloudnative-pg/postgresql:17.11-202611090810-standard-trixie, same digest.
+  imageName: harbor.example.internal/cloudnative-pg/postgresql:17.11-202611090810-standard-trixie@sha256:b310491521ece4ec0f5a44008ac607352e96bff20883833d0acd833d80d26c5b
+  bootstrap:
+    initdb:
+      database: keycloak
+      owner: keycloak
+      secret:
+        name: keycloak-db-app
+  storage:
+    size: 10Gi
+    storageClass: ceph-block            # PLACEHOLDER(#3)
+  affinity:
+    enablePodAntiAffinity: true
+    podAntiAffinityType: required
+    topologyKey: kubernetes.io/hostname
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: keycloak-db-offsite
+---
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: keycloak-db-offsite
+  namespace: keycloak
+spec:
+  retentionPolicy: 30d
+  configuration:
+    destinationPath: s3://styx-offsite/cnpg/keycloak-db   # PLACEHOLDER(#24): offsite bucket
+    endpointURL: https://offsite.example.internal        # PLACEHOLDER(#24)
+    s3Credentials:
+      accessKeyId:
+        name: keycloak-db-offsite
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: keycloak-db-offsite
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: gzip
+    data:
+      compression: gzip
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: keycloak-db-daily
+  namespace: keycloak
+spec:
+  schedule: "0 0 2 * * *"               # daily 02:00 (six-field cron)
+  backupOwnerReference: self
+  cluster:
+    name: keycloak-db
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io

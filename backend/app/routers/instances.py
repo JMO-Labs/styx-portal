@@ -13,11 +13,16 @@ from app.models import Instance, ServiceTemplate, SessionEvent, PulledImage, Use
 from app.schemas import InstanceCreate, InstanceUpdate, SessionConfigUpdate, InstanceStatus
 from app.security.deps import get_current_user, require_owner_or_admin
 from app.services.docker_manager import DockerManager
+from app.services.egress_mode import resolve_egress_mode
+from app.services.k8s_instances import K8sInstanceRuntime
+from app.services.posix_uid import allocate_uid
 from app.services.k8s_runtime import ensure_instance_supported, instance_runtime
 from app.services.screenshot import ScreenshotService
 from app.services import gpu_access, instance_readiness, profiles
+from app.services.group_tier import launch_overrides
 from app.services.traefik_labels import generate_traefik_labels
 from app.services.audit import audit
+from app.services.offboarding import is_disabled
 from app.services.settings_store import settings as sys_settings
 from app.services.abuse_store import get_abuse_store
 
@@ -71,6 +76,23 @@ async def _refresh_routes(session: AsyncSession):
     await refresh_routes_from_db(session)
 
 
+def _pinned(docker, instance) -> str | None:
+    """Digest the k8s runtime pinned at launch (None on Docker)."""
+    pin = getattr(docker, "pinned_digest", None)
+    d = pin(f"selkies-{instance.subdomain}") if callable(pin) else None
+    return d if isinstance(d, str) else None
+
+
+async def _egress_kwargs(docker, session, instance) -> dict:
+    """Egress mode of the owner; k8s only (Docker launches are unchanged)."""
+    if not isinstance(docker, K8sInstanceRuntime) or not instance.owner_id:
+        return {}
+    owner = await session.get(User, instance.owner_id)
+    if owner is None:
+        return {}
+    return {"egress_mode": await resolve_egress_mode(session, owner)}
+
+
 async def _isolate_or_409(docker, instance, container_id):
     """Fail closed: never start an instance container that may share styx-portal with the backend."""
     try:
@@ -78,6 +100,13 @@ async def _isolate_or_409(docker, instance, container_id):
     except Exception:  # noqa: BLE001
         logger.error("could not isolate instance %s network", instance.name, exc_info=True)
         raise HTTPException(409, "Instance network could not be isolated")
+
+
+async def _home_kwargs(docker, instance, session) -> dict:
+    """k8s only: owner's POSIX UID so the pod mounts home-<uid> and runs as that UID."""
+    if isinstance(docker, K8sInstanceRuntime) and instance.owner_id:
+        return {"posix_uid": await allocate_uid(session, instance.owner_id)}
+    return {}
 
 
 async def _build_and_start_container(instance, template, docker, session):
@@ -94,7 +123,8 @@ async def _build_and_start_container(instance, template, docker, session):
         await asyncio.to_thread(docker.create_volume, store)
         volumes[store] = {"bind": "/var/lib/docker", "mode": "rw"}
 
-    env = {**template.env_vars, **(instance.env_overrides or {})}
+    tier_env, mem_limit, cpu_limit = await launch_overrides(session, docker, instance, template)
+    env = {**tier_env, **template.env_vars, **(instance.env_overrides or {})}
     labels = generate_traefik_labels(
         instance_id=instance.id,
         subdomain=instance.subdomain,
@@ -116,8 +146,8 @@ async def _build_and_start_container(instance, template, docker, session):
         port=template.internal_port,
         gpu_enabled=await gpu_access.resolve_gpu(session, docker, template, instance),
         gpu_count=template.gpu_count,
-        memory_limit=template.memory_limit,
-        cpu_limit=template.cpu_limit,
+        memory_limit=mem_limit,
+        cpu_limit=cpu_limit,
         shm_size=template.shm_size,
         dind=template.dind,
         cap_add=template.cap_add,
@@ -133,6 +163,8 @@ async def _build_and_start_container(instance, template, docker, session):
         command=template.command,
         privileged=template.privileged,
         extra_docker_args=template.extra_docker_args,
+        **await _home_kwargs(docker, instance, session),
+        **await _egress_kwargs(docker, session, instance),
     )
     try:
         await _isolate_or_409(docker, instance, container_id)
@@ -140,6 +172,7 @@ async def _build_and_start_container(instance, template, docker, session):
         await asyncio.to_thread(docker.remove_container, container_id)
         raise
     instance.container_id = container_id
+    instance.image_digest = _pinned(docker, instance)
     await asyncio.to_thread(docker.start_container, container_id)
     return container_id
 
@@ -192,7 +225,8 @@ async def _launch_instance_background(instance_id: str, template_id: str):
                 await asyncio.to_thread(docker.create_volume, store)
                 volumes[store] = {"bind": "/var/lib/docker", "mode": "rw"}
 
-            env = {**template.env_vars, **(instance.env_overrides or {})}
+            tier_env, mem_limit, cpu_limit = await launch_overrides(session, docker, instance, template)
+            env = {**tier_env, **template.env_vars, **(instance.env_overrides or {})}
 
             labels = generate_traefik_labels(
                 instance_id=instance.id,
@@ -215,8 +249,8 @@ async def _launch_instance_background(instance_id: str, template_id: str):
                 port=template.internal_port,
                 gpu_enabled=await gpu_access.resolve_gpu(session, docker, template, instance),
                 gpu_count=template.gpu_count,
-                memory_limit=template.memory_limit,
-                cpu_limit=template.cpu_limit,
+                memory_limit=mem_limit,
+                cpu_limit=cpu_limit,
                 shm_size=template.shm_size,
                 dind=template.dind,
                 cap_add=template.cap_add,
@@ -232,6 +266,8 @@ async def _launch_instance_background(instance_id: str, template_id: str):
                 command=template.command,
                 privileged=template.privileged,
                 extra_docker_args=template.extra_docker_args,
+                **await _home_kwargs(docker, instance, session),
+                **await _egress_kwargs(docker, session, instance),
             )
 
             # Track pulled image
@@ -248,6 +284,7 @@ async def _launch_instance_background(instance_id: str, template_id: str):
 
             instance.status = "starting"
             instance.container_id = container_id
+            instance.image_digest = _pinned(docker, instance)
             session.add(instance)
             await session.commit()
 
@@ -287,6 +324,8 @@ async def create_instance(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    if is_disabled(user):
+        raise HTTPException(403, "Account disabled")
     template = await session.get(ServiceTemplate, body.template_id)
     if not template:
         raise HTTPException(404, "Template not found")
@@ -367,6 +406,8 @@ async def start_instance(
     docker: DockerManager = Depends(get_docker_manager),
     user: User = Depends(get_current_user),
 ):
+    if is_disabled(user):
+        raise HTTPException(403, "Account disabled")
     instance = await session.get(Instance, instance_id)
     if not instance:
         raise HTTPException(404, "Instance not found")

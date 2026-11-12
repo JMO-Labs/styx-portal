@@ -4,6 +4,9 @@ import time
 from collections import deque
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.orm.util import identity_key as sa_identity_key
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -230,6 +233,9 @@ class BanCache:
     is_banned() is a dict lookup on the hot forward-auth path. invalidate()
     forces the next is_banned() to refresh — used right after writing a ban so
     it takes effect immediately.
+
+    Cross-replica: invalidate() only affects this process. A ban written on
+    another replica is seen here after at most BAN_CACHE_TTL seconds.
     """
 
     def __init__(self, ttl: int):
@@ -267,14 +273,14 @@ async def ban_ip(session: AsyncSession, ip: str, reason: str, duration: int,
     ip = ip_key(ip)
     now = now or _now()
     expires = now + timedelta(seconds=duration)
-    existing = await session.get(BannedIP, ip)
-    if existing:
-        existing.reason = reason
-        existing.banned_at = now
-        existing.expires_at = expires
-        session.add(existing)
-    else:
-        session.add(BannedIP(ip=ip, reason=reason, banned_at=now, expires_at=expires))
+    insert = pg_insert if session.get_bind().dialect.name == "postgresql" else sqlite_insert
+    naive = lambda d: d.replace(tzinfo=None) if d.tzinfo else d  # noqa: E731
+    vals = {"reason": reason, "banned_at": naive(now), "expires_at": naive(expires)}
+    await session.exec(insert(BannedIP).values(ip=ip, **vals).on_conflict_do_update(
+        index_elements=["ip"], set_=vals))
+    cached = session.sync_session.identity_map.get(sa_identity_key(BannedIP, ip))
+    if cached is not None:  # core upsert bypasses the ORM; drop stale state
+        session.sync_session.expire(cached)
     return True
 
 

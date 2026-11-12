@@ -120,7 +120,7 @@ def test_lua_configmap_maps_k8s_audit_to_ecs():
 
 def test_es_outputs_verify_tls_and_hostname():
     outs = _outputs()
-    assert len(outs) == 3
+    assert len(outs) == 4
     for o in outs:
         assert o.get("tls", "").lower() == "on"
         assert o.get("tls.verify", "").lower() == "on"
@@ -162,9 +162,33 @@ def test_styx_audit_only_from_backend_container():
     lua = _kind("ConfigMap")[0]["data"]["styx.lua"]
     assert '["namespace_name"] == "styx"' in lua
     assert '["container_name"] == "backend"' in lua
-    (rt,) = [f for f in _all("FILTER", "filters") if f["name"] == "rewrite_tag"]
-    assert rt["rule"].startswith("$_styx_audit ")
+    (rt,) = [f for f in _all("FILTER", "filters")
+             if f["name"] == "rewrite_tag" and f["rule"].startswith("$_styx_audit ")]
     assert rt["rule"].split()[2] == "styx.audit"
+
+
+def test_squid_route_filter_output_and_role():
+    lua = _kind("ConfigMap")[0]["data"]["styx.lua"]
+    assert '["namespace_name"] == "egress-proxy"' in lua
+    assert '["container_name"] == "squid"' in lua
+    assert 'record["squid"] == 1' in lua
+    (rt,) = [f for f in _all("FILTER", "filters")
+             if f["name"] == "rewrite_tag" and f["rule"].split()[2] == "squid.access"]
+    assert rt["rule"].startswith("$_squid ")
+    # field filter runs on the squid tag only and keeps an allowlist
+    (lf,) = [f for f in _all("FILTER", "filters")
+             if f["name"] == "lua" and f["match"] == "squid.access"]
+    assert lf["call"] == "squid_filter"
+    body = lua.split("function squid_filter")[1].split("\nfunction ")[0]
+    for k in ("ts", "src", "host", "method", "status", "action", "port_name", "bytes",
+              "pod_name"):
+        assert k in body
+    assert "url" not in body and "path" not in body
+    (o,) = [o for o in _outputs() if o["match"] == "squid.access"]
+    assert o["index"] == "logs-squid.access-default"
+    assert o["tls.verify"] == "on" and o["http_api_key"] == "${ELASTIC_API_KEY}"
+    role = json.loads((ELASTIC / "roles" / "styx-shipper.json").read_text())
+    assert "logs-squid.*-*" in role["indices"][0]["names"]
 
 
 def test_filesystem_buffering():
@@ -270,7 +294,8 @@ def test_index_templates_per_dataset():
     plan = _plan()
     names = {p.rsplit("/", 1)[1] for p in plan if p.startswith("_index_template/")}
     assert names == {"logs-styx.audit", "logs-styx.egress", "logs-styx.dlp",
-                     "logs-kubernetes.container_logs", "logs-kubernetes.audit_logs"}
+                     "logs-kubernetes.container_logs", "logs-kubernetes.audit_logs",
+                     "logs-squid.access"}
     for p, body in plan.items():
         if p.startswith("_index_template/"):
             name = p.rsplit("/", 1)[1]
@@ -287,7 +312,7 @@ def test_shipper_role_least_privilege():
     role = _plan()["_security/role/styx-shipper"]
     assert role["cluster"] == []
     (idx,) = role["indices"]
-    assert set(idx["names"]) == {"logs-styx.*-*", "logs-kubernetes.*-*"}
+    assert set(idx["names"]) == {"logs-styx.*-*", "logs-kubernetes.*-*", "logs-squid.*-*"}
     assert set(idx["privileges"]) == {"create_doc", "auto_configure"}
     assert not set(idx["privileges"]) & {"all", "write", "delete", "index", "manage"}
 
