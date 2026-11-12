@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import os
 import socket
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -234,8 +233,8 @@ class ScreenshotService:
             if joined and self_id:
                 await asyncio.to_thread(self._leave_nets, joined, self_id)
 
-    async def capture_url(self, key: str, url: str) -> bool:
-        """Screenshot a proxied service's internal URL into svc-{key}.png, under the same
+    async def capture_url(self, key: str, url: str, on_png) -> bool:
+        """Screenshot a proxied service's internal URL and hand the PNG to `on_png`, under the same
         network jail as capture(): only the target's own host:port/scheme is reachable."""
         parts = urlsplit(url)
         try:
@@ -277,10 +276,7 @@ class ScreenshotService:
                 page = await self._open(context, url)
                 await page.wait_for_timeout(_URL_SETTLE_MS)
                 png = await page.screenshot(type="png")
-                final = self._cache_dir / f"svc-{key}.png"
-                tmp = final.with_suffix(".png.tmp")
-                tmp.write_bytes(png)
-                os.replace(tmp, final)
+                await on_png(png)
                 return True
             except Exception:
                 logger.debug("screenshot: url capture failed for %s", key, exc_info=True)

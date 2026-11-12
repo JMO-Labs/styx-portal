@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import NaiveDatetime
 from sqlmodel import Field, SQLModel, Column
-from sqlalchemy import JSON, BigInteger, DateTime, Index, Integer, String, UniqueConstraint
+from sqlalchemy import JSON, BigInteger, LargeBinary, DateTime, Index, Integer, String, UniqueConstraint
 
 from app.db_types import NAMING_CONVENTION, UTCDateTime
 
@@ -411,6 +411,14 @@ class ServicePreset(SQLModel, table=True):
     base_url_hint: str | None = None
     warnings: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     subpath: dict | None = Field(default=None, sa_column=Column(JSON))
+
+
+class ServiceThumbnail(SQLModel, table=True):
+    """Shared service thumbnail (PNG): bytea on PG, BLOB on SQLite; any replica serves it."""
+    __tablename__ = "service_thumbnails"
+    service_id: str = Field(primary_key=True, foreign_key="proxied_services.id", ondelete="CASCADE")
+    data: bytes = Field(sa_column=Column(LargeBinary, nullable=False))
+    updated_at: NaiveDatetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 
 class ProxiedService(SQLModel, table=True):
