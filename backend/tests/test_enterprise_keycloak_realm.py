@@ -49,7 +49,8 @@ def test_browser_flow_x509_only():
            "registration-user-creation", "registration-password-action",
            "webauthn-authenticator", "auth-cookie", "identity-provider-redirector"}
     assert not bad & set(auths)
-    assert r["registrationFlow"] not in flows or not flows[r["registrationFlow"]]["authenticationExecutions"]
+    assert r["registrationFlow"] not in flows or \
+        _reachable_executions(r["registrationFlow"], flows) == ["deny-access-authenticator"]
     assert not r.get("resetPasswordAllowed")
     assert not r.get("rememberMe")
     assert r["directGrantFlow"] != "direct grant"
