@@ -9,7 +9,7 @@ STATUSES = {"offered", "merged", "rejected", "local-only"}
 
 
 def _field(text: str, name: str) -> str | None:
-    m = re.search(rf"^\s*[-*]?\s*\**{re.escape(name)}\**\s*:\s*\**\s*(.*)$", text, re.M)
+    m = re.search(rf"^[ \t]*[-*]?[ \t]*\**{re.escape(name)}\**[ \t]*:[ \t]*\**[ \t]*(.*)$", text, re.M)
     return m.group(1).strip(" *") if m else None
 
 
