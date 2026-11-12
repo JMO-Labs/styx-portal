@@ -95,6 +95,38 @@ async def test_consume_wrong_token_rejected(session):
     assert await setup_token.consume(session, None) is False
 
 
+# Separate-connection sessions on a scratch DB (not the shared rolled-back test
+# transaction), like the two-session tests above that pass on Postgres.
+async def _with_session(engine, fn):
+    from sqlmodel.ext.asyncio.session import AsyncSession
+    async with AsyncSession(engine, expire_on_commit=False) as s:
+        return await fn(s)
+
+
+async def test_announce_migrates_legacy_file_into_db(engine, tmp_path, monkeypatch):
+    f = tmp_path / "setup-token"
+    f.write_text("legacy-token\n")
+    monkeypatch.setattr(setup_token, "_legacy_path", lambda: f)
+    await _with_session(engine, lambda s: setup_token.announce(s, True))
+    assert await _with_session(engine, setup_token.current_or_none) == "legacy-token"
+    assert not f.exists()
+
+
+async def test_announce_drops_legacy_file_when_users_exist(engine, tmp_path, monkeypatch):
+    f = tmp_path / "setup-token"
+    f.write_text("legacy-token\n")
+    monkeypatch.setattr(setup_token, "_legacy_path", lambda: f)
+    await _with_session(engine, lambda s: setup_token.announce(s, False))
+    assert not f.exists()
+    assert await _with_session(engine, setup_token.current_or_none) is None
+
+
+async def test_verify_never_creates_token(engine):
+    """verify is read-only: after consumption it must not mint a new token (and commit)."""
+    assert await _with_session(engine, lambda s: setup_token.verify(s, "anything")) is False
+    assert await _with_session(engine, setup_token.current_or_none) is None
+
+
 def test_legacy_file_migrated(tmp_path, monkeypatch):
     f = tmp_path / "setup-token"
     f.write_text("legacy-token\n")
@@ -102,27 +134,3 @@ def test_legacy_file_migrated(tmp_path, monkeypatch):
     assert setup_token.take_legacy_file() == "legacy-token"
     assert not f.exists()
     assert setup_token.take_legacy_file() is None
-
-
-async def test_announce_migrates_legacy_file_into_db(session, tmp_path, monkeypatch):
-    f = tmp_path / "setup-token"
-    f.write_text("legacy-token\n")
-    monkeypatch.setattr(setup_token, "_legacy_path", lambda: f)
-    await setup_token.announce(session, True)
-    assert await setup_token.current_or_none(session) == "legacy-token"
-    assert not f.exists()
-
-
-async def test_announce_drops_legacy_file_when_users_exist(session, tmp_path, monkeypatch):
-    f = tmp_path / "setup-token"
-    f.write_text("legacy-token\n")
-    monkeypatch.setattr(setup_token, "_legacy_path", lambda: f)
-    await setup_token.announce(session, False)
-    assert not f.exists()
-    assert await setup_token.current_or_none(session) is None
-
-
-async def test_verify_never_creates_token(session):
-    """verify is read-only: after consumption it must not mint a new token (and commit)."""
-    assert await setup_token.verify(session, "anything") is False
-    assert await setup_token.current_or_none(session) is None
