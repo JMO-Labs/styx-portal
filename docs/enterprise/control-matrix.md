@@ -13,7 +13,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | AC-2(3) | Disable Accounts | End-date, 35-day inactivity, remove-access flows (ADR-0022, 0024) | System | Planned |
 | AC-2(4) | Automated Audit Actions | Account events to Elastic; Recently provisioned view (ADR-0023); security officer owns the daily review; new accounts unreviewed for 2 business days are auto-suspended (R04) | System | Planned |
 | AC-3 | Access Enforcement | Keycloak roles, Styx authorization, Kyverno (ADR-0001, 0026) | System | Planned |
-| AC-4 | Information Flow Enforcement | DLP policy, Cilium deny-all non-proxy egress, Squid category filtering (ADR-0038, 0040) | System | Planned |
+| AC-4 | Information Flow Enforcement | DLP policy, Cilium deny-all non-proxy egress, Squid category filtering (ADR-0038, 0040); Cilium baseline (CCNPs, default-deny, desktop egress patch `patch-desktop-egress.yaml`) in `deploy/k8s/components/cilium-baseline/` (README), implemented in code, not deployed; Squid/HAProxy parts not done. | System | Planned |
 | AC-5 | Separation of Duties | Admin role split (ADR-0026) | System | Planned |
 | AC-6 | Least Privilege | Role model, group-manager scope, non-admin-only webhook (ADR-0020, 0026) | System | Planned |
 | AC-7 | Unsuccessful Logon Attempts | Keycloak policy for break-glass accounts; CAC login via IdP (ADR-0015, 0025) | System | Planned |
@@ -155,8 +155,8 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
 | SC-5 | Denial-of-Service Protection | DMZ proxy limits, resource caps (ADR-0009, 0031); [runbooks/rook-ceph.md](runbooks/rook-ceph.md), ADR-0055 (IaC done, not deployed) | System | Planned |
-| SC-7 | Boundary Protection | HAProxy DMZ pair, Cilium, Squid; SC-7(5) tailored, R01 (ADR-0007, 0012, 0040, 0050) | System | Planned |
-| SC-7(5) | Deny by Default - Allow by Exception | Tailored: internet allowed with category blocking; Cilium denies all non-proxy egress; risk acceptance R01 (ADR-0040); allowlist mode per group stays; monthly review of the uncategorised hostnames report in Elastic | System | Planned |
+| SC-7 | Boundary Protection | HAProxy DMZ pair, Cilium, Squid; SC-7(5) tailored, R01 (ADR-0007, 0012, 0040, 0050); Cilium baseline (CCNPs, default-deny, desktop egress patch `patch-desktop-egress.yaml`) in `deploy/k8s/components/cilium-baseline/` (README), implemented in code, not deployed; Squid/HAProxy parts not done. | System | Planned |
+| SC-7(5) | Deny by Default - Allow by Exception | Tailored: internet allowed with category blocking; Cilium denies all non-proxy egress; risk acceptance R01 (ADR-0040); allowlist mode per group stays; monthly review of the uncategorised hostnames report in Elastic; Cilium baseline (CCNPs, default-deny, desktop egress patch `patch-desktop-egress.yaml`) in `deploy/k8s/components/cilium-baseline/` (README), implemented in code, not deployed; Squid/HAProxy parts not done. | System | Planned |
 | SC-8 | Transmission Confidentiality and Integrity | TLS at DMZ, separate banner/login/provision/portal hosts, mTLS webhook (ADR-0012, 0020, 0049); Harbor internal TLS is off, pod-to-pod traffic is encrypted by Cilium WireGuard (#18), Harbor to `harbor-db` uses `verify-full` | System | Planned |
 | SC-10 | Network Disconnect | Idle and disconnect timeouts (ADR-0039) | System | Planned |
 | SC-12 | Cryptographic Key Establishment and Management | OpenBao PKI, auto-unseal, Shamir recovery split, offline escrow, Ceph OSD dm-crypt keys (ADR-0042, 0061); static seal key file placed by `deploy/enterprise/openbao/ansible/seal-key.yml`, offline bootstrap CA `gen-bootstrap-tls.sh`, rotation in [runbooks/openbao.md](runbooks/openbao.md) (IaC done, not deployed) | System | Planned |

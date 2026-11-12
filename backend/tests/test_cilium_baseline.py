@@ -240,3 +240,40 @@ def test_squid_proxy_policy():
     # local-config params must not leak into the rendered output
     assert not any(d["kind"] == "ConfigMap" and d["metadata"]["name"] == "proxy-params"
                    for d in docs)
+
+
+# --- docs: control matrix + operator note (#61) ------------------------------
+MATRIX = K8S.parents[1] / "docs" / "enterprise" / "control-matrix.md"
+
+
+def test_control_matrix_points_at_component():
+    rows = {line.split("|")[1].strip(): line for line in MATRIX.read_text().splitlines()
+            if line.startswith("| ")}
+    for cid in ("AC-4", "SC-7", "SC-7(5)"):
+        row = rows[cid]
+        assert "deploy/k8s/components/cilium-baseline/" in row, cid
+        assert "patch-desktop-egress.yaml" in row, cid
+        assert "implemented in code, not deployed" in row, cid
+        assert "Squid/HAProxy parts not done" in row, cid
+        assert row.rstrip().endswith("| Planned |"), cid
+
+
+def test_operator_note_covers_rollout():
+    text = (COMPONENT / "README.md").read_text()
+    for needle in ("policyAuditMode", "hubble observe --verdict AUDIT", "default-deny",
+                   "toCIDR", "/32", "kubectl delete ccnp default-deny",
+                   "| desktop | world 443 direct | denied |",
+                   "| desktop | world SSH 22 | denied |",
+                   "| desktop | any UDP except DNS | denied |",
+                   "kube-apiserver", "break-glass"):
+        assert needle in text, needle
+    assert text.index("## Apply order") < text.index("## Audit-mode rollout")
+    assert "enable audit mode first" in text
+    rollback = text[text.index("## Rollback"):text.index("## Squid option B")]
+    assert "partial" in rollback
+    for name in ("allow-dns", "allow-webhooks", "squid-proxy", "CiliumClusterwideNetworkPolicy"):
+        assert name in rollback, name
+    assert "kubectl apply -f deploy/k8s/instances.yaml" in rollback
+    squid = text[text.index("## Squid option B"):text.index("## Manual connectivity")]
+    assert "replacement" in squid and "spec.egress.1.toPorts" in squid
+    assert len(text.splitlines()) < 500
