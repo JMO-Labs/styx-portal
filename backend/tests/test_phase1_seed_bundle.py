@@ -52,7 +52,7 @@ def test_images_cover_phase1_components():
 def test_images_have_no_floating_tags():
     for ref in chk._lines((IMG / "phase1.images").read_text()):
         tag = ref.rsplit(":", 1)[1]
-        assert re.match(r"v?\d+\.\d+\.\d+", tag), f"floating tag: {ref}"
+        assert re.fullmatch(r"v?\d+\.\d+(\.\d+|-\d{12}-[a-z-]+)", tag), f"floating tag: {ref}"
 
 
 def test_push_job_not_in_kustomization():

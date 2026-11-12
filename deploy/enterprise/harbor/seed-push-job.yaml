@@ -1,6 +1,6 @@
 # Push the Phase 1 images (phase1.lock) into Harbor once it is up (issue #25).
 # Not part of kustomization.yaml: apply by hand after the robot account exists.
-# Replace REPLACE_WITH_LOCK_DIGEST with the quay.io/skopeo/stable digest from phase1.lock.
+# Image digest matches quay.io/skopeo/stable in phase1.lock; update both together.
 # ConfigMap `phase1-lock` is made from the lock file:
 #   kubectl -n harbor create configmap phase1-lock --from-file=phase1.lock=deploy/enterprise/images/phase1.lock
 # PVC `phase1-seed` holds phase1-seed.tar (scripts/build_seed_bundle.sh); in-cluster pods cannot
@@ -25,7 +25,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: push
-          image: quay.io/skopeo/stable@sha256:REPLACE_WITH_LOCK_DIGEST   # from phase1.lock; RKE2 imports it from agent/images/
+          image: quay.io/skopeo/stable@sha256:47853bb9fb24202af9110531ebd6e43c5f97701254ca290596640290d17942f4   # from phase1.lock; RKE2 imports it from agent/images/
           command: ["/bin/sh", "-ec"]
           args:
             - |

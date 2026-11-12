@@ -50,7 +50,8 @@ def test_layout():
 
 def test_kustomization_lists_all_files():
     resources = yaml.safe_load((ROOT / "kustomization.yaml").read_text())["resources"]
-    assert sorted(resources) == sorted(p.name for p in manifest_files())
+    # seed-push-job.yaml is operator-run (issue #25), deliberately not in the kustomization.
+    assert sorted(resources) == sorted(p.name for p in manifest_files() if p.name != "seed-push-job.yaml")
     for r in resources:
         assert (ROOT / r).is_file(), r
 

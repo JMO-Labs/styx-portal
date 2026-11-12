@@ -1,4 +1,4 @@
-# Generated from phase1.images. Digest-pinned only. INCOMPLETE until the kind-spike 05-resolve-lock output is committed.
+# Generated from phase1.images by scripts/resolve_phase1_digests.sh (kind-spike 05-resolve-lock, run 43156739308). Digest-pinned only.
 docker.io/goharbor/harbor-core@sha256:7d2ba5304a729887cdec7cb222a82b500278423de230ae5150c386a6c332b112
 docker.io/goharbor/harbor-db@sha256:a32d51e636d76303e086a7c5251a2c8415c6f165b2f87bafa914efd866c5403f
 docker.io/goharbor/harbor-exporter@sha256:9ffede33dc519b4be035596a72f00f354754a22a3769077731f81ee7d6852f4f
@@ -24,3 +24,8 @@ registry.k8s.io/sig-storage/csi-provisioner@sha256:a4b0b1a37605b7b04a293e136edf7
 registry.k8s.io/sig-storage/csi-resizer@sha256:ea1d25e23479000c7e8eeb92d827df66258df4e482ca054c5e7ce3fc0f5c41a5
 registry.k8s.io/sig-storage/csi-snapshot-metadata@sha256:8069b3bc03f21fe804f6f362c26037598b9f947a9e3e9d60336988ca7c07f61e
 registry.k8s.io/sig-storage/csi-snapshotter@sha256:42af0929bcd60a43499825c078a60ff0534e08af8fbeb283aa391be40feb9f3e
+docker.io/library/traefik@sha256:06ddf61ee653caf4f4211a604e657f084f4727f762c16f826c97aafbefcb279e
+ghcr.io/cloudnative-pg/cloudnative-pg@sha256:a2701eb97cdd2a34b1fdb2cb51987f544b706e40bec72ae7146cd8580efefebb
+ghcr.io/cloudnative-pg/plugin-barman-cloud@sha256:0b9c428123313d93efbec26bdef85e91f2130a7bd8e382a767de12b3938f6271
+ghcr.io/cloudnative-pg/plugin-barman-cloud-sidecar@sha256:578926fbacfe2f384fab0bab6a4e5f11e08ab1572c97078d04216c22c677f65c
+quay.io/skopeo/stable@sha256:47853bb9fb24202af9110531ebd6e43c5f97701254ca290596640290d17942f4
