@@ -15,6 +15,8 @@ PLACEHOLDER_SECRETS = {
 
 
 class Settings(BaseSettings):
+    # homelab | enterprise (ADR-0053): enterprise hard-disables homelab features
+    STYX_PROFILE: str = "homelab"
     DOMAIN: str = "localhost"
     POSIX_UID_MIN: int = 100000  # first allocated POSIX UID (ADR-0052)
     # Provisioning webhook auth (ADR-0020 / D20): mTLS (forwarded Client-Cert) + bearer

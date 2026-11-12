@@ -74,10 +74,32 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class ProfileMiddleware:
+    """Enterprise profile: 404 for routes of hard-disabled features (ADR-0053)."""
+
+    def __init__(self, app, get_settings):
+        self.app, self.get_settings = app, get_settings
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            from app.services.profile import blocked_feature
+            feature = blocked_feature(self.get_settings(), scope["path"])
+            if feature:
+                resp = JSONResponse({"detail": f"feature disabled: {feature}"}, status_code=404)
+                return await resp(scope, receive, send)
+        await self.app(scope, receive, send)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Fail fast at boot if the auth secret is misconfigured, rather than
     # returning an opaque 500 the first time a token is minted (e.g. /auth/setup).
+    from app.services.profile import validate_profile
+    try:
+        validate_profile(_settings)
+    except RuntimeError as e:
+        logger.critical("FATAL: %s", e)
+        raise
     try:
         _settings.jwt_secret_or_raise()
     except RuntimeError as e:
@@ -197,6 +219,8 @@ def cors_origins(s: Settings) -> list[str]:
 
 
 _cors_origins = cors_origins(_settings)
+
+app.add_middleware(ProfileMiddleware, get_settings=lambda: _settings)
 
 app.add_middleware(
     CORSMiddleware,
@@ -402,6 +426,21 @@ async def system_diagnostics(
 ):
     from app.services.diagnostics import run_diagnostics
     return await run_diagnostics(session)
+
+
+@app.get("/api/diagnostics/features")
+async def diagnostics_features(admin: User = Depends(require_admin)):
+    from app.services.profile import ALL_FEATURES, disabled_features
+    off = disabled_features(_settings)
+    return {"profile": _settings.STYX_PROFILE, "disabled": off,
+            "enabled": [f for f in ALL_FEATURES if f not in off]}
+
+
+@app.get("/api/system/profile")
+async def system_profile():
+    """Public: lets the UI hide disabled features before login."""
+    from app.services.profile import disabled_features
+    return {"profile": _settings.STYX_PROFILE, "disabled": disabled_features(_settings)}
 
 
 @app.get("/api/system/diagnostics/history")

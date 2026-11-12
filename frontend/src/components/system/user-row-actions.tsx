@@ -4,6 +4,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { UserRow } from "@/components/system/users-filters";
+import { useProfile } from "@/hooks/use-profile";
 
 export type UserActions = {
   unlock: (u: UserRow) => void;
@@ -18,10 +19,12 @@ export type UserActions = {
 
 /** Hover actions (Unlock, Reset password) plus the "⋯" menu for everything else. */
 export function UserRowActions({ u, locked, a, self }: { u: UserRow; locked: boolean; a: UserActions; self?: boolean }) {
+  const { isDisabled } = useProfile();  // enterprise (ADR-0053): no local passwords or sign-in cards
+  const pw = !isDisabled("password_login");
   return (
     <>
       {locked && <Button variant="ghost" size="sm" className="text-primary" onClick={() => a.unlock(u)}>Unlock</Button>}
-      <Button variant="ghost" size="sm" onClick={() => a.resetPassword(u)}>Reset password</Button>
+      {pw && <Button variant="ghost" size="sm" onClick={() => a.resetPassword(u)}>Reset password</Button>}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon-sm" aria-label={`More actions for ${u.username}`}>
@@ -32,9 +35,9 @@ export function UserRowActions({ u, locked, a, self }: { u: UserRow; locked: boo
           {locked && <DropdownMenuItem onClick={() => a.unlock(u)}><Unlock className="mr-2 h-4 w-4" />Unlock</DropdownMenuItem>}
           <DropdownMenuItem onClick={() => a.groups(u)}><UsersRound className="mr-2 h-4 w-4" />Groups…</DropdownMenuItem>
           <DropdownMenuItem onClick={() => a.profiles(u)}><UserRound className="mr-2 h-4 w-4" />Profiles…</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => a.resetPassword(u)}><RefreshCw className="mr-2 h-4 w-4" />Reset password</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => a.forceChange(u)}><AlertTriangle className="mr-2 h-4 w-4" />Force password change</DropdownMenuItem>
-          {u.has_matrix_card && (
+          {pw && <DropdownMenuItem onClick={() => a.resetPassword(u)}><RefreshCw className="mr-2 h-4 w-4" />Reset password</DropdownMenuItem>}
+          {pw && <DropdownMenuItem onClick={() => a.forceChange(u)}><AlertTriangle className="mr-2 h-4 w-4" />Force password change</DropdownMenuItem>}
+          {u.has_matrix_card && !isDisabled("matrix_2fa") && (
             <DropdownMenuItem onClick={() => a.matrix(u)}><KeyRound className="mr-2 h-4 w-4" />Reset sign-in card</DropdownMenuItem>
           )}
           <DropdownMenuSeparator />
