@@ -13,9 +13,12 @@ from app.models import Instance, ServiceTemplate, SessionEvent, PulledImage, Use
 from app.schemas import InstanceCreate, InstanceUpdate, SessionConfigUpdate, InstanceStatus
 from app.security.deps import get_current_user, require_owner_or_admin
 from app.services.docker_manager import DockerManager
+from app.services.egress_mode import resolve_egress_mode
+from app.services.k8s_instances import K8sInstanceRuntime
 from app.services.k8s_runtime import ensure_instance_supported, instance_runtime
 from app.services.screenshot import ScreenshotService
 from app.services import gpu_access, instance_readiness, profiles
+from app.services.group_tier import launch_overrides
 from app.services.traefik_labels import generate_traefik_labels
 from app.services.audit import audit
 from app.services.settings_store import settings as sys_settings
@@ -78,6 +81,16 @@ def _pinned(docker, instance) -> str | None:
     return d if isinstance(d, str) else None
 
 
+async def _egress_kwargs(docker, session, instance) -> dict:
+    """Egress mode of the owner; k8s only (Docker launches are unchanged)."""
+    if not isinstance(docker, K8sInstanceRuntime) or not instance.owner_id:
+        return {}
+    owner = await session.get(User, instance.owner_id)
+    if owner is None:
+        return {}
+    return {"egress_mode": await resolve_egress_mode(session, owner)}
+
+
 async def _isolate_or_409(docker, instance, container_id):
     """Fail closed: never start an instance container that may share styx-portal with the backend."""
     try:
@@ -101,7 +114,8 @@ async def _build_and_start_container(instance, template, docker, session):
         await asyncio.to_thread(docker.create_volume, store)
         volumes[store] = {"bind": "/var/lib/docker", "mode": "rw"}
 
-    env = {**template.env_vars, **(instance.env_overrides or {})}
+    tier_env, mem_limit, cpu_limit = await launch_overrides(session, docker, instance, template)
+    env = {**tier_env, **template.env_vars, **(instance.env_overrides or {})}
     labels = generate_traefik_labels(
         instance_id=instance.id,
         subdomain=instance.subdomain,
@@ -123,8 +137,8 @@ async def _build_and_start_container(instance, template, docker, session):
         port=template.internal_port,
         gpu_enabled=await gpu_access.resolve_gpu(session, docker, template, instance),
         gpu_count=template.gpu_count,
-        memory_limit=template.memory_limit,
-        cpu_limit=template.cpu_limit,
+        memory_limit=mem_limit,
+        cpu_limit=cpu_limit,
         shm_size=template.shm_size,
         dind=template.dind,
         cap_add=template.cap_add,
@@ -140,6 +154,7 @@ async def _build_and_start_container(instance, template, docker, session):
         command=template.command,
         privileged=template.privileged,
         extra_docker_args=template.extra_docker_args,
+        **await _egress_kwargs(docker, session, instance),
     )
     try:
         await _isolate_or_409(docker, instance, container_id)
@@ -200,7 +215,8 @@ async def _launch_instance_background(instance_id: str, template_id: str):
                 await asyncio.to_thread(docker.create_volume, store)
                 volumes[store] = {"bind": "/var/lib/docker", "mode": "rw"}
 
-            env = {**template.env_vars, **(instance.env_overrides or {})}
+            tier_env, mem_limit, cpu_limit = await launch_overrides(session, docker, instance, template)
+            env = {**tier_env, **template.env_vars, **(instance.env_overrides or {})}
 
             labels = generate_traefik_labels(
                 instance_id=instance.id,
@@ -223,8 +239,8 @@ async def _launch_instance_background(instance_id: str, template_id: str):
                 port=template.internal_port,
                 gpu_enabled=await gpu_access.resolve_gpu(session, docker, template, instance),
                 gpu_count=template.gpu_count,
-                memory_limit=template.memory_limit,
-                cpu_limit=template.cpu_limit,
+                memory_limit=mem_limit,
+                cpu_limit=cpu_limit,
                 shm_size=template.shm_size,
                 dind=template.dind,
                 cap_add=template.cap_add,
@@ -240,6 +256,7 @@ async def _launch_instance_background(instance_id: str, template_id: str):
                 command=template.command,
                 privileged=template.privileged,
                 extra_docker_args=template.extra_docker_args,
+                **await _egress_kwargs(docker, session, instance),
             )
 
             # Track pulled image

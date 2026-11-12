@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     HARBOR_USER: str = ""
     HARBOR_PASSWORD: str = ""
     K8S_DESKTOP_IMAGE: str = "ghcr.io/jmo-labs/styx-desktop:latest"
+    EGRESS_PROXY_HOST: str = "squid.egress-proxy.svc.cluster.local"
+    EGRESS_PROXY_PORT_CATEGORY: int = 3128
+    EGRESS_PROXY_PORT_ALLOWLIST: int = 3129
     INSTANCE_STORAGE_CLASS: str = "longhorn"
     INSTANCE_VOLUME_SIZE: str = "20Gi"
     HOME_STORAGE_CLASS: str = "ceph-cephfs"
@@ -92,6 +95,7 @@ class Settings(BaseSettings):
     REFRESH_TTL: int = 604800      # 7 days
     SESSION_MAX_AGE: int = 2592000  # 30 days: absolute cap on a refresh family
     MATRIX_SESSION_MAX_HOURS: int = 12  # absolute cap on a session-only (card) family
+    MATRIX_DIGEST_WEBHOOK_URL: str = ""  # daily new-account digest target; unset = skipped
     COOKIE_SECURE: bool = True
     DEV_CORS: bool = False          # allow the Vite dev origin (http://localhost:5173) with credentials
     ENABLE_DOCS: bool = False       # expose /docs, /redoc, /openapi.json (dev only)

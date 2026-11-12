@@ -9,6 +9,7 @@ from app.database import get_session
 from app.models import User
 from app.security.deps import require_admin
 from app.services.audit import audit
+from app.services.new_account_digest import build_digest
 from app.services.offboarding import disable_account
 
 router = APIRouter()
@@ -36,6 +37,13 @@ async def list_provisioned(days: int = Query(14, ge=1, le=365),
     rows = (await session.exec(select(User).where(User.created_at >= since)
                                .order_by(User.created_at.desc()))).all()
     return [_row(u) for u in rows]
+
+
+@router.get("/digest")
+async def latest_digest(admin: User = Depends(require_admin),
+                        session: AsyncSession = Depends(get_session)):
+    now = datetime.now(timezone.utc)
+    return {"generated_at": now, "digest": await build_digest(session, now)}
 
 
 @router.post("/{user_id}/review")

@@ -8,7 +8,7 @@ data:
   squid.conf: |
     http_port 3128 name=category
     http_port 3129 name=allowlist
-    pid_filename none
+    pid_filename /var/run/squid/squid.pid
     coredump_dir /tmp
     cache deny all
     cache_log stdio:/dev/stderr

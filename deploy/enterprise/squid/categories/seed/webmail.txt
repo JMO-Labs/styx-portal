@@ -1,0 +1,4 @@
+.mail.yahoo.com
+.mail.ru
+.gmx.com
+.proton.me
