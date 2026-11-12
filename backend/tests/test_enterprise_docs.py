@@ -114,6 +114,17 @@ def test_adr_0064_keycloak_x509():
     assert "proposed in ADR-0064 (D63)" in (DOCS / "design.md").read_text()
 
 
+def test_adr_0064_policy_oids_and_revocation():
+    text = adr("0064")
+    # PIV-I hardware OID; .3.40 is derived-PIV Auth, not PIV-I.
+    assert "2.16.840.1.101.3.2.1.3.18" in text
+    assert "2.16.840.1.101.3.2.1.3.40" not in text
+    assert "CAC equivalent" not in text
+    # Both checks must pass; the CRL mirror is not a fallback.
+    assert "fallback" not in text.lower()
+    assert has(text, "both checks must pass")
+
+
 def test_adr_index_matches_files():
     index = (ADR / "README.md").read_text()
     older = [ln for ln in index.splitlines() if not any(f"({n}-" in ln for n in ("0062", "0063", "0064"))]
