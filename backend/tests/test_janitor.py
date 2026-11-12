@@ -129,3 +129,8 @@ async def test_loop_survives_purge_failure(monkeypatch, caplog):
             await janitor.janitor_loop()
     assert calls["sessions"] == 2  # kept ticking after the first failure
     assert "janitor tick failed" in caplog.text
+
+
+async def test_purge_skips_missing_abuse_tables(session):
+    """Tables absent from the schema are skipped, not an error."""
+    assert await purge_expired(session, now=NOW) == 0
