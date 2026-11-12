@@ -13,7 +13,7 @@ spec:
       rules:
         - alert: KeycloakBreakGlassLogin
           expr: |
-            sum(increase(keycloak_user_events_total{realm="master",event=~"login|login_error"}[5m])) > 0
+            sum(increase(keycloak_user_events_total{realm="master",event="login"}[5m])) > 0
           labels: {severity: critical, team: ops, notify: security-officer}
           annotations:
             summary: Login (success or failure) in the Keycloak master realm

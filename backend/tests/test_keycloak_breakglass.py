@@ -26,9 +26,15 @@ class FakeKC:
         self.flows = {f: {"alias": f} for f in flows}
         self.execs = [
             {"id": "e1", "providerId": "auth-cookie", "requirement": "ALTERNATIVE", "level": 0},
-            {"id": "e2", "providerId": "conditional-user-configured", "requirement": "REQUIRED", "level": 1},
-            {"id": "e3", "providerId": "auth-otp-form", "requirement": "REQUIRED", "level": 1},
+            {"id": "e2", "providerId": "identity-provider-redirector", "requirement": "ALTERNATIVE", "level": 0},
+            {"id": "e3", "displayName": "forms", "authenticationFlow": True, "requirement": "ALTERNATIVE", "level": 0},
+            {"id": "e4", "providerId": "auth-username-password-form", "requirement": "REQUIRED", "level": 1},
+            {"id": "e5", "displayName": "Browser - Conditional OTP", "authenticationFlow": True,
+             "requirement": "CONDITIONAL", "level": 1},
+            {"id": "e6", "providerId": "conditional-user-configured", "requirement": "REQUIRED", "level": 2},
+            {"id": "e7", "providerId": "auth-otp-form", "requirement": "REQUIRED", "level": 2},
         ]
+        self.realm_events = {"eventsListeners": ["jboss-logging"]}
         self.calls = []
         self.realm = {"browserFlow": "browser"}
 
@@ -57,6 +63,11 @@ class FakeKC:
             for e in self.execs:
                 if e["id"] == body["id"]:
                     e["requirement"] = body["requirement"]
+            return {}
+        if path == "/events/config" and method == "GET":
+            return self.realm_events
+        if path == "/events/config" and method == "PUT":
+            self.realm_events.update(body)
             return {}
         if path == "" and method == "GET":
             return self.realm
@@ -103,8 +114,8 @@ def test_creates_exactly_two_admins_with_totp(env, monkeypatch, capsys):
 def test_already_exists_is_idempotent(env, monkeypatch, capsys):
     kc = FakeKC(users=["bg-admin-1", "bg-admin-2"], flows=["breakglass-browser"])
     kc.realm["browserFlow"] = "breakglass-browser"
-    kc.execs[1]["requirement"] = "DISABLED"
-    kc.execs[2]["requirement"] = "REQUIRED"
+    kc.execs[4]["requirement"] = "REQUIRED"
+    kc.realm_events["eventsListeners"] = ["jboss-logging", "micrometer-user-event-metrics"]
     assert run(monkeypatch, kc) == 0
     assert not [c for c in kc.calls if c[0] == "POST"]
     assert not [c for c in kc.calls if c[0] == "PUT"]
@@ -115,9 +126,20 @@ def test_otp_is_required_in_master_browser_flow(env, monkeypatch):
     kc = FakeKC()
     assert run(monkeypatch, kc) == 0
     assert kc.realm["browserFlow"] == "breakglass-browser"
-    by_provider = {e["providerId"]: e["requirement"] for e in kc.execs}
-    assert by_provider["auth-otp-form"] == "REQUIRED"
-    assert by_provider["conditional-user-configured"] == "DISABLED"
+    by_id = {e["id"]: e for e in kc.execs}
+    assert by_id["e5"]["requirement"] == "REQUIRED"
+    assert by_id["e7"]["requirement"] == "REQUIRED"
+    # no CONDITIONAL execution may remain on the path to the OTP form
+    assert not [e for e in kc.execs if e["requirement"] == "CONDITIONAL"]
+    assert by_id["e6"]["requirement"] != "DISABLED"
+
+
+def test_metrics_listener_added_idempotently(env, monkeypatch):
+    kc = FakeKC()
+    assert run(monkeypatch, kc) == 0
+    assert kc.realm_events["eventsListeners"] == ["jboss-logging", "micrometer-user-event-metrics"]
+    assert run(monkeypatch, kc) == 0
+    assert kc.realm_events["eventsListeners"].count("micrometer-user-event-metrics") == 1
 
 
 def test_missing_env_fails_without_leak(env, monkeypatch, capsys):
@@ -135,7 +157,7 @@ def test_prometheusrule_alerts_on_master_logins():
     doc = yaml.safe_load((BG / "prometheusrule.yaml").read_text())
     rule = doc["spec"]["groups"][0]["rules"][0]
     assert 'realm="master"' in rule["expr"]
-    assert "login" in rule["expr"] and "login_error" in rule["expr"]
+    assert 'event="login"' in rule["expr"] and "login_error" not in rule["expr"]
     assert rule["labels"]["team"] == "ops"
     assert rule["labels"]["notify"] == "security-officer"
 
@@ -152,3 +174,5 @@ def test_kustomization_and_metrics_env():
     assert "breakglass" in (base / "kustomization.yaml").read_text()
     dep = (base / "deployment.yaml").read_text()
     assert "KC_EVENT_METRICS_USER_ENABLED" in dep
+    assert "user-event-metrics" in dep and "KC_FEATURES" in dep
+    assert "login_error" not in dep

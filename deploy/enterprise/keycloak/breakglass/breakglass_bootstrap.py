@@ -20,6 +20,7 @@ import urllib.request
 REALM = "master"
 FLOW = "breakglass-browser"
 ADMIN_ROLE = "admin"
+LISTENER = "micrometer-user-event-metrics"
 
 
 class KCError(Exception):
@@ -98,6 +99,26 @@ def ensure_user(kc, username, password, dry):
     return True
 
 
+def _otp_subflow(execs, otp):
+    """Nearest preceding subflow execution one level above the OTP form."""
+    i = execs.index(otp)
+    for e in reversed(execs[:i]):
+        if e.get("authenticationFlow") and e.get("level", 0) == otp.get("level", 0) - 1:
+            return e
+    return None
+
+
+def ensure_events_listener(kc, dry):
+    cfg = kc.call("GET", "/events/config")
+    listeners = list(cfg.get("eventsListeners") or [])
+    if LISTENER in listeners:
+        return False
+    print(f"plan: add {LISTENER} to master eventsListeners")
+    if not dry:
+        kc.call("PUT", "/events/config", {**cfg, "eventsListeners": listeners + [LISTENER]})
+    return True
+
+
 def ensure_flow(kc, dry):
     changed = False
     exists = True
@@ -106,14 +127,22 @@ def ensure_flow(kc, dry):
         changed = exists = False
         if not dry:
             kc.call("POST", "/authentication/flows/browser/copy", {"newName": FLOW})
-    want = {"auth-otp-form": "REQUIRED", "conditional-user-configured": "DISABLED"}
-    for e in (kc.call("GET", f"/authentication/flows/{FLOW}/executions") if exists or not dry else []):
-        req = want.get(e.get("providerId"))
-        if req and e.get("requirement") != req:
-            print(f"plan: {e['providerId']} -> {req}")
-            changed = True
-            if not dry:
-                kc.call("PUT", f"/authentication/flows/{FLOW}/executions", {**e, "requirement": req})
+    if exists or not dry:
+        execs = kc.call("GET", f"/authentication/flows/{FLOW}/executions")
+        for e in execs:
+            # OTP form, and the (level-0 relative) subflow holding it, must be REQUIRED.
+            # The subflow's own condition is left untouched (a disabled one skips the subflow).
+            if e.get("providerId") == "auth-otp-form":
+                targets = [e, _otp_subflow(execs, e)]
+            else:
+                continue
+            for t in targets:
+                if t and t.get("requirement") != "REQUIRED":
+                    print(f"plan: {t.get('providerId') or t.get('displayName')} -> REQUIRED")
+                    changed = True
+                    if not dry:
+                        kc.call("PUT", f"/authentication/flows/{FLOW}/executions",
+                                {**t, "requirement": "REQUIRED"})
     realm = kc.call("GET", "")
     if realm.get("browserFlow") != FLOW:
         print(f"plan: bind master browserFlow={FLOW}")
@@ -137,6 +166,7 @@ def main(argv=None):
                     os.environ["KC_ADMIN_PASSWORD"], os.environ.get("KC_CA_FILE") or None)
         changed = [ensure_user(kc, u, p, args.dry_run) for u, p in users]
         changed.append(ensure_flow(kc, args.dry_run))
+        changed.append(ensure_events_listener(kc, args.dry_run))
         if not any(changed):
             print("nothing to do")
     except KCError as e:
