@@ -41,7 +41,7 @@ repo root.
 
 ## CPU-tier settings and group overrides
 
-Global launch defaults (ADR-0031) are settings, shown in [Settings](settings.md):
+Global launch defaults (ADR-0031) are environment-driven backend config (`CPU_TIER_*`), not editable in the Settings page:
 
 | Setting | Default |
 |---|---|
@@ -53,6 +53,8 @@ Global launch defaults (ADR-0031) are settings, shown in [Settings](settings.md)
 
 A group can override any field (`tier_resolution`, `tier_fps`, `tier_hidpi`, `tier_cpu`,
 `tier_memory`). Empty fields use the global default.
+
+Precedence: template limits > group override (highest wins) > global `CPU_TIER_*` default; Kubernetes runtime only.
 
 **A user in several groups gets the highest value per field:** highest cpu, memory and fps,
 the resolution with the most pixels, and HiDPI if any group enables it. To lower someone's
