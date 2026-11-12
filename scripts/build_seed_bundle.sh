@@ -25,5 +25,6 @@ echo '{"imageLayoutVersion":"1.0.0"}' > "$work/all/oci-layout"
 for d in "$work"/img*/; do cp -an "$d"blobs/sha256/. "$work/all/blobs/sha256/"; done
 jq -s '{schemaVersion:2,mediaType:"application/vnd.oci.image.index.v1+json",manifests:(map(.manifests)|add)}' \
   "$work"/img*/index.json > "$work/all/index.json"
+# A plain tar of an OCI layout is exactly what the oci-archive: transport reads (skopeo oci-archive:$out).
 tar -C "$work/all" -cf "$out" .
 echo "wrote $out ($n images)"
