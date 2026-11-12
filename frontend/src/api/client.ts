@@ -163,6 +163,9 @@ export type TurnUsage = {
 
 const BASE = "/api";
 
+export type { ProvisionedUser } from "./provisioned";
+import type { ProvisionedUser } from "./provisioned";
+
 export type LoginResult = {
   id: string; username: string; role: string; must_change_pw?: boolean;
   mfa_required?: boolean; challenge?: string[];
@@ -290,6 +293,9 @@ export const api = {
   deleteGroup: (id: string) => request<void>(`/groups/${id}`, { method: "DELETE" }),
   updateGroup: (id: string, data: { allow_gpu?: boolean; description?: string | null }) =>
     request<Group>(`/groups/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  listProvisioned: () => request<ProvisionedUser[]>("/admin/provisioned"),
+  reviewProvisioned: (id: string) => request<ProvisionedUser>(`/admin/provisioned/${id}/review`, { method: "POST" }),
+  suspendProvisioned: (id: string) => request<ProvisionedUser>(`/admin/provisioned/${id}/suspend`, { method: "POST" }),
   getMyProfiles: () => request<Profile[]>("/profiles"),
   deleteMyProfile: (templateId: string) => request<void>(`/profiles/${templateId}`, { method: "DELETE" }),
   getUserProfiles: (userId: string) => request<Profile[]>(`/users/${userId}/profiles`),
@@ -388,6 +394,7 @@ export const api = {
   getInstanceLogs: (instanceId: string) =>
     request<string[]>(`/instances/${instanceId}/logs`),
 
+  systemProfile: () => request<{ profile: string; disabled: string[] }>("/system/profile"),
   setupRequired: () => request<{ setup_required: boolean }>("/auth/setup-required"),
   setupPreflight: () => request<SetupPreflight>("/auth/setup-preflight"),
   setup: (data: { username: string; email?: string; password: string; setup_token: string }) =>
@@ -417,6 +424,7 @@ export const api = {
     request<{ token: string; expires_at: string | null }>("/users/invites", {
       method: "POST", body: JSON.stringify(data) }),
   disableUser: (id: string) => request<unknown>(`/users/${id}/disable`, { method: "PATCH" }),
+  removeAccess: (id: string) => request<unknown>(`/users/${id}/remove-access`, { method: "POST" }),
   changeRole: (id: string, role: string) =>
     request<unknown>(`/users/${id}/role?role=${role}`, { method: "PATCH" }),
   unlockUser: (id: string) => request(`/users/${id}/unlock`, { method: "POST" }),

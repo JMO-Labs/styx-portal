@@ -1,8 +1,8 @@
-# ADR-0063: Keycloak X.509 flow and HAProxy client-cert header format
+# ADR-0064: Keycloak X.509 flow and HAProxy client-cert header format
 
 - Status: Accepted
 - Date: 2026-11-12
-- Decision ID: D62
+- Decision ID: D63
 - Related controls: IA-2, IA-2(12), IA-5, IA-5(2), SC-23, AC-17
 - Refines: ADR-0015, ADR-0016, ADR-0017, ADR-0050
 

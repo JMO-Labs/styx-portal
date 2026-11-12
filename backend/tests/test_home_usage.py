@@ -59,3 +59,14 @@ async def test_endpoint_unavailable(member_client):
 
 async def test_endpoint_requires_login(client):
     assert (await client.get("/api/me/storage")).status_code == 401
+
+
+async def test_endpoint_url_set_but_no_usage(member_client, monkeypatch):
+    monkeypatch.setenv("PROMETHEUS_URL", "http://prom")
+
+    async def fake(uid, url, **kw):
+        return None
+    monkeypatch.setattr("app.routers.me_storage.home_usage", fake)
+    r = await member_client.get("/api/me/storage")
+    assert r.status_code == 200
+    assert r.json() == {"used_bytes": None, "quota_bytes": None, "percent": None, "warn": False}

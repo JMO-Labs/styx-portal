@@ -83,10 +83,20 @@ def pvc(name: str, ns: str, size: str | None = None) -> dict:
                      "resources": {"requests": {"storage": size or cfg.INSTANCE_VOLUME_SIZE}}}}
 
 
+def proxy_env(mode: str, cfg) -> dict:
+    port = (cfg.EGRESS_PROXY_PORT_ALLOWLIST if mode == "allowlist"
+            else cfg.EGRESS_PROXY_PORT_CATEGORY)
+    url = f"http://{cfg.EGRESS_PROXY_HOST}:{port}"
+    no = "localhost,127.0.0.1,.svc,.cluster.local"
+    return {"HTTP_PROXY": url, "HTTPS_PROXY": url, "http_proxy": url,
+            "https_proxy": url, "NO_PROXY": no, "no_proxy": no}
+
+
 def build_objects(name, image, env, volumes, port, ns, owner, *, gpu_enabled=False,
                   gpu_count=1, memory_limit=None, cpu_limit=None, shm_size=None,
                   cap_add=None, read_only_rootfs=False, tmpfs=None, extra_hosts=None,
-                  entrypoint=None, command=None) -> list[dict]:
+                  entrypoint=None, command=None, posix_uid: int | None = None,
+                  egress_mode=None) -> list[dict]:
     if "/" not in image:
         image = Settings().K8S_DESKTOP_IMAGE
     image = image_digest.resolve_digest(image)
@@ -98,6 +108,9 @@ def build_objects(name, image, env, volumes, port, ns, owner, *, gpu_enabled=Fal
                 "SELKIES_FRAMERATE": str(cfg.CPU_TIER_FPS),
                 "SELKIES_SCALING_DPI": "192" if cfg.CPU_TIER_HIDPI else "96"}
     labels = {"app": name, "styx/owner": owner, **MANAGED}
+    if egress_mode:
+        labels["styx.io/egress-mode"] = egress_mode
+        env = {**proxy_env(egress_mode, cfg), **env}
     limits: dict = {}
     requests: dict = {}
     if memory_limit:
@@ -119,6 +132,13 @@ def build_objects(name, image, env, volumes, port, ns, owner, *, gpu_enabled=Fal
     for i, path in enumerate(tmpfs or []):
         vols.append({"name": f"tmp{i}", "emptyDir": {"medium": "Memory"}})
         mounts.append({"name": f"tmp{i}", "mountPath": path})
+    sec_ctx: dict = {"seccompProfile": {"type": "RuntimeDefault"}}
+    if posix_uid is not None:
+        sec_ctx.update(runAsUser=posix_uid, runAsGroup=posix_uid, fsGroup=posix_uid,
+                       runAsNonRoot=True)
+        vols.append({"name": "home",
+                     "persistentVolumeClaim": {"claimName": f"home-{posix_uid}"}})
+        mounts.append({"name": "home", "mountPath": cfg.HOME_MOUNT_PATH})
     caps = _caps(list(cap_add or []))
     cap_spec: dict = {"drop": ["ALL"]}
     if caps:
@@ -143,7 +163,7 @@ def build_objects(name, image, env, volumes, port, ns, owner, *, gpu_enabled=Fal
     if command is not None:
         container["args"] = command
     pod: dict = {"automountServiceAccountToken": False, "enableServiceLinks": False,
-                 "securityContext": {"seccompProfile": {"type": "RuntimeDefault"}},
+                 "securityContext": sec_ctx,
                  "containers": [container], "volumes": vols}
     if extra_hosts:
         pod["hostAliases"] = [{"ip": ip, "hostnames": [h]}

@@ -6,3 +6,19 @@ resources:
   - allowlist.yaml
   - deployment.yaml
   - service.yaml
+  - categories-cronjob.yaml
+configMapGenerator:
+  - name: squid-categories-script
+    namespace: egress-proxy
+    files: [categories/update_categories.py]
+    options: {disableNameSuffixHash: true}
+  - name: squid-categories-seed
+    namespace: egress-proxy
+    files:
+      - categories/seed/paste.txt
+      - categories/seed/filehosting.txt
+      - categories/seed/webmail.txt
+      - categories/seed/vpn.txt
+      - categories/seed/redirector.txt
+      - categories/seed/strong_redirector.txt
+    options: {disableNameSuffixHash: true}
