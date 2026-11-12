@@ -98,4 +98,4 @@ Its `/start` location redirects to the Styx start URL for the Keycloak provider
 - The Styx login page redirects to the banner URL when one is configured (loop guard in place);
   if users loop, check that the banner host is not behind the client-cert listener.
 - The IdP groups claim is mirrored into IdP-managed Styx groups at login (#133); roles come
-  from the configured admin/user groups, never from open signup (ADR-0067).
+  from the configured admin/user groups, never from open signup (ADR-0068).

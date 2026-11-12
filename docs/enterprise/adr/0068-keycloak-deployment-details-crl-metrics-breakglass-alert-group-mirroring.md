@@ -1,8 +1,8 @@
-# ADR-0067: Keycloak deployment details: CRL metrics, break-glass alert, group mirroring
+# ADR-0068: Keycloak deployment details: CRL metrics, break-glass alert, group mirroring
 
 - Status: Proposed
 - Date: 2026-11-12
-- Decision ID: D66
+- Decision ID: D67
 - Related controls: IA-2, IA-5(2), AC-2, AC-6, AC-8, AU-6
 - Refines: ADR-0017, ADR-0025, ADR-0027, ADR-0065
 
