@@ -13,6 +13,7 @@ from app.models import Instance, ServiceTemplate, SessionEvent, PulledImage, Use
 from app.schemas import InstanceCreate, InstanceUpdate, SessionConfigUpdate, InstanceStatus
 from app.security.deps import get_current_user, require_owner_or_admin
 from app.services.docker_manager import DockerManager
+from app.services.posix_uid import allocate_uid
 from app.services.k8s_runtime import ensure_instance_supported, instance_runtime
 from app.services.screenshot import ScreenshotService
 from app.services import gpu_access, instance_readiness, profiles
@@ -87,6 +88,14 @@ async def _isolate_or_409(docker, instance, container_id):
         raise HTTPException(409, "Instance network could not be isolated")
 
 
+async def _home_kwargs(docker, instance, session) -> dict:
+    """k8s only: owner's POSIX UID so the pod mounts home-<uid> and runs as that UID."""
+    from app.services.k8s_instances import K8sInstanceRuntime
+    if isinstance(docker, K8sInstanceRuntime) and instance.owner_id:
+        return {"posix_uid": await allocate_uid(session, instance.owner_id)}
+    return {}
+
+
 async def _build_and_start_container(instance, template, docker, session):
     """(Re)create the Docker container for an instance from its template,
     mounting the instance's existing named volumes (data preserved), then start it.
@@ -140,6 +149,7 @@ async def _build_and_start_container(instance, template, docker, session):
         command=template.command,
         privileged=template.privileged,
         extra_docker_args=template.extra_docker_args,
+        **await _home_kwargs(docker, instance, session),
     )
     try:
         await _isolate_or_409(docker, instance, container_id)
@@ -240,6 +250,7 @@ async def _launch_instance_background(instance_id: str, template_id: str):
                 command=template.command,
                 privileged=template.privileged,
                 extra_docker_args=template.extra_docker_args,
+                **await _home_kwargs(docker, instance, session),
             )
 
             # Track pulled image

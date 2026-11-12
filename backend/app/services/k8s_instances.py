@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from app.config import Settings
 from app.services import image_digest
 from app.services.k8s_api import incluster_client
-from app.services.k8s_homes import profile_pvc
+from app.services.k8s_homes import ensure_home, profile_pvc
 from app.services.k8s_instance_objects import build_objects, parse_qty, pvc
 
 logger = logging.getLogger("styx-portal")
@@ -76,17 +76,19 @@ class K8sInstanceRuntime:
                          cpu_limit=None, shm_size=None, privileged=False, dind=False,
                          cap_add=None, network=None, read_only_rootfs=False,
                          tmpfs=None, extra_hosts=None, entrypoint=None, command=None,
-                         **ignored) -> str:
+                         posix_uid=None, **ignored) -> str:
         if privileged or dind:
             raise ValueError("privileged/dind containers are not supported on Kubernetes")
         if ignored or labels:
             logger.info("k8s: ignoring container options %s", sorted(ignored))
+        if posix_uid is not None:
+            ensure_home(self._c, posix_uid, self._ns)
         objs = build_objects(
                 name, image, environment, volumes, port, self._ns, network or "",
                 gpu_enabled=gpu_enabled, gpu_count=gpu_count, memory_limit=memory_limit,
                 cpu_limit=cpu_limit, shm_size=shm_size, cap_add=cap_add,
                 read_only_rootfs=read_only_rootfs, tmpfs=tmpfs, extra_hosts=extra_hosts,
-                entrypoint=entrypoint, command=command)
+                entrypoint=entrypoint, command=command, posix_uid=posix_uid)
         for obj in objs:
             self._c.apply(obj)
             if obj["kind"] == "Deployment":

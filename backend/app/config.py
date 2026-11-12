@@ -59,6 +59,7 @@ class Settings(BaseSettings):
     INSTANCE_VOLUME_SIZE: str = "20Gi"
     HOME_STORAGE_CLASS: str = "ceph-cephfs"
     HOME_QUOTA: str = "10Gi"
+    HOME_MOUNT_PATH: str = "/home/user"
     PROMETHEUS_URL: str = ""  # kube-prometheus-stack, for home usage (ADR-0044)
     PROFILE_QUOTA: str = "2Gi"
     CPU_TIER_RESOLUTION: str = "1920x1080"  # ADR-0031 CPU-tier launch defaults
