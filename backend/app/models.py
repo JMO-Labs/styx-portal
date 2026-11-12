@@ -257,6 +257,7 @@ class Instance(SQLModel, table=True):
     gpu: bool | None = None  # None = legacy: use template.gpu_enabled
     notice: str | None = None
     image_digest: str | None = None  # pinned at launch (k8s), never changed after
+    recycle_deadline: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)  # critical CVE: stop by then
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
     started_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
     stopped_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)

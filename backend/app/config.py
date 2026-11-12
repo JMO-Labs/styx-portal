@@ -59,6 +59,8 @@ class Settings(BaseSettings):
     HARBOR_URL: str = ""   # empty = no digest pinning (ADR-0030)
     HARBOR_USER: str = ""
     HARBOR_PASSWORD: str = ""
+    CVE_RECYCLE_INTERVAL_S: int = 3600  # critical-CVE scan loop (ADR-0030)
+    CVE_RECYCLE_GRACE_H: int = 24
     K8S_DESKTOP_IMAGE: str = "ghcr.io/jmo-labs/styx-desktop:latest"
     EGRESS_PROXY_HOST: str = "squid.egress-proxy.svc.cluster.local"
     EGRESS_PROXY_PORT_CATEGORY: int = 3128
