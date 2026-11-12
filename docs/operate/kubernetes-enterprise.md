@@ -14,7 +14,7 @@ Postgres cluster with offsite backups. It builds on
 | External Secrets Operator (ESO) | current | Syncs DB credentials and bucket keys from OpenBao |
 | Reloader | current | Restarts backend pods when a Secret changes |
 
-## First boot: start with one replica
+## First boot: setup code
 
 The setup token lives in the database (`setup_tokens`, a singleton row created
 with `INSERT ... ON CONFLICT DO NOTHING`), so all replicas share one code and it

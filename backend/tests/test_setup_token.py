@@ -102,3 +102,21 @@ def test_legacy_file_migrated(tmp_path, monkeypatch):
     assert setup_token.take_legacy_file() == "legacy-token"
     assert not f.exists()
     assert setup_token.take_legacy_file() is None
+
+
+async def test_announce_migrates_legacy_file_into_db(session, tmp_path, monkeypatch):
+    f = tmp_path / "setup-token"
+    f.write_text("legacy-token\n")
+    monkeypatch.setattr(setup_token, "_legacy_path", lambda: f)
+    await setup_token.announce(session, True)
+    assert await setup_token.current_or_none(session) == "legacy-token"
+    assert not f.exists()
+
+
+async def test_announce_drops_legacy_file_when_users_exist(session, tmp_path, monkeypatch):
+    f = tmp_path / "setup-token"
+    f.write_text("legacy-token\n")
+    monkeypatch.setattr(setup_token, "_legacy_path", lambda: f)
+    await setup_token.announce(session, False)
+    assert not f.exists()
+    assert await setup_token.current_or_none(session) is None
