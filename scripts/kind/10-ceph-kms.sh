@@ -87,8 +87,9 @@ spec:
 YAML
 
 step "OpenBao ${BAO_IMAGE} (file storage on hostPath so data survives stop/start)"
-# /openbao/file: the image entrypoint chowns it to the openbao user before dropping root
-# (a root-owned hostPath elsewhere is unwritable). disable_mlock: pods lack IPC_LOCK.
+# The entrypoint's chown of a hostPath fails on kind (EPERM -> CrashLoop), so pre-create the
+# dir world-writable on the node and set SKIP_CHOWN/SKIP_SETCAP. disable_mlock: pods lack IPC_LOCK.
+docker exec "$NODE" bash -c "mkdir -p /var/lib/spike-openbao && chmod 0777 /var/lib/spike-openbao"
 kubectl create ns "$BAO_NS" --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f - <<YAML
 apiVersion: v1
@@ -135,6 +136,7 @@ spec:
       - name: openbao
         image: $BAO_IMAGE
         args: [server, -config=/etc/bao/config.hcl]
+        env: [{name: SKIP_CHOWN, value: "true"}, {name: SKIP_SETCAP, value: "true"}]
         ports: [{containerPort: 8200}]
         readinessProbe:
           httpGet: {path: "/v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204", port: 8200}
@@ -144,7 +146,7 @@ spec:
         - {name: data, mountPath: /openbao/file}
       volumes:
       - {name: cfg, configMap: {name: openbao-config}}
-      - {name: data, hostPath: {path: /var/lib/spike-openbao, type: DirectoryOrCreate}}
+      - {name: data, hostPath: {path: /var/lib/spike-openbao, type: Directory}}
 YAML
 wait_for 180 "openbao container running" bao_up
 INIT=$(kubectl -n "$BAO_NS" exec openbao-0 -c openbao -- env BAO_ADDR=http://127.0.0.1:8200 bao operator init -key-shares=1 -key-threshold=1 -format=json)
