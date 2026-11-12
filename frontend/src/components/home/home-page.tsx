@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { SectionHead } from "@/components/common/section-head";
 import { useInstances, useStartInstance, useUnpauseInstance } from "@/hooks/use-instances";
+import { useHomeStorage } from "@/hooks/use-home-storage";
 import { useTemplates } from "@/hooks/use-templates";
 import { useOpenInstance, useWorkstationConnect } from "@/hooks/use-open-actions";
 import { OPENED_EVENT, readOpened, recentItems, recordOpened, type RecentItem } from "@/lib/recents";
@@ -11,10 +12,12 @@ import { AppsGrid } from "./apps-grid";
 import { ContainerRows } from "./container-rows";
 import { DesktopTiles } from "./desktop-tiles";
 import { DetailsSheet, type Detail } from "./details-sheet";
+import { HomeQuotaBanner } from "./home-quota-banner";
 import { RecentStrip } from "./recent-strip";
 
 export function HomePage({ onNewContainer, onOpenSettings }: { onNewContainer: () => void; onOpenSettings?: () => void }) {
   const { data: instances = [] } = useInstances();
+  const { data: storage } = useHomeStorage();
   const { data: templates } = useTemplates();
   const { data: workstations = [] } = useQuery({ queryKey: ["my-workstations"], queryFn: api.myWorkstations, refetchInterval: 15000 });
   const { connect, error, dialog } = useWorkstationConnect();
@@ -47,6 +50,7 @@ export function HomePage({ onNewContainer, onOpenSettings }: { onNewContainer: (
 
   return (
     <div data-glyph-keepout className="mx-auto max-w-[1200px] space-y-6 pb-16 md:space-y-9">
+      <HomeQuotaBanner data={storage} />
       <section aria-label="Recent">
         <SectionHead title="Recent" />
         <RecentStrip items={recents} onAct={actOnRecent} />

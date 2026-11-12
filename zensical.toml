@@ -48,6 +48,7 @@ nav = [
     { "Enterprise: DMZ HAProxy" = "enterprise/runbooks/dmz-haproxy.md" },
     { "Enterprise: Rook-Ceph" = "enterprise/runbooks/rook-ceph.md" },
     { "Enterprise: Squid egress" = "enterprise/runbooks/squid-egress.md" },
+    { "Enterprise: Ceph OSD encryption" = "enterprise/runbooks/ceph-osd-encryption.md" },
   ] },
   { "Build" = [
     "build/index.md",
