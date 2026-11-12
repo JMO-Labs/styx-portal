@@ -60,6 +60,13 @@ docker exec "$NODE" bash -c "
   [ -e /dev/loop$LOOP_N ] || mknod -m660 /dev/loop$LOOP_N b 7 $LOOP_N
   losetup /dev/loop$LOOP_N /var/lib/spike-osd.img
   losetup -a | grep loop$LOOP_N; lsblk /dev/loop$LOOP_N"
+# kind nodes run no udevd; ceph-volume raises "No udev data could be retrieved"
+# for any block device without /run/udev/data/b<maj:min>. Keep empty stubs for
+# every device (incl. dm-crypt mappings created later) via a node-side loop.
+docker exec -d "$NODE" sh -c 'mkdir -p /run/udev/data; while :; do
+  for d in /sys/class/block/*/dev; do f=/run/udev/data/b$(cat "$d"); [ -e "$f" ] || : > "$f"; done
+  sleep 2; done'
+sleep 3; docker exec "$NODE" sh -c 'ls /run/udev/data | wc -l'
 
 step "local PV (block) + storage class"
 kubectl apply -f - <<YAML
