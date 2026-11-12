@@ -6,7 +6,7 @@ permissions: {contents: read, pull-requests: write}
 jobs:
   # Docs/frontend-only PRs skip the gate (skipped = success). Backend changes run it.
   changes:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'homelab' }}
     timeout-minutes: 5
     permissions: {contents: read, pull-requests: read}
     outputs:
@@ -20,6 +20,8 @@ jobs:
   wq:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
+    # Runner of these jobs is set inside JMO-Labs/wq-ci (v1 hardcodes ubuntu-latest, no input);
+    # moving them to homelab needs a runs-on input upstream (styx-portal#101).
     uses: JMO-Labs/wq-ci/.github/workflows/wq-ci.yml@v1
     with:
       reruns: 1  # one rerun separates a flake from a real failure; a deterministic failure costs 2 runs, not 3
