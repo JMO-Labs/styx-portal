@@ -41,6 +41,10 @@ class User(SQLModel, table=True):
     matrix_pending: str | None = None    # sealed card awaiting activation
     matrix_challenge: str | None = None  # JSON list of pending challenge cells
     matrix_serial: int = 0
+    end_date: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+    disabled_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+    disabled_reason: str | None = None
+    reviewed_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
 
 
 class BannedIP(SQLModel, table=True):
