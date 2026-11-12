@@ -44,6 +44,14 @@ export function LoginPage() {
       .catch(() => {});
   }, [loading, user]);
 
+  // Enterprise: BANNER_URL set → unauthenticated visitors go to the banner host first.
+  useEffect(() => {
+    if (loading || user) return;
+    api.setupRequired()
+      .then((r) => { if (r.banner_url && !new URLSearchParams(window.location.search).get("error")) window.location.replace(r.banner_url); })
+      .catch(() => {});
+  }, [loading, user]);
+
   useEffect(() => {
     withRetry(api.oauthProviders).then(setProviders).catch(() => {});
   }, []);

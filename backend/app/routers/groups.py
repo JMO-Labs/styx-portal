@@ -28,7 +28,7 @@ async def list_groups(admin: User = Depends(require_admin),
         select(UserGroup.group_id, func.count()).group_by(UserGroup.group_id))).all())
     groups = (await session.exec(select(Group).order_by(Group.name))).all()
     return [GroupOut(id=g.id, name=g.name, description=g.description, allow_gpu=g.allow_gpu,
-                     member_count=counts.get(g.id, 0)) for g in groups]
+                     idp_managed=g.idp_managed, member_count=counts.get(g.id, 0)) for g in groups]
 
 
 @router.post("", response_model=GroupOut, status_code=201)
@@ -108,6 +108,11 @@ async def set_user_groups(user_id: str, body: UserGroupsUpdate, request: Request
     existing = set((await session.exec(select(Group.id).where(Group.id.in_(body.group_ids)))).all())
     if existing != set(body.group_ids):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown group id")
+    idp_ids = set((await session.exec(select(Group.id).where(Group.idp_managed == True))).all())  # noqa: E712
+    current = set((await session.exec(select(UserGroup.group_id).where(
+        UserGroup.user_id == user_id))).all())
+    if (existing & idp_ids) != (current & idp_ids):
+        raise HTTPException(status.HTTP_409_CONFLICT, "IdP-managed group membership is read-only")
     await session.exec(delete(UserGroup).where(UserGroup.user_id == user_id))
     for gid in existing:
         session.add(UserGroup(user_id=user_id, group_id=gid))

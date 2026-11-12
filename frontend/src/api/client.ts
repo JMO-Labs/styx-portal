@@ -388,7 +388,7 @@ export const api = {
   getInstanceLogs: (instanceId: string) =>
     request<string[]>(`/instances/${instanceId}/logs`),
 
-  setupRequired: () => request<{ setup_required: boolean }>("/auth/setup-required"),
+  setupRequired: () => request<{ setup_required: boolean; banner_url?: string }>("/auth/setup-required"),
   setupPreflight: () => request<SetupPreflight>("/auth/setup-preflight"),
   setup: (data: { username: string; email?: string; password: string; setup_token: string }) =>
     request<{ id: string; username: string; role: string }>("/auth/setup", {

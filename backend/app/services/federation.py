@@ -3,7 +3,9 @@ from datetime import datetime, timezone
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models import User, Invite, FederatedIdentity
+from sqlmodel import delete
+
+from app.models import User, Invite, FederatedIdentity, Group, UserGroup
 from app.schemas import OAuthIdentity
 from app.services import single_use
 from app.services.audit import audit
@@ -212,3 +214,42 @@ async def link_identity(session: AsyncSession, user: User, provider_name: str,
         session.add(FederatedIdentity(user_id=user.id, provider=provider_name,
                                       subject=identity.sub, email=identity.email))
         await session.commit()
+
+
+def _norm_group(raw) -> str | None:
+    """Keycloak paths ('/eng/ops') -> 'eng/ops'; names with ',' are unusable."""
+    name = str(raw).strip().strip("/")
+    return name if name and "," not in name else None
+
+
+async def sync_idp_groups(session: AsyncSession, user: User, claims: dict,
+                          role_map: dict | None = None) -> None:
+    """Mirror the groups claim into IdP-managed groups (IdP authoritative).
+
+    Unknown groups are created as IdP-managed. A same-named local group is never
+    adopted or touched, and local-only memberships are left alone. An absent claim
+    is a no-op (never wipes memberships)."""
+    claim = (role_map or {}).get("claim") or "groups"
+    if claims.get(claim) is None:
+        return
+    wanted = {n for n in map(_norm_group, _groups(claims, role_map)) if n}
+    by_name = {g.name: g for g in (await session.exec(select(Group))).all()}
+    target: set[str] = set()
+    for name in wanted:
+        g = by_name.get(name)
+        if g is None:
+            g = Group(name=name, idp_managed=True)
+            session.add(g)
+            await session.flush()
+        if g.idp_managed:
+            target.add(g.id)
+    managed = set((await session.exec(select(Group.id).where(Group.idp_managed == True))).all())  # noqa: E712
+    current = set((await session.exec(select(UserGroup.group_id).where(
+        UserGroup.user_id == user.id))).all()) & managed
+    stale = current - target
+    if stale:
+        await session.exec(delete(UserGroup).where(
+            UserGroup.user_id == user.id, UserGroup.group_id.in_(stale)))
+    for gid in target - current:
+        session.add(UserGroup(user_id=user.id, group_id=gid))
+    await session.commit()
