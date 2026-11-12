@@ -1,0 +1,21 @@
+# Any login attempt in the master realm (break-glass only; the X.509 flow lives in
+# the app realm) is an incident. Needs KC_EVENT_METRICS_USER_ENABLED (deployment.yaml).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: keycloak-breakglass
+  namespace: keycloak
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: keycloak-breakglass
+      rules:
+        - alert: KeycloakBreakGlassLogin
+          expr: |
+            sum(increase(keycloak_user_events_total{realm="master",event=~"login|login_error"}[5m])) > 0
+          labels: {severity: critical, team: ops, notify: security-officer}
+          annotations:
+            summary: Login (success or failure) in the Keycloak master realm
+            description: A break-glass admin was used or attacked. Confirm with the key holders.
+            runbook: docs/enterprise/runbooks/keycloak-breakglass.md
