@@ -1,0 +1,24 @@
+# Mirrors deploy/k8s/instances.yaml (namespace + permissive egress); the baseline
+# component's patch must replace that egress with DNS + Squid only.
+apiVersion: v1
+kind: Namespace
+metadata: {name: styx-instances}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: instances
+  namespace: styx-instances
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: ANY}
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 169.254.0.0/16]
