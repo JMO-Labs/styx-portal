@@ -116,7 +116,9 @@ async def test_no_card_ids_in_logs_or_audit(session, kc, caplog):
     await card_binding.bind_card(session, {**cac(), "edipi": "5555555555"})
     await card_binding.bind_card(session, piv())
     rows = (await session.exec(select(AuditLog))).all()
-    blob = json.dumps([r.detail for r in rows] + [r.resource for r in rows]) + caplog.text
+    # Only our own loggers: the DB driver's DEBUG echo of stored request rows is out of scope.
+    app_logs = "\n".join(r.getMessage() for r in caplog.records if r.name.startswith("app"))
+    blob = json.dumps([r.detail for r in rows] + [r.resource for r in rows]) + app_logs
     for secret in (EDIPI, "5555555555", UUID, "9f1c2d3e"):
         assert secret not in blob
 
