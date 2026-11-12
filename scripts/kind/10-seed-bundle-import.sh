@@ -10,9 +10,11 @@ scripts/build_seed_bundle.sh out/phase1-seed.tar
 du -h out/phase1-seed.tar
 df -h . | tail -n1
 node=$(kind get nodes --name spike | head -n1)
-docker cp out/phase1-seed.tar "$node:/tmp/phase1-seed.tar"
-docker exec "$node" ctr -n k8s.io images import --local /tmp/phase1-seed.tar
-listing=$(docker exec "$node" crictl images --digests)
+# Stream via stdin: the kind node's /tmp is a tmpfs, so copying the archive there hides it from ctr,
+# and streaming avoids a second 7 GB copy on the node.
+docker exec -i "$node" ctr -n k8s.io images import --local - < out/phase1-seed.tar
+# --no-trunc: crictl shortens digests otherwise and the full-digest grep below never matches.
+listing=$(docker exec "$node" crictl images --digests --no-trunc)
 rc=0
 while read -r ref; do
   case "$ref" in ''|'#'*) continue ;; esac

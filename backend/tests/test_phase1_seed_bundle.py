@@ -88,6 +88,15 @@ def test_kind_spike_imports_archive_and_checks_digests():
     assert "crictl images --digests" in t and "phase1.lock" in t
 
 
+def test_kind_spike_streams_archive_and_lists_full_digests():
+    t = (ROOT / "scripts" / "kind" / "10-seed-bundle-import.sh").read_text()
+    # kind mounts /tmp as tmpfs in the node: `docker cp` into it is invisible to ctr.
+    assert "docker cp" not in t
+    assert "import --local -" in t and "docker exec -i" in t
+    # crictl truncates digests unless --no-trunc; the lock check greps full digests.
+    assert "--no-trunc" in t
+
+
 def test_harbor_push_job_manifest():
     t = (ROOT / "deploy/enterprise/harbor/seed-push-job.yaml").read_text()
     assert "kind: Job" in t and "phase1.lock" in t and "skopeo" in t
