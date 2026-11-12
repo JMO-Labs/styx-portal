@@ -240,3 +240,29 @@ def test_squid_proxy_policy():
     # local-config params must not leak into the rendered output
     assert not any(d["kind"] == "ConfigMap" and d["metadata"]["name"] == "proxy-params"
                    for d in docs)
+
+
+# --- docs: control matrix + operator note (#61) ------------------------------
+MATRIX = K8S.parents[1] / "docs" / "enterprise" / "control-matrix.md"
+
+
+def test_control_matrix_points_at_component():
+    rows = {line.split("|")[1].strip(): line for line in MATRIX.read_text().splitlines()
+            if line.startswith("| ")}
+    for cid in ("AC-4", "SC-7", "SC-7(5)"):
+        row = rows[cid]
+        assert "deploy/k8s/components/cilium-baseline/" in row, cid
+        assert "patch-desktop-egress.yaml" in row, cid
+        assert "implemented in code, not deployed" in row, cid
+        assert "Squid/HAProxy parts not done" in row, cid
+        assert row.rstrip().endswith("| Planned |"), cid
+
+
+def test_operator_note_covers_rollout():
+    text = (COMPONENT / "README.md").read_text()
+    for needle in ("policyAuditMode", "hubble observe --verdict AUDIT", "default-deny",
+                   "toCIDR", "/32", "kubectl delete ccnp default-deny", "443", "22", "UDP",
+                   "kube-apiserver", "break-glass"):
+        assert needle in text, needle
+    assert 0 < text.index("## Apply order") < text.index("allow-dns") < text.index("default-deny` last")
+    assert len(text.splitlines()) < 500
