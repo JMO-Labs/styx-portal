@@ -43,7 +43,9 @@ async def test_enterprise_blocks(client, monkeypatch, feature, method, path):
 @pytest.mark.asyncio
 async def test_homelab_unchanged(client, feature, method, path):
     r = await client.request(method, path)
-    assert r.json().get("detail") != f"feature disabled: {feature}"
+    body = r.json()
+    detail = body.get("detail") if isinstance(body, dict) else None
+    assert detail != f"feature disabled: {feature}"
 
 
 def test_startup_refuses_conflicting_config(tmp_path):
@@ -69,7 +71,11 @@ def test_unknown_profile_rejected():
 
 @pytest.mark.asyncio
 async def test_features_endpoint(client, admin_client, monkeypatch):
+    # client and admin_client are the same object: drop the cookies to be anonymous
+    saved = dict(client.cookies)
+    client.cookies.clear()
     assert (await client.get("/api/diagnostics/features")).status_code == 401
+    client.cookies.update(saved)
     r = await admin_client.get("/api/diagnostics/features")
     body = r.json()
     assert body["profile"] == "homelab"
