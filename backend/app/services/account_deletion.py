@@ -70,10 +70,11 @@ async def run_deletion_pass(session: AsyncSession, now: datetime, *, runtime=Non
     kc_delete = kc_delete or kc_admin.delete_user
     done = 0
     for user in list(users):
+        uid = user.id  # read before rollback expires the instance
         try:
             await _delete_one(session, user, runtime, kc_delete)
             done += 1
         except Exception:  # noqa: BLE001  keep the user; next pass retries
             await session.rollback()
-            log.exception("account deletion failed for user %s", user.id)
+            log.exception("account deletion failed for user %s", uid)
     return done
