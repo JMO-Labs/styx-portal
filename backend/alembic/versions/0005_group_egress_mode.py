@@ -1,7 +1,7 @@
 """groups.egress_mode: category | allowlist (styx-portal#162)
 
-Revision ID: 0003_group_egress_mode
-Revises: 0002_abuse_tables
+Revision ID: 0005_group_egress_mode
+Revises: 0004_posix_uids
 Create Date: 2026-11-12
 
 """
@@ -10,8 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = '0003_group_egress_mode'
-down_revision: Union[str, Sequence[str], None] = '0002_abuse_tables'
+revision: str = '0005_group_egress_mode'
+down_revision: Union[str, Sequence[str], None] = '0004_posix_uids'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
