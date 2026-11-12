@@ -23,8 +23,13 @@ done
 ready=$(kubectl get node "$node" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
 
 if [ "$clear" = 1 ]; then
-  kubectl taint node "$node" "${TAINT_KEY}:NoExecute-" || true
-  echo "cleared out-of-service taint on $node"
+  keys=$(kubectl get node "$node" -o jsonpath='{.spec.taints[*].key}')
+  case " $keys " in
+    *" $TAINT_KEY "*)
+      kubectl taint node "$node" "${TAINT_KEY}:NoExecute-"
+      echo "cleared out-of-service taint on $node" ;;
+    *) echo "no out-of-service taint on $node; nothing to clear" ;;
+  esac
   exit 0
 fi
 
