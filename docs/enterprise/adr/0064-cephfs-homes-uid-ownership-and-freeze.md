@@ -23,7 +23,7 @@ Note: the ticket suggested 0062; that number is taken, so the next free one (006
   (`kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes`); the portal shows
   a banner, and nothing is enforced beyond the quota itself.
 - **Node loss**: the `node.kubernetes.io/out-of-service` taint is applied manually after the
-  node is fenced ([runbook](runbooks/node-loss-reattach.md)). No automation taints nodes.
+  node is fenced ([runbook](../runbooks/node-loss-reattach.md)). No automation taints nodes.
 - **Disable freezes the home read-only**: when an account is disabled the home is remounted
   or kept read-only; data is retained, not deleted.
 
@@ -48,4 +48,4 @@ Negative:
 
 Follow-up work:
 
-- Runbook: [node-loss-reattach.md](runbooks/node-loss-reattach.md), [rook-ceph.md](runbooks/rook-ceph.md).
+- Runbook: [node-loss-reattach.md](../runbooks/node-loss-reattach.md), [rook-ceph.md](../runbooks/rook-ceph.md).
