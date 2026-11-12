@@ -1,9 +1,11 @@
-"""Minimal Keycloak admin client: disable/delete user, remove from group.
+"""Minimal Keycloak admin client: provisioning and offboarding calls.
 
 Least privilege (ADR-0051): no role-mapping operations are exposed.
 """
 import logging
+import re
 import time
+import unicodedata
 from urllib.parse import quote
 from collections.abc import Callable
 
@@ -18,6 +20,21 @@ _EXPIRY_SKEW_S = 10
 
 def _seg(value: str) -> str:
     return quote(value, safe="")
+
+
+def make_username(first: str, last: str, taken: set[str]) -> str:
+    """ADR-0016: `first.last`; append a digit (1, 2, ...) on collision."""
+
+    def clean(v: str) -> str:
+        v = unicodedata.normalize("NFKD", v).encode("ascii", "ignore").decode()
+        return re.sub(r"[^a-z0-9]", "", v.lower())
+
+    base = f"{clean(first)}.{clean(last)}"
+    name, n = base, 0
+    while name in taken:
+        n += 1
+        name = f"{base}{n}"
+    return name
 
 
 class KeycloakAdminError(Exception):
@@ -35,6 +52,9 @@ class KeycloakAdminClient:
         self._realm = settings.KC_ADMIN_REALM
         self._cid = settings.KC_ADMIN_CLIENT_ID
         self._secret = settings.KC_ADMIN_CLIENT_SECRET
+        self._admin_groups = {
+            g.strip() for g in settings.KEYCLOAK_ADMIN_GROUPS.split(",") if g.strip()
+        }
         self._transport = transport
         self._clock = clock
         self._token: str | None = None
@@ -62,10 +82,11 @@ class KeycloakAdminClient:
         self._expires_at = self._clock() + int(data.get("expires_in", 60)) - _EXPIRY_SKEW_S
         return self._token
 
-    async def _request(self, op: str, method: str, path: str, json: dict | None = None) -> None:
+    async def _request(self, op: str, method: str, path: str, json: dict | None = None
+    ) -> httpx.Response | None:
         if not self.enabled:
             logger.info("kc_admin.disabled op=%s", op)
-            return
+            return None
         async with httpx.AsyncClient(transport=self._transport, timeout=10) as http:
             token = await self._get_token(http)
             resp = await http.request(
@@ -75,9 +96,36 @@ class KeycloakAdminClient:
                 headers={"Authorization": f"Bearer {token}"},
             )
         if resp.status_code == 404:  # already gone: idempotent
-            return
+            return resp
         if not 200 <= resp.status_code < 300:
             raise KeycloakAdminError(f"{op} failed: {resp.status_code}")
+        return resp
+
+    async def create_user(self, username: str, email: str, first_name: str, last_name: str) -> str:
+        """Create an enabled user; returns the new Keycloak user id ('' when disabled)."""
+        resp = await self._request(
+            "create_user", "POST", "/users",
+            {"username": username, "email": email, "firstName": first_name,
+             "lastName": last_name, "enabled": True},
+        )
+        if resp is None:
+            return ""
+        return resp.headers.get("Location", "").rstrip("/").rsplit("/", 1)[-1]
+
+    async def update_user(self, kc_user_id: str, fields: dict) -> None:
+        await self._request("update_user", "PUT", f"/users/{_seg(kc_user_id)}", fields)
+
+    async def set_attributes(self, kc_user_id: str, attributes: dict[str, list[str]]) -> None:
+        await self._request(
+            "set_attributes", "PUT", f"/users/{_seg(kc_user_id)}", {"attributes": attributes}
+        )
+
+    async def add_to_group(self, kc_user_id: str, group_id: str) -> None:
+        if group_id in self._admin_groups:
+            raise KeycloakAdminError("add_to_group refused: admin group")
+        await self._request(
+            "add_to_group", "PUT", f"/users/{_seg(kc_user_id)}/groups/{_seg(group_id)}"
+        )
 
     async def disable_user(self, kc_user_id: str) -> None:
         await self._request("disable_user", "PUT", f"/users/{_seg(kc_user_id)}", {"enabled": False})
@@ -116,3 +164,19 @@ async def delete_user(kc_user_id: str) -> None:
 
 async def remove_from_group(kc_user_id: str, group_id: str) -> None:
     await _client().remove_from_group(kc_user_id, group_id)
+
+
+async def create_user(username: str, email: str, first_name: str, last_name: str) -> str:
+    return await _client().create_user(username, email, first_name, last_name)
+
+
+async def update_user(kc_user_id: str, fields: dict) -> None:
+    await _client().update_user(kc_user_id, fields)
+
+
+async def set_attributes(kc_user_id: str, attributes: dict[str, list[str]]) -> None:
+    await _client().set_attributes(kc_user_id, attributes)
+
+
+async def add_to_group(kc_user_id: str, group_id: str) -> None:
+    await _client().add_to_group(kc_user_id, group_id)
