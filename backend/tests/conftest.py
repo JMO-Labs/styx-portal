@@ -134,6 +134,8 @@ def _reset_abuse_state():
 
 @pytest.fixture(name="client")
 async def client_fixture(session):
+    from tests import helpers_setup
+    helpers_setup.SESSION = session
     async def get_session_override():
         yield session
 
@@ -164,7 +166,7 @@ async def client_fixture(session):
 @pytest.fixture
 async def admin_client(client):
     """An AsyncClient that has completed first-run setup and holds admin cookies + CSRF header."""
-    r = await client.post("/api/auth/setup", json={**st(), 
+    r = await client.post("/api/auth/setup", json={**await st(), 
         "username": "admin", "password": "correct horse battery staple"})
     assert r.status_code == 201, r.text
     csrf = client.cookies.get("csrf_token")

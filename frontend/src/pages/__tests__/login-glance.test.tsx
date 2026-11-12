@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { describe, test, expect, vi } from "vitest";
 
-vi.mock("@/api/client", () => ({ api: { oauthProviders: vi.fn().mockResolvedValue([]) }, withRetry: (fn: () => unknown) => fn() }));
+vi.mock("@/api/client", () => ({ api: { oauthProviders: vi.fn().mockResolvedValue([]), setupRequired: vi.fn().mockResolvedValue({ setup_required: false }) }, withRetry: (fn: () => unknown) => fn() }));
 vi.mock("@/hooks/use-auth", () => ({
   useAuth: () => ({ user: null, loading: false, setupRequired: false, refresh: vi.fn(), logout: vi.fn() }),
 }));

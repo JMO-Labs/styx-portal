@@ -36,6 +36,7 @@ from app.routers import turn_usage as turn_usage_router
 from app.routers import provisioned as provisioned_router
 from app.routers import stats as stats_router
 from app.routers import groups as groups_router
+from app.routers import provision as provision_router
 from app.routers import profiles as profiles_router
 from app.routers import me_storage as me_storage_router
 from app.routers import services as services_router
@@ -61,7 +62,8 @@ logger = logging.getLogger("styx-portal")
 _settings = Settings()
 
 _CSRF_EXEMPT = {"/api/auth/login", "/api/auth/login/matrix", "/api/auth/setup"}
-_CSRF_EXEMPT_PREFIXES = ("/api/enroll/", "/api/agent/")
+# /api/provision/: machine caller (mTLS + bearer), no cookies, so CSRF does not apply.
+_CSRF_EXEMPT_PREFIXES = ("/api/enroll/", "/api/agent/", "/api/provision/")
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):
@@ -117,7 +119,7 @@ async def lifespan(app: FastAPI):
     async with async_session() as _s:
         from app.security import setup_token
         from app.security.setup_gate import users_exist
-        setup_token.announce(not await users_exist(_s))
+        await setup_token.announce(_s, not await users_exist(_s))
 
     async with async_session() as _s:
         _n = await sweep_interrupted(_s)
@@ -170,9 +172,14 @@ async def lifespan(app: FastAPI):
                     _lifecycle_loop,
                     partial(new_account_review_loop, async_session),
                     partial(digest_loop, async_session),
-                    partial(account_deletion_loop, async_session)]
+                    partial(account_deletion_loop, async_session),
+                    # Thumbnails live in the shared DB: one capturer avoids PK races (#99).
+                    partial(service_thumbnail_loop, async_session, _settings.SCREENSHOT_CACHE_DIR)]
     if _settings.ROUTE_BACKEND == "k8s":
         leader_loops.append(prepull_loop)
+    if _settings.HARBOR_URL:
+        from app.services.cve_recycle import cve_recycle_loop
+        leader_loops.append(cve_recycle_loop)
     leader = LeaderTasks(boot=[_probe_cleanup, _reconcile, _close_dangling, _refresh_routes],
                          loops=leader_loops)
     elector = get_elector()
@@ -181,7 +188,6 @@ async def lifespan(app: FastAPI):
     local_tasks = [
         asyncio.create_task(_metrics_sampler_loop()),
         asyncio.create_task(_screenshot_capture_loop()),
-        asyncio.create_task(service_thumbnail_loop(async_session, _settings.SCREENSHOT_CACHE_DIR)),
         asyncio.create_task(_health_sample_loop()),
         asyncio.create_task(settings_sync_loop(async_session, _settings_store)),
     ]
@@ -257,6 +263,7 @@ app.include_router(provisioned_router.router, prefix="/api/admin/provisioned", t
 app.include_router(turn_usage_router.router, prefix="/api/admin/turn-usage", tags=["turn-usage"])
 app.include_router(turn_usage_router.check_router, prefix="/api/admin/turn-check", tags=["turn-usage"])
 app.include_router(stats_router.router, prefix="/api/admin/stats", tags=["stats"])
+app.include_router(provision_router.router, prefix="/api/provision", tags=["provision"])
 app.include_router(groups_router.router, prefix="/api/groups", tags=["groups"])
 app.include_router(groups_router.users_router, prefix="/api/users", tags=["groups"])
 app.include_router(profiles_router.router, prefix="/api/profiles", tags=["profiles"])

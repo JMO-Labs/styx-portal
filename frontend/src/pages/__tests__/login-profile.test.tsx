@@ -3,7 +3,7 @@ import { MemoryRouter } from "react-router";
 import { beforeEach, expect, test, vi } from "vitest";
 
 const { a, auth } = vi.hoisted(() => ({
-  a: { oauthProviders: vi.fn(), refreshSession: vi.fn(), systemProfile: vi.fn() },
+  a: { setupRequired: vi.fn().mockResolvedValue({ setup_required: false }), oauthProviders: vi.fn(), refreshSession: vi.fn(), systemProfile: vi.fn() },
   auth: { user: null, loading: false, setupRequired: false, refresh: vi.fn(), logout: vi.fn() },
 }));
 vi.mock("@/api/client", () => ({ api: a, withRetry: (fn: () => unknown) => fn() }));

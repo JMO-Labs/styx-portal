@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import NaiveDatetime
 from sqlmodel import Field, SQLModel, Column
-from sqlalchemy import JSON, BigInteger, DateTime, Index, Integer, String, UniqueConstraint
+from sqlalchemy import JSON, BigInteger, LargeBinary, DateTime, Index, Integer, String, UniqueConstraint
 
 from app.db_types import NAMING_CONVENTION, UTCDateTime
 
@@ -257,6 +257,7 @@ class Instance(SQLModel, table=True):
     gpu: bool | None = None  # None = legacy: use template.gpu_enabled
     notice: str | None = None
     image_digest: str | None = None  # pinned at launch (k8s), never changed after
+    recycle_deadline: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)  # critical CVE: stop by then
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
     started_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
     stopped_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
@@ -366,6 +367,26 @@ class WorkstationAccess(SQLModel, table=True):
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
+class ApprovedRequest(SQLModel, table=True):
+    """Approved provisioning request from the webhook, awaiting card binding (#120)."""
+    __tablename__ = "approved_requests"
+
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    idempotency_key: str = Field(unique=True, index=True)
+    body_hash: str                      # SHA-256 of the canonical body
+    approval_id: str = Field(unique=True, index=True)
+    external_id: str = Field(unique=True, index=True)
+    approver_email: str
+    groups: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    card_type: str
+    person_type: str
+    end_date: str | None = None
+    status: str = "pending_binding"
+    # Subject PII (name, email, EDIPI) kept for the binding step; never audited.
+    subject: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+
+
 class Group(SQLModel, table=True):
     __tablename__ = "groups"
     id: str = Field(default_factory=_uuid, primary_key=True)
@@ -379,6 +400,7 @@ class Group(SQLModel, table=True):
     tier_hidpi: bool | None = None
     tier_cpu: str | None = None
     tier_memory: str | None = None
+    idp_managed: bool = False  # membership mirrored from the IdP groups claim; read-only in API
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
@@ -411,6 +433,14 @@ class ServicePreset(SQLModel, table=True):
     base_url_hint: str | None = None
     warnings: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     subpath: dict | None = Field(default=None, sa_column=Column(JSON))
+
+
+class ServiceThumbnail(SQLModel, table=True):
+    """Shared service thumbnail (PNG): bytea on PG, BLOB on SQLite; any replica serves it."""
+    __tablename__ = "service_thumbnails"
+    service_id: str = Field(primary_key=True, foreign_key="proxied_services.id", ondelete="CASCADE")
+    data: bytes = Field(sa_column=Column(LargeBinary, nullable=False))
+    updated_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
 class ProxiedService(SQLModel, table=True):
@@ -516,3 +546,12 @@ class PosixUid(SQLModel, table=True):
     allocated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(_TSTZ, nullable=False))
+
+
+class SetupToken(SQLModel, table=True):
+    """Singleton (id=1) first-run setup code shared by all replicas."""
+    __tablename__ = "setup_tokens"
+
+    id: int = Field(default=1, primary_key=True)
+    token: str
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)

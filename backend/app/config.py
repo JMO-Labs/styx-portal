@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     PROVISION_HOST: str = ""
     PROVISION_BEARER_TOKEN: str = ""
     PROVISION_CLIENT_CERT_FINGERPRINTS: str = ""  # comma-separated SHA-256 hex of DER
+    KEYCLOAK_ADMIN_GROUPS: str = ""  # comma-separated; never grantable via the webhook
+    PROVISION_GROUP_MANAGERS: str = ""  # JSON {"group-slug": ["manager@email", ...]}
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/styx-portal.db"
     # Leader election: dedicated session connection, straight to the primary
     # (never a pooler). Empty = same as DATABASE_URL.
@@ -47,6 +49,7 @@ class Settings(BaseSettings):
     SERVICE_PRESETS_DIR: str = "/app/templates/services"
     SCREENSHOT_CACHE_DIR: str = "/app/data/screenshots"
     SCREENSHOT_INTERVAL_SECONDS: int = 30
+    SERVICE_THUMBNAIL_MAX_BYTES: int = 1_048_576  # reject larger service thumbnails
     MOUNT_BACKUP_DIR: str = "./data/mount-backups"
     MOUNT_PROBE_IMAGE: str = "busybox:1.36"
     TRAEFIK_DYNAMIC_DIR: str = "/app/traefik-dynamic"
@@ -56,6 +59,8 @@ class Settings(BaseSettings):
     HARBOR_URL: str = ""   # empty = no digest pinning (ADR-0030)
     HARBOR_USER: str = ""
     HARBOR_PASSWORD: str = ""
+    CVE_RECYCLE_INTERVAL_S: int = 3600  # critical-CVE scan loop (ADR-0030)
+    CVE_RECYCLE_GRACE_H: int = 24
     K8S_DESKTOP_IMAGE: str = "ghcr.io/jmo-labs/styx-desktop:latest"
     EGRESS_PROXY_HOST: str = "squid.egress-proxy.svc.cluster.local"
     EGRESS_PROXY_PORT_CATEGORY: int = 3128
@@ -124,6 +129,7 @@ class Settings(BaseSettings):
     PASSWORD_REQUIRE_SYMBOL: bool = False
     MAX_INSTANCES_PER_USER: int = 3      # 0 = unlimited; admins exempt
     OAUTH_REDIRECT_BASE: str = ""   # e.g. https://s.jmolabs.dev ; defaults to https://{DOMAIN}
+    BANNER_URL: str = ""            # enterprise: unauthenticated login page redirects here when set
     SECRETS_FILE: str = "/app/data/secrets.json"
     # --- Workstation streaming (physical machines) ---
     SERVER_LAN_URL: str = ""        # e.g. https://192.168.1.10 — used in enrollment one-liner
@@ -188,6 +194,12 @@ class Settings(BaseSettings):
                     "Generate one: openssl rand -base64 48"
                 )
             return self.JWT_SECRET
+        if self.DATABASE_URL.startswith("postgres"):
+            raise RuntimeError(
+                "JWT_SECRET is required when DATABASE_URL is PostgreSQL: a per-pod "
+                "secrets.json would differ between replicas and tokens would fail. "
+                "Set the same JWT_SECRET on every replica (openssl rand -base64 48)."
+            )
         return self._load_or_create_secret()
 
     def _load_or_create_secret(self) -> str:

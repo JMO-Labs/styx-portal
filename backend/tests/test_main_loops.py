@@ -88,10 +88,10 @@ class _FakeElector:
 _ALL_LOOPS = ("_session_monitor_loop", "_service_health_loop", "_metrics_db_loop",
               "_metrics_sampler_loop", "_screenshot_capture_loop", "_health_sample_loop",
               "service_thumbnail_loop", "prepull_loop", "janitor_loop")
+# service_thumbnail_loop is leader-only: thumbnails live in the shared DB (#99).
 _LEADER_LOOPS = ("_session_monitor_loop", "_service_health_loop", "_metrics_db_loop",
-                 "janitor_loop")
-_REPLICA_LOOPS = ("_metrics_sampler_loop", "_screenshot_capture_loop", "_health_sample_loop",
-                  "service_thumbnail_loop")
+                 "janitor_loop", "service_thumbnail_loop")
+_REPLICA_LOOPS = ("_metrics_sampler_loop", "_screenshot_capture_loop", "_health_sample_loop")
 _BOOT = ("reconcile", "close_dangling", "probe_cleanup")
 
 

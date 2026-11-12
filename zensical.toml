@@ -28,6 +28,7 @@ nav = [
     { "GitLab mirror (enterprise)" = "operate/gitlab-mirror.md" },
     { "GitLab protected branches (enterprise)" = "operate/gitlab-protect.md" },
     { "Kubernetes enterprise" = "operate/kubernetes-enterprise.md" },
+    { "Enterprise images" = "operate/enterprise-images.md" },
     { "Enroll workstations" = "operate/workstations-enroll.md" },
     { "Templates and instances" = "operate/templates-instances.md" },
     { "Proxied services" = "operate/services.md" },
@@ -48,7 +49,9 @@ nav = [
     { "Enterprise: DMZ HAProxy" = "enterprise/runbooks/dmz-haproxy.md" },
     { "Enterprise: Rook-Ceph" = "enterprise/runbooks/rook-ceph.md" },
     { "Enterprise: Squid egress" = "enterprise/runbooks/squid-egress.md" },
+    { "Enterprise: Keycloak" = "enterprise/runbooks/keycloak.md" },
     { "Enterprise: Ceph OSD encryption" = "enterprise/runbooks/ceph-osd-encryption.md" },
+    { "Enterprise: Image supply chain" = "enterprise/runbooks/image-supply-chain.md" },
   ] },
   { "Build" = [
     "build/index.md",

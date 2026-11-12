@@ -8,16 +8,16 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
-| AC-2 | Account Management | Keycloak directory; webhook provisioning, offboarding, review (ADR-0014, 0018, 0019, 0022, 0024) | System | Planned |
+| AC-2 | Account Management | Keycloak directory; webhook provisioning, offboarding, review (ADR-0014, 0018, 0019, 0022, 0024). Evidence: ADR-0068; IaC `deploy/enterprise/keycloak/`, tests `backend/tests/test_federation_groups.py`, `test_kc_admin.py`; [runbook](runbooks/keycloak.md) | System | Planned |
 | AC-2(1) | Automated System Account Management | Webhook/SCIM-shaped provisioning (ADR-0019) | System | Planned |
 | AC-2(3) | Disable Accounts | End-date, 35-day inactivity, remove-access flows (ADR-0022, 0024) | System | Planned |
 | AC-2(4) | Automated Audit Actions | Account events to Elastic; Recently provisioned view (ADR-0023); security officer owns the daily review; new accounts unreviewed for 2 business days are auto-suspended (R04) | System | Planned |
-| AC-3 | Access Enforcement | Keycloak roles, Styx authorization, Kyverno (ADR-0001, 0026) | System | Planned |
+| AC-3 | Access Enforcement | Keycloak roles, Styx authorization, Kyverno (ADR-0001, 0026); CephFS homes: [ADR-0066](adr/0066-cephfs-homes-uid-ownership-and-freeze.md), [runbook](runbooks/node-loss-reattach.md) | System | Planned |
 | AC-4 | Information Flow Enforcement | DLP policy, Cilium deny-all non-proxy egress, Squid category filtering (ADR-0038, 0040); Cilium baseline (CCNPs, default-deny, desktop egress patch `patch-desktop-egress.yaml`) in `deploy/k8s/components/cilium-baseline/` (README), implemented in code, not deployed; Squid egress (two ports 3128 category / 3129 allowlist, label-selected, UT1 category CronJob, hostname-only JSON logs; ADR-0064, `deploy/enterprise/squid/`, runbook `runbooks/squid-egress.md`) implemented in code, not deployed; HAProxy part not done. | System | Planned |
 | AC-5 | Separation of Duties | Admin role split (ADR-0026) | System | Planned |
-| AC-6 | Least Privilege | Role model, group-manager scope, non-admin-only webhook (ADR-0020, 0026) | System | Planned |
+| AC-6 | Least Privilege | Role model, group-manager scope, non-admin-only webhook (ADR-0020, 0026). Evidence: ADR-0068; IaC `deploy/enterprise/keycloak/realm/styx-realm.json` (realm roles and groups), tests `backend/tests/test_federation_groups.py`; [runbook](runbooks/keycloak.md) | System | Planned |
 | AC-7 | Unsuccessful Logon Attempts | Keycloak policy for break-glass accounts; CAC login via IdP (ADR-0015, 0025) | System | Planned |
-| AC-8 | System Use Notification | USG banner before login (ADR-0027) | System | Planned |
+| AC-8 | System Use Notification | USG banner before login (ADR-0027). Evidence: IaC `deploy/enterprise/banner/`, tests `backend/tests/test_enterprise_banner.py`; [runbook](runbooks/keycloak.md) | System | Planned |
 | AC-11 | Device Lock | 15 min idle lock in Styx gateway; unlock by fresh TLS handshake proves card presence, not PIN entry; risk acceptance R02 (ADR-0039, 0058); card removal locks the session through managed-endpoint policy (GPO / macOS equivalent) (R02) | System | Planned |
 | AC-12 | Session Termination | 2 h disconnect stop, 12 h max (ADR-0039) | System | Planned |
 | AC-17 | Remote Access | DMZ proxy, CAC mTLS, monitored sessions; consent-free view/take-control by platform admin and help desk only, with persistent banner naming who is viewing/controlling, required ticket number or reason, logged to Elastic, security officer alerted, monthly review by security officer or auditor (ADR-0012, 0060) | System | Planned |
@@ -58,13 +58,13 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
-| CM-2 | Baseline Configuration | Golden images, profiles in git (ADR-0003, 0028) | System | Planned |
+| CM-2 | Baseline Configuration | Golden images, profiles in git (ADR-0003, 0028). Images: `images/enterprise-base`, `images/golden/*` (ADR-0067). | System | Planned |
 | CM-3 | Configuration Change Control | Git-based review, image rollout (ADR-0003, 0030); changes reviewed and approved on the federal GitLab: `deploy/enterprise/gitlab-protect/protect_bootstrap.py` protects `enterprise`/`release/*`/`v*` and requires a passing pipeline, the `approval-gate` job (external `ci-policy` config) requires a non-author approval after the latest push, scheduled `gitlab-protect-drift` fails on drift, `github_lock.py` push-locks the GitHub copies at cutover (#16, docs/operate/gitlab-protect.md); pushed to GitHub by protected-branch-only push mirror `deploy/enterprise/gitlab-mirror` (ADR-0048) | System | Planned |
-| CM-6 | Configuration Settings | RKE2 hardening, image config; STIG exception, R05 condition (ADR-0007, 0011); Pod Security Admission exception for the desktop namespace (rootless Selkies base image; `enforce: baseline`, warn/audit restricted; scope: rootless, non-root UID, no privileged, no hostPath): `deploy/enterprise/desktop/namespace.yaml` (ADR-0057); Pod Security Admission exception for the `openbao` namespace (`enforce: privileged`, read-only hostPath for the static seal key only; warn/audit restricted): `deploy/enterprise/openbao/namespace.yaml` (ADR-0042) | System | Planned |
-| CM-7 | Least Functionality | Seat mode and homelab features hard-disabled with config test, minimal images (ADR-0004, 0028, 0053; test: [`backend/tests/test_profile.py`](../../backend/tests/test_profile.py)); desktop namespace exception limited to rootless pods with a non-root UID, no privileged, no hostPath (`deploy/enterprise/desktop/namespace.yaml`, ADR-0057); `openbao` namespace PSA exception limited to one read-only hostPath (`/etc/openbao/seal`) (ADR-0042) | System | Planned |
+| CM-6 | Configuration Settings | RKE2 hardening, image config; STIG exception, R05 condition (ADR-0007, 0011); Pod Security Admission exception for the desktop namespace (rootless Selkies base image; `enforce: baseline`, warn/audit restricted; scope: rootless, non-root UID, no privileged, no hostPath): `deploy/enterprise/desktop/namespace.yaml` (ADR-0057); Pod Security Admission exception for the `openbao` namespace (`enforce: privileged`, read-only hostPath for the static seal key only; warn/audit restricted): `deploy/enterprise/openbao/namespace.yaml` (ADR-0042). Image config, UID 1000 and CPU-tier overrides: `images/enterprise-base`, `images/golden/*` (ADR-0067). | System | Planned |
+| CM-7 | Least Functionality | Seat mode and homelab features hard-disabled with config test, minimal images (ADR-0004, 0028, 0053; test: [`backend/tests/test_profile.py`](../../backend/tests/test_profile.py)); desktop namespace exception limited to rootless pods with a non-root UID, no privileged, no hostPath (`deploy/enterprise/desktop/namespace.yaml`, ADR-0057); `openbao` namespace PSA exception limited to one read-only hostPath (`/etc/openbao/seal`) (ADR-0042). Minimal images, UID 1000: `images/enterprise-base`, `images/golden/*` (ADR-0067). | System | Planned |
 | CM-8 | System Component Inventory | Component and SBOM inventory (ADR-0005, 0029); [component register](component-register.md) of libraries, images, charts and apt apps, CI-checked (#17) | System | Planned |
-| CM-12 | Information Location | Homes, CephFS profiles, Ceph RGW archive; user-driven OneDrive moves (ADR-0034, 0035, 0054) | System | Planned |
-| CM-14 | Signed Components | Kyverno admits only cosign-signed allowlisted images; signing key custody in OpenBao transit, CI-only (ADR-0029, 0063) | System | Planned |
+| CM-12 | Information Location | Homes, CephFS profiles, Ceph RGW archive; user-driven OneDrive moves (ADR-0034, 0035, 0054); CephFS homes: [ADR-0066](adr/0066-cephfs-homes-uid-ownership-and-freeze.md), [runbook](runbooks/node-loss-reattach.md) | System | Planned |
+| CM-14 | Signed Components | Kyverno admits only cosign-signed allowlisted images; signing key custody in OpenBao transit, CI-only (ADR-0029, 0063). Evidence: ADR-0069; `.github/workflows/images-nightly.yml`, `deploy/enterprise/kyverno/`, `backend/app/services/image_digest.py`, `cve_recycle.py`; [runbook](runbooks/image-supply-chain.md) | System | Planned |
 
 ## CP - Contingency Planning
 
@@ -74,19 +74,19 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | CP-4 | Contingency Plan Testing | Full-site restore test (phase 1), 200-session load-test gate (ADR-0037, 0047); full-site restore test repeats annually, each result filed as eMASS evidence (R03); restore test harness deploy/dr/restore-test ([dr-restore-test.md](../operate/dr-restore-test.md)) writes the evidence report, IaC done, not run | Hybrid | Planned |
 | CP-6 | Alternate Storage Site | Encrypted CephFS-snapshot export to CUI-authorized cloud bucket (ADR-0037); Kopia component deploy/k8s/offsite-export, IaC done, not deployed | Hybrid | Planned |
 | CP-7 | Alternate Processing Site | Not provided; exception R03 (ADR-0037) | Hybrid | Planned |
-| CP-9 | System Backup | CNPG, Velero, home snapshots, offline-escrowed backup keys in two sealed sets (ADR-0033, 0036, 0037, 0042); restore per [runbooks/full-site-restore.md](runbooks/full-site-restore.md); offsite copy with Object Lock and daily verify in deploy/k8s/offsite-export, IaC done, not deployed; restores checked (checksums, pg_amcheck, Kopia verify) by deploy/dr/restore-test, IaC done, not run | System | Planned |
-| CP-10 | System Recovery and Reconstitution | RTO 8 h restore procedures (ADR-0037): [runbooks/full-site-restore.md](runbooks/full-site-restore.md); RTO/RPO measured by deploy/dr/restore-test ([dr-restore-test.md](../operate/dr-restore-test.md)), IaC done, not run | System | Planned |
+| CP-9 | System Backup | CNPG, Velero, home snapshots, offline-escrowed backup keys in two sealed sets (ADR-0033, 0036, 0037, 0042); restore per [runbooks/full-site-restore.md](runbooks/full-site-restore.md); offsite copy with Object Lock and daily verify in deploy/k8s/offsite-export, IaC done, not deployed; restores checked (checksums, pg_amcheck, Kopia verify) by deploy/dr/restore-test, IaC done, not run; CephFS homes: [ADR-0066](adr/0066-cephfs-homes-uid-ownership-and-freeze.md), [runbook](runbooks/node-loss-reattach.md) | System | Planned |
+| CP-10 | System Recovery and Reconstitution | RTO 8 h restore procedures (ADR-0037): [runbooks/full-site-restore.md](runbooks/full-site-restore.md); RTO/RPO measured by deploy/dr/restore-test ([dr-restore-test.md](../operate/dr-restore-test.md)), IaC done, not run; CephFS homes: [ADR-0066](adr/0066-cephfs-homes-uid-ownership-and-freeze.md), [runbook](runbooks/node-loss-reattach.md) | System | Planned |
 
 ## IA - Identification and Authentication
 
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
-| IA-2 | Identification and Authentication (Organizational Users) | Keycloak smart-card-only login (CAC, PIV, PIV-I); break-glass exception R06; cert headers set only by the DMZ HAProxy, stripped from any other source, Keycloak reachable only from Traefik (ADR-0014, 0015, 0025, 0065) | System | Planned |
+| IA-2 | Identification and Authentication (Organizational Users) | Keycloak smart-card-only login (CAC, PIV, PIV-I); break-glass exception R06; cert headers set only by the DMZ HAProxy, stripped from any other source, Keycloak reachable only from Traefik (ADR-0014, 0015, 0025, 0065). Evidence: IaC `deploy/enterprise/keycloak/`, realm tests `backend/tests/test_enterprise_keycloak_realm.py`, `test_keycloak_breakglass.py`; [runbook](runbooks/keycloak.md) | System | Planned |
 | IA-2(12) | Acceptance of PIV Credentials | CAC, PIV and PIV-I (PIV Authentication cert only); DoD roots + Federal Common Policy CA; OCSP + CRL mirror, fail closed (ADR-0015, 0016, 0017, 0041, 0065) | System | Planned |
 | IA-3 | Device Identification and Authentication | mTLS client cert for webhook (ADR-0020) | System | Planned |
 | IA-4 | Identifier Management | EDIPI (CAC) or card UUID (PIV/PIV-I) bound at first login, immutable username (ADR-0016, 0018) | System | Planned |
 | IA-5 | Authenticator Management | PKI via DoD and federal CAs; Client-Cert header spoofing control (ADR-0065); break-glass and token rotation; OpenBao auto-unseal, offline escrow (ADR-0015, 0020, 0025, 0042); Kubernetes auth roles and least-privilege policies (`deploy/enterprise/openbao/auth-roles.json`, `policies/`), ESO `ClusterSecretStore` `openbao` (`deploy/enterprise/external-secrets/`) | Hybrid | Planned |
-| IA-5(2) | Public Key-Based Authentication | Certificate validation for CAC/PIV/PIV-I chains, OCSP per issuer + CRL mirror by path, fail closed (ADR-0015, 0017, 0065) | System | Planned |
+| IA-5(2) | Public Key-Based Authentication | Certificate validation for CAC/PIV/PIV-I chains, OCSP per issuer + CRL mirror by path, fail closed (ADR-0015, 0017, 0065). Evidence: IaC `deploy/enterprise/keycloak/crl-mirror/`, tests `backend/tests/test_enterprise_keycloak_crl.py`; [runbook](runbooks/keycloak.md) | System | Planned |
 | IA-8 | Identification and Authentication (Non-Organizational Users) | Not planned; no external users in v1 (ADR-0001, 0015) | System | Planned |
 | IA-12 | Identity Proofing | Approval workflow; Styx checks asserted approver is a group manager, cannot verify M365 approval, D23 review is the real control; R04 (ADR-0018, 0020, 0021, 0023); security officer owns the review; new accounts unreviewed for 2 business days are auto-suspended (ADR-0024) | Hybrid | Planned |
 
@@ -139,7 +139,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
 | RA-3 | Risk Assessment | Organizational risk assessment with ADR input (ADR-0010) | Hybrid | Planned |
-| RA-5 | Vulnerability Monitoring and Scanning | Trivy, Harbor, image rebuilds (ADR-0029, 0030); Harbor registry implemented in code, not deployed: `deploy/enterprise/harbor/` (Trivy off until Phase 3) | System | Planned |
+| RA-5 | Vulnerability Monitoring and Scanning | Trivy, Harbor, image rebuilds (ADR-0029, 0030); Harbor registry implemented in code, not deployed: `deploy/enterprise/harbor/` (Trivy off until Phase 3). Evidence: ADR-0069; `.github/workflows/images-nightly.yml`, `deploy/enterprise/kyverno/`, `backend/app/services/image_digest.py`, `cve_recycle.py`; [runbook](runbooks/image-supply-chain.md) | System | Planned |
 
 ## SA - System and Services Acquisition
 
@@ -148,7 +148,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | SA-3 | System Development Life Cycle | Single codebase, CI; federal GitLab source of truth (ADR-0003, 0028, 0048) | System | Planned |
 | SA-4 | Acquisition Process | Component and license rule; accepted costs listed (ADR-0005); [component register](component-register.md) with cost class and [license policy](license-policy.yaml), blocking CI gate (#17) | Hybrid | Planned |
 | SA-9 | External System Services | GCC High, upstream GitLab, cloud bucket (ADR-0019, 0037) | Hybrid | Planned |
-| SA-10 | Developer Configuration Management | Git, signed builds (ADR-0003, 0029); federal GitLab is source of truth with approvals: `protect_bootstrap.py` (protected branches/tags, pipeline must pass), `approval-gate` job (non-author approval after the latest push, job log as evidence), `gitlab-protect-drift` schedule, GitHub push-lock `github_lock.py` (#16); `deploy/enterprise/gitlab-mirror` mirrors protected branches only, keeps divergent refs (ADR-0048) | System | Planned |
+| SA-10 | Developer Configuration Management | Git, signed builds (ADR-0003, 0029); federal GitLab is source of truth with approvals: `protect_bootstrap.py` (protected branches/tags, pipeline must pass), `approval-gate` job (non-author approval after the latest push, job log as evidence), `gitlab-protect-drift` schedule, GitHub push-lock `github_lock.py` (#16); `deploy/enterprise/gitlab-mirror` mirrors protected branches only, keeps divergent refs (ADR-0048). Patch set and image sources: `docs/upstream/`, `images/enterprise-base` (ADR-0058, ADR-0067). | System | Planned |
 | SA-11 | Developer Testing and Evaluation | Load test and security testing (ADR-0047) | System | Planned |
 
 ## SC - System and Communications Protection
@@ -163,17 +163,17 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | SC-12 | Cryptographic Key Establishment and Management | OpenBao PKI, auto-unseal, Shamir recovery split, offline escrow, Ceph OSD dm-crypt keys in OpenBao `rook/` with monthly rotation (ADR-0042, 0061; `deploy/enterprise/rook-ceph/cephcluster.yaml`, `deploy/enterprise/openbao/policies/rook-ceph.hcl`, [runbooks/ceph-osd-encryption.md](runbooks/ceph-osd-encryption.md)); static seal key file placed by `deploy/enterprise/openbao/ansible/seal-key.yml`, offline bootstrap CA `gen-bootstrap-tls.sh`, rotation in [runbooks/openbao.md](runbooks/openbao.md) (IaC done, not deployed) | System | Planned |
 | SC-13 | Cryptographic Protection | Non-FIPS exception recorded (ADR-0011); R05 accepted on condition; exception references: TODO (owner): issuer, date, scope - required before Phase 1 starts | System | Planned |
 | SC-23 | Session Authenticity | OIDC sessions, CSRF protections (ADR-0043) | System | Planned |
-| SC-28 | Protection of Information at Rest | Every Ceph OSD encrypted with dm-crypt (`encrypted: true` in `deploy/enterprise/rook-ceph/cephcluster.yaml`), keys in OpenBao, [runbook](runbooks/ceph-osd-encryption.md); backups encryption (ADR-0033, 0037, 0042, 0061); OpenBao Raft auto-unsealed by the static seal on control-plane local PVs, nightly Raft snapshot offsite (`deploy/enterprise/openbao/`); offsite copy encrypted client-side by Kopia in deploy/k8s/offsite-export, IaC done, not deployed | System | Planned |
+| SC-28 | Protection of Information at Rest | Every Ceph OSD encrypted with dm-crypt (`encrypted: true` in `deploy/enterprise/rook-ceph/cephcluster.yaml`), keys in OpenBao, [runbook](runbooks/ceph-osd-encryption.md); backups encryption (ADR-0033, 0037, 0042, 0061); OpenBao Raft auto-unsealed by the static seal on control-plane local PVs, nightly Raft snapshot offsite (`deploy/enterprise/openbao/`); offsite copy encrypted client-side by Kopia in deploy/k8s/offsite-export, IaC done, not deployed; CephFS homes: [ADR-0066](adr/0066-cephfs-homes-uid-ownership-and-freeze.md), [runbook](runbooks/node-loss-reattach.md) | System | Planned |
 | SC-28(1) | Cryptographic Protection | dm-crypt on every Ceph OSD, keys in OpenBao (ADR-0061; `deploy/enterprise/rook-ceph/cephcluster.yaml`) | System | Planned |
 
 ## SI - System and Information Integrity
 
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
-| SI-2 | Flaw Remediation | Nightly rebuild, 24 h critical-CVE recycle; fix deadlines high 7 d, medium 30 d, low 90 d (ADR-0029, 0030, 0063) | System | Planned |
+| SI-2 | Flaw Remediation | Nightly rebuild, 24 h critical-CVE recycle; fix deadlines high 7 d, medium 30 d, low 90 d (ADR-0029, 0030, 0063). Evidence: ADR-0069; `.github/workflows/images-nightly.yml`, `deploy/enterprise/kyverno/`, `backend/app/services/image_digest.py`, `cve_recycle.py`; [runbook](runbooks/image-supply-chain.md) | System | Planned |
 | SI-3 | Malicious Code Protection | To be decided in phase 3 | System | Planned |
 | SI-4 | System Monitoring | Elastic, Prometheus (ADR-0044) | System | Planned |
-| SI-7 | Software, Firmware, and Information Integrity | cosign and Kyverno (ADR-0029); cosign key in OpenBao transit, non-exportable, signed only by protected-branch CI role, rotation and revocation (ADR-0063) | System | Planned |
+| SI-7 | Software, Firmware, and Information Integrity | cosign and Kyverno (ADR-0029); cosign key in OpenBao transit, non-exportable, signed only by protected-branch CI role, rotation and revocation (ADR-0063). Evidence: ADR-0069; `.github/workflows/images-nightly.yml`, `deploy/enterprise/kyverno/`, `backend/app/services/image_digest.py`, `cve_recycle.py`; [runbook](runbooks/image-supply-chain.md) | System | Planned |
 | SI-10 | Information Input Validation | Webhook strict schema (ADR-0020) | System | Planned |
 | SI-12 | Information Management and Retention | Age-off to Ceph RGW cold storage with self-restore (ADR-0035) | Hybrid | Planned |
 

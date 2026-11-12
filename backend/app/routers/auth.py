@@ -91,7 +91,8 @@ async def csrf_bootstrap(response: Response):
 
 @router.get("/setup-required")
 async def setup_required(session: AsyncSession = Depends(get_session)):
-    return {"setup_required": not await users_exist(session)}
+    return {"setup_required": not await users_exist(session),
+            "banner_url": _settings.BANNER_URL}
 
 
 @router.get("/setup-preflight")
@@ -136,7 +137,7 @@ async def setup(body: SetupRequest, request: Request, response: Response,
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Cross-site setup refused")
     if await users_exist(session):
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    if not setup_token.verify(body.setup_token):
+    if not await setup_token.verify(session, body.setup_token):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Invalid setup code")
     try:
         validate_password(body.password, current_policy())
@@ -145,6 +146,9 @@ async def setup(body: SetupRequest, request: Request, response: Response,
     async with setup_token.setup_lock:
         if await users_exist(session):  # lost the race to a concurrent request
             raise HTTPException(status.HTTP_404_NOT_FOUND)
+        if not await setup_token.consume(session, body.setup_token):  # used on another replica
+            await session.rollback()
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Invalid setup code")
         user = User(username=body.username, email=body.email,
                     password_hash=hash_password(body.password), role="admin")
         session.add(user)
@@ -155,7 +159,6 @@ async def setup(body: SetupRequest, request: Request, response: Response,
         await audit_request(session, request, "auth.signup", user_id=user.id,
                             detail={"role": user.role, "via": "setup"})
         await session.commit()
-    setup_token.clear()
     return UserOut(id=user.id, username=user.username, email=user.email,
                    role=user.role, is_active=user.is_active)
 
