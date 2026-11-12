@@ -10,8 +10,11 @@ Q = "2026-Q4"
 
 
 @pytest.fixture
-async def setup(session, member_client):
-    mgr = (await session.exec(select(User).where(User.username == "member"))).one()
+async def setup(session):
+    mgr = (await session.exec(select(User).where(User.username == "member"))).first()
+    if mgr is None:
+        mgr = User(username="member", email="m@x.io", password_hash=hash_password("x" * 20), role="member")
+        session.add(mgr)
     other = User(username="other", email="o@x.io", password_hash=hash_password("x" * 20), role="user")
     target = User(username="alice", email="a@x.io", password_hash=hash_password("x" * 20), role="user")
     session.add_all([other, target])

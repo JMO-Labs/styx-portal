@@ -37,10 +37,18 @@ def upgrade() -> None:
         sa.Column('quarter', sa.String(), nullable=False),
         sa.Column('decision', sa.String(), nullable=False),
         sa.Column('actor_id', sa.String(), nullable=False),
-        sa.Column('decided_at', sa.DateTime(timezone=True), nullable=False),
+        sa.Column('decided_at', sa.DateTime(), nullable=False),
         sa.ForeignKeyConstraint(['group_id'], ['groups.id'],
                                 name=op.f('fk_access_review_decisions_group_id_groups')),
         sa.PrimaryKeyConstraint('id', name=op.f('pk_access_review_decisions')),
     )
     for c in ('group_id', 'user_id', 'quarter'):
         op.create_index(op.f(f'ix_access_review_decisions_{c}'), 'access_review_decisions', [c])
+
+
+def downgrade() -> None:
+    op.drop_table('access_review_decisions')
+    with op.batch_alter_table('groups') as b:
+        b.drop_constraint('fk_groups_manager_user_id_users', type_='foreignkey')
+        b.drop_column('kc_group_id')
+        b.drop_column('manager_user_id')
