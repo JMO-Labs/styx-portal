@@ -53,6 +53,8 @@ async def update_group(group_id: str, body: GroupUpdate, request: Request,
     if g is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Group not found")
     changes = body.model_dump(exclude_unset=True)
+    if changes.get("egress_mode") is None:
+        changes.pop("egress_mode", None)
     for k, v in changes.items():
         setattr(g, k, v)
     session.add(g)

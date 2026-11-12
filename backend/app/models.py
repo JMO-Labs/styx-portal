@@ -372,6 +372,7 @@ class Group(SQLModel, table=True):
     name: str = Field(unique=True, index=True)
     description: str | None = None
     allow_gpu: bool = False
+    egress_mode: str = "category"
     # Per-group CPU-tier overrides (ADR-0031); None = use the global default.
     tier_resolution: str | None = None
     tier_fps: int | None = None
