@@ -1,4 +1,7 @@
 """run_deletion_pass(): 90-day account + home deletion (#126, ADR-0022)."""
+import asyncio
+
+import pytest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
@@ -56,6 +59,7 @@ async def test_boundary_90_days_deleted(session):
 async def test_recent_and_reenabled_untouched(session):
     await _seed(session, "recent", 89)
     await _seed(session, "never", None, enabled=True)
+    await _seed(session, "back", 100, enabled=True)  # re-enabled, stamp still set
     rt, kc = _deps()
     assert await run_deletion_pass(session, NOW, runtime=rt, kc_delete=kc) == 0
     rt.remove_volume.assert_not_called()
@@ -68,6 +72,7 @@ async def test_idempotent_second_pass_noop(session):
     await run_deletion_pass(session, NOW, runtime=rt, kc_delete=kc)
     assert await run_deletion_pass(session, NOW, runtime=rt, kc_delete=kc) == 0
     assert rt.remove_volume.call_count == 1
+    assert kc.await_count == 1
 
 
 async def test_404_counts_as_done(session):
@@ -91,13 +96,49 @@ async def test_other_failure_keeps_user_for_retry(session):
     assert not (await session.exec(select(AuditLog).where(AuditLog.action == "account.deleted"))).all()
 
 
-async def test_disabled_user_cannot_launch(client, session):
-    from app.security import tokens
-    u = User(username="dis", password_hash="x", is_active=True,
-             disabled_at=NOW)  # lifecycle flag set; guard must hold on its own
-    session.add(u)
+async def _as_user(client, session, user):
+    from app.main import app
+    from app.security.deps import get_current_user
+    session.add(user)
     await session.commit()
-    tok = tokens.create_access_token(u.id, u.role, tv=u.token_version)
-    client.cookies.set("access_token", tok)
-    r = await client.post("/api/instances", json={"template_id": "x", "name": "a", "subdomain": "a"})
+    app.dependency_overrides[get_current_user] = lambda: user
+
+
+@pytest.mark.parametrize("path", ["/api/instances", "/api/instances/x/start"])
+async def test_disabled_user_gets_403(client, session, path):
+    from app.main import app
+    from app.security.deps import get_current_user
+    u = User(username="dis", password_hash="x", is_active=False, disabled_at=NOW)
+    await _as_user(client, session, u)
+    try:
+        r = await client.post(path, json={"template_id": "x", "name": "a", "subdomain": "a"})
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
     assert r.status_code == 403
+
+
+def test_reenabled_is_not_disabled():
+    from app.services.offboarding import is_disabled
+    assert not is_disabled(User(username="b", password_hash="x", is_active=True, disabled_at=NOW))
+
+
+async def test_loop_calls_pass_and_is_registered(monkeypatch):
+    from contextlib import asynccontextmanager
+    from pathlib import Path
+    from app.services import account_deletion as ad
+    calls = []
+
+    async def fake_pass(s, now, **kw):
+        calls.append(s)
+        raise asyncio.CancelledError
+
+    @asynccontextmanager
+    async def sf():
+        yield "sess"
+
+    monkeypatch.setattr(ad, "run_deletion_pass", fake_pass)
+    with pytest.raises(asyncio.CancelledError):
+        await ad.account_deletion_loop(sf)
+    assert calls == ["sess"]
+    assert "account_deletion_loop, async_session" in (
+        Path(__file__).parents[1] / "app/main.py").read_text()

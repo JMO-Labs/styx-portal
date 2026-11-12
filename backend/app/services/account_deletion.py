@@ -6,7 +6,7 @@ the caller schedules it on the elected leader. Idempotent; 404 counts as done.
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete
 from sqlmodel import select
@@ -19,6 +19,7 @@ from app.services.audit import audit
 
 log = logging.getLogger(__name__)
 RETENTION_DAYS = 90
+INTERVAL_S = 3600
 
 
 def _is_404(exc: Exception) -> bool:
@@ -78,3 +79,18 @@ async def run_deletion_pass(session: AsyncSession, now: datetime, *, runtime=Non
             await session.rollback()
             log.exception("account deletion failed for user %s", uid)
     return done
+
+
+async def account_deletion_loop(session_factory) -> None:
+    """Leader-only loop: registered in main.py's leader_loops (one replica runs it)."""
+    while True:
+        try:
+            async with session_factory() as s:
+                n = await run_deletion_pass(s, datetime.now(timezone.utc))
+                if n:
+                    log.warning("deleted %d expired disabled account(s)", n)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - keep the loop alive
+            log.exception("account deletion pass failed")
+        await asyncio.sleep(INTERVAL_S)
