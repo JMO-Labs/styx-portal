@@ -37,6 +37,7 @@ from app.routers import provisioned as provisioned_router
 from app.routers import stats as stats_router
 from app.routers import groups as groups_router
 from app.routers import access_review as access_review_router
+from app.routers import provision as provision_router
 from app.routers import profiles as profiles_router
 from app.routers import me_storage as me_storage_router
 from app.routers import services as services_router
@@ -62,7 +63,8 @@ logger = logging.getLogger("styx-portal")
 _settings = Settings()
 
 _CSRF_EXEMPT = {"/api/auth/login", "/api/auth/login/matrix", "/api/auth/setup"}
-_CSRF_EXEMPT_PREFIXES = ("/api/enroll/", "/api/agent/")
+# /api/provision/: machine caller (mTLS + bearer), no cookies, so CSRF does not apply.
+_CSRF_EXEMPT_PREFIXES = ("/api/enroll/", "/api/agent/", "/api/provision/")
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):
@@ -259,6 +261,7 @@ app.include_router(provisioned_router.router, prefix="/api/admin/provisioned", t
 app.include_router(turn_usage_router.router, prefix="/api/admin/turn-usage", tags=["turn-usage"])
 app.include_router(turn_usage_router.check_router, prefix="/api/admin/turn-check", tags=["turn-usage"])
 app.include_router(stats_router.router, prefix="/api/admin/stats", tags=["stats"])
+app.include_router(provision_router.router, prefix="/api/provision", tags=["provision"])
 app.include_router(groups_router.router, prefix="/api/groups", tags=["groups"])
 app.include_router(access_review_router.router, prefix="/api/access-review", tags=["access-review"])
 app.include_router(groups_router.users_router, prefix="/api/users", tags=["groups"])
