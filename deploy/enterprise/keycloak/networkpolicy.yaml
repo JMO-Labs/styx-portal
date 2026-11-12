@@ -1,0 +1,135 @@
+# Default deny (Cilium idiom: empty rule selects the pods for enforcement without
+# allowing anything), then only the flows Keycloak needs.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: keycloak-default-deny
+  namespace: keycloak
+spec:
+  endpointSelector: {}
+  ingress:
+    - {}
+  egress:
+    - {}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: keycloak-ingress-from-traefik
+  namespace: keycloak
+spec:
+  endpointSelector:
+    matchLabels: {app.kubernetes.io/name: keycloak}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: traefik
+      toPorts:
+        - ports:
+            - {port: "8080", protocol: TCP}
+    # Keycloak replicas talk to each other for JDBC_PING clustering (jgroups 7800).
+    - fromEndpoints:
+        - matchLabels: {app.kubernetes.io/name: keycloak}
+      toPorts:
+        - ports:
+            - {port: "7800", protocol: TCP}
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - {port: "9000", protocol: TCP}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: keycloak-egress
+  namespace: keycloak
+spec:
+  endpointSelector:
+    matchLabels: {app.kubernetes.io/name: keycloak}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: keycloak-db
+      toPorts:
+        - ports:
+            - {port: "5432", protocol: TCP}
+    - toEndpoints:
+        - matchLabels: {app.kubernetes.io/name: keycloak}
+      toPorts:
+        - ports:
+            - {port: "7800", protocol: TCP}
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchPattern: "*"
+    # OCSP responders / CRL fetch (ADR-0017); plain HTTP and HTTPS to the world.
+    - toEntities: [world]
+      toPorts:
+        - ports:
+            - {port: "80", protocol: TCP}
+            - {port: "443", protocol: TCP}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: keycloak-db-from-cnpg-operator
+  namespace: keycloak
+spec:
+  endpointSelector:
+    matchLabels:
+      cnpg.io/cluster: keycloak-db
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cnpg-system
+      toPorts:
+        - ports:
+            - {port: "8000", protocol: TCP}
+    - fromEndpoints:
+        - matchLabels: {app.kubernetes.io/name: keycloak}
+      toPorts:
+        - ports:
+            - {port: "5432", protocol: TCP}
+    # Standby streams WAL from the primary (DB pod to DB pod).
+    - fromEndpoints:
+        - matchLabels: {cnpg.io/cluster: keycloak-db}
+      toPorts:
+        - ports:
+            - {port: "5432", protocol: TCP}
+    # Prometheus scrapes CNPG exporter (9187) and Keycloak management (9000).
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - {port: "9187", protocol: TCP}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: keycloak-db-egress-offsite
+  namespace: keycloak
+spec:
+  endpointSelector:
+    matchLabels:
+      cnpg.io/cluster: keycloak-db
+  egress:
+    - toEndpoints:
+        - matchLabels: {cnpg.io/cluster: keycloak-db}
+      toPorts:
+        - ports:
+            - {port: "5432", protocol: TCP}
+    - toCIDRSet:
+        - cidr: 192.0.2.10/32           # PLACEHOLDER(#24): offsite object store address
+      toPorts:
+        - ports:
+            - {port: "443", protocol: TCP}

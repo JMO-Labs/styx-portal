@@ -1,0 +1,171 @@
+{
+  "realm": "styx",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "registrationEmailAsUsername": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "verifyEmail": false,
+  "editUsernameAllowed": false,
+  "loginWithEmailAllowed": false,
+  "browserFlow": "x509-browser",
+  "registrationFlow": "registration-disabled",
+  "directGrantFlow": "direct-grant-denied",
+  "resetCredentialsFlow": "reset-credentials-denied",
+  "clientAuthenticationFlow": "clients",
+  "roles": {
+    "realm": [
+      {
+        "name": "platform-admin",
+        "description": "ADR-0026 platform administrator"
+      },
+      {
+        "name": "help-desk",
+        "description": "ADR-0026 help desk"
+      },
+      {
+        "name": "auditor",
+        "description": "ADR-0026 read-only auditor"
+      },
+      {
+        "name": "group-manager",
+        "description": "ADR-0026 group manager"
+      }
+    ]
+  },
+  "authenticationFlows": [
+    {
+      "alias": "x509-browser",
+      "description": "Smart card only (ADR-0015); cert from HAProxy header (ADR-0050)",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-x509-client-username-form",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false,
+          "authenticatorConfig": "x509-card-key"
+        }
+      ]
+    },
+    {
+      "alias": "registration-disabled",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "deny-access-authenticator",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "direct-grant-denied",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "deny-access-authenticator",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "reset-credentials-denied",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "deny-access-authenticator",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    }
+  ],
+  "authenticatorConfig": [
+    {
+      "alias": "x509-card-key",
+      "config": {
+        "x509-cert-auth.mapping-source-selection": "Match SubjectDN using regular expression",
+        "x509-cert-auth.mapper-selection": "Custom Attribute Mapper",
+        "x509-cert-auth.mapper-selection.user-attribute-name": "cardKey",
+        "x509-cert-auth.regular-expression": "CN=[^,]*\\.([0-9]{10})(?:,|$)",
+        "x509-cert-auth.canonical-dn-enabled": "false",
+        "x509-cert-auth.ocsp-checking-enabled": "true",
+        "x509-cert-auth.ocsp-fail-open": "false",
+        "x509-cert-auth.crl-checking-enabled": "true",
+        "x509-cert-auth.crldp-checking-enabled": "false",
+        "x509-cert-auth.crl-relative-path": "/opt/keycloak/crl/dod-id-ca.crl"
+      }
+    }
+  ],
+  "components": {
+    "org.keycloak.userprofile.UserProfileProvider": [
+      {
+        "providerId": "declarative-user-profile",
+        "config": {
+          "kc.user.profile.config": [
+            "{\"attributes\": [{\"name\": \"username\", \"displayName\": \"${username}\", \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\"]}}, {\"name\": \"email\", \"displayName\": \"${email}\", \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\"]}}, {\"name\": \"firstName\", \"displayName\": \"${firstName}\", \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\"]}}, {\"name\": \"lastName\", \"displayName\": \"${lastName}\", \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\"]}}, {\"name\": \"cardKey\", \"displayName\": \"Card key (EDIPI or PIV urn:uuid)\", \"permissions\": {\"view\": [\"admin\"], \"edit\": [\"admin\"]}}]}"
+          ]
+        }
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "styx",
+      "name": "Styx Portal",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "https://styx.example.internal/api/auth/oidc/*"
+      ],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "defaultClientScopes": [
+        "profile",
+        "email"
+      ],
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    }
+  ]
+}

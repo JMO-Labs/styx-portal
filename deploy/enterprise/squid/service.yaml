@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: squid
+  namespace: egress-proxy
+  labels:
+    app.kubernetes.io/name: squid
+spec:
+  selector:
+    app.kubernetes.io/name: squid
+  ports:
+    - {name: category, port: 3128, targetPort: category}
+    - {name: allowlist, port: 3129, targetPort: allowlist}

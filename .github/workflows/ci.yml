@@ -143,6 +143,7 @@ jobs:
         working-directory: backend
         env:
           STYX_TEST_DATABASE_URL: postgresql+asyncpg://styx:styx-ci@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/styx_test
+          TEST_PG_URL: postgresql://styx:styx-ci@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/styx_test
         run: .venv/bin/python -m pytest -q
 
   # Pure lint/syntax-check/helm-template/kubeconform on localhost: no inventory hosts or home network needed.
@@ -200,7 +201,7 @@ jobs:
       - uses: ./.github/actions/setup-backend
       - name: pytest (kustomize required)
         working-directory: backend
-        run: REQUIRE_KUSTOMIZE=1 REQUIRE_KUBECONFORM=1 .venv/bin/python -m pytest tests/test_cilium_baseline.py tests/test_cilium_schemas.py -q
+        run: REQUIRE_KUSTOMIZE=1 REQUIRE_KUBECONFORM=1 .venv/bin/python -m pytest tests/test_cilium_baseline.py tests/test_cilium_schemas.py tests/test_enterprise_banner.py -q
 
   plugin-test:
     needs: changes

@@ -58,7 +58,8 @@ export type DiscoveredContainer = {
 export type OpenMode = "new_tab" | "same_tab";
 export type Me = { id: string; username: string; email: string | null; role: string;
   open_workspaces: OpenMode | null; open_apps: OpenMode | null; must_change_pw?: boolean; can_use_gpu?: boolean };
-export type Group = { id: string; name: string; description: string | null; member_count: number; allow_gpu: boolean };
+export type EgressMode = "category" | "allowlist";
+export type Group = { id: string; name: string; description: string | null; member_count: number; allow_gpu: boolean; egress_mode?: EgressMode };
 export type Profile = { template_id: string; template_name: string; display_name: string; volume_name: string; in_use: boolean };
 
 export type MountChange = { target: string; key: string; old: string | null; new: string; created?: boolean };
@@ -163,6 +164,9 @@ export type TurnUsage = {
 
 const BASE = "/api";
 
+export type { ProvisionedUser } from "./provisioned";
+import type { ProvisionedUser } from "./provisioned";
+
 export type LoginResult = {
   id: string; username: string; role: string; must_change_pw?: boolean;
   mfa_required?: boolean; challenge?: string[];
@@ -211,6 +215,8 @@ const silentRefresh = singleFlight(async (): Promise<boolean> => {
   });
   return res.ok;
 });
+
+export interface HomeStorage { used_bytes: number | null; quota_bytes: number | null; percent: number | null; warn: boolean }
 
 async function request<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
   const method = (init?.method ?? "GET").toUpperCase();
@@ -285,11 +291,14 @@ export const api = {
   mountLatest: (id: string) => request<MountJob>(`/services/${id}/mount/jobs/latest`),
   serviceFocus: () => request<{ slug: string | null }>("/services/focus"),
   listGroups: () => request<Group[]>("/groups"),
-  createGroup: (data: { name: string; description?: string | null }) =>
+  createGroup: (data: { name: string; description?: string | null; egress_mode?: EgressMode }) =>
     request<Group>("/groups", { method: "POST", body: JSON.stringify(data) }),
   deleteGroup: (id: string) => request<void>(`/groups/${id}`, { method: "DELETE" }),
-  updateGroup: (id: string, data: { allow_gpu?: boolean; description?: string | null }) =>
+  updateGroup: (id: string, data: { allow_gpu?: boolean; description?: string | null; egress_mode?: EgressMode }) =>
     request<Group>(`/groups/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  listProvisioned: () => request<ProvisionedUser[]>("/admin/provisioned"),
+  reviewProvisioned: (id: string) => request<ProvisionedUser>(`/admin/provisioned/${id}/review`, { method: "POST" }),
+  suspendProvisioned: (id: string) => request<ProvisionedUser>(`/admin/provisioned/${id}/suspend`, { method: "POST" }),
   getMyProfiles: () => request<Profile[]>("/profiles"),
   deleteMyProfile: (templateId: string) => request<void>(`/profiles/${templateId}`, { method: "DELETE" }),
   getUserProfiles: (userId: string) => request<Profile[]>(`/users/${userId}/profiles`),
@@ -355,6 +364,7 @@ export const api = {
   getRegistryImage: (name: string) => request<RegistryImage>(`/registry/images/${name}`),
 
   getRuntime: () => request<{ runtime: "docker" | "kubernetes" }>("/system/runtime"),
+  getHomeStorage: () => request<HomeStorage>("/me/storage"),
   getGpuInfo: () => request<{ available: boolean; type: string | null; devices: string[] }>("/system/gpu"),
 
   listImages: () => request<PulledImage[]>("/images"),
@@ -388,6 +398,7 @@ export const api = {
   getInstanceLogs: (instanceId: string) =>
     request<string[]>(`/instances/${instanceId}/logs`),
 
+  systemProfile: () => request<{ profile: string; disabled: string[] }>("/system/profile"),
   setupRequired: () => request<{ setup_required: boolean }>("/auth/setup-required"),
   setupPreflight: () => request<SetupPreflight>("/auth/setup-preflight"),
   setup: (data: { username: string; email?: string; password: string; setup_token: string }) =>
@@ -417,6 +428,7 @@ export const api = {
     request<{ token: string; expires_at: string | null }>("/users/invites", {
       method: "POST", body: JSON.stringify(data) }),
   disableUser: (id: string) => request<unknown>(`/users/${id}/disable`, { method: "PATCH" }),
+  removeAccess: (id: string) => request<unknown>(`/users/${id}/remove-access`, { method: "POST" }),
   changeRole: (id: string, role: string) =>
     request<unknown>(`/users/${id}/role?role=${role}`, { method: "PATCH" }),
   unlockUser: (id: string) => request(`/users/${id}/unlock`, { method: "POST" }),

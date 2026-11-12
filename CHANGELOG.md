@@ -3,6 +3,8 @@
 ### Features
 
 * **logging:** Elastic log and audit shipping (ADR-0044, AU-2/3/5/11/12): every `audit()` call also writes one ECS JSON line to stdout (logger `styx.audit`, `event.id` UUID4, category/type/outcome from the action, `user.name` from the username, redacted detail, now redacted recursively) plus phase 3/4 hooks `egress_event()` and `dlp_event()` (filename sha256 only, never `file.hash`); `deploy/logging/` kustomization with two RKE2 `HelmChart`s for Fluent Bit 5.1.3 (chart 0.58.3 via Harbor; all nodes, and control-plane only for `/var/lib/rancher/rke2/server/logs/audit.log`), verified TLS incl. hostname, API key from a Secret env, filesystem buffering, Lua k8s-audit-to-ECS map, Styx audit accepted only from `styx/backend` with `id_key event.id`, CiliumNetworkPolicy, PrometheusRule (`FluentBitOutputFailing`, `FluentBitRetriesHigh`, `FluentBitDown`), opt-in ExternalSecret component (OpenBao `kv/styx/logging/elastic`), RKE2 audit policy, Elastic templates, ILM `styx-logs` (rollover 50gb/30d, cold 90 d, delete `RETENTION_DELETE_DAYS` default 455 d), append-only shipper role and idempotent `bootstrap.py`; runbook `docs/operate/logging.md`; not deployed (styx-portal#11)
+* **backend:** leader election (#23): `LeaderElector` on a dedicated Postgres session advisory lock with heartbeat and self-fence, `LeaderTasks` gating of background loops and boot steps, leader-only janitor, idempotent denylist/ban upserts; SQLite stays single-replica (styx-portal#23)
+* **deploy:** CNPG multi-replica (#24): enterprise overlay with CNPG cluster, barman-cloud ObjectStore and scheduled backups, ESO-generated DB credentials, NetworkPolicy and backup alerts, 3-replica backend patch with PDB and pgpass mounts (styx-portal#24)
 * **db:** Postgres support (`postgresql+asyncpg://` in `DATABASE_URL`) next to SQLite (styx-portal#21)
 * **db:** Alembic manages the schema (`0001_baseline`); existing SQLite databases are backed up to `<db>.pre-alembic.bak` and stamped once at startup (styx-portal#21)
 * **dr:** restore test harness for the phase-1 full-site restore test (ADR-0037, CP-4/CP-9/CP-10, R03): stdlib CLI `deploy/dr/restore-test/styx_drtest.py` (`plan`, `run --confirm`, `fingerprint`, `mark`, `report`, `teardown`) restores into a scratch target from CNPG (new `Cluster` with `bootstrap.recovery`, no `plugins`/`backup`), Velero (namespace-mapped, ReadOnly BSL, no cluster resources) and the Kopia offsite repo (`--readonly`); five guards refuse non-scratch targets before the first write (exit 2); checks row counts and checksums against a fingerprint baseline, `pg_amcheck`, Alembic head, Velero phase, Kopia verify plus sha256 sample and `/api/health`; RTO 8 h / RPO 24 h; versioned JSON + Markdown evidence report with secrets redacted; any error after the first write aborts with exit 3 and a failing report; not run (styx-portal#15)
@@ -24,11 +26,17 @@
 
 ### Documentation
 
+* **docs:** Ceph OSD encryption runbook `docs/enterprise/runbooks/ceph-osd-encryption.md` (KEK rotation, OpenBao outage, break-glass `cryptsetup luksOpen` from a raft snapshot, NVMe add/replace, why encryption/KMS is fixed after first deploy), ADR-0061 follow-up links, SC-28/SC-12 rows point at the IaC; SC-13 stays open (styx-portal#65)
 * **docs:** Rook-Ceph alerts and runbook: PrometheusRule `CephPGsDegraded` (4h) and `CephThrottleJobFailing` (1h), runbook `docs/enterprise/runbooks/rook-ceph.md` (install order, node prep, NVMe add/replace, forcing recovery, #20 before data, SC-13/CM-6 debt), SC-5/CP-2 pointers to ADR-0055 (styx-portal#30)
 * **operate:** DR restore test runbook (`docs/operate/dr-restore-test.md`): Velero glob refusal wording and known issues (0-item Velero restore passes, no report after SIGTERM/SIGHUP, moved evidence dir, no `--context` pinning, check targets not proven scratch, CNPG CRs in Velero restores after #6, minor redaction and parse gaps); testing guide and `deploy/dr/` layout (styx-portal#15)
 * **deploy:** RKE2 node IaC README known issues (worker label is `node.kubernetes.io/*` so `ROLES` shows `<none>`, padded-default token gap, Jinja-literal gap in the secret scan, never applied); testing guide and `deploy/rke2/` layout (styx-portal#2)
 * **operate:** offsite backup runbook (`docs/operate/offsite-backup.md`): bucket lifecycle rule prerequisite, escrow and one-page restore, key rotation with an explicit delete date and destruction of the old password, deleted-user data bound per whole pack, known issues (CI gap, sticky failed-job alert, byte-length password check, escaped orphan names); ADR-0037 consequences and CP-6/CP-9/SC-28 rows (styx-portal#13)
 * **enterprise:** GitLab protect runbook: Free/CE cannot PATCH protected-branch levels (re-protect by hand), runner tags have no access control (restrict project-runner creation); enterprise IaC layout and OpenBao `gitlab-protect` role (styx-portal#16)
+* **docs:** leader election runbook (who is leader, failover times, SQLite = one replica, ban cache staleness), settings, ADR-0056 follow-up note (#76)
+
+### Documentation
+
+* **docs:** enterprise Kubernetes guide, first-boot and rotation runbooks, full-site restore runbook with SSE-C note (#82)
 
 ## 1.0.0 (2026-06-15)
 

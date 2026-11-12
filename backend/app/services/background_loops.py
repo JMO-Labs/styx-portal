@@ -123,17 +123,11 @@ async def _service_health_loop():
     await health_loop(async_session)
 
 
-async def _metrics_collection_loop():
-    """Every 30s: container aggregates for the time-series, host CPU/RAM for hourly rollups,
-    and instance stream-session reconciliation."""
-    import shutil
-
-    from app.services import host_metrics, metric_rollup, stream_sessions
-    from app.models import StreamSession
+async def _metrics_sampler_loop():
+    """Per replica, every 30s: container aggregates into the in-memory time-series."""
     from app.services.metrics_store import record_sample
 
     docker = instance_runtime()
-    host_metrics.cpu_pct()   # prime the /proc/stat delta
     while True:
         await asyncio.sleep(30)
         try:
@@ -154,8 +148,22 @@ async def _metrics_collection_loop():
                     total_ram_pct += u["memory_percent"]
                 except Exception:
                     pass
-
             record_sample(round(total_cpu, 1), round(total_ram_pct, 1))
+        except Exception:
+            logger.warning("metrics sample failed", exc_info=True)
+
+
+async def _metrics_db_loop():
+    """Leader only, every 30s: host rollups and stream-session reconciliation (DB writes)."""
+    import shutil
+
+    from app.services import host_metrics, metric_rollup, stream_sessions
+    from app.models import StreamSession
+
+    host_metrics.cpu_pct()   # prime the /proc/stat delta
+    while True:
+        await asyncio.sleep(30)
+        try:
             async with async_session() as session:
                 await stream_sessions.sync_instances(session)
                 await session.commit()
@@ -230,3 +238,8 @@ async def _health_sample_loop():
             record(_t.time(), status, latency)
         except Exception:
             pass
+
+
+async def _lifecycle_loop():
+    from app.services.lifecycle_jobs import lifecycle_loop
+    await lifecycle_loop(async_session)

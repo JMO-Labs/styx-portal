@@ -48,8 +48,11 @@ def has(text: str, phrase: str) -> bool:
 def test_all_original_adrs_accepted():
     originals = sorted(ADR.glob("00[0-5][0-9]-*.md"))
     assert len(originals) == 59
-    assert len(adr_files()) == 61
+    nums = [int(path.name[:4]) for path in adr_files()]
+    assert nums == list(range(1, len(nums) + 1))  # contiguous, none deleted
     for path in adr_files():
+        if path.name >= "0062-":  # later ADRs await owner acceptance
+            continue
         text = path.read_text()
         assert "Status: Proposed" not in text, path.name
         if not path.name.startswith("0045-"):
@@ -85,9 +88,57 @@ def test_adr_0061_osd_encryption():
         assert has(text, phrase), phrase
 
 
+def test_adr_0063_cosign_custody():
+    text = adr("0063")
+    assert "Decision ID: D62" in text
+    assert "- Status: Proposed" in text  # awaits owner acceptance; not backdated
+    for phrase in ("transit", "exportable=false", "ci-cosign", "rotate",
+                   "min_encryption_version", "30 days", "90 days", "rationale"):
+        assert has(text, phrase), phrase
+    for num in ("0028", "0029", "0030"):
+        assert "ADR-0063" in adr(num), num
+    s7 = section((DOCS / "design.md").read_text(), 7)
+    assert "Closed (Phase 3)" in s7 and "ADR-0063" in s7
+
+
+def test_adr_0064_squid_egress():
+    text = adr("0064")
+    assert "Decision ID: D63" in text
+    assert "- Status: Accepted" in text
+    assert "Refines: ADR-0040" in text
+    for phrase in ("3128", "3129", "allowlist", "nothing is deployed"):
+        assert has(text, phrase), phrase
+
+
+def test_adr_0065_keycloak_x509():
+    text = adr("0065")
+    assert text.startswith("# ADR-0065: Keycloak X.509")
+    assert "Decision ID: D64" in text
+    assert "- Status: Proposed" in text  # awaits owner acceptance
+    for phrase in ("Client-Cert", "haproxy", "IA-2(12)"):
+        assert has(text, phrase), phrase
+    index = (ADR / "README.md").read_text()
+    assert "[D64](0065-keycloak-x509" in index
+    d64 = next(ln for ln in index.splitlines() if "[D64]" in ln)
+    assert "| Proposed |" in d64
+    assert "proposed in ADR-0065 (D64)" in (DOCS / "design.md").read_text()
+
+
+def test_adr_0065_policy_oids_and_revocation():
+    text = adr("0065")
+    # PIV-I hardware OID; .3.40 is derived-PIV Auth, not PIV-I.
+    assert "2.16.840.1.101.3.2.1.3.18" in text
+    assert "2.16.840.1.101.3.2.1.3.40" not in text
+    assert "CAC equivalent" not in text
+    # Both checks must pass; the CRL mirror is not a fallback.
+    assert "fallback" not in text.lower()
+    assert has(text, "both checks must pass")
+
+
 def test_adr_index_matches_files():
     index = (ADR / "README.md").read_text()
-    assert "| Proposed |" not in index
+    older = [ln for ln in index.splitlines() if not any(f"({n}-" in ln for n in ("0062", "0063", "0065"))]
+    assert "| Proposed |" not in "\n".join(older)
     assert f"accepted {DATE}" in index.lower()
     rows = dict(re.findall(r"^\| \[D\w+\]\(([^)]+)\) \|[^|]+\| ([^|]+) \|", index, re.M))
     names = {p.name for p in adr_files()}
@@ -185,6 +236,9 @@ def test_control_matrix_amendments():
         assert has(row(cm, ctl), "takeover"), ctl
     assert has(row(cm, "AU-6"), "monthly")
     assert "0061" in row(cm, "SC-28")
+    for ctl in ("SI-2", "SI-7", "CM-14"):
+        assert "0063" in row(cm, ctl), ctl
+    assert has(row(cm, "SI-2"), "30 d") and has(row(cm, "SI-2"), "90 d")
     assert re.search(r"^\| CM-(6|7) \|.*Pod Security Admission.*0057", cm, re.M)
     assert has(row(cm, "SC-7(5)"), "uncategorised")
     assert has(row(cm, "AC-11"), "card removal")

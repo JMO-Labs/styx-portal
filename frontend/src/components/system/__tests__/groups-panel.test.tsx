@@ -5,6 +5,7 @@ const listGroups = vi.fn();
 const listServices = vi.fn();
 const deleteGroup = vi.fn();
 const createGroup = vi.fn();
+const updateGroup = vi.fn();
 const getUserGroups = vi.fn();
 const setUserGroups = vi.fn();
 vi.mock("@/api/client", () => ({
@@ -13,6 +14,7 @@ vi.mock("@/api/client", () => ({
     listServices: (...a: unknown[]) => listServices(...a),
     deleteGroup: (...a: unknown[]) => deleteGroup(...a),
     createGroup: (...a: unknown[]) => createGroup(...a),
+    updateGroup: (...a: unknown[]) => updateGroup(...a),
     getUserGroups: (...a: unknown[]) => getUserGroups(...a),
     setUserGroups: (...a: unknown[]) => setUserGroups(...a),
   },
@@ -23,7 +25,7 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 import { GroupsPanel } from "../groups-panel";
 import { UserGroupsDialog } from "../user-groups-dialog";
 
-const media = { id: "g1", name: "media", description: null, member_count: 2 };
+const media = { id: "g1", name: "media", description: null, member_count: 2, egress_mode: "category" };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -77,13 +79,43 @@ describe("GroupsPanel", () => {
     expect(add).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Group name"), { target: { value: " kids " } });
     fireEvent.click(add);
-    await waitFor(() => expect(createGroup).toHaveBeenCalledWith({ name: "kids", description: null }));
+    await waitFor(() => expect(createGroup).toHaveBeenCalledWith({ name: "kids", description: null, egress_mode: "category" }));
+  });
+});
+
+describe("GroupsPanel egress mode", () => {
+  test("shows each group's egress mode and help text", async () => {
+    listGroups.mockResolvedValue([media, { ...media, id: "g2", name: "kids", egress_mode: "allowlist" }]);
+    render(<GroupsPanel />);
+    await screen.findByText("kids");
+    expect(screen.getByLabelText("Egress mode for media")).toHaveValue("category");
+    expect(screen.getByLabelText("Egress mode for kids")).toHaveValue("allowlist");
+    expect(screen.getByText(/strictest group wins/i)).toHaveTextContent(/next desktop launch/i);
+  });
+
+  test("changing the mode sends egress_mode and reloads", async () => {
+    updateGroup.mockResolvedValue({ ...media, egress_mode: "allowlist" });
+    render(<GroupsPanel />);
+    await screen.findByText("media");
+    fireEvent.change(screen.getByLabelText("Egress mode for media"), { target: { value: "allowlist" } });
+    await waitFor(() => expect(updateGroup).toHaveBeenCalledWith("g1", { egress_mode: "allowlist" }));
+    await waitFor(() => expect(listGroups).toHaveBeenCalledTimes(2));
+  });
+
+  test("create sends the chosen egress mode", async () => {
+    createGroup.mockResolvedValue({ ...media, id: "g3", name: "locked" });
+    render(<GroupsPanel />);
+    await screen.findByText("media");
+    fireEvent.change(screen.getByLabelText("Group name"), { target: { value: "locked" } });
+    fireEvent.change(screen.getByLabelText("New group egress mode"), { target: { value: "allowlist" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add group" }));
+    await waitFor(() => expect(createGroup).toHaveBeenCalledWith({ name: "locked", description: null, egress_mode: "allowlist" }));
   });
 });
 
 describe("UserGroupsDialog", () => {
   test("preselects current groups and saves selection", async () => {
-    listGroups.mockResolvedValue([media, { id: "g2", name: "kids", description: null, member_count: 0 }]);
+    listGroups.mockResolvedValue([media, { id: "g2", name: "kids", description: null, member_count: 0, egress_mode: "category" }]);
     getUserGroups.mockResolvedValue(["g1"]);
     setUserGroups.mockResolvedValue(["g2"]);
     const onOpenChange = vi.fn();

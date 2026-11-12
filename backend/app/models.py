@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import NaiveDatetime
 from sqlmodel import Field, SQLModel, Column
-from sqlalchemy import JSON, BigInteger, DateTime, Index, Integer, UniqueConstraint
+from sqlalchemy import JSON, BigInteger, DateTime, Index, Integer, String, UniqueConstraint
 
 from app.db_types import NAMING_CONVENTION, UTCDateTime
 
@@ -41,6 +41,10 @@ class User(SQLModel, table=True):
     matrix_pending: str | None = None    # sealed card awaiting activation
     matrix_challenge: str | None = None  # JSON list of pending challenge cells
     matrix_serial: int = 0
+    end_date: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+    disabled_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+    disabled_reason: str | None = None
+    reviewed_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
 
 
 class BannedIP(SQLModel, table=True):
@@ -252,6 +256,7 @@ class Instance(SQLModel, table=True):
     profile_volume: str | None = None
     gpu: bool | None = None  # None = legacy: use template.gpu_enabled
     notice: str | None = None
+    image_digest: str | None = None  # pinned at launch (k8s), never changed after
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
     started_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
     stopped_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
@@ -367,6 +372,13 @@ class Group(SQLModel, table=True):
     name: str = Field(unique=True, index=True)
     description: str | None = None
     allow_gpu: bool = False
+    egress_mode: str = "category"
+    # Per-group CPU-tier overrides (ADR-0031); None = use the global default.
+    tier_resolution: str | None = None
+    tier_fps: int | None = None
+    tier_hidpi: bool | None = None
+    tier_cpu: str | None = None
+    tier_memory: str | None = None
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
@@ -494,3 +506,13 @@ class RateCounter(SQLModel, table=True):
     window_start: datetime = Field(sa_column=Column(_TSTZ, primary_key=True))
     count: int = 0
     expires_at: datetime = Field(sa_column=Column(_TSTZ, nullable=False, index=True))
+
+
+class PosixUid(SQLModel, table=True):
+    """Immutable POSIX UID per user_key (ADR-0052). Rows are never updated or deleted."""
+    __tablename__ = "posix_uids"
+    uid: int = Field(sa_column=Column(Integer, primary_key=True, autoincrement=False))
+    user_key: str = Field(sa_column=Column(String, nullable=False, unique=True))
+    allocated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(_TSTZ, nullable=False))
