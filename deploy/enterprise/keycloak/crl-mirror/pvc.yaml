@@ -1,0 +1,12 @@
+# Shared CRL volume: written by the crl-mirror CronJob, read-only in Keycloak (ADR-0017).
+# RWX (CephFS) so both writer and the 2 Keycloak replicas can mount it.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: keycloak-crl
+  namespace: keycloak
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: cephfs   # PLACEHOLDER(storage class)
+  resources:
+    requests: {storage: 1Gi}

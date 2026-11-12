@@ -1,0 +1,68 @@
+# Mirrors issuer CRLs onto the keycloak-crl PVC every 6h (ADR-0017, issue #130).
+# Atomic writes; nextUpdate exported as a metric and pushed to the Pushgateway.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-crl-mirror
+  namespace: keycloak
+data:
+  # PLACEHOLDER(ADR-0017): real issuer CRL distribution points as {"name": "url"}.
+  CRL_URLS: '{"dod-id-ca": "http://crl.example.internal/dod-id-ca.crl"}'
+  PUSHGATEWAY_URL: http://pushgateway.monitoring.svc:9091
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: keycloak-crl-mirror
+  namespace: keycloak
+spec:
+  schedule: "0 */6 * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels: {app.kubernetes.io/name: keycloak-crl-mirror}
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: mirror
+              # PLACEHOLDER(digest): mirror python:3.12-alpine into Harbor and pin the real digest.
+              image: harbor.example.internal/library/python:3.12-alpine@sha256:0000000000000000000000000000000000000000000000000000000000000000
+              command: [python3, /opt/crl/crl_mirror.py]
+              envFrom:
+                - configMapRef: {name: keycloak-crl-mirror}
+              env:
+                - {name: CRL_DIR, value: /crl}
+                - {name: PROM_DIR, value: /prom}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: [ALL]}
+                seccompProfile: {type: RuntimeDefault}
+              resources:
+                requests: {cpu: 10m, memory: 32Mi}
+                limits: {memory: 128Mi}
+              volumeMounts:
+                - {name: script, mountPath: /opt/crl, readOnly: true}
+                - {name: crl, mountPath: /crl}
+                - {name: prom, mountPath: /prom}
+          volumes:
+            - name: script
+              configMap: {name: keycloak-crl-mirror-script}
+            - name: crl
+              persistentVolumeClaim: {claimName: keycloak-crl}
+            - name: prom
+              emptyDir: {}
