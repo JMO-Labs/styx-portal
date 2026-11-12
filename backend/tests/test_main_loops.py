@@ -155,7 +155,6 @@ async def _run_lifespan(monkeypatch, elector=None, k8s=False):
         monkeypatch.setattr(leader_mod, "_elector", None)
     else:
         monkeypatch.setattr(m, "get_elector", lambda: elector)
-    monkeypatch.setattr(m, "start_metrics_server", lambda *a: None)
     monkeypatch.setattr(m._settings, "ROUTE_BACKEND", "k8s" if k8s else "file")
     monkeypatch.setattr(m._settings, "JWT_SECRET", "x" * 40, raising=False)
     async with m.lifespan(m.app):

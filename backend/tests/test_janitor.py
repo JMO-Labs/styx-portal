@@ -1,4 +1,4 @@
-"""Janitor purge of the abuse tables (schema per alembic 0002_abuse_tables)."""
+"""Janitor purge of the abuse tables (schema from app.models / Alembic)."""
 import asyncio
 import logging
 from contextlib import asynccontextmanager
@@ -13,14 +13,6 @@ from app.services.janitor import fail_window, purge_expired
 
 settings = Settings()
 
-_DDL = (
-    "CREATE TABLE auth_fail_events (id INTEGER PRIMARY KEY AUTOINCREMENT, kind VARCHAR NOT NULL,"
-    " key VARCHAR NOT NULL, username VARCHAR, at DATETIME NOT NULL)",
-    "CREATE TABLE auth_blocks (kind VARCHAR NOT NULL, key VARCHAR NOT NULL, username VARCHAR,"
-    " until DATETIME NOT NULL, PRIMARY KEY (kind, key))",
-    "CREATE TABLE rate_counters (key VARCHAR NOT NULL, window_start DATETIME NOT NULL,"
-    " count INTEGER NOT NULL, expires_at DATETIME NOT NULL, PRIMARY KEY (key, window_start))",
-)
 _TS = DateTime(timezone=True)
 NOW = datetime(2026, 11, 11, 12, 0, tzinfo=timezone.utc)
 
@@ -31,9 +23,6 @@ async def _exec(session, sql, **params):
 
 
 async def _seed(session):
-    if session.get_bind().dialect.name != "postgresql":  # PG schema comes from Alembic
-        for ddl in _DDL:
-            await session.exec(text(ddl))
     win = fail_window()
     for i, age in enumerate((win + 60, win + 120, win + 180, 30, win - 60)):
         await _exec(session, "INSERT INTO auth_fail_events (kind, key, at) VALUES ('ip', :k, :t)",
