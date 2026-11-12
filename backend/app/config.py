@@ -16,6 +16,10 @@ PLACEHOLDER_SECRETS = {
 
 class Settings(BaseSettings):
     DOMAIN: str = "localhost"
+    # Provisioning webhook auth (ADR-0020 / D20): mTLS (forwarded Client-Cert) + bearer
+    PROVISION_HOST: str = ""
+    PROVISION_BEARER_TOKEN: str = ""
+    PROVISION_CLIENT_CERT_FINGERPRINTS: str = ""  # comma-separated SHA-256 hex of DER
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/styx-portal.db"
     DOCKER_SOCKET: str = "unix:///var/run/docker.sock"
     DOCKER_NETWORK: str = "styx-portal"
@@ -40,6 +44,11 @@ class Settings(BaseSettings):
     K8S_DESKTOP_IMAGE: str = "ghcr.io/jmo-labs/styx-desktop:latest"
     INSTANCE_STORAGE_CLASS: str = "longhorn"
     INSTANCE_VOLUME_SIZE: str = "20Gi"
+    CPU_TIER_RESOLUTION: str = "1920x1080"  # ADR-0031 CPU-tier launch defaults
+    CPU_TIER_FPS: int = 30
+    CPU_TIER_HIDPI: bool = False
+    CPU_TIER_CPU: str = "3"
+    CPU_TIER_MEMORY: str = "4Gi"
     PROFILE_VOLUME_SIZE: str = "20Gi"
     K8S_CLUSTER_CIDRS: str = "10.42.0.0/16,10.43.0.0/16"   # pod,service ranges
     K8S_UPSTREAM_DENY_NAMESPACES: str = (
@@ -115,6 +124,12 @@ class Settings(BaseSettings):
     WORKSTATION_SEAT_HEIGHT: int = 1440
     LAN_CERT_DIR: str = "/app/data/lan-certs"      # backend-side path (lan-certs volume)
     TRAEFIK_LAN_CERT_DIR: str = "/lan-certs"       # same volume as seen by Traefik
+
+    # Keycloak admin client (offboarding); all empty = disabled (calls skipped).
+    KC_ADMIN_URL: str = ""
+    KC_ADMIN_REALM: str = ""
+    KC_ADMIN_CLIENT_ID: str = ""
+    KC_ADMIN_CLIENT_SECRET: str = ""
 
     # extra="ignore": the repo-root .env is shared with docker-compose,
     # cloudflared, and authentik, so it carries keys the backend does not
