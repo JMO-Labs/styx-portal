@@ -6,6 +6,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models import ProxiedService, upstream_base
+from app.services import service_thumbs
 
 log = logging.getLogger(__name__)
 
@@ -17,8 +18,11 @@ async def capture_services_pass(session: AsyncSession, screenshots) -> None:
         url = upstream_base(s)
         if not url:
             continue
+        async def store(png: bytes, sid=s.id):
+            await service_thumbs.put(session, sid, png)
+
         try:
-            await screenshots.capture_url(s.id, url)
+            await screenshots.capture_url(s.id, url, store)
         except Exception:
             log.debug("service thumbnail failed for %s", s.id, exc_info=True)
 
