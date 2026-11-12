@@ -135,9 +135,19 @@ def test_adr_0065_policy_oids_and_revocation():
     assert has(text, "both checks must pass")
 
 
+def test_adr_0066_cephfs_homes():
+    text = adr("0066")
+    assert text.startswith("# ADR-0066: CephFS homes")
+    assert "Decision ID: D65" in text
+    assert "- Status: Proposed" in text
+    index = (ADR / "README.md").read_text()
+    assert "[D65](0066-cephfs-homes" in index
+    assert "0065-cephfs" not in (DOCS / "control-matrix.md").read_text()
+
+
 def test_adr_index_matches_files():
     index = (ADR / "README.md").read_text()
-    older = [ln for ln in index.splitlines() if not any(f"({n}-" in ln for n in ("0062", "0063", "0065"))]
+    older = [ln for ln in index.splitlines() if not any(f"({n}-" in ln for n in ("0062", "0063", "0065", "0066"))]
     assert "| Proposed |" not in "\n".join(older)
     assert f"accepted {DATE}" in index.lower()
     rows = dict(re.findall(r"^\| \[D\w+\]\(([^)]+)\) \|[^|]+\| ([^|]+) \|", index, re.M))

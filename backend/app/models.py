@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import NaiveDatetime
 from sqlmodel import Field, SQLModel, Column
-from sqlalchemy import JSON, BigInteger, DateTime, Index, Integer, String, UniqueConstraint
+from sqlalchemy import JSON, BigInteger, LargeBinary, DateTime, Index, Integer, String, UniqueConstraint
 
 from app.db_types import NAMING_CONVENTION, UTCDateTime
 
@@ -366,6 +366,26 @@ class WorkstationAccess(SQLModel, table=True):
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
+class ApprovedRequest(SQLModel, table=True):
+    """Approved provisioning request from the webhook, awaiting card binding (#120)."""
+    __tablename__ = "approved_requests"
+
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    idempotency_key: str = Field(unique=True, index=True)
+    body_hash: str                      # SHA-256 of the canonical body
+    approval_id: str = Field(unique=True, index=True)
+    external_id: str = Field(unique=True, index=True)
+    approver_email: str
+    groups: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    card_type: str
+    person_type: str
+    end_date: str | None = None
+    status: str = "pending_binding"
+    # Subject PII (name, email, EDIPI) kept for the binding step; never audited.
+    subject: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+
+
 class Group(SQLModel, table=True):
     __tablename__ = "groups"
     id: str = Field(default_factory=_uuid, primary_key=True)
@@ -412,6 +432,14 @@ class ServicePreset(SQLModel, table=True):
     base_url_hint: str | None = None
     warnings: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     subpath: dict | None = Field(default=None, sa_column=Column(JSON))
+
+
+class ServiceThumbnail(SQLModel, table=True):
+    """Shared service thumbnail (PNG): bytea on PG, BLOB on SQLite; any replica serves it."""
+    __tablename__ = "service_thumbnails"
+    service_id: str = Field(primary_key=True, foreign_key="proxied_services.id", ondelete="CASCADE")
+    data: bytes = Field(sa_column=Column(LargeBinary, nullable=False))
+    updated_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
 class ProxiedService(SQLModel, table=True):

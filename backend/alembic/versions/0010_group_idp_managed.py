@@ -1,7 +1,7 @@
 """groups.idp_managed flag (styx-portal#133)
 
-Revision ID: 0008_group_idp_managed
-Revises: 0007_group_tier
+Revision ID: 0010_group_idp_managed
+Revises: 0009_approved_requests
 Create Date: 2026-11-12
 
 """
@@ -10,8 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = '0008_group_idp_managed'
-down_revision: Union[str, Sequence[str], None] = '0007_group_tier'
+revision: str = '0010_group_idp_managed'
+down_revision: Union[str, Sequence[str], None] = '0009_approved_requests'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

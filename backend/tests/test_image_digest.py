@@ -119,3 +119,31 @@ def test_create_records_digest(monkeypatch):
                         lambda ref, *a, **k: "harbor.example/styx/desktop@sha256:new")
     rt.create_container("selkies-a", REF, {}, {}, {}, 3000)
     assert rt.pinned_digest("selkies-a") == "sha256:new"
+
+
+def test_non_dict_artifact_not_signed():
+    """Line 24: a malformed list entry is skipped, not a crash."""
+    assert resolve_digest(REF, cfg(), client(lambda r: httpx.Response(
+        200, json=["junk", None, art("sha256:ok", "2026-01-01T00:00:00Z", True)]))) \
+        == "harbor.example/styx/desktop@sha256:ok"
+
+
+def test_split_registry_port_without_tag():
+    """Line 33: the colon is a registry port, not a tag separator."""
+    assert image_digest._split("harbor.example:8443/styx/desktop", "harbor.example:8443") \
+        == ("harbor.example:8443/styx/desktop", "styx", "desktop")
+
+
+def test_owned_client_is_closed(monkeypatch):
+    """Line 66: with no injected client, the one created internally is closed."""
+    created = []
+
+    class Fake(httpx.Client):
+        def __init__(self, *a, **k):
+            super().__init__(transport=httpx.MockTransport(lambda r: httpx.Response(
+                200, json=[art("sha256:a", "2026-01-01T00:00:00Z", True)])))
+            created.append(self)
+
+    monkeypatch.setattr(image_digest.httpx, "Client", Fake)
+    assert resolve_digest(REF, cfg()).endswith("@sha256:a")
+    assert created and created[0].is_closed

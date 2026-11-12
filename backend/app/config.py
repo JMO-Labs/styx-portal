@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     PROVISION_HOST: str = ""
     PROVISION_BEARER_TOKEN: str = ""
     PROVISION_CLIENT_CERT_FINGERPRINTS: str = ""  # comma-separated SHA-256 hex of DER
+    KEYCLOAK_ADMIN_GROUPS: str = ""  # comma-separated; never grantable via the webhook
+    PROVISION_GROUP_MANAGERS: str = ""  # JSON {"group-slug": ["manager@email", ...]}
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/styx-portal.db"
     # Leader election: dedicated session connection, straight to the primary
     # (never a pooler). Empty = same as DATABASE_URL.
@@ -47,6 +49,7 @@ class Settings(BaseSettings):
     SERVICE_PRESETS_DIR: str = "/app/templates/services"
     SCREENSHOT_CACHE_DIR: str = "/app/data/screenshots"
     SCREENSHOT_INTERVAL_SECONDS: int = 30
+    SERVICE_THUMBNAIL_MAX_BYTES: int = 1_048_576  # reject larger service thumbnails
     MOUNT_BACKUP_DIR: str = "./data/mount-backups"
     MOUNT_PROBE_IMAGE: str = "busybox:1.36"
     TRAEFIK_DYNAMIC_DIR: str = "/app/traefik-dynamic"
@@ -189,6 +192,12 @@ class Settings(BaseSettings):
                     "Generate one: openssl rand -base64 48"
                 )
             return self.JWT_SECRET
+        if self.DATABASE_URL.startswith("postgres"):
+            raise RuntimeError(
+                "JWT_SECRET is required when DATABASE_URL is PostgreSQL: a per-pod "
+                "secrets.json would differ between replicas and tokens would fail. "
+                "Set the same JWT_SECRET on every replica (openssl rand -base64 48)."
+            )
         return self._load_or_create_secret()
 
     def _load_or_create_secret(self) -> str:
