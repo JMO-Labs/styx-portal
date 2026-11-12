@@ -104,3 +104,7 @@ These need a restart of the backend (or a redeploy). They are documented where t
 | `ROUTE_BACKEND`, `K8S_*`, `INSTANCE_*` | `file`, ... | [Kubernetes](kubernetes.md) |
 | `LEADER_DATABASE_URL`, `LEADER_*`, `BAN_CACHE_TTL` | empty, 5/5/3/15 s, 30 | [Leader election](leader-election.md#settings) |
 | `ENABLE_DOCS`, `DEV_CORS` | `false` | dev only |
+
+## Multiple replicas
+
+On Postgres every replica re-reads the settings table every 2 seconds, so a change saved on one replica applies on all others within about 2 s (limit: 5 s). On SQLite (single process) nothing changes: values apply immediately and no refresh loop runs.
