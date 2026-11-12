@@ -7,6 +7,14 @@ ROOT = Path(__file__).resolve().parents[2]
 EXPR = "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'homelab' }}"
 
 
+def _path(name: str) -> Path:
+    for d in ("wq-workflows", ".github/workflows"):
+        p = ROOT / d / name
+        if p.exists():
+            return p
+    pytest.fail(f"{name}: not found in wq-workflows/ or .github/workflows/")
+
+
 def _find(name: str) -> Path:
     for d in ("wq-workflows", ".github/workflows"):
         p = ROOT / d / name
@@ -22,6 +30,6 @@ def test_fork_safe_runs_on(name):
 
 
 def test_dependabot_automerge_not_pull_request_target():
-    text = (ROOT / "wq-workflows" / "dependabot-automerge.yml").read_text()
+    text = _path("dependabot-automerge.yml").read_text()
     assert "pull_request_target" not in text
     assert "on: pull_request" in text
