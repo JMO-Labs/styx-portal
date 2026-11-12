@@ -24,7 +24,7 @@ def upgrade() -> None:
         'setup_tokens',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('token', sa.String(), nullable=False),
-        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+        sa.Column('created_at', sa.DateTime(), nullable=False),
         sa.PrimaryKeyConstraint('id', name=op.f('pk_setup_tokens')),
     )
 
