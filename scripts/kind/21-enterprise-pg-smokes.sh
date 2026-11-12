@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# styx-portal#6 AC3-AC5 on origin/enterprise: migration smoke, leader smoke, IaC checks.
+# styx-portal#6 AC1 (scriptable part), AC3-AC5 on origin/enterprise: migration smoke, leader smoke, IaC checks.
 set -euo pipefail
 . test/kind/enterprise-verify/setup.sh
 ent_setup
@@ -10,6 +10,16 @@ fail=0
 bad() { echo "FAIL: $*"; fail=1; }
 cd "$ENT/backend"
 PY=.venv/bin/python
+
+echo "== AC1 lint + ADR-0011 debt"
+$PY -m ruff check app/ tests/ || bad "ruff"
+adr=$(ls "$ENT"/docs/enterprise/adr/0011-*.md 2>/dev/null | head -1 || true)
+if [ -n "$adr" ]; then
+  grep -qx -- '- Status: Proposed' "$adr" || bad "ADR-0011 not Proposed: $(grep -m1 '^- Status:' "$adr" || echo none)"
+else bad "ADR-0011 missing"; fi
+for c in SC-13 CM-6; do
+  grep -rqsE "(ADR-0011|D11).*$c|$c.*(ADR-0011|D11)" "$ENT/docs" || bad "no $c debt note citing ADR-0011"
+done
 
 echo "== AC3 migration smoke"
 work=$(mktemp -d)
@@ -61,10 +71,13 @@ max_seen() {  # $1 seconds: sample, print max leaders (self-reported or pg_locks
 start_probe; start_probe
 wait_one 20 >/dev/null || bad "no single leader after start"
 [ "$(max_seen 6)" -le 1 ] || bad "two leaders while idle"
-lp=$(grep -lx 1 "$PROBE_DIR"/* | head -1); lpid=$(basename "$lp")
-echo "leader pid $lpid; kill -9"
-kill -9 "$lpid"; rm -f "$lp"
-if t=$(wait_one "$TAKEOVER_MAX"); then echo "takeover in ${t} ms (max ${TAKEOVER_MAX}s)"; else bad "no takeover within ${TAKEOVER_MAX}s"; fi
+lp=$(grep -lx 1 "$PROBE_DIR"/* 2>/dev/null | head -1 || true)
+if [ -n "$lp" ]; then
+  lpid=$(basename "$lp")
+  echo "leader pid $lpid; kill -9"
+  kill -9 "$lpid" || true; rm -f "$lp"
+  if t=$(wait_one "$TAKEOVER_MAX"); then echo "takeover in ${t} ms (max ${TAKEOVER_MAX}s)"; else bad "no takeover within ${TAKEOVER_MAX}s"; fi
+else bad "no leader to kill; takeover step skipped"; fi
 start_probe   # back to two replicas
 sleep 3
 for i in 1 2 3; do
