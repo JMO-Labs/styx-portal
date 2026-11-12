@@ -230,3 +230,8 @@ async def _health_sample_loop():
             record(_t.time(), status, latency)
         except Exception:
             pass
+
+
+async def _lifecycle_loop():
+    from app.services.lifecycle_jobs import lifecycle_loop
+    await lifecycle_loop(async_session)

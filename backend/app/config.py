@@ -125,6 +125,8 @@ class Settings(BaseSettings):
     KC_ADMIN_CLIENT_ID: str = ""
     KC_ADMIN_CLIENT_SECRET: str = ""
 
+    LIFECYCLE_INACTIVITY_DAYS: int = 35   # auto-disable after this many idle days (ADR-0022)
+
     # extra="ignore": the repo-root .env is shared with docker-compose,
     # cloudflared, and authentik, so it carries keys the backend does not
     # declare (CF_TUNNEL_TOKEN, AUTHENTIK_HOST, COMPOSE_PROFILES, ...).

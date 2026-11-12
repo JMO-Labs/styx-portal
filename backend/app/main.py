@@ -46,7 +46,7 @@ from app.services.k8s_prepull import prepull_loop
 from app.services.background_loops import (  # noqa: F401 - re-exported for tests
     _capture_running_instances, _health_sample_loop, _log_portal_instances,
     _metrics_collection_loop, _monitor_tick, _reconcile_instances_at_boot,
-    _run_monitor_pass, _screenshot_capture_loop, _service_health_loop,
+    _lifecycle_loop, _run_monitor_pass, _screenshot_capture_loop, _service_health_loop,
     _session_monitor_loop)
 from app.services.mount_jobs import sweep_interrupted
 from app.security.csrf import csrf_valid, CSRF_COOKIE, CSRF_HEADER, UNSAFE_METHODS
@@ -130,6 +130,7 @@ async def lifespan(app: FastAPI):
     svc_thumb_task = asyncio.create_task(service_thumbnail_loop(async_session, _settings.SCREENSHOT_CACHE_DIR))
     health_task = asyncio.create_task(_health_sample_loop())
     svc_health_task = asyncio.create_task(_service_health_loop())
+    lifecycle_task = asyncio.create_task(_lifecycle_loop())
     prepull_task = asyncio.create_task(prepull_loop()) if _settings.ROUTE_BACKEND == "k8s" else None
     yield
     task.cancel()
@@ -138,6 +139,7 @@ async def lifespan(app: FastAPI):
     svc_thumb_task.cancel()
     health_task.cancel()
     svc_health_task.cancel()
+    lifecycle_task.cancel()
     if prepull_task:
         prepull_task.cancel()
     await asyncio.gather(svc_health_task, return_exceptions=True)
