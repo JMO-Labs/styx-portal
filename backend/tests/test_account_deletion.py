@@ -26,7 +26,7 @@ async def _seed(session, name, age_days, enabled=False):
     session.add(t)
     await session.commit()
     session.add(UserProfile(user_id=u.id, template_id=t.id, volume_name=f"home-{name}"))
-    session.add(FederatedIdentity(user_id=u.id, provider="kc", subject=f"kc-{name}"))
+    session.add(FederatedIdentity(user_id=u.id, provider="keycloak", subject=f"kc-{name}"))
     await session.commit()
     return u
 
@@ -142,3 +142,73 @@ async def test_loop_calls_pass_and_is_registered(monkeypatch):
     assert calls == ["sess"]
     assert "account_deletion_loop, async_session" in (
         Path(__file__).parents[1] / "app/main.py").read_text()
+
+
+async def test_only_keycloak_identities_sent_to_kc(session):
+    u = await _seed(session, "mixed", 100)
+    session.add(FederatedIdentity(user_id=u.id, provider="github", subject="gh-1"))
+    await session.commit()
+    rt, kc = _deps()
+    assert await run_deletion_pass(session, NOW, runtime=rt, kc_delete=kc) == 1
+    kc.assert_awaited_once_with("kc-mixed")
+
+
+async def test_user_fk_rows_cleaned_with_fks_enforced(session):
+    from sqlalchemy import text
+    from app.models import (Group, Invite, TurnUsage, UserGroup, Workstation,
+                            WorkstationAccess, WorkstationEnrollmentToken)
+    if session.bind.dialect.name == "sqlite":
+        await session.exec(text("PRAGMA foreign_keys=ON"))
+    admin = User(username="adm", password_hash="x", role="admin")
+    session.add(admin)
+    await session.commit()
+    u = await _seed(session, "member", 100)
+    uid = u.id
+    g = Group(name="g1")
+    ws = Workstation(name="w", subdomain="w1", created_by=uid, occupied_by=uid)
+    session.add_all([g, ws])
+    await session.commit()
+    own = ServiceTemplate(name="mine", display_name="M", image="i", owner_id=uid)
+    session.add_all([
+        UserGroup(user_id=uid, group_id=g.id),
+        WorkstationAccess(workstation_id=ws.id, user_id=uid),
+        TurnUsage(month="2026-11", workstation_id=ws.id, user_id=uid, bytes=1),
+        Invite(token_hash="h", created_by=uid),
+        WorkstationEnrollmentToken(token_hash="e", created_by=uid, expires_at=NOW),
+        own,
+    ])
+    await session.commit()
+    aid, wid, tid = admin.id, ws.id, own.id
+    rt, kc = _deps()
+    assert await run_deletion_pass(session, NOW, runtime=rt, kc_delete=kc) == 1
+    session.expire_all()
+    assert await session.get(User, uid) is None
+    assert not (await session.exec(select(UserGroup))).all()
+    assert not (await session.exec(select(WorkstationAccess))).all()
+    assert (await session.exec(select(TurnUsage))).one().user_id is None
+    ws2 = await session.get(Workstation, wid)
+    assert ws2.occupied_by is None and ws2.created_by == aid
+    assert (await session.exec(select(Invite))).one().created_by == aid
+    assert (await session.exec(select(WorkstationEnrollmentToken))).one().created_by == aid
+    # private template stays private (NULL owner would make it global)
+    assert (await session.get(ServiceTemplate, tid)).owner_id == aid
+
+
+async def test_loop_forwards_configured_retention(monkeypatch):
+    from contextlib import asynccontextmanager
+    from app.services import account_deletion as ad
+    seen = {}
+
+    async def fake_pass(s, now, **kw):
+        seen.update(kw)
+        raise asyncio.CancelledError
+
+    @asynccontextmanager
+    async def sf():
+        yield "sess"
+
+    monkeypatch.setattr(ad, "run_deletion_pass", fake_pass)
+    monkeypatch.setenv("ACCOUNT_DELETION_RETENTION_DAYS", "30")
+    with pytest.raises(asyncio.CancelledError):
+        await ad.account_deletion_loop(sf)
+    assert seen["retention_days"] == 30
