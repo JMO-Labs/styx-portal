@@ -7,11 +7,31 @@ from sqlalchemy import update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models import Instance, RefreshToken, SessionEvent, User
+from app.config import Settings
+from app.models import Instance, PosixUid, RefreshToken, SessionEvent, User
 from app.services.audit import audit
+from app.services.k8s_homes import freeze_home
 
 log = logging.getLogger(__name__)
 LIVE = ("running", "idle")
+
+
+async def _freeze_home(session: AsyncSession, user: User, runtime) -> None:
+    """k8s only: label the home PVC frozen. Best effort; never blocks the disable."""
+    if Settings().ROUTE_BACKEND != "k8s":
+        return
+    try:
+        uid = (await session.exec(select(PosixUid.uid).where(
+            PosixUid.user_key == user.id))).first()
+        if uid is None:
+            return
+        if runtime is None:
+            from app.services.k8s_runtime import instance_runtime
+            runtime = instance_runtime()
+        await asyncio.to_thread(freeze_home, runtime._c, uid,
+                                Settings().K8S_INSTANCE_NAMESPACE)
+    except Exception:
+        log.exception("offboarding: home freeze failed for user %s", user.id)
 
 
 async def disable_account(session: AsyncSession, user: User, reason: str,
@@ -36,6 +56,7 @@ async def disable_account(session: AsyncSession, user: User, reason: str,
     if insts and runtime is None:
         from app.services.k8s_runtime import instance_runtime
         runtime = instance_runtime()
+    await _freeze_home(session, user, runtime)
     for inst in insts:
         if inst.container_id:
             try:
