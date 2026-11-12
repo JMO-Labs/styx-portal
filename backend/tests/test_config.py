@@ -163,3 +163,37 @@ def test_password_policy_defaults():
     assert s.PASSWORD_REQUIRE_LOWER is False
     assert s.PASSWORD_REQUIRE_DIGIT is False
     assert s.PASSWORD_REQUIRE_SYMBOL is False
+
+
+@pytest.mark.parametrize("scheme", ["postgresql+asyncpg", "postgresql", "postgres"])
+def test_postgres_without_jwt_secret_refuses(tmp_path, scheme):
+    secrets = tmp_path / "secrets.json"
+    s = Settings(
+        DATABASE_URL=f"{scheme}://u:p@db/styx",
+        JWT_SECRET="",
+        SECRETS_FILE=str(secrets),
+    )
+    with pytest.raises(RuntimeError, match="JWT_SECRET"):
+        s.jwt_secret_or_raise()
+    assert not secrets.exists()
+
+
+def test_postgres_with_jwt_secret_ok(tmp_path):
+    secret = "x" * 40
+    s = Settings(
+        DATABASE_URL="postgresql+asyncpg://u:p@db/styx",
+        JWT_SECRET=secret,
+        SECRETS_FILE=str(tmp_path / "secrets.json"),
+    )
+    assert s.jwt_secret_or_raise() == secret
+
+
+def test_sqlite_without_jwt_secret_keeps_file_fallback(tmp_path):
+    secrets = tmp_path / "secrets.json"
+    s = Settings(
+        DATABASE_URL="sqlite+aiosqlite:///./x.db",
+        JWT_SECRET="",
+        SECRETS_FILE=str(secrets),
+    )
+    assert len(s.jwt_secret_or_raise()) >= 32
+    assert secrets.exists()
