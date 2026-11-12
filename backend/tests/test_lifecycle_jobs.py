@@ -96,3 +96,10 @@ async def test_non_leader_tick_does_nothing(session, kc):
     await _u(session, "a", end_date=NOW - timedelta(days=1))
     assert await lifecycle_tick(session, NOW, is_leader=lambda: False) == 0
     assert await lifecycle_tick(session, NOW, is_leader=lambda: True) == 1
+
+
+async def test_already_disabled_race_is_skipped(session, kc, monkeypatch):
+    await _u(session, "a", end_date=NOW - timedelta(days=1), last_login=NOW)
+    monkeypatch.setattr(lifecycle_jobs, "disable_account", AsyncMock(return_value=False))
+    assert await run_lifecycle_pass(session, NOW) == 0
+    kc.assert_not_awaited()
