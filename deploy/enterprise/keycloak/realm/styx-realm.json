@@ -106,7 +106,12 @@
         "x509-cert-auth.mapper-selection": "Custom Attribute Mapper",
         "x509-cert-auth.mapper-selection.user-attribute-name": "cardKey",
         "x509-cert-auth.regular-expression": "CN=[^,]*\\.([0-9]{10})(?:,|$)",
-        "x509-cert-auth.canonical-dn-enabled": "false"
+        "x509-cert-auth.canonical-dn-enabled": "false",
+        "x509-cert-auth.ocsp-checking-enabled": "true",
+        "x509-cert-auth.ocsp-fail-open": "false",
+        "x509-cert-auth.crl-checking-enabled": "true",
+        "x509-cert-auth.crldp-checking-enabled": "false",
+        "x509-cert-auth.crl-relative-path": "/opt/keycloak/crl/dod-id-ca.crl"
       }
     }
   ],

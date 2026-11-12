@@ -59,6 +59,8 @@ spec:
       volumes:
         - name: realm
           configMap: {name: keycloak-realm}
+        - name: crl
+          persistentVolumeClaim: {claimName: keycloak-crl, readOnly: true}
       containers:
         - name: keycloak
           # PLACEHOLDER(digest): mirror quay.io/keycloak/keycloak:26.4.7 into Harbor and
@@ -97,6 +99,7 @@ spec:
               valueFrom: {secretKeyRef: {name: keycloak-admin, key: password}}
           volumeMounts:
             - {name: realm, mountPath: /opt/keycloak/data/import, readOnly: true}
+            - {name: crl, mountPath: /opt/keycloak/crl, readOnly: true}   # CRL mirror (#130)
           readinessProbe:
             httpGet: {path: /health/ready, port: management}
             periodSeconds: 10
