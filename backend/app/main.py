@@ -49,8 +49,8 @@ from app.services.k8s_runtime import instance_runtime
 from app.services.k8s_prepull import prepull_loop
 from app.services.background_loops import (  # noqa: F401 - re-exported for tests
     _capture_running_instances, _health_sample_loop, _log_portal_instances,
-    _metrics_db_loop, _metrics_sampler_loop, _monitor_tick, _reconcile_instances_at_boot,
-    _run_monitor_pass, _screenshot_capture_loop, _service_health_loop,
+    _lifecycle_loop, _metrics_db_loop, _metrics_sampler_loop, _monitor_tick,
+    _reconcile_instances_at_boot, _run_monitor_pass, _screenshot_capture_loop, _service_health_loop,
     _session_monitor_loop)
 from app.services.janitor import janitor_loop
 from app.services.settings_sync import settings_sync_loop
@@ -168,9 +168,12 @@ async def lifespan(app: FastAPI):
     from app.services.new_account_review import new_account_review_loop
     from app.services.new_account_digest import digest_loop
     leader_loops = [_session_monitor_loop, _service_health_loop, _metrics_db_loop, janitor_loop,
+                    _lifecycle_loop,
                     partial(new_account_review_loop, async_session),
                     partial(digest_loop, async_session),
-                    partial(account_deletion_loop, async_session)]
+                    partial(account_deletion_loop, async_session),
+                    # Thumbnails live in the shared DB: one capturer avoids PK races (#99).
+                    partial(service_thumbnail_loop, async_session, _settings.SCREENSHOT_CACHE_DIR)]
     if _settings.ROUTE_BACKEND == "k8s":
         leader_loops.append(prepull_loop)
     leader = LeaderTasks(boot=[_probe_cleanup, _reconcile, _close_dangling, _refresh_routes],
@@ -181,7 +184,6 @@ async def lifespan(app: FastAPI):
     local_tasks = [
         asyncio.create_task(_metrics_sampler_loop()),
         asyncio.create_task(_screenshot_capture_loop()),
-        asyncio.create_task(service_thumbnail_loop(async_session, _settings.SCREENSHOT_CACHE_DIR)),
         asyncio.create_task(_health_sample_loop()),
         asyncio.create_task(settings_sync_loop(async_session, _settings_store)),
     ]

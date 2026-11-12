@@ -1,6 +1,13 @@
 
+import asyncio
+
+import pytest
+
 from app.services.settings_store import SettingsService
 from app.services.settings_sync import settings_sync_loop, sync_once
+
+# SQLite-path behaviour; on Postgres the loop never returns (PG covered by test_settings_sync_pg).
+pytestmark = pytest.mark.sqlite_only
 
 
 async def test_sqlite_path_is_noop(session):
@@ -20,4 +27,5 @@ async def test_loop_returns_immediately_on_sqlite(session):
             return session
         async def __aexit__(self, *a):
             return False
-    await settings_sync_loop(F(), SettingsService(), interval=0.01)  # returns, not loops
+    # bounded: fail fast instead of hanging CI if the loop ever stops returning
+    await asyncio.wait_for(settings_sync_loop(F(), SettingsService(), interval=0.01), 5)

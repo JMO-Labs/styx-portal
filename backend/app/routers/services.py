@@ -2,11 +2,9 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
-from pathlib import Path
 
 from docker.errors import DockerException
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from fastapi.responses import FileResponse
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -17,7 +15,7 @@ from app.routers.services_auth import user_may_open
 from app.schemas import (DiscoveredContainer, ProxiedServiceCreate, ProxiedServiceOut,
                          ProxiedServiceUpdate, ServicePresetOut, ServiceTileOut)
 from app.security.deps import get_current_user, require_admin
-from app.services import service_favicon, ws_icon
+from app.services import service_favicon, service_thumbs, ws_icon
 from app.services.audit import audit_request
 from app.services.docker_manager import DockerManager
 
@@ -29,10 +27,6 @@ log = logging.getLogger(__name__)
 def get_docker_manager() -> DockerManager:
     from app.services.k8s_runtime import container_runtime
     return container_runtime()
-
-
-def get_thumb_dir() -> Path:
-    return Path(_settings.SCREENSHOT_CACHE_DIR)
 
 
 def _iso(d: datetime | None) -> str | None:
@@ -178,16 +172,15 @@ async def list_services(user: User = Depends(get_current_user),
 
 @router.get("/{sid}/thumbnail")
 async def service_thumbnail(sid: str, user: User = Depends(get_current_user),
-                            session: AsyncSession = Depends(get_session),
-                            thumb_dir: Path = Depends(get_thumb_dir)):
+                            session: AsyncSession = Depends(get_session)):
     """Same visibility as list_services: admins see all, members only enabled services they may open."""
     s = await session.get(ProxiedService, sid)
     if s is None or (user.role != "admin" and not (s.enabled and await user_may_open(session, user, s))):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No thumbnail")
-    path = thumb_dir / f"svc-{s.id}.png"
-    if not path.is_file():
+    data = await service_thumbs.get(session, s.id)
+    if data is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No thumbnail")
-    return FileResponse(path, media_type="image/png", headers={"Cache-Control": "private, no-cache"})
+    return Response(data, media_type="image/png", headers={"Cache-Control": "private, no-cache"})
 
 
 @router.post("", response_model=ProxiedServiceOut, status_code=201)
@@ -278,10 +271,9 @@ async def disable_service(sid: str, request: Request, admin: User = Depends(requ
 @router.delete("/{sid}", status_code=204)
 async def delete_service(sid: str, request: Request, admin: User = Depends(require_admin),
                          session: AsyncSession = Depends(get_session),
-                         docker: DockerManager = Depends(get_docker_manager),
-                         thumb_dir: Path = Depends(get_thumb_dir)):
+                         docker: DockerManager = Depends(get_docker_manager)):
     s = await _get_or_404(session, sid)
-    (thumb_dir / f"svc-{s.id}.png").unlink(missing_ok=True)
+    await service_thumbs.delete(session, s.id)
     if s.kind == "docker-local" and not s.upstream_fallback:
         await _release_container(session, docker, s.container, s.id)
     slug = s.slug

@@ -47,3 +47,32 @@ def test_no_delete_or_update_path():
     from app.services import posix_uid
     src = inspect.getsource(posix_uid).lower()
     assert "delete(" not in src and "update(" not in src
+
+
+class _Collide:
+    """Async CM simulating a concurrent allocation winning the race."""
+
+    async def __aenter__(self):
+        raise IntegrityError("insert", {}, Exception("race"))
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+async def test_retries_after_integrity_error(session, monkeypatch):
+    real = session.begin_nested
+    calls = []
+
+    def flaky():
+        calls.append(1)
+        return _Collide() if len(calls) == 1 else real()
+
+    monkeypatch.setattr(session, "begin_nested", flaky)
+    assert await allocate_uid(session, "alice") == Settings().POSIX_UID_MIN
+    assert len(calls) == 2
+
+
+async def test_gives_up_after_repeated_collisions(session, monkeypatch):
+    monkeypatch.setattr(session, "begin_nested", lambda: _Collide())
+    with pytest.raises(RuntimeError, match="could not allocate POSIX UID"):
+        await allocate_uid(session, "alice")

@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     SERVICE_PRESETS_DIR: str = "/app/templates/services"
     SCREENSHOT_CACHE_DIR: str = "/app/data/screenshots"
     SCREENSHOT_INTERVAL_SECONDS: int = 30
+    SERVICE_THUMBNAIL_MAX_BYTES: int = 1_048_576  # reject larger service thumbnails
     MOUNT_BACKUP_DIR: str = "./data/mount-backups"
     MOUNT_PROBE_IMAGE: str = "busybox:1.36"
     TRAEFIK_DYNAMIC_DIR: str = "/app/traefik-dynamic"
@@ -161,6 +162,8 @@ class Settings(BaseSettings):
     KC_PROVIDER_NAME: str = "keycloak"
     # Days after disable before the account and its homes are deleted (ADR-0022).
     ACCOUNT_DELETION_RETENTION_DAYS: int = 90
+
+    LIFECYCLE_INACTIVITY_DAYS: int = 35   # auto-disable after this many idle days (ADR-0022)
 
     # extra="ignore": the repo-root .env is shared with docker-compose,
     # cloudflared, and authentik, so it carries keys the backend does not
