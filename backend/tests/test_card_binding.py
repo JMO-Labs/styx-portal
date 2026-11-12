@@ -17,6 +17,7 @@ KC = "kc-user-1"
 def kc(monkeypatch):
     m = AsyncMock()
     monkeypatch.setattr(card_binding.kc_admin, "set_attributes", m)
+    monkeypatch.setattr(card_binding.kc_admin, "get_attributes", AsyncMock(return_value={}))
     return m
 
 
@@ -58,6 +59,23 @@ async def test_piv_email_case_insensitive_binds(session, kc, card):
     assert await card_binding.bind_card(session, piv(card_type=card)) == "bound"
     kc.assert_awaited_once_with(KC, {"card_uuid": [UUID]})
     await session.refresh(r)
+    assert r.status == "bound"
+
+
+async def test_bind_keeps_existing_attributes(session, kc, monkeypatch):
+    monkeypatch.setattr(card_binding.kc_admin, "get_attributes",
+                        AsyncMock(return_value={"org": ["navy"], "edipi": ["old"]}))
+    await req(session)
+    assert await card_binding.bind_card(session, cac()) == "bound"
+    kc.assert_awaited_once_with(KC, {"org": ["navy"], "edipi": [EDIPI]})
+
+
+async def test_bind_without_commit_leaves_transaction_open(session, kc, monkeypatch):
+    r = await req(session)
+    commit = AsyncMock()
+    monkeypatch.setattr(session, "commit", commit)
+    await card_binding.bind(session, KC, r, cac(), commit=False)
+    commit.assert_not_awaited()
     assert r.status == "bound"
 
 
@@ -155,6 +173,19 @@ async def test_admin_approve_binds(admin_client, session, kc):
     assert ar.status == "bound"
     logs = (await session.exec(select(AuditLog))).all()
     assert EDIPI not in json.dumps([row.detail for row in logs])
+
+
+async def test_approve_without_kc_user_conflicts(admin_client, session, kc):
+    ar = await req(session, edipi="0000000001")
+    await card_binding.bind_card(session, {"card_type": "CAC", "edipi": EDIPI})  # no sub
+    item = (await queue(session))[0]
+    assert item.reason == "invalid_claims" and item.kc_user_id == ""
+    r = await admin_client.post(f"/api/admin/card-reviews/{item.id}/resolve",
+                                json={"decision": "approve", "request_id": ar.id})
+    assert r.status_code == 409
+    kc.assert_not_awaited()
+    await session.refresh(ar)
+    assert ar.status == "pending_binding"
 
 
 async def test_approve_requires_request_id(admin_client, session, kc):

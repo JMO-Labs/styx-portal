@@ -55,11 +55,13 @@ async def resolve(review_id: str, body: Resolve, request: Request,
         ar = await session.get(ApprovedRequest, body.request_id)
         if not ar or ar.status != card_binding.PENDING:
             raise HTTPException(409, "Request not awaiting binding")
+        if not item.kc_user_id:
+            raise HTTPException(409, "Review has no Keycloak user")
         claims = {**item.claims, "card_type": item.card_type}
         if card_binding.card_key(claims) is None:
             raise HTTPException(409, "Card claims incomplete")
         await card_binding.bind(session, item.kc_user_id, ar, claims,
-                                action="card.review.bound", actor=admin.id)
+                                action="card.review.bound", actor=admin.id, commit=False)
     item.status = "approved" if body.decision == "approve" else "rejected"
     item.resolved_by = admin.id
     item.resolved_at = datetime.now(timezone.utc)

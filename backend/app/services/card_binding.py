@@ -39,14 +39,19 @@ def _matches(row: ApprovedRequest, claims: dict) -> bool:
 
 
 async def bind(session, kc_user_id: str, row: ApprovedRequest, claims: dict,
-               action: str = "card.bound", actor: str | None = None) -> None:
+               action: str = "card.bound", actor: str | None = None,
+               commit: bool = True) -> None:
+    """Bind the card to the user. Keycloak replaces the whole attribute map on PUT,
+    so merge into the current map. commit=False lets the caller commit once."""
     key = card_key(claims)
-    await kc_admin.set_attributes(kc_user_id, {key[0]: [key[1]]})
+    attrs = await kc_admin.get_attributes(kc_user_id)
+    await kc_admin.set_attributes(kc_user_id, {**attrs, key[0]: [key[1]]})
     row.status = "bound"
     session.add(row)
     await audit(session, action, user_id=actor, resource=row.id,
                 detail={"card_type": claims["card_type"], "kc_user_id": kc_user_id})
-    await session.commit()
+    if commit:
+        await session.commit()
 
 
 async def bind_card(session, claims: dict) -> str:

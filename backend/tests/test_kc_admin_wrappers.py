@@ -16,6 +16,21 @@ async def test_create_user_disabled_returns_empty_id():
     assert await _client(enabled=False).create_user("a.b", "a@b.c", "A", "B") == ""
 
 
+async def test_get_attributes_disabled_returns_empty():
+    assert await _client(enabled=False).get_attributes("u1") == {}
+
+
+async def test_module_get_attributes_delegates(monkeypatch):
+    def h(req: httpx.Request):
+        if req.url.path.endswith("/openid-connect/token"):
+            return httpx.Response(200, json={"access_token": "t", "expires_in": 60})
+        return httpx.Response(200, json={"attributes": {"k": ["v"]}})
+
+    monkeypatch.setattr(kc_admin, "_instance", _client(h))
+    assert await kc_admin.get_attributes("u1") == {"k": ["v"]}
+    kc_admin.reset_client()
+
+
 @pytest.mark.parametrize("fn,args,method,path", [
     ("create_user", ("a.b", "a@b.c", "A", "B"), "POST", "/admin/realms/r/users"),
     ("update_user", ("u1", {"firstName": "X"}), "PUT", "/admin/realms/r/users/u1"),
