@@ -212,6 +212,8 @@ const silentRefresh = singleFlight(async (): Promise<boolean> => {
   return res.ok;
 });
 
+export interface HomeStorage { used_bytes: number | null; quota_bytes: number | null; percent: number | null; warn: boolean }
+
 async function request<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
   const method = (init?.method ?? "GET").toUpperCase();
   const headers: Record<string, string> = {
@@ -355,6 +357,7 @@ export const api = {
   getRegistryImage: (name: string) => request<RegistryImage>(`/registry/images/${name}`),
 
   getRuntime: () => request<{ runtime: "docker" | "kubernetes" }>("/system/runtime"),
+  getHomeStorage: () => request<HomeStorage>("/me/storage"),
   getGpuInfo: () => request<{ available: boolean; type: string | null; devices: string[] }>("/system/gpu"),
 
   listImages: () => request<PulledImage[]>("/images"),
