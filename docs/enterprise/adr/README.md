@@ -65,3 +65,4 @@ All ADRs were accepted 2026-11-09 (owner approval, Rounds 1-5; issue #1). One AD
 | [D59](0059-notifications-portal-and-matrix-smtp-optional.md) | Notifications via portal and Matrix; SMTP optional | Accepted | AU-6, IR-4, SI-4 |
 | [D45a](0060-session-takeover-without-consent-banner-logged-reviewed-reason.md) | Session takeover without consent, with banner and logged, reviewed reason | Accepted | AC-17, AC-6, AU-2, AU-3, AU-6, AU-12 |
 | [D60](0061-ceph-osd-encryption-at-rest-dm-crypt-openbao.md) | Ceph OSD encryption at rest with dm-crypt, keys in OpenBao | Accepted | SC-28, SC-28(1), SC-12 |
+| [D61](0062-scim-subset-for-the-provisioning-webhook.md) | SCIM subset for the provisioning webhook | Proposed | AC-2, AC-2(1), IA-4, SI-10, AU-2, AU-3 |
