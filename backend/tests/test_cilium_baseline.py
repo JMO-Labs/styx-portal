@@ -154,19 +154,42 @@ def _instances_cnp(docs):
                 and d["metadata"]["name"] == "instances")
 
 
-def test_desktop_egress_only_dns_and_proxy():
+def _cnp(docs, name):
+    return next(d for d in docs if d["kind"] == "CiliumNetworkPolicy"
+                and d["metadata"]["name"] == name)
+
+
+def test_desktop_egress_only_dns():
     cnp = _instances_cnp(_render(OVERLAY))
     base = _instances_cnp(_render(K8S))
-    dns, proxy = cnp["spec"]["egress"]
-    assert len(cnp["spec"]["egress"]) == 2
-    assert not any(FORBIDDEN_EGRESS & r.keys() for r in cnp["spec"]["egress"])
+    (dns,) = cnp["spec"]["egress"]
+    assert not FORBIDDEN_EGRESS & dns.keys()
     assert dns["toEndpoints"] == base["spec"]["egress"][0]["toEndpoints"]
     assert dns["toPorts"][0]["rules"]["dns"] == [{"matchPattern": "*.cluster.local"}]
     assert dns["toPorts"][0]["ports"] == [{"port": "53", "protocol": "ANY"}]
-    assert proxy["toEndpoints"] == [{"matchLabels": SQUID}]
-    assert proxy["toPorts"] == [{"ports": [{"port": "3128", "protocol": "TCP"}]}]
     assert cnp["spec"]["egressDeny"] == base["spec"]["egressDeny"]
     assert cnp["spec"]["ingress"] == base["spec"]["ingress"]
+
+
+def test_proxy_port_by_egress_mode():
+    docs = _render(OVERLAY)
+    cat = _cnp(docs, "desktop-proxy-category")
+    allow = _cnp(docs, "desktop-proxy-allowlist")
+    for c, port in ((cat, "3128"), (allow, "3129")):
+        assert c["metadata"]["namespace"] == "styx-instances"
+        (rule,) = c["spec"]["egress"]
+        assert rule["toEndpoints"] == [{"matchLabels": SQUID}]
+        assert rule["toPorts"] == [{"ports": [{"port": port, "protocol": "TCP"}]}]
+        assert not FORBIDDEN_EGRESS & rule.keys()
+    # selectors are mutually exclusive (allows are a union)
+    assert allow["spec"]["endpointSelector"] == {
+        "matchLabels": {"styx.io/egress-mode": "allowlist"}}
+    assert cat["spec"]["endpointSelector"] == {"matchExpressions": [
+        {"key": "styx.io/egress-mode", "operator": "NotIn", "values": ["allowlist"]}]}
+
+
+def test_allowlist_port_param():
+    assert _load(COMPONENT / "proxy-params.yaml")["data"]["allowlistPort"] == "3129"
 
 
 NS_KEY = "k8s:io.kubernetes.pod.namespace"
@@ -217,7 +240,7 @@ def test_no_world_egress_for_desktops():
 def test_proxy_params_single_source():
     files = [p for p in COMPONENT.iterdir()
              if p.is_file() and p.suffix in {".yaml", ".yml", ".json"}]
-    for needle in ("egress-proxy", "3128"):
+    for needle in ("egress-proxy", "3128", "3129"):
         hits = [p.name for p in files if needle in p.read_text()]
         assert len(hits) == 1, (needle, hits)
     assert (COMPONENT / "proxy-params.yaml").exists()
@@ -231,7 +254,8 @@ def test_squid_proxy_policy():
     (ing,) = c["spec"]["ingress"]
     assert ing["fromEndpoints"] == [{"matchLabels": {
         "k8s:io.kubernetes.pod.namespace": "styx-instances"}}]
-    assert ing["toPorts"] == [{"ports": [{"port": "3128", "protocol": "TCP"}]}]
+    assert ing["toPorts"] == [{"ports": [{"port": "3128", "protocol": "TCP"},
+                                         {"port": "3129", "protocol": "TCP"}]}]
     egress = c["spec"]["egress"]
     assert {"toEntities": ["world"], "toPorts": [{"ports": [
         {"port": "80", "protocol": "TCP"}, {"port": "443", "protocol": "TCP"}]}]} in egress
@@ -265,7 +289,7 @@ def test_operator_note_covers_rollout():
                    "| desktop | world 443 direct | denied |",
                    "| desktop | world SSH 22 | denied |",
                    "| desktop | any UDP except DNS | denied |",
-                   "kube-apiserver", "break-glass"):
+                   "kube-apiserver", "break-glass", "styx.io/egress-mode", "3129"):
         assert needle in text, needle
     assert text.index("## Apply order") < text.index("## Audit-mode rollout")
     assert "enable audit mode first" in text
@@ -274,6 +298,7 @@ def test_operator_note_covers_rollout():
     for name in ("allow-dns", "allow-webhooks", "squid-proxy", "CiliumClusterwideNetworkPolicy"):
         assert name in rollback, name
     assert "kubectl apply -f deploy/k8s/instances.yaml" in rollback
+    assert "desktop-proxy-allowlist" in rollback and "desktop-proxy-category" in rollback
     squid = text[text.index("## Squid option B"):text.index("## Manual connectivity")]
-    assert "replacement" in squid and "spec.egress.1.toPorts" in squid
+    assert "replacement" in squid and "spec.egress.0.toPorts" in squid
     assert len(text.splitlines()) < 500

@@ -1,5 +1,5 @@
-# Keycloak base IaC (issue #128, ADR-0014). Realm config, CRL mirror and break-glass
-# users are sibling tickets.
+# Keycloak base IaC (issue #128, ADR-0014). Realm config and CRL mirror are
+# sibling tickets. breakglass/ holds the ExternalSecret, alert and bootstrap script.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -9,6 +9,8 @@ resources:
   - deployment.yaml
   - networkpolicy.yaml
   - pdb.yaml
+  - breakglass/externalsecret.yaml
+  - breakglass/prometheusrule.yaml
 configMapGenerator:
   - name: keycloak-realm
     files:

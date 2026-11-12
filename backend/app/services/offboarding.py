@@ -14,6 +14,11 @@ log = logging.getLogger(__name__)
 LIVE = ("running", "idle")
 
 
+def is_disabled(user: User) -> bool:
+    """Single definition of "disabled": stamp set and account not re-enabled."""
+    return user.disabled_at is not None and not user.is_active
+
+
 async def disable_account(session: AsyncSession, user: User, reason: str,
                           actor: str | None, runtime=None) -> bool:
     """Disable ``user``; returns False (no-op) if already disabled.

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/api/client";
+import { api, type Workstation } from "@/api/client";
 import { useInstances } from "@/hooks/use-instances";
+import { useProfile } from "@/hooks/use-profile";
 
 export type RailRow = {
   id: string; text: string; sub?: string; tone: "ok" | "bad" | "use";
@@ -14,7 +15,9 @@ export type RailRow = {
 export function useRailRows() {
   const { data: instancesData, isSuccess: instOk, isError: instErr, refetch: rInst } = useInstances();
   const instances = instancesData ?? [];
-  const { data: wsData, isSuccess: wsOk, isError: wsErr, refetch: rWs } = useQuery({ queryKey: ["workstations"], queryFn: api.listWorkstations, refetchInterval: 30000 });
+  const wsOn = !useProfile().isDisabled("workstation_enrollment");  // ADR-0053: no workstations in enterprise
+  const { data: wsData, isSuccess: wsOk, isError: wsErr, refetch: rWs } = useQuery({
+    queryKey: ["workstations", wsOn], queryFn: () => (wsOn ? api.listWorkstations() : Promise.resolve([] as Workstation[])), refetchInterval: 30000 });
   const ws = wsData ?? [];
   const { data: svcData, isSuccess: svcOk, isError: svcErr, refetch: rSvc } = useQuery({ queryKey: ["services"], queryFn: api.listServices });
   const services = svcData ?? [];

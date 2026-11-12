@@ -175,6 +175,7 @@ async def _run_migrations(conn):
         ("instances", "gpu", "BOOLEAN"),
         ("instances", "notice", "TEXT"),
         ("groups", "allow_gpu", "BOOLEAN DEFAULT 0"),
+        ("groups", "egress_mode", "TEXT NOT NULL DEFAULT 'category'"),
     ]
     for table, column, col_type in migrations:
         try:

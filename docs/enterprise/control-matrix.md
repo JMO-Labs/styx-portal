@@ -61,9 +61,10 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | CM-2 | Baseline Configuration | Golden images, profiles in git (ADR-0003, 0028) | System | Planned |
 | CM-3 | Configuration Change Control | Git-based review, image rollout (ADR-0003, 0030); changes reviewed and approved on the federal GitLab: `deploy/enterprise/gitlab-protect/protect_bootstrap.py` protects `enterprise`/`release/*`/`v*` and requires a passing pipeline, the `approval-gate` job (external `ci-policy` config) requires a non-author approval after the latest push, scheduled `gitlab-protect-drift` fails on drift, `github_lock.py` push-locks the GitHub copies at cutover (#16, docs/operate/gitlab-protect.md); pushed to GitHub by protected-branch-only push mirror `deploy/enterprise/gitlab-mirror` (ADR-0048) | System | Planned |
 | CM-6 | Configuration Settings | RKE2 hardening, image config; STIG exception, R05 condition (ADR-0007, 0011); Pod Security Admission exception for the desktop namespace (rootless Selkies base image; `enforce: baseline`, warn/audit restricted; scope: rootless, non-root UID, no privileged, no hostPath): `deploy/enterprise/desktop/namespace.yaml` (ADR-0057); Pod Security Admission exception for the `openbao` namespace (`enforce: privileged`, read-only hostPath for the static seal key only; warn/audit restricted): `deploy/enterprise/openbao/namespace.yaml` (ADR-0042) | System | Planned |
-| CM-7 | Least Functionality | Seat mode and homelab features hard-disabled with config test, minimal images (ADR-0004, 0028, 0053); desktop namespace exception limited to rootless pods with a non-root UID, no privileged, no hostPath (`deploy/enterprise/desktop/namespace.yaml`, ADR-0057); `openbao` namespace PSA exception limited to one read-only hostPath (`/etc/openbao/seal`) (ADR-0042) | System | Planned |
+| CM-7 | Least Functionality | Seat mode and homelab features hard-disabled with config test, minimal images (ADR-0004, 0028, 0053; test: [`backend/tests/test_profile.py`](../../backend/tests/test_profile.py)); desktop namespace exception limited to rootless pods with a non-root UID, no privileged, no hostPath (`deploy/enterprise/desktop/namespace.yaml`, ADR-0057); `openbao` namespace PSA exception limited to one read-only hostPath (`/etc/openbao/seal`) (ADR-0042) | System | Planned |
 | CM-8 | System Component Inventory | Component and SBOM inventory (ADR-0005, 0029); [component register](component-register.md) of libraries, images, charts and apt apps, CI-checked (#17) | System | Planned |
 | CM-12 | Information Location | Homes, CephFS profiles, Ceph RGW archive; user-driven OneDrive moves (ADR-0034, 0035, 0054) | System | Planned |
+| CM-14 | Signed Components | Kyverno admits only cosign-signed allowlisted images; signing key custody in OpenBao transit, CI-only (ADR-0029, 0063) | System | Planned |
 
 ## CP - Contingency Planning
 
@@ -169,10 +170,10 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
-| SI-2 | Flaw Remediation | Nightly rebuild, 24 h critical-CVE recycle (ADR-0029, 0030) | System | Planned |
+| SI-2 | Flaw Remediation | Nightly rebuild, 24 h critical-CVE recycle; fix deadlines high 7 d, medium 30 d, low 90 d (ADR-0029, 0030, 0063) | System | Planned |
 | SI-3 | Malicious Code Protection | To be decided in phase 3 | System | Planned |
 | SI-4 | System Monitoring | Elastic, Prometheus (ADR-0044) | System | Planned |
-| SI-7 | Software, Firmware, and Information Integrity | cosign and Kyverno (ADR-0029) | System | Planned |
+| SI-7 | Software, Firmware, and Information Integrity | cosign and Kyverno (ADR-0029); cosign key in OpenBao transit, non-exportable, signed only by protected-branch CI role, rotation and revocation (ADR-0063) | System | Planned |
 | SI-10 | Information Input Validation | Webhook strict schema (ADR-0020) | System | Planned |
 | SI-12 | Information Management and Retention | Age-off to Ceph RGW cold storage with self-restore (ADR-0035) | Hybrid | Planned |
 

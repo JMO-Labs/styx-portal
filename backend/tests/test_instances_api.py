@@ -462,3 +462,39 @@ async def test_boot_logs_portal_instances_without_mutating(caplog):
         await _log_portal_instances(d)
     assert "selkies-foo" in caplog.text and "isolate" in caplog.text
     assert [c[0] for c in d.method_calls] == ["on_portal_network"]
+
+
+async def test_get_unknown_instance_is_404(admin_client):
+    resp = await admin_client.get("/api/instances/does-not-exist")
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Instance not found"
+
+
+@pytest.fixture
+def disabled_user():
+    from datetime import datetime, timezone
+    from app.models import User
+    from app.security.deps import get_current_user
+
+    user = User(
+        id="u-disabled", username="gone", email="gone@example.com",
+        password_hash="x", is_active=False, disabled_at=datetime.now(timezone.utc),
+    )
+    app.dependency_overrides[get_current_user] = lambda: user
+    yield user
+    app.dependency_overrides.pop(get_current_user, None)
+
+
+async def test_create_instance_rejects_disabled_account(admin_client, disabled_user):
+    resp = await admin_client.post(
+        "/api/instances",
+        json={"template_id": "t", "name": "x", "subdomain": "x"},
+    )
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Account disabled"
+
+
+async def test_start_instance_rejects_disabled_account(admin_client, disabled_user):
+    resp = await admin_client.post("/api/instances/any-id/start")
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Account disabled"

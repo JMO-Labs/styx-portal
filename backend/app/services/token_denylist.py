@@ -4,11 +4,12 @@ Access tokens are stateless and stay valid until exp; logout clears the cookie
 but can't invalidate the token value. This denylist lets logout revoke a token
 immediately — closing the replay window (notably the workstation stream
 reconnect after logout). Entries only need to live until the token's own exp,
-so they are purged opportunistically on write.
+so the leader janitor purges them after that.
 """
 from datetime import datetime, timezone
 
-from sqlmodel import delete
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models import RevokedAccessToken
@@ -19,14 +20,17 @@ def _now() -> datetime:
 
 
 async def revoke_access(session: AsyncSession, jti: str, expires_at: datetime) -> None:
-    """Add an access-token jti to the denylist (caller commits). Also purges
-    entries already past their exp — a revoked token is dead by then anyway."""
+    """Add an access-token jti to the denylist (caller commits). Race-free upsert:
+    concurrent or repeated calls for one jti never raise. Expired rows are purged
+    by the leader janitor (app.services.janitor), not here."""
     if not jti:
         return
-    await session.exec(delete(RevokedAccessToken).where(
-        RevokedAccessToken.expires_at < _now()))
-    if await session.get(RevokedAccessToken, jti) is None:
-        session.add(RevokedAccessToken(jti=jti, expires_at=expires_at))
+    bind = session.get_bind()
+    insert = pg_insert if bind.dialect.name == "postgresql" else sqlite_insert
+    exp = expires_at.replace(tzinfo=None) if expires_at.tzinfo else expires_at
+    await session.exec(insert(RevokedAccessToken).values(jti=jti, expires_at=exp,
+                                         revoked_at=_now().replace(tzinfo=None))
+                       .on_conflict_do_nothing(index_elements=["jti"]))
 
 
 async def is_access_revoked(session: AsyncSession, jti: str | None) -> bool:
