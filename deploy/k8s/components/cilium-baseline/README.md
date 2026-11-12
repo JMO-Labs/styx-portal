@@ -18,7 +18,21 @@ kubectl kustomize deploy/k8s-enterprise-netpol   # review
 kubectl apply -k deploy/k8s-enterprise-netpol    # see "Apply order" below
 ```
 
-Proxy namespace, name and port live only in `proxy-params.yaml`.
+Proxy namespace, name and ports live only in `proxy-params.yaml`.
+
+## Proxy ports and egress mode
+
+Squid listens on two ports; Cilium routes each desktop to one by pod label
+`styx.io/egress-mode` (set by Styx; values `category` / `allowlist`):
+
+| Desktop label | Policy | Squid port |
+|---|---|---|
+| `styx.io/egress-mode: allowlist` | `desktop-proxy-allowlist` | `allowlistPort` (3129) |
+| anything else (`category`, unlabeled) | `desktop-proxy-category` | `port` (3128) |
+
+Cilium allows are a union, so the selectors are mutually exclusive: an
+allowlist desktop never matches the 3128 rule and cannot bypass the allowlist by
+switching ports. `squid-proxy` ingress allows both ports from `styx-instances`.
 
 ## Apply order
 
@@ -78,8 +92,8 @@ by other paths.
 
 ## Squid option B (off-cluster proxy)
 
-If Squid runs off-cluster, replace the in-cluster `toEndpoints` proxy rule in
-`patch-desktop-egress.yaml` with a /32 CIDR (not applied by default):
+If Squid runs off-cluster, replace the in-cluster `toEndpoints` proxy rules in
+`cnp-desktop-proxy.yaml` with a /32 CIDR (not applied by default):
 
 ```yaml
 # egress:
@@ -88,11 +102,11 @@ If Squid runs off-cluster, replace the in-cluster `toEndpoints` proxy rule in
 #       - ports: [{port: "3128", protocol: TCP}]
 ```
 
-Also remove (or retarget) the three `CiliumNetworkPolicy instances`
+Also remove (or retarget) the `desktop-proxy-*`
 replacement targets in `kustomization.yaml` (namespace and name, both under
-`spec.egress.1.toEndpoints.0.matchLabels`); with `create: true` they would put
+`spec.egress.0.toEndpoints.0.matchLabels` of `desktop-proxy-*`); with `create: true` they would put
 `toEndpoints` back into the CIDR rule. The port replacement still applies to
-`spec.egress.1.toPorts`.
+`spec.egress.0.toPorts`.
 
 ## Manual connectivity matrix (kind + Cilium)
 
@@ -105,6 +119,9 @@ install` 1.20.4 on kind, apply the overlay, run curl pods, and watch
 | any pod | cluster DNS (53) | ok |
 | non-desktop pod | kube-apiserver 6443 | ok |
 | desktop (`styx-instances`) | Squid proxy 3128 | ok |
+| allowlist desktop | Squid proxy 3128 | denied |
+| allowlist desktop | Squid proxy 3129 | ok |
+| category desktop | Squid proxy 3129 | denied |
 | desktop | world 443 direct | denied |
 | desktop | world SSH 22 | denied |
 | desktop | any UDP except DNS | denied |

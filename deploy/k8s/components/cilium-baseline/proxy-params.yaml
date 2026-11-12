@@ -12,3 +12,4 @@ data:
   namespace: egress-proxy
   name: squid
   port: "3128"
+  allowlistPort: "3129"
