@@ -100,6 +100,15 @@ def test_adr_0063_cosign_custody():
     assert "Closed (Phase 3)" in s7 and "ADR-0063" in s7
 
 
+def test_adr_0064_squid_egress():
+    text = adr("0064")
+    assert "Decision ID: D63" in text
+    assert "- Status: Accepted" in text
+    assert "Refines: ADR-0040" in text
+    for phrase in ("3128", "3129", "allowlist", "nothing is deployed"):
+        assert has(text, phrase), phrase
+
+
 def test_adr_0065_keycloak_x509():
     text = adr("0065")
     assert text.startswith("# ADR-0065: Keycloak X.509")
