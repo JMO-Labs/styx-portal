@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     PROVISION_HOST: str = ""
     PROVISION_BEARER_TOKEN: str = ""
     PROVISION_CLIENT_CERT_FINGERPRINTS: str = ""  # comma-separated SHA-256 hex of DER
+    KEYCLOAK_ADMIN_GROUPS: str = ""  # comma-separated; never grantable via the webhook
+    PROVISION_GROUP_MANAGERS: str = ""  # JSON {"group-slug": ["manager@email", ...]}
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/styx-portal.db"
     # Leader election: dedicated session connection, straight to the primary
     # (never a pooler). Empty = same as DATABASE_URL.

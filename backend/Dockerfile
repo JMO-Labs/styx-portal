@@ -20,6 +20,7 @@ COPY --chown=appuser:appuser backend/alembic.ini ./
 COPY --chown=appuser:appuser backend/alembic/ alembic/
 COPY --chown=appuser:appuser agent/ /app/agent/
 COPY --chown=appuser:appuser templates/ /app/templates/
+COPY --chown=appuser:appuser docs/enterprise/schemas/ /app/docs/enterprise/schemas/
 
 USER appuser
 

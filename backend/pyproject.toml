@@ -21,6 +21,7 @@ dependencies = [
     "authlib>=1.3.2",
     "cryptography>=43.0.0",
     "defusedxml>=0.7.1",
+    "jsonschema>=4.23",  # provisioning webhook body validation (#120)
 ]
 
 [project.optional-dependencies]
@@ -32,7 +33,6 @@ dev = [
     "mypy>=2.4.1",
     "bandit>=1.9.4",
     "jinja2>=3.1",  # renders the DMZ HAProxy role templates in tests (#7)
-    "jsonschema>=4.23",  # validates docs/enterprise/schemas in tests (#105)
 ]
 
 [tool.pytest.ini_options]
