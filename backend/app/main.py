@@ -49,8 +49,8 @@ from app.services.k8s_runtime import instance_runtime
 from app.services.k8s_prepull import prepull_loop
 from app.services.background_loops import (  # noqa: F401 - re-exported for tests
     _capture_running_instances, _health_sample_loop, _log_portal_instances,
-    _metrics_db_loop, _metrics_sampler_loop, _monitor_tick, _reconcile_instances_at_boot,
-    _run_monitor_pass, _screenshot_capture_loop, _service_health_loop,
+    _lifecycle_loop, _metrics_db_loop, _metrics_sampler_loop, _monitor_tick,
+    _reconcile_instances_at_boot, _run_monitor_pass, _screenshot_capture_loop, _service_health_loop,
     _session_monitor_loop)
 from app.services.janitor import janitor_loop
 from app.services.settings_sync import settings_sync_loop
@@ -169,6 +169,7 @@ async def lifespan(app: FastAPI):
     from app.services.new_account_review import new_account_review_loop
     from app.services.new_account_digest import digest_loop
     leader_loops = [_session_monitor_loop, _service_health_loop, _metrics_db_loop, janitor_loop,
+                    _lifecycle_loop,
                     partial(new_account_review_loop, async_session),
                     partial(digest_loop, async_session),
                     partial(account_deletion_loop, async_session)]

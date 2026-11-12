@@ -49,7 +49,7 @@ export function UsersTable({ users, invites, showInvites, actions, selfId, selec
                          onChange={() => toggle(u.id)} /></td>
               <td>
                 <strong>{u.username}</strong>
-                <small>{u.email || (u.is_active ? "" : "Disabled")}</small>
+                <small>{u.email}</small>{!u.is_active && <span className="chip">Disabled</span>}
               </td>
               <td>
                 <select aria-label={`Role for ${u.username}`} value={u.role} disabled={!u.is_active || self}

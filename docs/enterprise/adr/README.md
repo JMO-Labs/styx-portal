@@ -67,3 +67,5 @@ All ADRs were accepted 2026-11-09 (owner approval, Rounds 1-5; issue #1). One AD
 | [D60](0061-ceph-osd-encryption-at-rest-dm-crypt-openbao.md) | Ceph OSD encryption at rest with dm-crypt, keys in OpenBao | Accepted | SC-28, SC-28(1), SC-12 |
 | [D61](0062-scim-subset-for-the-provisioning-webhook.md) | SCIM subset for the provisioning webhook | Proposed | AC-2, AC-2(1), IA-4, SI-10, AU-2, AU-3 |
 | [D62](0063-cosign-key-custody-and-medium-low-cve-deadlines.md) | Cosign key custody and medium/low CVE fix deadlines | Proposed | SI-2, SI-7, CM-14, SC-12 |
+| [D63](0064-squid-egress-implementation.md) | Squid egress implementation (two ports, label-selected, shared allowlist) | Accepted | SC-7, SC-7(5), AC-4, AU-12 |
+| [D64](0065-keycloak-x509-flow-and-haproxy-client-cert-header.md) | Keycloak X.509 flow and HAProxy client-cert header format | Proposed | IA-2, IA-2(12), IA-5, IA-5(2), SC-23, AC-17 |

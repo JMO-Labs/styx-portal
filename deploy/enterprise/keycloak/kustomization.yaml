@@ -11,3 +11,15 @@ resources:
   - pdb.yaml
   - breakglass/externalsecret.yaml
   - breakglass/prometheusrule.yaml
+  - crl-mirror/pvc.yaml
+  - crl-mirror/cronjob.yaml
+  - crl-mirror/prometheusrule.yaml
+configMapGenerator:
+  - name: keycloak-realm
+    files:
+      - styx-realm.json=realm/styx-realm.json
+  - name: keycloak-crl-mirror-script
+    files:
+      - crl_mirror.py=crl-mirror/crl_mirror.py
+generatorOptions:
+  disableNameSuffixHash: true

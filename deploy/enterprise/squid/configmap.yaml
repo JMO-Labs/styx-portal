@@ -13,6 +13,8 @@ data:
     cache deny all
     cache_log stdio:/dev/stderr
     cache_store_log none
+    # Cap fds: squid sizes tables from the container nofile (~1M) and OOMs at 512Mi.
+    max_filedescriptors 4096
 
     acl SSL_ports port 443
     acl Safe_ports port 80
