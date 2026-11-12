@@ -95,3 +95,23 @@ async def test_features_endpoint(client, admin_client, second_member_client, mon
     body = (await admin_client.get("/api/diagnostics/features")).json()
     assert set(body["disabled"]) == set(profile.ENTERPRISE_DISABLED)
     assert body["enabled"] == []
+
+
+@pytest.mark.asyncio
+async def test_system_profile_public(client, monkeypatch):
+    client.cookies.clear()   # public: no auth needed
+    r = await client.get("/api/system/profile")
+    assert r.status_code == 200
+    assert r.json() == {"profile": "homelab", "disabled": []}
+    monkeypatch.setattr(main._settings, "STYX_PROFILE", "enterprise")
+    body = (await client.get("/api/system/profile")).json()
+    assert body["profile"] == "enterprise"
+    assert set(body["disabled"]) == set(profile.ENTERPRISE_DISABLED)
+
+
+@pytest.mark.asyncio
+async def test_lifespan_fails_fast_on_bad_profile(monkeypatch):
+    monkeypatch.setattr(main._settings, "STYX_PROFILE", "bogus")
+    with pytest.raises(RuntimeError, match="STYX_PROFILE"):
+        async with main.lifespan(main.app):
+            pass  # pragma: no cover
