@@ -298,6 +298,7 @@ def test_operator_note_covers_rollout():
     for name in ("allow-dns", "allow-webhooks", "squid-proxy", "CiliumClusterwideNetworkPolicy"):
         assert name in rollback, name
     assert "kubectl apply -f deploy/k8s/instances.yaml" in rollback
+    assert "desktop-proxy-allowlist" in rollback and "desktop-proxy-category" in rollback
     squid = text[text.index("## Squid option B"):text.index("## Manual connectivity")]
     assert "replacement" in squid and "spec.egress.0.toPorts" in squid
     assert len(text.splitlines()) < 500

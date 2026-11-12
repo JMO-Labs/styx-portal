@@ -1,8 +1,10 @@
 # JSON6902 patch for CiliumNetworkPolicy styx-instances/instances. Cilium
 # allows are a union, so egress is REPLACED (not extended): this policy leaves
 # desktops only cluster-local DNS. The proxy rules live in cnp-desktop-proxy.yaml,
-# one policy per egress mode, so an allowlist pod never matches the proxy-port rule. egressDeny and ingress stay as in the base.
-# Option B (off-cluster proxy) would swap the 2nd rule for a /32 toCIDR.
+# one policy per egress mode, so an allowlist pod never matches the proxy-port
+# rule. egressDeny and ingress stay as in the base.
+# Option B (off-cluster proxy): swap the proxy rule in cnp-desktop-proxy.yaml
+# for a /32 toCIDR.
 - op: replace
   path: /spec/egress
   value:

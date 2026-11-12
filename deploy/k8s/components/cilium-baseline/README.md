@@ -82,6 +82,7 @@ kubectl kustomize deploy/k8s-enterprise-netpol \
   | yq 'select(.kind == "CiliumClusterwideNetworkPolicy")' | kubectl delete -f -
 # or by name: default-deny allow-dns allow-apiserver allow-webhooks squid-proxy
 #   styx traefik allow-prometheus allow-prometheus-egress allow-intra-ns-<ns>...
+kubectl -n styx-instances delete cnp desktop-proxy-category desktop-proxy-allowlist
 kubectl apply -f deploy/k8s/instances.yaml   # un-patched instances CNP from base
 ```
 
