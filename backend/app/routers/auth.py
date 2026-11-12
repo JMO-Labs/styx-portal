@@ -91,7 +91,8 @@ async def csrf_bootstrap(response: Response):
 
 @router.get("/setup-required")
 async def setup_required(session: AsyncSession = Depends(get_session)):
-    return {"setup_required": not await users_exist(session)}
+    return {"setup_required": not await users_exist(session),
+            "banner_url": _settings.BANNER_URL}
 
 
 @router.get("/setup-preflight")

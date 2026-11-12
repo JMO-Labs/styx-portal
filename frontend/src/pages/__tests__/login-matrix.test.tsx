@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router";
 import { describe, test, expect, vi, beforeEach } from "vitest";
 
 const { a, auth, nav } = vi.hoisted(() => ({
-  a: { oauthProviders: vi.fn(), refreshSession: vi.fn(), login: vi.fn(), loginMatrix: vi.fn() },
+  a: { setupRequired: vi.fn().mockResolvedValue({ setup_required: false }), oauthProviders: vi.fn(), refreshSession: vi.fn(), login: vi.fn(), loginMatrix: vi.fn() },
   auth: { user: null, loading: false, setupRequired: false, refresh: vi.fn(), logout: vi.fn() },
   nav: vi.fn(),
 }));
