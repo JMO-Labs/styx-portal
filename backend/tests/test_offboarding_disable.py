@@ -21,7 +21,7 @@ async def _user(session, name="bob"):
 
 
 async def _instances(session, user, statuses):
-    t = ServiceTemplate(name="t", image="img")
+    t = ServiceTemplate(name="t", display_name="T", image="img")
     session.add(t)
     await session.commit()
     out = []
