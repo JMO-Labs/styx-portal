@@ -58,6 +58,7 @@ async def test_post_when_set(session, monkeypatch):
 
 
 async def test_skipped_when_unset(session, caplog):
+    caplog.set_level("INFO")
     assert await nd.run_once(session, "", NOW) is False
     assert "MATRIX_DIGEST_WEBHOOK_URL" in caplog.text
 
