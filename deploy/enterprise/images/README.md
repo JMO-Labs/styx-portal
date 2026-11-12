@@ -6,7 +6,6 @@
 - `scripts/resolve_phase1_digests.sh` (CI, needs skopeo): regenerates the lock from the tags.
 - `scripts/build_seed_bundle.sh` (CI): one OCI archive from the lock, for `agent/images/` on RKE2.
 - `scripts/kind/10-seed-bundle-import.sh`: kind-spike import plus `crictl images --digests` check.
-- `deploy/enterprise/harbor/seed-push-job.yaml`: pushes the archive's images into Harbor.
+- `deploy/enterprise/harbor/seed-push-job.yaml`: pushes the archive's images into Harbor project
+  `platform` with the full upstream path (`platform/docker.io/library/traefik@sha256:...`), robot `ci-push`.
 
-Open: `traefik` has no digest yet (nothing in-tree pins it). Run the resolve script in CI and commit
-the result; until then `--strict` (used by the build script and kind spike) fails by design.

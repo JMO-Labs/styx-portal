@@ -119,3 +119,47 @@ def test_kind_spike_keeps_archive_out_of_uploaded_artifacts():
     t = (ROOT / "scripts" / "kind" / "10-seed-bundle-import.sh").read_text()
     assert "out/phase1-seed.tar" not in t
     assert "mktemp" in t and "trap" in t
+
+
+def _push_job():
+    import yaml
+    return yaml.safe_load((ROOT / "deploy/enterprise/harbor/seed-push-job.yaml").read_text())
+
+
+def _bootstrap():
+    s = importlib.util.spec_from_file_location("hb", ROOT / "deploy/enterprise/harbor/harbor_bootstrap.py")
+    m = importlib.util.module_from_spec(s)
+    s.loader.exec_module(m)
+    return m
+
+
+def test_push_job_destination_project_exists_in_bootstrap():
+    # Robots cannot create projects (project_creation_restriction: adminonly).
+    c = _push_job()["spec"]["template"]["spec"]["containers"][0]
+    m = re.search(r'docker://\$HARBOR_HOST/([^/"]+)/\$ref', c["args"][0])
+    assert m and m.group(1) in _bootstrap().PROJECTS
+    assert "sed" not in c["args"][0]
+
+
+def test_push_job_uses_bootstrap_robot_secret():
+    c = _push_job()["spec"]["template"]["spec"]["containers"][0]
+    refs = {e["valueFrom"]["secretKeyRef"]["name"] for e in c["env"] if "valueFrom" in e}
+    assert refs == {"harbor-bootstrap-robot"}
+    es = (ROOT / "deploy/enterprise/harbor/external-secrets.yaml").read_text()
+    assert "name: harbor-bootstrap-robot" in es and _bootstrap().ROBOT == "ci-push"
+
+
+def test_push_job_extracts_archive_once_into_tmp():
+    spec = _push_job()["spec"]["template"]["spec"]
+    c = spec["containers"][0]
+    script = c["args"][0]
+    assert {"name": "TMPDIR", "value": "/tmp"} in c["env"]
+    assert len(re.findall(r"\btar -x", script)) == 1 and "oci:/tmp/seed:$ref" in script
+    assert "oci-archive:" not in script
+    tmp = next(v for v in spec["volumes"] if v["name"] == "tmp")
+    assert tmp["emptyDir"].get("sizeLimit")
+
+
+def test_images_readme_has_no_stale_traefik_note():
+    t = (IMG / "README.md").read_text()
+    assert "no digest" not in t and "fails by design" not in t
