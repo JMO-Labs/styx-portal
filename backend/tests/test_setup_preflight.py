@@ -12,7 +12,7 @@ async def test_preflight_available_before_setup(client):
 
 @pytest.mark.asyncio
 async def test_preflight_404_after_user_exists(client):
-    r = await client.post("/api/auth/setup", json={**st(), 
+    r = await client.post("/api/auth/setup", json={**await st(), 
         "username": "admin", "password": "correct horse battery staple"})
     assert r.status_code == 201
     r2 = await client.get("/api/auth/setup-preflight")

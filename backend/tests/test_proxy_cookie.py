@@ -58,7 +58,7 @@ def test_proxy_token_claims():
 
 @pytest.mark.asyncio
 async def test_setup_scopes_api_cookies_and_sets_proxy(client):
-    r = await client.post("/api/auth/setup", json={**st(), "username": "admin", "password": PW})
+    r = await client.post("/api/auth/setup", json={**await st(), "username": "admin", "password": PW})
     assert r.status_code == 201
     assert _cookie(r, "access_token", "/api")
     assert _cookie(r, "refresh_token", "/api/auth")

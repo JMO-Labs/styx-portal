@@ -118,7 +118,7 @@ async def test_audit_list_returns_ordered_by_id_desc(admin_client, session):
 @pytest.mark.asyncio
 async def test_setup_audit_logged(client, session):
     """Verify setup endpoint audits the user creation as auth.signup."""
-    r = await client.post("/api/auth/setup", json={**st(), 
+    r = await client.post("/api/auth/setup", json={**await st(), 
         "username": "admin", "password": "correct horse battery staple"})
     assert r.status_code == 201
     admin_id = r.json()["id"]
