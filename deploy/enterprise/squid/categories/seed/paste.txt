@@ -1,0 +1,6 @@
+.pastebin.com
+.paste.ee
+.hastebin.com
+.ghostbin.com
+.controlc.com
+.rentry.co

@@ -76,7 +76,7 @@ class K8sInstanceRuntime:
                          cpu_limit=None, shm_size=None, privileged=False, dind=False,
                          cap_add=None, network=None, read_only_rootfs=False,
                          tmpfs=None, extra_hosts=None, entrypoint=None, command=None,
-                         posix_uid=None, **ignored) -> str:
+                         posix_uid=None, egress_mode=None, **ignored) -> str:
         if privileged or dind:
             raise ValueError("privileged/dind containers are not supported on Kubernetes")
         if ignored or labels:
@@ -88,7 +88,8 @@ class K8sInstanceRuntime:
                 gpu_enabled=gpu_enabled, gpu_count=gpu_count, memory_limit=memory_limit,
                 cpu_limit=cpu_limit, shm_size=shm_size, cap_add=cap_add,
                 read_only_rootfs=read_only_rootfs, tmpfs=tmpfs, extra_hosts=extra_hosts,
-                entrypoint=entrypoint, command=command, posix_uid=posix_uid)
+                entrypoint=entrypoint, command=command, posix_uid=posix_uid,
+                egress_mode=egress_mode)
         for obj in objs:
             self._c.apply(obj)
             if obj["kind"] == "Deployment":

@@ -373,6 +373,12 @@ class Group(SQLModel, table=True):
     description: str | None = None
     allow_gpu: bool = False
     egress_mode: str = "category"
+    # Per-group CPU-tier overrides (ADR-0031); None = use the global default.
+    tier_resolution: str | None = None
+    tier_fps: int | None = None
+    tier_hidpi: bool | None = None
+    tier_cpu: str | None = None
+    tier_memory: str | None = None
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
