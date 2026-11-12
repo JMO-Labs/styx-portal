@@ -1,7 +1,7 @@
 """setup_tokens: DB-backed first-run setup code (styx-portal#86)
 
-Revision ID: 0006_setup_tokens
-Revises: 0005_instance_image_digest
+Revision ID: 0007_setup_tokens
+Revises: 0006_group_egress_mode
 Create Date: 2026-11-12
 
 """
@@ -10,8 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = '0006_setup_tokens'
-down_revision: Union[str, Sequence[str], None] = '0005_instance_image_digest'
+revision: str = '0007_setup_tokens'
+down_revision: Union[str, Sequence[str], None] = '0006_group_egress_mode'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

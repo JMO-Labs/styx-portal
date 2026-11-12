@@ -48,7 +48,7 @@ def has(text: str, phrase: str) -> bool:
 def test_all_original_adrs_accepted():
     originals = sorted(ADR.glob("00[0-5][0-9]-*.md"))
     assert len(originals) == 59
-    assert len(adr_files()) == 62
+    assert len(adr_files()) == 63
     for path in adr_files():
         if path.name >= "0062-":  # later ADRs await owner acceptance
             continue
@@ -87,9 +87,22 @@ def test_adr_0061_osd_encryption():
         assert has(text, phrase), phrase
 
 
+def test_adr_0063_cosign_custody():
+    text = adr("0063")
+    assert "Decision ID: D62" in text
+    assert "- Status: Proposed" in text  # awaits owner acceptance; not backdated
+    for phrase in ("transit", "exportable=false", "ci-cosign", "rotate",
+                   "min_encryption_version", "30 days", "90 days", "rationale"):
+        assert has(text, phrase), phrase
+    for num in ("0028", "0029", "0030"):
+        assert "ADR-0063" in adr(num), num
+    s7 = section((DOCS / "design.md").read_text(), 7)
+    assert "Closed (Phase 3)" in s7 and "ADR-0063" in s7
+
+
 def test_adr_index_matches_files():
     index = (ADR / "README.md").read_text()
-    older = [ln for ln in index.splitlines() if "(0062-" not in ln]
+    older = [ln for ln in index.splitlines() if "(0062-" not in ln and "(0063-" not in ln]
     assert "| Proposed |" not in "\n".join(older)
     assert f"accepted {DATE}" in index.lower()
     rows = dict(re.findall(r"^\| \[D\w+\]\(([^)]+)\) \|[^|]+\| ([^|]+) \|", index, re.M))
@@ -188,6 +201,9 @@ def test_control_matrix_amendments():
         assert has(row(cm, ctl), "takeover"), ctl
     assert has(row(cm, "AU-6"), "monthly")
     assert "0061" in row(cm, "SC-28")
+    for ctl in ("SI-2", "SI-7", "CM-14"):
+        assert "0063" in row(cm, ctl), ctl
+    assert has(row(cm, "SI-2"), "30 d") and has(row(cm, "SI-2"), "90 d")
     assert re.search(r"^\| CM-(6|7) \|.*Pod Security Admission.*0057", cm, re.M)
     assert has(row(cm, "SC-7(5)"), "uncategorised")
     assert has(row(cm, "AC-11"), "card removal")
