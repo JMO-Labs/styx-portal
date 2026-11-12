@@ -60,8 +60,11 @@ async def current(session: AsyncSession) -> str:
 
 
 async def verify(session: AsyncSession, candidate: str | None) -> bool:
-    return bool(candidate) and secrets.compare_digest(
-        candidate.encode(), (await current(session)).encode())
+    """Read-only check; never mints a token (announce() does that at boot)."""
+    if not candidate:
+        return False
+    tok = await current_or_none(session)
+    return tok is not None and secrets.compare_digest(candidate.encode(), tok.encode())
 
 
 async def consume(session: AsyncSession, candidate: str | None) -> bool:

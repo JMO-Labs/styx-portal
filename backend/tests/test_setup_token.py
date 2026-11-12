@@ -120,3 +120,9 @@ async def test_announce_drops_legacy_file_when_users_exist(session, tmp_path, mo
     await setup_token.announce(session, False)
     assert not f.exists()
     assert await setup_token.current_or_none(session) is None
+
+
+async def test_verify_never_creates_token(session):
+    """verify is read-only: after consumption it must not mint a new token (and commit)."""
+    assert await setup_token.verify(session, "anything") is False
+    assert await setup_token.current_or_none(session) is None
