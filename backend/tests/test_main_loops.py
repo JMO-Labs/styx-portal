@@ -256,3 +256,23 @@ async def test_metrics_db_loop_records_host_rollup(monkeypatch, session):
     with pytest.raises(_StopLoop):
         await main._metrics_db_loop()
     assert rec and rec[0][0] == 5.0 and rec[0][1] == 40.0 and rec[0][3] == 0
+
+
+@pytest.mark.asyncio
+async def test_metrics_sampler_skips_instances_whose_usage_fails(monkeypatch, session):
+    from app.services import metrics_store
+
+    await _seed(session, ["running"])
+    _one_tick(monkeypatch)
+    samples = []
+
+    class _Rt:
+        def instance_usage(self, cid):
+            raise RuntimeError("stats unavailable")
+
+    monkeypatch.setattr(main, "instance_runtime", lambda: _Rt())
+    monkeypatch.setattr(main, "async_session", lambda: session)
+    monkeypatch.setattr(metrics_store, "record_sample", lambda *a: samples.append(a))
+    with pytest.raises(_StopLoop):
+        await main._metrics_sampler_loop()
+    assert samples == [(0.0, 0.0)]
