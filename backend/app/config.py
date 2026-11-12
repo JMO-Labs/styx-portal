@@ -161,6 +161,8 @@ class Settings(BaseSettings):
     # Days after disable before the account and its homes are deleted (ADR-0022).
     ACCOUNT_DELETION_RETENTION_DAYS: int = 90
 
+    LIFECYCLE_INACTIVITY_DAYS: int = 35   # auto-disable after this many idle days (ADR-0022)
+
     # extra="ignore": the repo-root .env is shared with docker-compose,
     # cloudflared, and authentik, so it carries keys the backend does not
     # declare (CF_TUNNEL_TOKEN, AUTHENTIK_HOST, COMPOSE_PROFILES, ...).

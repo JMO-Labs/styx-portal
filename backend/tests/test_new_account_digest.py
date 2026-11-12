@@ -1,7 +1,9 @@
 """New-account digest: build, API, Matrix webhook post (#136)."""
+import asyncio
 import httpx
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from sqlmodel import select
 
 from app.models import AuditLog, User
@@ -72,3 +74,21 @@ async def test_failure_logged_and_audited(session):
     rows = (await session.exec(select(AuditLog).where(
         AuditLog.action == "account.digest_failed"))).all()
     assert len(rows) == 1
+
+
+async def test_cancellation_propagates(session):
+    def handler(req):
+        raise asyncio.CancelledError
+    with pytest.raises(asyncio.CancelledError):
+        await nd.run_once(session, "http://matrix.test/hook", NOW,
+                          transport=httpx.MockTransport(handler))
+
+
+async def test_audit_failure_is_swallowed(session, monkeypatch, caplog):
+    async def boom(*a, **k):
+        raise RuntimeError("audit down")
+    monkeypatch.setattr(nd, "audit", boom)
+    r = await nd.run_once(session, "http://matrix.test/hook", NOW,
+                          transport=httpx.MockTransport(lambda req: httpx.Response(500)))
+    assert r is False
+    assert "digest failure audit failed" in caplog.text
