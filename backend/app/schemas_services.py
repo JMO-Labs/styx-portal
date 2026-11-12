@@ -258,6 +258,7 @@ class GroupOut(BaseModel):
     description: str | None
     allow_gpu: bool = False
     egress_mode: str = "category"
+    idp_managed: bool = False
     member_count: int = 0
     tier_resolution: str | None = None
     tier_fps: int | None = None
