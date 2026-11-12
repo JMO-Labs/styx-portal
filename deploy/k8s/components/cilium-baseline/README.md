@@ -22,12 +22,16 @@ Proxy namespace, name and port live only in `proxy-params.yaml`.
 
 ## Apply order
 
-Allows first, default-deny last (the component lists them in this order):
-`allow-dns`, `allow-apiserver`, `allow-webhooks`, then the remaining allows
-(`allow-intra-ns-*`, `allow-prometheus`, `squid-proxy`, styx, traefik), and
-`default-deny` last. `kubectl apply -k` is not ordered across kinds' names, so
-for a first rollout apply everything except `default-deny`, verify, then apply
-it alone:
+**First rollout: enable audit mode first** (see "Audit-mode rollout"). Every
+allow policy already enables default-deny for the direction and endpoints it
+selects (no CCNP here sets `enableDefaultDeny: false`; `allow-dns` egress and
+`allow-webhooks` ingress select every namespace except kube-system). So
+applying the allows without `default-deny` still enforces; it is not a "verify"
+gate.
+
+`kubectl apply -k` gives no ordering guarantee. Allows-first, deny-last is
+ordering hygiene only (the manifests are not listed in that order in
+`kustomization.yaml`), done with a split apply:
 
 ```bash
 kubectl kustomize deploy/k8s-enterprise-netpol \
@@ -53,12 +57,21 @@ expected flows remain, then set `policyAuditMode: false` (or
 
 ## Rollback
 
-Delete the deny; the allows are harmless alone:
+`kubectl delete ccnp default-deny` is only a **partial** first step: the allow
+policies still select endpoints and keep default-deny on (pods stay egress-denied
+except DNS, ingress-denied except the apiserver). Full rollback removes all
+baseline CCNPs and restores the un-patched `instances` policy. Do not use
+`kubectl delete -k` on the overlay: it also contains the base workloads.
 
 ```bash
-kubectl delete ccnp default-deny
+kubectl kustomize deploy/k8s-enterprise-netpol \
+  | yq 'select(.kind == "CiliumClusterwideNetworkPolicy")' | kubectl delete -f -
+# or by name: default-deny allow-dns allow-apiserver allow-webhooks squid-proxy
+#   styx traefik allow-prometheus allow-prometheus-egress allow-intra-ns-<ns>...
+kubectl apply -f deploy/k8s/instances.yaml   # un-patched instances CNP from base
 ```
 
+Alternatively set `policyAuditMode: true` to stop enforcement without deleting.
 If a bad policy breaks workloads, `kubectl` still works (apiserver is
 host-network); use the break-glass kubeconfig if the cluster API is unreachable
 by other paths.
@@ -74,6 +87,12 @@ If Squid runs off-cluster, replace the in-cluster `toEndpoints` proxy rule in
 #     toPorts:
 #       - ports: [{port: "3128", protocol: TCP}]
 ```
+
+Also remove (or retarget) the three `CiliumNetworkPolicy instances`
+replacement targets in `kustomization.yaml` (namespace and name, both under
+`spec.egress.1.toEndpoints.0.matchLabels`); with `create: true` they would put
+`toEndpoints` back into the CIDR rule. The port replacement still applies to
+`spec.egress.1.toPorts`.
 
 ## Manual connectivity matrix (kind + Cilium)
 

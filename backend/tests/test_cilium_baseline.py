@@ -261,8 +261,19 @@ def test_control_matrix_points_at_component():
 def test_operator_note_covers_rollout():
     text = (COMPONENT / "README.md").read_text()
     for needle in ("policyAuditMode", "hubble observe --verdict AUDIT", "default-deny",
-                   "toCIDR", "/32", "kubectl delete ccnp default-deny", "443", "22", "UDP",
+                   "toCIDR", "/32", "kubectl delete ccnp default-deny",
+                   "| desktop | world 443 direct | denied |",
+                   "| desktop | world SSH 22 | denied |",
+                   "| desktop | any UDP except DNS | denied |",
                    "kube-apiserver", "break-glass"):
         assert needle in text, needle
-    assert 0 < text.index("## Apply order") < text.index("allow-dns") < text.index("default-deny` last")
+    assert text.index("## Apply order") < text.index("## Audit-mode rollout")
+    assert "enable audit mode first" in text
+    rollback = text[text.index("## Rollback"):text.index("## Squid option B")]
+    assert "partial" in rollback
+    for name in ("allow-dns", "allow-webhooks", "squid-proxy", "CiliumClusterwideNetworkPolicy"):
+        assert name in rollback, name
+    assert "kubectl apply -f deploy/k8s/instances.yaml" in rollback
+    squid = text[text.index("## Squid option B"):text.index("## Manual connectivity")]
+    assert "replacement" in squid and "spec.egress.1.toPorts" in squid
     assert len(text.splitlines()) < 500
