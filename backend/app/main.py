@@ -62,7 +62,8 @@ logger = logging.getLogger("styx-portal")
 _settings = Settings()
 
 _CSRF_EXEMPT = {"/api/auth/login", "/api/auth/login/matrix", "/api/auth/setup"}
-_CSRF_EXEMPT_PREFIXES = ("/api/enroll/", "/api/agent/")
+# /api/provision/: machine caller (mTLS + bearer), no cookies, so CSRF does not apply.
+_CSRF_EXEMPT_PREFIXES = ("/api/enroll/", "/api/agent/", "/api/provision/")
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):

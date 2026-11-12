@@ -5,7 +5,8 @@ import hashlib
 import json
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func
+from sqlmodel import select
 
 from app.models import ApprovedRequest
 from app.routers import provision as prov
