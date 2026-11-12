@@ -111,6 +111,6 @@ def test_nonroot_and_limits():
     assert c["resources"]["limits"]["memory"] and c["resources"]["limits"]["cpu"]
     assert c["resources"]["requests"]
     vols = {v["name"]: v for v in pod["volumes"]}
-    assert "emptyDir" in vols["categories"]
+    assert "persistentVolumeClaim" in vols["categories"]
     mounts = {m["mountPath"] for m in c["volumeMounts"]}
     assert {"/etc/squid/categories", "/etc/squid/allowlist"} <= mounts
