@@ -41,7 +41,7 @@ Negative:
 Follow-up work:
 
 - Define vulnerability SLAs (see D30) and key custody for cosign in phase 3.
-- Phase 3 ADR: cosign key custody (OpenBao, CI-only) and the medium/low CVE fix deadlines.
+- Done: cosign key custody and medium/low CVE deadlines in ADR-0062.
 
 ## Implementation note (Phase 1, #5)
 
