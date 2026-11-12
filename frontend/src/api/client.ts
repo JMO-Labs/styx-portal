@@ -424,6 +424,7 @@ export const api = {
     request<{ token: string; expires_at: string | null }>("/users/invites", {
       method: "POST", body: JSON.stringify(data) }),
   disableUser: (id: string) => request<unknown>(`/users/${id}/disable`, { method: "PATCH" }),
+  removeAccess: (id: string) => request<unknown>(`/users/${id}/remove-access`, { method: "POST" }),
   changeRole: (id: string, role: string) =>
     request<unknown>(`/users/${id}/role?role=${role}`, { method: "PATCH" }),
   unlockUser: (id: string) => request(`/users/${id}/unlock`, { method: "POST" }),
