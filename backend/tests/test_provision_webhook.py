@@ -215,3 +215,23 @@ async def test_flush_race_returns_409_audited(client, session, events, monkeypat
     assert r.status_code == 409 and r.json()["detail"] == "APPROVAL_REUSED"
     assert await rows(session) == 0
     assert any(e["event"]["action"] == "provision.request.conflict" for e in events())
+
+
+async def test_replay_of_failed_row_retries_provisioning(client, session, monkeypatch):
+    seen = []
+
+    async def fake(session, row, op="create"):
+        seen.append(row.status)
+        row.status = "provisioned"
+        return row
+    monkeypatch.setattr(prov, "provision", fake)
+    await post(client, body())
+    row = (await session.exec(select(prov.ApprovedRequest))).one()
+    row.status = "failed"
+    session.add(row)
+    await session.commit()
+    seen.clear()
+    r = await post(client, body())
+    assert r.status_code == 201
+    assert seen == ["failed"]
+    assert r.headers["Idempotent-Replay"] == "true"
