@@ -10,6 +10,7 @@ from sqlalchemy import text
 
 from app.config import Settings
 from app.services.docker_manager import detect_gpu
+from app.services.leader import get_elector
 from app.services.k8s_api import incluster_client
 
 _settings = Settings()
@@ -114,6 +115,7 @@ async def run_diagnostics(session, docker=None) -> dict:
     overall = all(c["ok"] for c in checks if c["key"] != "gpu")
     return {
         "ok": overall,
+        "leader": get_elector().is_leader,  # informational; not part of readiness
         "checked_at": datetime.now(timezone.utc).isoformat(),
         "checks": checks,
     }

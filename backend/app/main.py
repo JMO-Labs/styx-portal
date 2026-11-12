@@ -1,6 +1,7 @@
 import asyncio
 import re
 import logging
+from functools import partial
 from contextlib import asynccontextmanager
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
@@ -47,9 +48,11 @@ from app.services.k8s_runtime import instance_runtime
 from app.services.k8s_prepull import prepull_loop
 from app.services.background_loops import (  # noqa: F401 - re-exported for tests
     _capture_running_instances, _health_sample_loop, _log_portal_instances,
-    _metrics_collection_loop, _monitor_tick, _reconcile_instances_at_boot,
+    _metrics_db_loop, _metrics_sampler_loop, _monitor_tick, _reconcile_instances_at_boot,
     _run_monitor_pass, _screenshot_capture_loop, _service_health_loop,
     _session_monitor_loop)
+from app.services.janitor import janitor_loop
+from app.services.leader import LeaderTasks, get_elector
 from app.services.mount_jobs import sweep_interrupted
 from app.security.csrf import csrf_valid, CSRF_COOKIE, CSRF_HEADER, UNSAFE_METHODS
 
@@ -102,7 +105,11 @@ async def lifespan(app: FastAPI):
     async with async_session() as _s:
         await _settings_store.reload(_s)
 
-    if _settings.ROUTE_BACKEND != "k8s":  # no Docker on k8s, so no probe containers either
+    docker = instance_runtime()
+
+    async def _probe_cleanup():
+        if _settings.ROUTE_BACKEND == "k8s":  # no Docker on k8s, so no probe containers either
+            return
         try:
             _p = await asyncio.to_thread(DockerManager(network_name=_settings.DOCKER_NETWORK).remove_probe_containers)
             if _p:
@@ -110,42 +117,52 @@ async def lifespan(app: FastAPI):
         except Exception:  # noqa: BLE001 - docker may be unavailable at boot
             logger.warning("Probe container cleanup skipped", exc_info=True)
 
-    # Sync instance states — mark stale instances as stopped
-    docker = instance_runtime()
-    async with async_session() as session:
-        await _reconcile_instances_at_boot(session, docker)
-        await _log_portal_instances(docker)
+    async def _reconcile():
+        # Sync instance states: mark stale instances as stopped
+        async with async_session() as session:
+            await _reconcile_instances_at_boot(session, docker)
+            await _log_portal_instances(docker)
 
-    # Write initial Traefik routes on startup
+    async def _close_dangling():
+        from app.services import stream_sessions
+        async with async_session() as _s:
+            await stream_sessions.close_dangling(_s, _settings_store.get("WORKSTATION_OFFLINE_AFTER_S"))
+            await _s.commit()
+
+    # Per-replica: write initial Traefik routes on startup
     from app.services.route_writer import refresh_routes_from_db
     async with async_session() as session:
         await refresh_routes_from_db(session)
 
-    from app.services import stream_sessions
-    async with async_session() as _s:
-        await stream_sessions.close_dangling(_s, _settings_store.get("WORKSTATION_OFFLINE_AFTER_S"))
-        await _s.commit()
+    async def _refresh_routes():
+        # Re-write routes once reconcile has dropped stale instances.
+        async with async_session() as session:
+            await refresh_routes_from_db(session)
 
-    task = asyncio.create_task(_session_monitor_loop())
-    metrics_task = asyncio.create_task(_metrics_collection_loop())
-    screenshot_task = asyncio.create_task(_screenshot_capture_loop())
-    svc_thumb_task = asyncio.create_task(service_thumbnail_loop(async_session, _settings.SCREENSHOT_CACHE_DIR))
-    health_task = asyncio.create_task(_health_sample_loop())
-    svc_health_task = asyncio.create_task(_service_health_loop())
-    prepull_task = asyncio.create_task(prepull_loop()) if _settings.ROUTE_BACKEND == "k8s" else None
+    # Leader-only: boot steps run on every promotion, loops start after them.
     from app.services.new_account_review import new_account_review_loop
-    review_task = asyncio.create_task(new_account_review_loop(async_session))
+    leader_loops = [_session_monitor_loop, _service_health_loop, _metrics_db_loop, janitor_loop,
+                    partial(new_account_review_loop, async_session)]
+    if _settings.ROUTE_BACKEND == "k8s":
+        leader_loops.append(prepull_loop)
+    leader = LeaderTasks(boot=[_probe_cleanup, _reconcile, _close_dangling, _refresh_routes],
+                         loops=leader_loops)
+    elector = get_elector()
+    elector_task = asyncio.create_task(elector.run(leader.on_elected, leader.on_lost))
+
+    local_tasks = [
+        asyncio.create_task(_metrics_sampler_loop()),
+        asyncio.create_task(_screenshot_capture_loop()),
+        asyncio.create_task(service_thumbnail_loop(async_session, _settings.SCREENSHOT_CACHE_DIR)),
+        asyncio.create_task(_health_sample_loop()),
+    ]
     yield
-    review_task.cancel()
-    task.cancel()
-    metrics_task.cancel()
-    screenshot_task.cancel()
-    svc_thumb_task.cancel()
-    health_task.cancel()
-    svc_health_task.cancel()
-    if prepull_task:
-        prepull_task.cancel()
-    await asyncio.gather(svc_health_task, return_exceptions=True)
+    for t in local_tasks:
+        t.cancel()
+    await elector.stop()
+    elector_task.cancel()
+    await leader.stop()
+    await asyncio.gather(*local_tasks, elector_task, return_exceptions=True)
 
 
 try:
