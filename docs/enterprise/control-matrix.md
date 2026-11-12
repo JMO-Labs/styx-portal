@@ -8,16 +8,16 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
-| AC-2 | Account Management | Keycloak directory; webhook provisioning, offboarding, review (ADR-0014, 0018, 0019, 0022, 0024) | System | Planned |
+| AC-2 | Account Management | Keycloak directory; webhook provisioning, offboarding, review (ADR-0014, 0018, 0019, 0022, 0024). Evidence: ADR-0067; IaC `deploy/enterprise/keycloak/`, tests `backend/tests/test_federation_groups.py`, `test_kc_admin.py`; [runbook](runbooks/keycloak.md) | System | Planned |
 | AC-2(1) | Automated System Account Management | Webhook/SCIM-shaped provisioning (ADR-0019) | System | Planned |
 | AC-2(3) | Disable Accounts | End-date, 35-day inactivity, remove-access flows (ADR-0022, 0024) | System | Planned |
 | AC-2(4) | Automated Audit Actions | Account events to Elastic; Recently provisioned view (ADR-0023); security officer owns the daily review; new accounts unreviewed for 2 business days are auto-suspended (R04) | System | Planned |
 | AC-3 | Access Enforcement | Keycloak roles, Styx authorization, Kyverno (ADR-0001, 0026); CephFS homes: [ADR-0066](adr/0066-cephfs-homes-uid-ownership-and-freeze.md), [runbook](runbooks/node-loss-reattach.md) | System | Planned |
 | AC-4 | Information Flow Enforcement | DLP policy, Cilium deny-all non-proxy egress, Squid category filtering (ADR-0038, 0040); Cilium baseline (CCNPs, default-deny, desktop egress patch `patch-desktop-egress.yaml`) in `deploy/k8s/components/cilium-baseline/` (README), implemented in code, not deployed; Squid egress (two ports 3128 category / 3129 allowlist, label-selected, UT1 category CronJob, hostname-only JSON logs; ADR-0064, `deploy/enterprise/squid/`, runbook `runbooks/squid-egress.md`) implemented in code, not deployed; HAProxy part not done. | System | Planned |
 | AC-5 | Separation of Duties | Admin role split (ADR-0026) | System | Planned |
-| AC-6 | Least Privilege | Role model, group-manager scope, non-admin-only webhook (ADR-0020, 0026) | System | Planned |
+| AC-6 | Least Privilege | Role model, group-manager scope, non-admin-only webhook (ADR-0020, 0026). Evidence: ADR-0067; tests `backend/tests/test_federation_groups.py`; [runbook](runbooks/keycloak.md) | System | Planned |
 | AC-7 | Unsuccessful Logon Attempts | Keycloak policy for break-glass accounts; CAC login via IdP (ADR-0015, 0025) | System | Planned |
-| AC-8 | System Use Notification | USG banner before login (ADR-0027) | System | Planned |
+| AC-8 | System Use Notification | USG banner before login (ADR-0027). Evidence: IaC `deploy/enterprise/banner/`, tests `backend/tests/test_enterprise_banner.py`; [runbook](runbooks/keycloak.md) | System | Planned |
 | AC-11 | Device Lock | 15 min idle lock in Styx gateway; unlock by fresh TLS handshake proves card presence, not PIN entry; risk acceptance R02 (ADR-0039, 0058); card removal locks the session through managed-endpoint policy (GPO / macOS equivalent) (R02) | System | Planned |
 | AC-12 | Session Termination | 2 h disconnect stop, 12 h max (ADR-0039) | System | Planned |
 | AC-17 | Remote Access | DMZ proxy, CAC mTLS, monitored sessions; consent-free view/take-control by platform admin and help desk only, with persistent banner naming who is viewing/controlling, required ticket number or reason, logged to Elastic, security officer alerted, monthly review by security officer or auditor (ADR-0012, 0060) | System | Planned |
@@ -81,12 +81,12 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
-| IA-2 | Identification and Authentication (Organizational Users) | Keycloak smart-card-only login (CAC, PIV, PIV-I); break-glass exception R06; cert headers set only by the DMZ HAProxy, stripped from any other source, Keycloak reachable only from Traefik (ADR-0014, 0015, 0025, 0065) | System | Planned |
+| IA-2 | Identification and Authentication (Organizational Users) | Keycloak smart-card-only login (CAC, PIV, PIV-I); break-glass exception R06; cert headers set only by the DMZ HAProxy, stripped from any other source, Keycloak reachable only from Traefik (ADR-0014, 0015, 0025, 0065). Evidence: IaC `deploy/enterprise/keycloak/`, realm tests `backend/tests/test_enterprise_keycloak_realm.py`, `test_keycloak_breakglass.py`; [runbook](runbooks/keycloak.md) | System | Planned |
 | IA-2(12) | Acceptance of PIV Credentials | CAC, PIV and PIV-I (PIV Authentication cert only); DoD roots + Federal Common Policy CA; OCSP + CRL mirror, fail closed (ADR-0015, 0016, 0017, 0041, 0065) | System | Planned |
 | IA-3 | Device Identification and Authentication | mTLS client cert for webhook (ADR-0020) | System | Planned |
 | IA-4 | Identifier Management | EDIPI (CAC) or card UUID (PIV/PIV-I) bound at first login, immutable username (ADR-0016, 0018) | System | Planned |
 | IA-5 | Authenticator Management | PKI via DoD and federal CAs; Client-Cert header spoofing control (ADR-0065); break-glass and token rotation; OpenBao auto-unseal, offline escrow (ADR-0015, 0020, 0025, 0042); Kubernetes auth roles and least-privilege policies (`deploy/enterprise/openbao/auth-roles.json`, `policies/`), ESO `ClusterSecretStore` `openbao` (`deploy/enterprise/external-secrets/`) | Hybrid | Planned |
-| IA-5(2) | Public Key-Based Authentication | Certificate validation for CAC/PIV/PIV-I chains, OCSP per issuer + CRL mirror by path, fail closed (ADR-0015, 0017, 0065) | System | Planned |
+| IA-5(2) | Public Key-Based Authentication | Certificate validation for CAC/PIV/PIV-I chains, OCSP per issuer + CRL mirror by path, fail closed (ADR-0015, 0017, 0065). Evidence: IaC `deploy/enterprise/keycloak/crl-mirror/`, tests `backend/tests/test_enterprise_keycloak_crl.py`; [runbook](runbooks/keycloak.md) | System | Planned |
 | IA-8 | Identification and Authentication (Non-Organizational Users) | Not planned; no external users in v1 (ADR-0001, 0015) | System | Planned |
 | IA-12 | Identity Proofing | Approval workflow; Styx checks asserted approver is a group manager, cannot verify M365 approval, D23 review is the real control; R04 (ADR-0018, 0020, 0021, 0023); security officer owns the review; new accounts unreviewed for 2 business days are auto-suspended (ADR-0024) | Hybrid | Planned |
 

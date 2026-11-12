@@ -147,7 +147,7 @@ def test_adr_0066_cephfs_homes():
 
 def test_adr_index_matches_files():
     index = (ADR / "README.md").read_text()
-    older = [ln for ln in index.splitlines() if not any(f"({n}-" in ln for n in ("0062", "0063", "0065", "0066"))]
+    older = [ln for ln in index.splitlines() if not any(f"({n}-" in ln for n in ("0062", "0063", "0065", "0066", "0067"))]
     assert "| Proposed |" not in "\n".join(older)
     assert f"accepted {DATE}" in index.lower()
     rows = dict(re.findall(r"^\| \[D\w+\]\(([^)]+)\) \|[^|]+\| ([^|]+) \|", index, re.M))
@@ -299,3 +299,29 @@ def test_harbor_phase1_docs():
     root = DOCS.parents[1]
     assert (root / "docs/operate/harbor-enterprise.md").is_file()
     assert "operate/harbor-enterprise.md" in (root / "zensical.toml").read_text()
+
+
+def _links_resolve(md: Path) -> None:
+    for target in re.findall(r"\]\(([^)#\s]+)(?:#[^)]*)?\)", md.read_text()):
+        if "://" in target or target.startswith("mailto:"):
+            continue
+        assert (md.parent / target).resolve().exists(), f"{md.name}: {target}"
+
+
+def test_keycloak_runbook_and_matrix():
+    """Issue #134: Keycloak runbook, control-matrix rows and ADR-0067."""
+    runbook = DOCS / "runbooks/keycloak.md"
+    text = runbook.read_text()
+    for phrase in ("deploy order", "realm import", "CRL mirror", "KeycloakCRLStale",
+                   "break-glass", "post-use review", "banner host"):
+        assert has(text, phrase), phrase
+    _links_resolve(runbook)
+    _links_resolve(DOCS / "runbooks/keycloak-breakglass.md")
+    cm = (DOCS / "control-matrix.md").read_text()
+    for ctl in ("IA-2", "IA-5(2)", "AC-2", "AC-8", "AC-6"):
+        assert "deploy/enterprise/" in row(cm, ctl), ctl
+        assert "runbooks/keycloak.md" in row(cm, ctl), ctl
+    assert "0067" in row(cm, "AC-2")
+    _links_resolve(DOCS / "control-matrix.md")
+    assert "- Decision ID: D66" in adr("0067")
+    assert "(0067-" in (ADR / "README.md").read_text()
