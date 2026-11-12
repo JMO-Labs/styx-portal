@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import NaiveDatetime
 from sqlmodel import Field, SQLModel, Column
-from sqlalchemy import JSON, BigInteger, DateTime, Index, Integer, UniqueConstraint
+from sqlalchemy import JSON, BigInteger, DateTime, Index, Integer, String, UniqueConstraint
 
 from app.db_types import NAMING_CONVENTION, UTCDateTime
 
@@ -511,3 +511,13 @@ class RateCounter(SQLModel, table=True):
     window_start: datetime = Field(sa_column=Column(_TSTZ, primary_key=True))
     count: int = 0
     expires_at: datetime = Field(sa_column=Column(_TSTZ, nullable=False, index=True))
+
+
+class PosixUid(SQLModel, table=True):
+    """Immutable POSIX UID per user_key (ADR-0052). Rows are never updated or deleted."""
+    __tablename__ = "posix_uids"
+    uid: int = Field(sa_column=Column(Integer, primary_key=True, autoincrement=False))
+    user_key: str = Field(sa_column=Column(String, nullable=False, unique=True))
+    allocated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(_TSTZ, nullable=False))

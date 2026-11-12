@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: squid
+  namespace: egress-proxy
+  labels:
+    app.kubernetes.io/name: squid
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: squid
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: squid
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 13
+        runAsGroup: 13
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: squid
+          image: ubuntu/squid:6.6-24.04_edge
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              : > /tmp/empty.txt
+              echo 'acl blocked_cat dstdomain "/tmp/empty.txt"' > /tmp/categories.conf
+              for f in /etc/squid/categories/*.txt; do
+                [ -e "$f" ] && echo "acl blocked_cat dstdomain \"$f\"" >> /tmp/categories.conf
+              done
+              exec squid -N -f /etc/squid/squid.conf
+          ports:
+            - {name: category, containerPort: 3128}
+            - {name: allowlist, containerPort: 3129}
+          readinessProbe:
+            tcpSocket: {port: category}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          volumeMounts:
+            - {name: config, mountPath: /etc/squid/squid.conf, subPath: squid.conf}
+            - {name: allowlist, mountPath: /etc/squid/allowlist}
+            - {name: categories, mountPath: /etc/squid/categories}
+            - {name: run, mountPath: /var/run/squid}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: config
+          configMap: {name: squid-config}
+        - name: allowlist
+          configMap: {name: squid-allowlist}
+        - name: categories
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

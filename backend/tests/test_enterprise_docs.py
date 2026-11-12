@@ -48,8 +48,10 @@ def has(text: str, phrase: str) -> bool:
 def test_all_original_adrs_accepted():
     originals = sorted(ADR.glob("00[0-5][0-9]-*.md"))
     assert len(originals) == 59
-    assert len(adr_files()) == 61
+    assert len(adr_files()) == 62
     for path in adr_files():
+        if path.name >= "0062-":  # later ADRs await owner acceptance
+            continue
         text = path.read_text()
         assert "Status: Proposed" not in text, path.name
         if not path.name.startswith("0045-"):
@@ -87,7 +89,8 @@ def test_adr_0061_osd_encryption():
 
 def test_adr_index_matches_files():
     index = (ADR / "README.md").read_text()
-    assert "| Proposed |" not in index
+    older = [ln for ln in index.splitlines() if "(0062-" not in ln]
+    assert "| Proposed |" not in "\n".join(older)
     assert f"accepted {DATE}" in index.lower()
     rows = dict(re.findall(r"^\| \[D\w+\]\(([^)]+)\) \|[^|]+\| ([^|]+) \|", index, re.M))
     names = {p.name for p in adr_files()}

@@ -36,9 +36,9 @@ Positive:
 Negative:
 
 - Power Automate is an external dependency and trust anchor.
-- SCIM subset is not yet defined.
+- SCIM subset: see ADR-0062.
 - Flow ownership and licensing must survive staff turnover (two co-owners).
 
 Follow-up work:
 
-- Define the SCIM subset and schema in phase 2.
+- SCIM subset and schema: ADR-0062.

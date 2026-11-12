@@ -32,6 +32,7 @@ from app.routers import enroll as enroll_router
 from app.routers import agent as agent_router
 from app.routers import system_settings as system_settings_router
 from app.routers import turn_usage as turn_usage_router
+from app.routers import provisioned as provisioned_router
 from app.routers import stats as stats_router
 from app.routers import groups as groups_router
 from app.routers import access_review as access_review_router
@@ -132,7 +133,10 @@ async def lifespan(app: FastAPI):
     health_task = asyncio.create_task(_health_sample_loop())
     svc_health_task = asyncio.create_task(_service_health_loop())
     prepull_task = asyncio.create_task(prepull_loop()) if _settings.ROUTE_BACKEND == "k8s" else None
+    from app.services.new_account_review import new_account_review_loop
+    review_task = asyncio.create_task(new_account_review_loop(async_session))
     yield
+    review_task.cancel()
     task.cancel()
     metrics_task.cancel()
     screenshot_task.cancel()
@@ -200,6 +204,7 @@ app.include_router(workstations_router.internal_router, prefix="/internal/workst
 app.include_router(enroll_router.router, prefix="/api/enroll", tags=["enroll"])
 app.include_router(agent_router.router, prefix="/api/agent", tags=["agent"])
 app.include_router(system_settings_router.router, prefix="/api/system-settings", tags=["system-settings"])
+app.include_router(provisioned_router.router, prefix="/api/admin/provisioned", tags=["provisioned"])
 app.include_router(turn_usage_router.router, prefix="/api/admin/turn-usage", tags=["turn-usage"])
 app.include_router(turn_usage_router.check_router, prefix="/api/admin/turn-check", tags=["turn-usage"])
 app.include_router(stats_router.router, prefix="/api/admin/stats", tags=["stats"])

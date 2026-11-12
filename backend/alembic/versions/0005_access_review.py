@@ -1,7 +1,7 @@
 """access review: group manager/kc ids + decisions table (styx-portal#137)
 
-Revision ID: 0004_access_review
-Revises: 0003_user_lifecycle
+Revision ID: 0005_access_review
+Revises: 0004_posix_uids
 Create Date: 2026-11-12
 
 """
@@ -10,8 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = '0004_access_review'
-down_revision: Union[str, Sequence[str], None] = '0003_user_lifecycle'
+revision: str = '0005_access_review'
+down_revision: Union[str, Sequence[str], None] = '0004_posix_uids'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
