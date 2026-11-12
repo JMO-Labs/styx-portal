@@ -31,8 +31,9 @@ async def _exec(session, sql, **params):
 
 
 async def _seed(session):
-    for ddl in _DDL:
-        await session.exec(text(ddl))
+    if session.get_bind().dialect.name != "postgresql":  # PG schema comes from Alembic
+        for ddl in _DDL:
+            await session.exec(text(ddl))
     win = fail_window()
     for i, age in enumerate((win + 60, win + 120, win + 180, 30, win - 60)):
         await _exec(session, "INSERT INTO auth_fail_events (kind, key, at) VALUES ('ip', :k, :t)",

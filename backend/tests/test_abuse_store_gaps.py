@@ -28,7 +28,7 @@ async def test_user_out_shows_unlocked_on_store_error(monkeypatch):
 
 
 async def test_non_sqlite_falls_back_to_memory(monkeypatch, caplog):
-    monkeypatch.setattr(abuse_store, "_settings", SimpleNamespace(DATABASE_URL="postgresql://x/y"))
+    monkeypatch.setattr(abuse_store, "_settings", SimpleNamespace(DATABASE_URL="mysql://x/y"))
     abuse_store.get_abuse_store.cache_clear()
     try:
         with caplog.at_level(logging.WARNING, logger="styx-portal"):
