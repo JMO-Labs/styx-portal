@@ -1,4 +1,4 @@
-# ADR-0062: Keycloak X.509 flow and HAProxy client-cert header format
+# ADR-0063: Keycloak X.509 flow and HAProxy client-cert header format
 
 - Status: Accepted
 - Date: 2026-11-12

@@ -1,0 +1,10 @@
+# USG system-use banner host (ADR-0027, ADR-0049): banner.<domain>, no client cert.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - deployment.yaml
+  - service.yaml
+  - networkpolicy.yaml
+  - ingressroute.yaml

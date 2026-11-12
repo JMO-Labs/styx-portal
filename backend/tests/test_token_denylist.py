@@ -59,16 +59,53 @@ async def test_revoke_and_is_revoked_roundtrip(session):
 
 
 @pytest.mark.asyncio
-async def test_revoke_purges_expired_entries(session):
+async def test_revoke_same_jti_twice_no_error(session):
+    from sqlmodel import select
+    from app.models import RevokedAccessToken
+    jti = str(uuid.uuid4())
+    exp = _now() + timedelta(minutes=15)
+    await token_denylist.revoke_access(session, jti, exp)
+    await session.commit()
+    await token_denylist.revoke_access(session, jti, exp)
+    await session.commit()
+    rows = (await session.exec(select(RevokedAccessToken).where(
+        RevokedAccessToken.jti == jti))).all()
+    assert len(rows) == 1
+
+
+@pytest.mark.asyncio
+async def test_revoke_does_not_purge_expired(session):
+    # purging is the leader janitor's job, not the write path's
     stale = str(uuid.uuid4())
     await token_denylist.revoke_access(session, stale, _now() - timedelta(seconds=1))
     await session.commit()
-    fresh = str(uuid.uuid4())
+    await token_denylist.revoke_access(session, str(uuid.uuid4()), _now() + timedelta(minutes=15))
+    await session.commit()
+    assert await token_denylist.is_access_revoked(session, stale) is True
+
+
+@pytest.mark.asyncio
+async def test_janitor_purges_expired_only(session):
+    from app.services.janitor import purge_expired
+    stale, fresh = str(uuid.uuid4()), str(uuid.uuid4())
+    await token_denylist.revoke_access(session, stale, _now() - timedelta(seconds=1))
     await token_denylist.revoke_access(session, fresh, _now() + timedelta(minutes=15))
     await session.commit()
-    # the already-expired entry is purged; it can't outlive the token anyway
+    await purge_expired(session)
     assert await token_denylist.is_access_revoked(session, stale) is False
     assert await token_denylist.is_access_revoked(session, fresh) is True
+
+
+@pytest.mark.asyncio
+async def test_janitor_batches(session):
+    from app.services.janitor import purge_expired
+    ids = [str(uuid.uuid4()) for _ in range(5)]
+    for i in ids:
+        await token_denylist.revoke_access(session, i, _now() - timedelta(seconds=1))
+    await session.commit()
+    assert await purge_expired(session, batch=2) >= 5
+    for i in ids:
+        assert await token_denylist.is_access_revoked(session, i) is False
 
 
 @pytest.mark.asyncio
@@ -126,3 +163,13 @@ async def test_auth_check_rejects_revoked_token(session):
     with pytest.raises(HTTPException) as e:
         await auth_check("ws1", req, session)
     assert e.value.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_revoke_access_stores_naive_datetimes(session):
+    """Postgres TIMESTAMP WITHOUT TIME ZONE rejects tz-aware params (asyncpg)."""
+    from app.models import RevokedAccessToken
+    await token_denylist.revoke_access(session, "tz-jti", _now() + timedelta(minutes=5))
+    await session.commit()
+    row = await session.get(RevokedAccessToken, "tz-jti")
+    assert row.revoked_at.tzinfo is None and row.expires_at.tzinfo is None

@@ -102,4 +102,5 @@ These need a restart of the backend (or a redeploy). They are documented where t
 | `MOUNT_PROBE_IMAGE` | `busybox:1.36` | [Proxied services](services.md#backups-and-rollback) |
 | `DOMAIN`, `DEPLOY_MODE`, `COOKIE_SECURE`, `TRUSTED_PROXY_CIDRS`, `TUNNEL_PEER_CIDRS`, `JWT_SECRET` | see [Install](install.md#environment-variables) | |
 | `ROUTE_BACKEND`, `K8S_*`, `INSTANCE_*` | `file`, ... | [Kubernetes](kubernetes.md) |
+| `LEADER_DATABASE_URL`, `LEADER_*`, `BAN_CACHE_TTL` | empty, 5/5/3/15 s, 30 | [Leader election](leader-election.md#settings) |
 | `ENABLE_DOCS`, `DEV_CORS` | `false` | dev only |

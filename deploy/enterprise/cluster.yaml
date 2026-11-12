@@ -1,0 +1,36 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: styx-db
+  namespace: styx
+spec:
+  instances: 3
+  # Pinned to PG 17 (CNPG 1.30 default is 18); matches CI's postgres:17.
+  imageName: ghcr.io/cloudnative-pg/postgresql:17
+  enableSuperuserAccess: false
+  affinity:
+    enablePodAntiAffinity: true
+    podAntiAffinityType: required
+    topologyKey: kubernetes.io/hostname
+  bootstrap:
+    initdb:
+      database: styx
+      owner: styx
+      secret:
+        name: styx-db-app
+  postgresql:
+    synchronous:
+      method: any
+      number: 1
+      dataDurability: preferred
+  storage:
+    storageClass: rook-ceph-block
+    size: 20Gi
+  backup:
+    volumeSnapshot:
+      className: csi-rbdplugin-snapclass
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: styx-db-offsite

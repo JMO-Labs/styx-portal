@@ -1,0 +1,59 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: styx-signed-images
+  annotations:
+    policies.kyverno.io/title: Signed allowlisted images only
+    policies.kyverno.io/description: >-
+      Pods in namespaces labelled styx.io/desktop=true may only use digest-pinned images
+      from harbor.example.internal/styx/ that carry a valid cosign signature.
+spec:
+  validationFailureAction: Enforce
+  background: false
+  webhookTimeoutSeconds: 30
+  rules:
+    - name: require-allowlisted-digest
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaceSelector:
+                matchLabels:
+                  styx.io/desktop: "true"
+      validate:
+        message: "Images must be harbor.example.internal/styx/<name>@sha256:<digest>."
+        foreach:
+          - list: "request.object.spec.[initContainers, containers][]"
+            deny:
+              conditions:
+                all:
+                  - key: "{{ element.image }}"
+                    operator: NotEquals
+                    value: "harbor.example.internal/styx/*@sha256:*"
+    - name: verify-signature
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaceSelector:
+                matchLabels:
+                  styx.io/desktop: "true"
+      verifyImages:
+        - imageReferences:
+            - "harbor.example.internal/styx/*"
+          required: true
+          verifyDigest: true
+          mutateDigest: false
+          attestors:
+            - count: 1
+              entries:
+                - keys:
+                    # Placeholder; the real cosign public key is supplied at deploy time.
+                    publicKeys: |-
+                      -----BEGIN PUBLIC KEY-----
+                      REPLACE_WITH_COSIGN_PUBLIC_KEY
+                      -----END PUBLIC KEY-----
+                    rekor:
+                      ignoreTlog: true
+                    ctlog:
+                      ignoreSCT: true
