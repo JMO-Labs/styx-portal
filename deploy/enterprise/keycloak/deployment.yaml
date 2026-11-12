@@ -1,0 +1,105 @@
+# Keycloak (ADR-0014) behind the DMZ HAProxy (ADR-0050) and Traefik. Clustering uses
+# JDBC_PING over keycloak-db (cache=ispn, cache-stack=jdbc-ping), no extra ports.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: keycloak
+  namespace: keycloak
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: keycloak
+  labels: {app.kubernetes.io/name: keycloak}
+spec:
+  selector: {app.kubernetes.io/name: keycloak}
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-management
+  namespace: keycloak
+  labels: {app.kubernetes.io/name: keycloak, styx.io/metrics: "true"}
+spec:
+  selector: {app.kubernetes.io/name: keycloak}
+  ports:
+    - {name: management, port: 9000, targetPort: management}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: keycloak
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 1, maxSurge: 1}
+  selector:
+    matchLabels: {app.kubernetes.io/name: keycloak}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: keycloak}
+    spec:
+      serviceAccountName: keycloak
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels: {app.kubernetes.io/name: keycloak}
+      containers:
+        - name: keycloak
+          # PLACEHOLDER(digest): mirror quay.io/keycloak/keycloak:26.4.7 into Harbor and
+          # replace with the real digest (all-zero digest never pulls).
+          image: harbor.example.internal/keycloak/keycloak:26.4.7@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          args: [start]
+          ports:
+            - {name: http, containerPort: 8080}
+            - {name: management, containerPort: 9000}
+          env:
+            - {name: KC_HTTP_ENABLED, value: "true"}
+            - {name: KC_HOSTNAME, value: "https://login.example.internal"}   # PLACEHOLDER(ADR-0049)
+            - {name: KC_PROXY_HEADERS, value: xforwarded}   # DMZ HAProxy (ADR-0050)
+            - {name: KC_HEALTH_ENABLED, value: "true"}
+            - {name: KC_METRICS_ENABLED, value: "true"}
+            - {name: KC_CACHE, value: ispn}
+            - {name: KC_CACHE_STACK, value: jdbc-ping}
+            - {name: KC_DB, value: postgres}
+            - {name: KC_DB_URL_HOST, value: keycloak-db-rw}
+            - {name: KC_DB_URL_DATABASE, value: keycloak}
+            - name: KC_DB_USERNAME
+              valueFrom: {secretKeyRef: {name: keycloak-db-app, key: username}}
+            - name: KC_DB_PASSWORD
+              valueFrom: {secretKeyRef: {name: keycloak-db-app, key: password}}
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              valueFrom: {secretKeyRef: {name: keycloak-admin, key: username}}
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom: {secretKeyRef: {name: keycloak-admin, key: password}}
+          readinessProbe:
+            httpGet: {path: /health/ready, port: management}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health/live, port: management}
+            periodSeconds: 15
+          startupProbe:
+            httpGet: {path: /health/started, port: management}
+            periodSeconds: 5
+            failureThreshold: 60
+          resources:
+            requests: {cpu: 500m, memory: 1Gi}
+            limits: {memory: 2Gi}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false   # Quarkus writes /opt/keycloak/data
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
