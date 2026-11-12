@@ -25,4 +25,8 @@ registry.k8s.io/sig-storage/csi-provisioner:v6.3.0
 registry.k8s.io/sig-storage/csi-resizer:v2.2.1
 registry.k8s.io/sig-storage/csi-snapshot-metadata:v1.1.0
 registry.k8s.io/sig-storage/csi-snapshotter:v8.6.0
-docker.io/library/traefik:v3.4
+docker.io/library/traefik:v3.4.5
+ghcr.io/cloudnative-pg/cloudnative-pg:1.30.0
+ghcr.io/cloudnative-pg/plugin-barman-cloud:v0.12.0
+ghcr.io/cloudnative-pg/plugin-barman-cloud-sidecar:v0.12.0
+quay.io/skopeo/stable:v1.20.0

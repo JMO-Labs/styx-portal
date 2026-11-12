@@ -17,7 +17,8 @@ D = "sha256:" + "a" * 64
 
 
 def test_committed_lock_is_digest_only_and_subset_of_images():
-    assert chk.check((IMG / "phase1.lock").read_text(), (IMG / "phase1.images").read_text()) == []
+    assert chk.check((IMG / "phase1.lock").read_text(), (IMG / "phase1.images").read_text(),
+                     strict=True) == []
 
 
 @pytest.mark.parametrize("line", ["docker.io/x/y:1.0", "docker.io/x/y", "docker.io/x/y@sha256:abc",
@@ -42,8 +43,33 @@ def test_strict_requires_full_coverage():
 def test_images_cover_phase1_components():
     txt = (IMG / "phase1.images").read_text()
     for needle in ("goharbor/harbor-core", "rook/ceph", "ceph/ceph", "cloudnative-pg/postgresql",
-                   "openbao/openbao", "external-secrets/external-secrets", "traefik"):
+                   "openbao/openbao", "external-secrets/external-secrets", "traefik",
+                   "cloudnative-pg/cloudnative-pg:", "cloudnative-pg/plugin-barman-cloud",
+                   "skopeo/stable"):
         assert needle in txt
+
+
+def test_images_have_no_floating_tags():
+    for ref in chk._lines((IMG / "phase1.images").read_text()):
+        tag = ref.rsplit(":", 1)[1]
+        assert re.match(r"v?\d+\.\d+\.\d+", tag), f"floating tag: {ref}"
+
+
+def test_push_job_not_in_kustomization():
+    k = (ROOT / "deploy/enterprise/harbor/kustomization.yaml").read_text()
+    assert "seed-push-job" not in k
+
+
+def test_push_job_image_is_upstream_skopeo_by_digest():
+    t = (ROOT / "deploy/enterprise/harbor/seed-push-job.yaml").read_text()
+    img = re.search(r"^\s+image:\s*(\S+)", t, re.M).group(1)
+    assert img.startswith("quay.io/skopeo/stable@sha256:") and "harbor.example" not in img
+
+
+def test_kind_spike_resolves_lock_and_prints_size():
+    r = (ROOT / "scripts" / "kind" / "05-resolve-lock.sh").read_text()
+    assert "resolve_phase1_digests.sh" in r and "BEGIN phase1.lock" in r
+    assert "du -h" in (ROOT / "scripts" / "kind" / "10-seed-bundle-import.sh").read_text()
 
 
 def test_scripts_exist_and_parse():

@@ -1,4 +1,4 @@
-# Generated from phase1.images. Digest-pinned only. traefik is added by the CI resolve job.
+# Generated from phase1.images. Digest-pinned only. INCOMPLETE until the kind-spike 05-resolve-lock output is committed.
 docker.io/goharbor/harbor-core@sha256:7d2ba5304a729887cdec7cb222a82b500278423de230ae5150c386a6c332b112
 docker.io/goharbor/harbor-db@sha256:a32d51e636d76303e086a7c5251a2c8415c6f165b2f87bafa914efd866c5403f
 docker.io/goharbor/harbor-exporter@sha256:9ffede33dc519b4be035596a72f00f354754a22a3769077731f81ee7d6852f4f

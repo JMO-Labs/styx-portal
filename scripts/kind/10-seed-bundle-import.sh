@@ -7,6 +7,8 @@ lock=deploy/enterprise/images/phase1.lock
 command -v skopeo >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq skopeo; }
 python3 scripts/check_phase1_lock.py --strict "$lock"
 scripts/build_seed_bundle.sh out/phase1-seed.tar
+du -h out/phase1-seed.tar
+df -h . | tail -n1
 node=$(kind get nodes --name spike | head -n1)
 docker cp out/phase1-seed.tar "$node:/tmp/phase1-seed.tar"
 docker exec "$node" ctr -n k8s.io images import --local /tmp/phase1-seed.tar

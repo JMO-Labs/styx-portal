@@ -10,4 +10,3 @@ resources:
   - harbor-db.yaml
   - networkpolicy.yaml
   - pdb.yaml
-  - seed-push-job.yaml
