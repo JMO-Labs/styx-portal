@@ -118,3 +118,31 @@ def test_network_policies():
     ports = {p["port"] for c in cnps for r in c["spec"].get("egress", [])
              for tp in r.get("toPorts", []) for p in tp["ports"]}
     assert {"5432", "53", "80", "443"} <= ports
+
+
+def _db_rules(direction, peer_key):
+    out = []
+    for c in of_kind("CiliumNetworkPolicy"):
+        sel = c["spec"].get("endpointSelector", {}).get("matchLabels", {})
+        if sel.get("cnpg.io/cluster") != "keycloak-db":
+            continue
+        for r in c["spec"].get(direction, []):
+            peers = r.get(peer_key, [])
+            if any(p.get("matchLabels", {}).get("cnpg.io/cluster") == "keycloak-db" for p in peers):
+                out += [p["port"] for tp in r.get("toPorts", []) for p in tp["ports"]]
+    return out
+
+
+def test_db_replication_between_instances():
+    assert "5432" in _db_rules("ingress", "fromEndpoints")
+    assert "5432" in _db_rules("egress", "toEndpoints")
+
+
+def test_prometheus_scrape_allowed():
+    ports = set()
+    for c in of_kind("CiliumNetworkPolicy"):
+        for r in c["spec"].get("ingress", []):
+            for f in r.get("fromEndpoints", []):
+                if f.get("matchLabels", {}).get("k8s:io.kubernetes.pod.namespace") == "monitoring":
+                    ports |= {p["port"] for tp in r["toPorts"] for p in tp["ports"]}
+    assert {"9000", "9187"} <= ports

@@ -33,6 +33,12 @@ spec:
       toPorts:
         - ports:
             - {port: "7800", protocol: TCP}
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - {port: "9000", protocol: TCP}
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -93,6 +99,19 @@ spec:
       toPorts:
         - ports:
             - {port: "5432", protocol: TCP}
+    # Standby streams WAL from the primary (DB pod to DB pod).
+    - fromEndpoints:
+        - matchLabels: {cnpg.io/cluster: keycloak-db}
+      toPorts:
+        - ports:
+            - {port: "5432", protocol: TCP}
+    # Prometheus scrapes CNPG exporter (9187) and Keycloak management (9000).
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - {port: "9187", protocol: TCP}
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -104,6 +123,11 @@ spec:
     matchLabels:
       cnpg.io/cluster: keycloak-db
   egress:
+    - toEndpoints:
+        - matchLabels: {cnpg.io/cluster: keycloak-db}
+      toPorts:
+        - ports:
+            - {port: "5432", protocol: TCP}
     - toCIDRSet:
         - cidr: 192.0.2.10/32           # PLACEHOLDER(#24): offsite object store address
       toPorts:

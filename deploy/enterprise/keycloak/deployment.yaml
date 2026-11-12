@@ -1,5 +1,5 @@
 # Keycloak (ADR-0014) behind the DMZ HAProxy (ADR-0050) and Traefik. Clustering uses
-# JDBC_PING over keycloak-db (cache=ispn, cache-stack=jdbc-ping), no extra ports.
+# JDBC_PING over keycloak-db (cache=ispn, cache-stack=jdbc-ping), plus jgroups TCP 7800 between replicas (opened in networkpolicy.yaml).
 apiVersion: v1
 kind: ServiceAccount
 metadata:
