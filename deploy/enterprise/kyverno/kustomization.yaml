@@ -1,0 +1,6 @@
+# Kyverno admission policy: only cosign-signed, digest-pinned images from the Harbor
+# allowlist in desktop namespaces. Kyverno itself comes from the pinned chart (see README).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - clusterpolicy.yaml

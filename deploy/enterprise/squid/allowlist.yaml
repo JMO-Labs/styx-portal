@@ -1,0 +1,11 @@
+# Hosts reachable through port 3129 (allowlist mode). Leading dot = domain + subdomains.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: squid-allowlist
+  namespace: egress-proxy
+data:
+  allowlist.txt: |
+    .wikipedia.org
+    .debian.org
+    .github.com

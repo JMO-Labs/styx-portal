@@ -16,11 +16,21 @@ PLACEHOLDER_SECRETS = {
 
 class Settings(BaseSettings):
     DOMAIN: str = "localhost"
+    POSIX_UID_MIN: int = 100000  # first allocated POSIX UID (ADR-0052)
     # Provisioning webhook auth (ADR-0020 / D20): mTLS (forwarded Client-Cert) + bearer
     PROVISION_HOST: str = ""
     PROVISION_BEARER_TOKEN: str = ""
     PROVISION_CLIENT_CERT_FINGERPRINTS: str = ""  # comma-separated SHA-256 hex of DER
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/styx-portal.db"
+    # Leader election: dedicated session connection, straight to the primary
+    # (never a pooler). Empty = same as DATABASE_URL.
+    LEADER_DATABASE_URL: str = ""
+    LEADER_RETRY_S: float = 5.0
+    LEADER_HEARTBEAT_S: float = 5.0
+    LEADER_HEARTBEAT_TIMEOUT_S: float = 3.0
+    LEADER_FENCE_S: float = 15.0  # must stay below server-side detection (~25 s)
+    # Internal Prometheus port (never Traefik-routed). 0 = metrics server off.
+    METRICS_PORT: int = 0
     DOCKER_SOCKET: str = "unix:///var/run/docker.sock"
     DOCKER_NETWORK: str = "styx-portal"
     # Proxied docker-local services join this network; only Traefik shares it
@@ -41,9 +51,16 @@ class Settings(BaseSettings):
     ROUTE_BACKEND: str = "file"   # file | k8s
     K8S_NAMESPACE: str = "styx"
     K8S_INSTANCE_NAMESPACE: str = "styx-instances"
+    HARBOR_URL: str = ""   # empty = no digest pinning (ADR-0030)
+    HARBOR_USER: str = ""
+    HARBOR_PASSWORD: str = ""
     K8S_DESKTOP_IMAGE: str = "ghcr.io/jmo-labs/styx-desktop:latest"
     INSTANCE_STORAGE_CLASS: str = "longhorn"
     INSTANCE_VOLUME_SIZE: str = "20Gi"
+    HOME_STORAGE_CLASS: str = "ceph-cephfs"
+    HOME_QUOTA: str = "10Gi"
+    PROMETHEUS_URL: str = ""  # kube-prometheus-stack, for home usage (ADR-0044)
+    PROFILE_QUOTA: str = "2Gi"
     CPU_TIER_RESOLUTION: str = "1920x1080"  # ADR-0031 CPU-tier launch defaults
     CPU_TIER_FPS: int = 30
     CPU_TIER_HIDPI: bool = False
@@ -129,6 +146,8 @@ class Settings(BaseSettings):
     KC_ADMIN_REALM: str = ""
     KC_ADMIN_CLIENT_ID: str = ""
     KC_ADMIN_CLIENT_SECRET: str = ""
+    # Comma-separated Keycloak group ids (not names) the admin client must never add users to.
+    KEYCLOAK_ADMIN_GROUPS: str = ""
 
     # extra="ignore": the repo-root .env is shared with docker-compose,
     # cloudflared, and authentik, so it carries keys the backend does not
@@ -139,6 +158,9 @@ class Settings(BaseSettings):
         "env_file_encoding": "utf-8",
         "extra": "ignore",
     }
+
+    def leader_url(self) -> str:
+        return self.LEADER_DATABASE_URL or self.DATABASE_URL
 
     def jwt_secret_or_raise(self) -> str:
         if self.JWT_SECRET:

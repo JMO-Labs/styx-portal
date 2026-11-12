@@ -5,7 +5,9 @@ from datetime import datetime, timezone
 from fastapi import HTTPException
 
 from app.config import Settings
+from app.services import image_digest
 from app.services.k8s_api import incluster_client
+from app.services.k8s_homes import profile_pvc
 from app.services.k8s_instance_objects import build_objects, parse_qty, pvc
 
 logger = logging.getLogger("styx-portal")
@@ -23,6 +25,7 @@ class K8sInstanceRuntime:
     def __init__(self, client=None):
         self._c = client or incluster_client()
         self._ns = Settings().K8S_INSTANCE_NAMESPACE
+        self._digests: dict[str, str | None] = {}
 
     # images: the kubelet pulls
     def image_exists(self, image: str) -> bool:
@@ -36,7 +39,8 @@ class K8sInstanceRuntime:
 
     # volumes
     def create_volume(self, name: str, size: str | None = None) -> str:
-        self._c.apply(pvc(name, self._ns, size))
+        # a size is only passed for profile volumes (profiles.prepare_volumes)
+        self._c.apply(profile_pvc(name, self._ns) if size else pvc(name, self._ns))
         return name
 
     def gpu_free(self, n: int) -> bool:
@@ -77,14 +81,21 @@ class K8sInstanceRuntime:
             raise ValueError("privileged/dind containers are not supported on Kubernetes")
         if ignored or labels:
             logger.info("k8s: ignoring container options %s", sorted(ignored))
-        for obj in build_objects(
+        objs = build_objects(
                 name, image, environment, volumes, port, self._ns, network or "",
                 gpu_enabled=gpu_enabled, gpu_count=gpu_count, memory_limit=memory_limit,
                 cpu_limit=cpu_limit, shm_size=shm_size, cap_add=cap_add,
                 read_only_rootfs=read_only_rootfs, tmpfs=tmpfs, extra_hosts=extra_hosts,
-                entrypoint=entrypoint, command=command):
+                entrypoint=entrypoint, command=command)
+        for obj in objs:
             self._c.apply(obj)
+            if obj["kind"] == "Deployment":
+                img = obj["spec"]["template"]["spec"]["containers"][0]["image"]
+                self._digests[name] = image_digest.digest_of(img)
         return name
+
+    def pinned_digest(self, name: str) -> str | None:
+        return self._digests.pop(name, None)
 
     def _patch(self, name: str, body: dict) -> None:
         self._c.patch_merge(_APPS, "Deployment", self._ns, name, body)

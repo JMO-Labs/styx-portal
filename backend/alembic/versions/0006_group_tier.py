@@ -1,7 +1,7 @@
 """group CPU-tier overrides: tier_resolution/fps/hidpi/cpu/memory (styx-portal#151)
 
-Revision ID: 0004_group_tier
-Revises: 0003_user_lifecycle
+Revision ID: 0006_group_tier
+Revises: 0005_instance_image_digest
 Create Date: 2026-11-12
 
 """
@@ -10,8 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = '0004_group_tier'
-down_revision: Union[str, Sequence[str], None] = '0003_user_lifecycle'
+revision: str = '0006_group_tier'
+down_revision: Union[str, Sequence[str], None] = '0005_instance_image_digest'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
