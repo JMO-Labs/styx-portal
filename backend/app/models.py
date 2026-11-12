@@ -546,3 +546,12 @@ class PosixUid(SQLModel, table=True):
     allocated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(_TSTZ, nullable=False))
+
+
+class SetupToken(SQLModel, table=True):
+    """Singleton (id=1) first-run setup code shared by all replicas."""
+    __tablename__ = "setup_tokens"
+
+    id: int = Field(default=1, primary_key=True)
+    token: str
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
