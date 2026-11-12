@@ -184,3 +184,14 @@ async def test_external_id_exists_new_key_409(client, session):
     r = await post(client, b, key="k2")
     assert r.status_code == 409
     assert r.json()["detail"] == "USER_EXISTS"
+
+
+async def test_webhook_calls_provision(client, monkeypatch):
+    seen = []
+
+    async def fake(session, row, op="create"):
+        seen.append((row.external_id, op))
+        return row
+    monkeypatch.setattr(prov, "provision", fake)
+    assert (await post(client, body())).status_code == 201
+    assert seen == [("req-1", "create")]
