@@ -105,7 +105,7 @@
         "x509-cert-auth.mapping-source-selection": "Match SubjectDN using regular expression",
         "x509-cert-auth.mapper-selection": "Custom Attribute Mapper",
         "x509-cert-auth.mapper-selection.user-attribute-name": "cardKey",
-        "x509-cert-auth.regular-expression": "(.*)",
+        "x509-cert-auth.regular-expression": "CN=[^,]*\\.([0-9]{10})(?:,|$)",
         "x509-cert-auth.canonical-dn-enabled": "false"
       }
     }

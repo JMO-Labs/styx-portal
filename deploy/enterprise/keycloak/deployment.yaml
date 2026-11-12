@@ -72,6 +72,11 @@ spec:
             - {name: KC_HTTP_ENABLED, value: "true"}
             - {name: KC_HOSTNAME, value: "https://login.example.internal"}   # PLACEHOLDER(ADR-0049)
             - {name: KC_PROXY_HEADERS, value: xforwarded}   # DMZ HAProxy (ADR-0050)
+            # X.509 client cert from the DMZ HAProxy headers (ADR-0050): base64 DER leaf/chain.
+            - {name: KC_SPI_X509CERT_LOOKUP__PROVIDER, value: haproxy}
+            - {name: KC_SPI_X509CERT_LOOKUP__HAPROXY__SSL_CLIENT_CERT, value: Client-Cert}
+            - {name: KC_SPI_X509CERT_LOOKUP__HAPROXY__SSL_CERT_CHAIN_PREFIX, value: Client-Cert-Chain}
+            - {name: KC_SPI_X509CERT_LOOKUP__HAPROXY__CERTIFICATE_CHAIN_LENGTH, value: "10"}
             - {name: KC_HEALTH_ENABLED, value: "true"}
             - {name: KC_METRICS_ENABLED, value: "true"}
             - {name: KC_CACHE, value: ispn}
