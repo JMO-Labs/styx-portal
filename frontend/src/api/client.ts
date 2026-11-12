@@ -58,7 +58,8 @@ export type DiscoveredContainer = {
 export type OpenMode = "new_tab" | "same_tab";
 export type Me = { id: string; username: string; email: string | null; role: string;
   open_workspaces: OpenMode | null; open_apps: OpenMode | null; must_change_pw?: boolean; can_use_gpu?: boolean };
-export type Group = { id: string; name: string; description: string | null; member_count: number; allow_gpu: boolean };
+export type EgressMode = "category" | "allowlist";
+export type Group = { id: string; name: string; description: string | null; member_count: number; allow_gpu: boolean; egress_mode?: EgressMode };
 export type Profile = { template_id: string; template_name: string; display_name: string; volume_name: string; in_use: boolean };
 
 export type MountChange = { target: string; key: string; old: string | null; new: string; created?: boolean };
@@ -288,10 +289,10 @@ export const api = {
   mountLatest: (id: string) => request<MountJob>(`/services/${id}/mount/jobs/latest`),
   serviceFocus: () => request<{ slug: string | null }>("/services/focus"),
   listGroups: () => request<Group[]>("/groups"),
-  createGroup: (data: { name: string; description?: string | null }) =>
+  createGroup: (data: { name: string; description?: string | null; egress_mode?: EgressMode }) =>
     request<Group>("/groups", { method: "POST", body: JSON.stringify(data) }),
   deleteGroup: (id: string) => request<void>(`/groups/${id}`, { method: "DELETE" }),
-  updateGroup: (id: string, data: { allow_gpu?: boolean; description?: string | null }) =>
+  updateGroup: (id: string, data: { allow_gpu?: boolean; description?: string | null; egress_mode?: EgressMode }) =>
     request<Group>(`/groups/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   listProvisioned: () => request<ProvisionedUser[]>("/admin/provisioned"),
   reviewProvisioned: (id: string) => request<ProvisionedUser>(`/admin/provisioned/${id}/review`, { method: "POST" }),
