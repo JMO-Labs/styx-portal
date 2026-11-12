@@ -97,3 +97,24 @@ async def test_session_dead_in_same_call(session):
     rt.stop_container.assert_called_once_with("c0")
     with pytest.raises(HTTPException):
         await get_current_user(_req(tok), session)
+
+
+async def test_default_runtime_resolved_when_none(session, monkeypatch):
+    u = await _user(session)
+    await _instances(session, u, ["running"])
+    rt = MagicMock()
+    monkeypatch.setattr("app.services.k8s_runtime.instance_runtime", lambda: rt)
+    await disable_account(session, u, "r", "a")
+    rt.stop_container.assert_called_once_with("c0")
+
+
+async def test_stop_failure_still_disables_and_marks_stopped(session):
+    u = await _user(session)
+    insts = await _instances(session, u, ["running", "idle"])
+    rt = MagicMock()
+    rt.stop_container.side_effect = [RuntimeError("boom"), None]
+    assert await disable_account(session, u, "r", "a", runtime=rt) is True
+    assert u.disabled_at is not None and rt.stop_container.call_count == 2
+    for i in insts:
+        await session.refresh(i)
+    assert [i.status for i in insts] == ["stopped"] * 2
