@@ -12,9 +12,9 @@ Design section 7 left open how the DMZ HAProxy pair (ADR-0050) forwards the card
 
 ## Decision
 
-1. **Flow: browser-flow X.509 authenticator with the reverse-proxy cert lookup SPI.** Keycloak runs `--spi-x509cert-lookup--provider=haproxy` with `ssl-client-cert=Client-Cert`, `ssl-cert-chain=Client-Cert-Chain` and `certificate-chain-length=2`. The realm browser flow is "X509/Validate Username" with no password, OTP or WebAuthn alternative (D15). Break-glass admins (ADR-0025) use a separate flow bound only to the `master` realm admin client.
-2. **Header format = existing template, no template change.** `Client-Cert` = `%[ssl_c_der,base64]` (leaf) and `Client-Cert-Chain` = `%[ssl_c_chain_der,base64]` (single value) match `haproxy.cfg.j2` rule 5 and Keycloak's documented `haproxy` provider. The deprecated `ssl-cert-chain-prefix` indexed headers are not used.
-3. **PIV Authentication cert selection (D15).** HAProxy trusts only `dmz_piv_ca_file`. Keycloak then requires, on the leaf: key usage `digitalSignature`, and the PIV Authentication certificate policy OID (`2.16.840.1.101.3.2.1.3.13` for PIV Auth; `2.16.840.1.101.3.2.1.3.40` PIV-I Auth hardware; the DoD CAC equivalent for CAC) via the authenticator's certificate-policy check, and extended key usage `clientAuth`. Signing, encryption and Content-Signing certs fail these checks, so the browser's cert picker may offer them but login is refused.
+1. **Flow: browser-flow X.509 authenticator with the reverse-proxy cert lookup SPI.** Keycloak runs `--spi-x509cert-lookup--provider=haproxy` with `ssl-client-cert=Client-Cert`, `ssl-cert-chain=Client-Cert-Chain` and `certificate-chain-length` set from a variable, default 3, raised for PIV-I via the Federal Bridge (matches the `deploy/enterprise/dmz-haproxy` README contract). The realm browser flow is "X509/Validate Username" with no password, OTP or WebAuthn alternative (D15). Break-glass admins (ADR-0025) use a separate flow bound only to the `master` realm admin client.
+2. **Header format = existing template, no template change.** `Client-Cert` = `%[ssl_c_der,base64]` (leaf) and `Client-Cert-Chain` = `%[ssl_c_chain_der,base64]` (single value) match `haproxy.cfg.j2` rule 5 and Keycloak's documented `haproxy` provider. The deprecated `ssl-cert-chain-prefix` indexed headers are not used. Keycloak builds and validates the chain from its own truststore, which holds the DoD and PIV-I roots **and intermediates**; `Client-Cert-Chain` is optional and usually empty (CAC/PIV middleware sends only the leaf, and it is lost on TLS resumption), so nothing may depend on it.
+3. **PIV Authentication cert selection (D15).** HAProxy trusts only `dmz_piv_ca_file`. Keycloak then requires, on the leaf: key usage `digitalSignature`, and the PIV Authentication certificate policy OID (`2.16.840.1.101.3.2.1.3.13` for PIV Auth; `2.16.840.1.101.3.2.1.3.40` PIV-I Auth hardware; the DoD CAC equivalent for CAC) via the authenticator's certificate-policy check. Selection relies on the policy OID plus KU `digitalSignature` only. Extended key usage is not required: under the Federal Common Policy profile EKU on the PIV Authentication cert is optional, and many PIV/PIV-I Auth certs carry no EKU or only `smartcardLogon`, which Keycloak's EKU check would reject. An EKU `clientAuth` check may be enabled only in a CAC-only realm. Signing, encryption and Content-Signing certs fail the policy-OID check, so the browser's cert picker may offer them but login is refused.
 4. **Identity extraction (D16).** The username/attribute mapper is a small Keycloak `UserIdentityExtractor` provider (one jar, built in CI, listed in the component register). It yields:
    - CAC: the 10-digit EDIPI, the trailing `.NNNNNNNNNN` of the subject CN;
    - PIV / PIV-I: the card UUID from the SAN URI `urn:uuid:<uuid>` (stock mappers cannot read SAN URIs).
@@ -23,7 +23,7 @@ Design section 7 left open how the DMZ HAProxy pair (ADR-0050) forwards the card
 6. **Header spoofing control (IA-2, IA-5).** Three layers, all required:
    - HAProxy deletes client-supplied `Client-Cert`, `Client-Cert-Chain`, `X-Forwarded-*` and `Forwarded` on ingress, then sets the cert headers only on `login.<domain>` after a full, verified, non-resumed handshake.
    - Keycloak is reachable only from Traefik. A Cilium network policy admits Keycloak ingress from the Traefik pods alone; no other pod or node can reach it.
-   - Traefik's dedicated entrypoint accepts connections only with the HAProxy client certificate (mTLS, ADR-0050), and a Traefik middleware strips `Client-Cert*` on every other router, including `provision`, `portal` and `banner`. Keycloak's `trusted-proxy`/proxy-headers settings list the Traefik entrypoint only.
+   - Traefik's dedicated entrypoint accepts connections only with the HAProxy client certificate (mTLS, ADR-0050), and a Traefik middleware strips `Client-Cert*` on every other router, including `provision`, `portal` and `banner`. Keycloak runs `--proxy-headers=xforwarded` with `--proxy-trusted-addresses=<Traefik pod CIDR>` (defence in depth; the Cilium policy is the real control). The x509 lookup SPI is server-wide, so the Keycloak admin endpoints stay off the public entrypoint.
    A request from any non-HAProxy source therefore either cannot reach Keycloak or has the headers removed.
 
 ## Alternatives considered
@@ -44,10 +44,11 @@ Negative:
 
 - The extractor jar is custom code to build, scan and pin on every Keycloak upgrade (D29).
 - OCSP/AIA reachability from Keycloak to DoD and federal responders is a hard dependency; outages block login by design.
-- Chain length is bounded at 2 intermediates beyond the leaf; deeper chains need `certificate-chain-length` raised.
+- Chain length is bounded by `certificate-chain-length` (default 3); PIV-I issuers chaining through the Federal Bridge need it raised per deployment.
+- Every DoD and PIV-I intermediate must be loaded into the Keycloak truststore and kept current; a missing intermediate refuses that issuer's cards.
 
 Follow-up work:
 
-- Build ticket: extractor jar and realm export (flow, policy OIDs, revocation settings, `trusted-proxy`).
+- Build ticket: extractor jar and realm export (flow, policy OIDs, revocation settings, `proxy-headers`/`proxy-trusted-addresses`, truststore with roots and intermediates).
 - Cilium policy and Traefik strip middleware (#19 and its Traefik ticket) must implement layer 2 and 3 of the spoofing control; verify with a test that a forged `Client-Cert` sent directly to Traefik and to Keycloak is rejected.
-- Verify policy OIDs and the AIA-per-issuer OCSP behaviour against the target Keycloak version in the build ticket.
+- Verify policy OIDs, EKU behaviour (PIV/PIV-I Auth certs with no EKU or only `smartcardLogon` must log in), chain building from the truststore with an empty `Client-Cert-Chain`, and the AIA-per-issuer OCSP behaviour against the target Keycloak version in the build ticket.
