@@ -15,6 +15,7 @@ async def setup(session, member_client):
     other = User(username="other", email="o@x.io", password_hash=hash_password("x" * 20), role="user")
     target = User(username="alice", email="a@x.io", password_hash=hash_password("x" * 20), role="user")
     session.add_all([other, target])
+    await session.flush()
     g1 = Group(name="g1", manager_user_id=mgr.id, kc_group_id="kc-g1")
     g2 = Group(name="g2", manager_user_id=other.id)
     session.add_all([g1, g2])
@@ -33,11 +34,14 @@ def kc(monkeypatch):
 
 
 async def test_model_fields(session):
-    g = Group(name="x", manager_user_id="u", kc_group_id="k")
+    u = User(username="m", email="m@x.io", password_hash=hash_password("x" * 20), role="user")
+    session.add(u)
+    await session.flush()
+    g = Group(name="x", manager_user_id=u.id, kc_group_id="k")
     session.add(g)
     await session.flush()
-    session.add(AccessReviewDecision(group_id=g.id, user_id="u", quarter=Q,
-                                     decision="certify", actor_id="a"))
+    session.add(AccessReviewDecision(group_id=g.id, user_id=u.id, quarter=Q,
+                                     decision="certify", actor_id=u.id))
     await session.commit()
     assert (await session.exec(select(AccessReviewDecision))).one().quarter == Q
 
