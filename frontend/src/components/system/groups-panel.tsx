@@ -16,9 +16,9 @@ const EGRESS_OPTIONS: { value: EgressMode; label: string }[] = [
 ];
 const EGRESS_HELP = "Allowlist only limits members to approved sites. The strictest group wins. Applies on next desktop launch.";
 
-function EgressSelect({ id, value, label, onChange }: { id?: string; value: EgressMode; label: string; onChange: (v: EgressMode) => void }) {
+function EgressSelect({ value, label, onChange }: { value: EgressMode; label: string; onChange: (v: EgressMode) => void }) {
   return (
-    <select id={id} aria-label={label} value={value} onChange={(e) => onChange(e.target.value as EgressMode)}
+    <select aria-label={label} value={value} onChange={(e) => onChange(e.target.value as EgressMode)}
             className="h-9 rounded-md border border-input bg-background px-2 text-sm">
       {EGRESS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
