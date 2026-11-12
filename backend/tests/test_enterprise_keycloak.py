@@ -73,10 +73,29 @@ def test_no_plain_secret_with_data():
 
 def test_external_secrets():
     ess = {d["metadata"]["name"]: d for d in of_kind("ExternalSecret")}
-    assert {"keycloak-admin", "keycloak-db-offsite"} <= set(ess)
+    assert {"keycloak-admin", "keycloak-db-app", "keycloak-db-offsite"} <= set(ess)
     for es in ess.values():
         assert es["spec"]["secretStoreRef"] == {"kind": "ClusterSecretStore", "name": "openbao"}
     assert "kv/keycloak/admin" in json.dumps(ess["keycloak-admin"])
+
+
+def _used_secret_names():
+    (d,) = of_kind("Deployment")
+    names = {e["valueFrom"]["secretKeyRef"]["name"]
+             for c in d["spec"]["template"]["spec"]["containers"]
+             for e in c.get("env", []) if "secretKeyRef" in e.get("valueFrom", {})}
+    (c,) = of_kind("Cluster")
+    names.add(c["spec"]["bootstrap"]["initdb"]["secret"]["name"])
+    for o in of_kind("ObjectStore"):
+        names |= {v["name"] for v in o["spec"]["configuration"]["s3Credentials"].values()}
+    return names
+
+
+def test_every_used_secret_comes_from_external_secret():
+    targets = {es["spec"]["target"]["name"] for es in of_kind("ExternalSecret")}
+    used = _used_secret_names()
+    assert {"keycloak-admin", "keycloak-db-app", "keycloak-db-offsite"} <= used
+    assert used <= targets, used - targets
 
 
 def test_deployment():
