@@ -92,7 +92,39 @@ spec:
             name record_modifier
             match styx.audit
             remove_key _styx_audit
+
+        [FILTER]
+            name rewrite_tag
+            match kube.*
+            rule $_squid ^1$ squid.access false
+            emitter_name squid_access_emitter
+            emitter_storage.type filesystem
+
+        [FILTER]
+            name lua
+            match squid.access
+            script /fluent-bit/scripts/styx.lua
+            call squid_filter
       outputs: |
+        [OUTPUT]
+            name es
+            match squid.access
+            host ${ELASTIC_HOST}
+            port ${ELASTIC_PORT}
+            index logs-squid.access-default
+            generate_id on
+            http_api_key ${ELASTIC_API_KEY}
+            tls on
+            tls.verify on
+            tls.verify_hostname on
+            tls.ca_file /fluent-bit/ca/ca.crt
+            suppress_type_name on
+            write_operation create
+            compress gzip
+            time_key event.ingested
+            retry_limit false
+            storage.total_limit_size 2G
+
         [OUTPUT]
             name es
             match styx.audit

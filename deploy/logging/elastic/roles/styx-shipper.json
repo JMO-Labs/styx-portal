@@ -2,7 +2,7 @@
   "cluster": [],
   "indices": [
     {
-      "names": ["logs-styx.*-*", "logs-kubernetes.*-*"],
+      "names": ["logs-styx.*-*", "logs-kubernetes.*-*", "logs-squid.*-*"],
       "privileges": ["create_doc", "auto_configure"]
     }
   ],
