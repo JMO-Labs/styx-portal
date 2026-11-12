@@ -156,3 +156,10 @@ async def test_export_csv(member_client, setup, kc):
     lines = r.text.strip().splitlines()
     assert lines[0] == "quarter,group,username,email,decision,actor,decided_at"
     assert lines[1].startswith(f"{Q},g1,alice,a@x.io,certify,member,")
+
+
+@pytest.mark.parametrize("v,out", [("=1+1", "'=1+1"), ("+x", "'+x"), ("-x", "'-x"),
+                                   ("@x", "'@x"), ("alice", "alice"), ("", "")])
+def test_safe_neutralises_formulas(v, out):
+    from app.routers.access_review import _safe
+    assert _safe(v) == out
