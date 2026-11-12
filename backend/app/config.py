@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     HOME_STORAGE_CLASS: str = "ceph-cephfs"
     HOME_QUOTA: str = "10Gi"
     PROFILE_QUOTA: str = "2Gi"
+    CPU_TIER_RESOLUTION: str = "1920x1080"  # ADR-0031 CPU-tier launch defaults
+    CPU_TIER_FPS: int = 30
+    CPU_TIER_HIDPI: bool = False
+    CPU_TIER_CPU: str = "3"
+    CPU_TIER_MEMORY: str = "4Gi"
     PROFILE_VOLUME_SIZE: str = "20Gi"
     K8S_CLUSTER_CIDRS: str = "10.42.0.0/16,10.43.0.0/16"   # pod,service ranges
     K8S_UPSTREAM_DENY_NAMESPACES: str = (
@@ -121,6 +126,12 @@ class Settings(BaseSettings):
     WORKSTATION_SEAT_HEIGHT: int = 1440
     LAN_CERT_DIR: str = "/app/data/lan-certs"      # backend-side path (lan-certs volume)
     TRAEFIK_LAN_CERT_DIR: str = "/lan-certs"       # same volume as seen by Traefik
+
+    # Keycloak admin client (offboarding); all empty = disabled (calls skipped).
+    KC_ADMIN_URL: str = ""
+    KC_ADMIN_REALM: str = ""
+    KC_ADMIN_CLIENT_ID: str = ""
+    KC_ADMIN_CLIENT_SECRET: str = ""
 
     # extra="ignore": the repo-root .env is shared with docker-compose,
     # cloudflared, and authentik, so it carries keys the backend does not
