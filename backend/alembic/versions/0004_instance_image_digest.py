@@ -1,7 +1,7 @@
 """instances.image_digest: digest pinned at launch (styx-portal#147)
 
-Revision ID: 0003_instance_image_digest
-Revises: 0002_abuse_tables
+Revision ID: 0004_instance_image_digest
+Revises: 0003_user_lifecycle
 Create Date: 2026-11-12
 
 """
@@ -10,8 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = '0003_instance_image_digest'
-down_revision: Union[str, Sequence[str], None] = '0002_abuse_tables'
+revision: str = '0004_instance_image_digest'
+down_revision: Union[str, Sequence[str], None] = '0003_user_lifecycle'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

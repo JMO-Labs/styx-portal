@@ -90,6 +90,13 @@ def build_objects(name, image, env, volumes, port, ns, owner, *, gpu_enabled=Fal
     if "/" not in image:
         image = Settings().K8S_DESKTOP_IMAGE
     image = image_digest.resolve_digest(image)
+    cfg = Settings()
+    memory_limit = memory_limit or cfg.CPU_TIER_MEMORY
+    cpu_limit = cpu_limit or cfg.CPU_TIER_CPU
+    w, _, h = cfg.CPU_TIER_RESOLUTION.partition("x")
+    tier_env = {"SELKIES_MANUAL_WIDTH": w, "SELKIES_MANUAL_HEIGHT": h,
+                "SELKIES_FRAMERATE": str(cfg.CPU_TIER_FPS),
+                "SELKIES_SCALING_DPI": "192" if cfg.CPU_TIER_HIDPI else "96"}
     labels = {"app": name, "styx/owner": owner, **MANAGED}
     limits: dict = {}
     requests: dict = {}
@@ -119,7 +126,7 @@ def build_objects(name, image, env, volumes, port, ns, owner, *, gpu_enabled=Fal
     container: dict = {
         "name": "desktop", "image": image, "imagePullPolicy": "IfNotPresent",
         "env": [{"name": k, "value": v}
-                for k, v in {"PIXELFLUX_WAYLAND": "true", **env}.items()],
+                for k, v in {"PIXELFLUX_WAYLAND": "true", **tier_env, **env}.items()],
         "ports": [{"containerPort": port}],
         "securityContext": {"allowPrivilegeEscalation": False,
                             "readOnlyRootFilesystem": read_only_rootfs,

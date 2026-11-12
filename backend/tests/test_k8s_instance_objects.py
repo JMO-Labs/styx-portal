@@ -56,7 +56,14 @@ def test_image_mapping():
 
 def test_env_default_and_override():
     env = {e["name"]: e["value"] for e in _build()[3]["env"]}
-    assert env == {"PIXELFLUX_WAYLAND": "true", "A": "1"}
+    assert env == {
+        "PIXELFLUX_WAYLAND": "true",
+        "SELKIES_MANUAL_WIDTH": "1920",
+        "SELKIES_MANUAL_HEIGHT": "1080",
+        "SELKIES_FRAMERATE": "30",
+        "SELKIES_SCALING_DPI": "96",
+        "A": "1",
+    }
     env = {e["name"]: e["value"] for e in _build(env={"PIXELFLUX_WAYLAND": "false"})[3]["env"]}
     assert env["PIXELFLUX_WAYLAND"] == "false"
 
@@ -135,3 +142,25 @@ def test_readiness_probe_on_web_port():
 def test_image_pull_policy_if_not_present():
     _, _, _, c = _build()
     assert c["imagePullPolicy"] == "IfNotPresent"
+
+
+def _envmap(c):
+    return {e["name"]: e["value"] for e in c["env"]}
+
+
+def test_cpu_tier_defaults_applied():
+    _, _, _, c = _build()
+    assert c["resources"]["limits"] == {"cpu": "3", "memory": "4Gi"}
+    e = _envmap(c)
+    assert (e["SELKIES_MANUAL_WIDTH"], e["SELKIES_MANUAL_HEIGHT"]) == ("1920", "1080")
+    assert e["SELKIES_FRAMERATE"] == "30"
+    assert e["SELKIES_SCALING_DPI"] == "96"
+
+
+def test_template_values_win_over_cpu_tier():
+    _, _, _, c = _build(memory_limit="8g", cpu_limit="2",
+                        env={"SELKIES_FRAMERATE": "60", "SELKIES_MANUAL_WIDTH": "2560"})
+    assert c["resources"]["limits"] == {"cpu": "2", "memory": "8Gi"}
+    e = _envmap(c)
+    assert e["SELKIES_FRAMERATE"] == "60" and e["SELKIES_MANUAL_WIDTH"] == "2560"
+    assert e["SELKIES_MANUAL_HEIGHT"] == "1080"
