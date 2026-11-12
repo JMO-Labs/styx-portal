@@ -75,7 +75,7 @@ kubectl wait --for=condition=Established crd/clusters.postgresql.cnpg.io --timeo
 docker build -f "$ROOT/backend/Dockerfile" -t styx-backend:kind "$ROOT"
 kind load docker-image styx-backend:kind --name "$KIND_CLUSTER"
 
-kubectl apply -f "$ROOT/test/kind/ha-demo/manifests.yaml"
+kubectl apply -f "$ROOT/scripts/enterprise/ha-demo/manifests.yaml"
 kubectl -n "$NS" wait --for=condition=Ready cluster/styx-db --timeout=600s
 k wait --for=condition=Ready pod/prober --timeout=180s
 k rollout status deploy/backend --timeout=600s
