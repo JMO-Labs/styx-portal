@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     K8S_DESKTOP_IMAGE: str = "ghcr.io/jmo-labs/styx-desktop:latest"
     INSTANCE_STORAGE_CLASS: str = "longhorn"
     INSTANCE_VOLUME_SIZE: str = "20Gi"
+    HOME_STORAGE_CLASS: str = "ceph-cephfs"
+    HOME_QUOTA: str = "10Gi"
+    PROFILE_QUOTA: str = "2Gi"
     CPU_TIER_RESOLUTION: str = "1920x1080"  # ADR-0031 CPU-tier launch defaults
     CPU_TIER_FPS: int = 30
     CPU_TIER_HIDPI: bool = False
