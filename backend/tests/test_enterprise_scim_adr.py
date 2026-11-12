@@ -70,7 +70,8 @@ def test_schema_is_committed_and_wellformed():
 
 
 def test_schema_has_no_delete_op():
-    ops = schema()["$defs"]["patchOp"]["properties"]["op"]["enum"]
+    items = schema()["$defs"]["patchOp"]["properties"]["Operations"]["items"]
+    ops = items["properties"]["op"]["enum"]
     assert "remove" not in ops
     assert set(ops) == {"replace"}
 
