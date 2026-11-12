@@ -15,12 +15,16 @@ PLACEHOLDER_SECRETS = {
 
 
 class Settings(BaseSettings):
+    # homelab | enterprise (ADR-0053): enterprise hard-disables homelab features
+    STYX_PROFILE: str = "homelab"
     DOMAIN: str = "localhost"
     POSIX_UID_MIN: int = 100000  # first allocated POSIX UID (ADR-0052)
     # Provisioning webhook auth (ADR-0020 / D20): mTLS (forwarded Client-Cert) + bearer
     PROVISION_HOST: str = ""
     PROVISION_BEARER_TOKEN: str = ""
     PROVISION_CLIENT_CERT_FINGERPRINTS: str = ""  # comma-separated SHA-256 hex of DER
+    KEYCLOAK_ADMIN_GROUPS: str = ""  # comma-separated; never grantable via the webhook
+    PROVISION_GROUP_MANAGERS: str = ""  # JSON {"group-slug": ["manager@email", ...]}
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/styx-portal.db"
     # Leader election: dedicated session connection, straight to the primary
     # (never a pooler). Empty = same as DATABASE_URL.
@@ -45,6 +49,7 @@ class Settings(BaseSettings):
     SERVICE_PRESETS_DIR: str = "/app/templates/services"
     SCREENSHOT_CACHE_DIR: str = "/app/data/screenshots"
     SCREENSHOT_INTERVAL_SECONDS: int = 30
+    SERVICE_THUMBNAIL_MAX_BYTES: int = 1_048_576  # reject larger service thumbnails
     MOUNT_BACKUP_DIR: str = "./data/mount-backups"
     MOUNT_PROBE_IMAGE: str = "busybox:1.36"
     TRAEFIK_DYNAMIC_DIR: str = "/app/traefik-dynamic"
@@ -62,6 +67,7 @@ class Settings(BaseSettings):
     INSTANCE_VOLUME_SIZE: str = "20Gi"
     HOME_STORAGE_CLASS: str = "ceph-cephfs"
     HOME_QUOTA: str = "10Gi"
+    HOME_MOUNT_PATH: str = "/home/user"
     PROMETHEUS_URL: str = ""  # kube-prometheus-stack, for home usage (ADR-0044)
     PROFILE_QUOTA: str = "2Gi"
     CPU_TIER_RESOLUTION: str = "1920x1080"  # ADR-0031 CPU-tier launch defaults
@@ -152,6 +158,12 @@ class Settings(BaseSettings):
     KC_ADMIN_CLIENT_SECRET: str = ""
     # Comma-separated Keycloak group ids (not names) the admin client must never add users to.
     KEYCLOAK_ADMIN_GROUPS: str = ""
+    # FederatedIdentity.provider name whose subjects are Keycloak user ids.
+    KC_PROVIDER_NAME: str = "keycloak"
+    # Days after disable before the account and its homes are deleted (ADR-0022).
+    ACCOUNT_DELETION_RETENTION_DAYS: int = 90
+
+    LIFECYCLE_INACTIVITY_DAYS: int = 35   # auto-disable after this many idle days (ADR-0022)
 
     # extra="ignore": the repo-root .env is shared with docker-compose,
     # cloudflared, and authentik, so it carries keys the backend does not
@@ -179,6 +191,12 @@ class Settings(BaseSettings):
                     "Generate one: openssl rand -base64 48"
                 )
             return self.JWT_SECRET
+        if self.DATABASE_URL.startswith("postgres"):
+            raise RuntimeError(
+                "JWT_SECRET is required when DATABASE_URL is PostgreSQL: a per-pod "
+                "secrets.json would differ between replicas and tokens would fail. "
+                "Set the same JWT_SECRET on every replica (openssl rand -base64 48)."
+            )
         return self._load_or_create_secret()
 
     def _load_or_create_secret(self) -> str:

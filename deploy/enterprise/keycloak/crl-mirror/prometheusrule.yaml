@@ -1,0 +1,29 @@
+# Fail-closed revocation (ADR-0017): a stale CRL blocks logins when OCSP is down, so page early.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: keycloak-crl
+  namespace: keycloak
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: keycloak-crl
+      rules:
+        - alert: KeycloakCRLStale
+          expr: time() > crl_next_update_timestamp_seconds{job="crl-mirror"}
+          for: 5m
+          labels: {severity: critical, team: ops}
+          annotations:
+            summary: "CRL {{ $labels.crl }} is past nextUpdate"
+            description: With OCSP down, logins are refused (fail closed) until the CRL is refreshed.
+        - alert: KeycloakCRLMirrorNotSucceeding
+          # schedule is every 6h; alert after 2x = 12h (43200s) without success, or no metric at all
+          expr: |
+            (time() - crl_mirror_last_success_timestamp_seconds{job="crl-mirror"} > 43200)
+            or absent(crl_mirror_last_success_timestamp_seconds{job="crl-mirror"})
+          for: 10m
+          labels: {severity: critical, team: ops}
+          annotations:
+            summary: CRL mirror job has not succeeded in 2x its schedule
+            description: Check the keycloak-crl-mirror CronJob logs and the CRL distribution points.

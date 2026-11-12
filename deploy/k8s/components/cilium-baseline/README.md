@@ -1,7 +1,7 @@
 # Cilium baseline (opt-in)
 
 Cluster-wide default-deny plus explicit allows, and a desktop egress patch that
-leaves desktops only DNS (`*.cluster.local`) and the Squid proxy. Status:
+leaves desktops only DNS (`**.cluster.local`) and the Squid proxy. Status:
 implemented in code, not deployed. The Squid and HAProxy parts themselves are
 not done; this component only allows traffic to Squid.
 

@@ -1,6 +1,6 @@
 # DNS to kube-dns. The L7 dns rule is also required for the Hubble dns metric
 # and any toFQDNs rule. Desktops (styx-instances) are excluded: their patched
-# instances CNP allows only *.cluster.local and Cilium allows are a union.
+# instances CNP allows only **.cluster.local (all depths) and Cilium allows are a union.
 apiVersion: cilium.io/v2
 kind: CiliumClusterwideNetworkPolicy
 metadata:

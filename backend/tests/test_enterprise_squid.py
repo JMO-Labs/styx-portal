@@ -114,3 +114,9 @@ def test_nonroot_and_limits():
     assert "persistentVolumeClaim" in vols["categories"]
     mounts = {m["mountPath"] for m in c["volumeMounts"]}
     assert {"/etc/squid/categories", "/etc/squid/allowlist"} <= mounts
+
+
+def test_squid_caps_file_descriptors():
+    # Without a cap squid sizes tables from the container nofile (~1M) and is OOMKilled at 512Mi.
+    fd = [d.split()[1] for d in directives() if d.startswith("max_filedescriptors ")]
+    assert fd and int(fd[0]) <= 65536

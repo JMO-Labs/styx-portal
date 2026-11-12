@@ -117,7 +117,7 @@ def _rendered(name):
 
 
 def test_dns_excludes_desktops():
-    # desktops get *.cluster.local-only DNS from the patched instances CNP;
+    # desktops get **.cluster.local-only DNS from the patched instances CNP;
     # a cluster-wide "*" pattern would widen it (Cilium allows are a union)
     assert "styx-instances" in _excluded_namespaces(_allow("dns"))
 
@@ -165,7 +165,7 @@ def test_desktop_egress_only_dns():
     (dns,) = cnp["spec"]["egress"]
     assert not FORBIDDEN_EGRESS & dns.keys()
     assert dns["toEndpoints"] == base["spec"]["egress"][0]["toEndpoints"]
-    assert dns["toPorts"][0]["rules"]["dns"] == [{"matchPattern": "*.cluster.local"}]
+    assert dns["toPorts"][0]["rules"]["dns"] == [{"matchPattern": "**.cluster.local"}]
     assert dns["toPorts"][0]["ports"] == [{"port": "53", "protocol": "ANY"}]
     assert cnp["spec"]["egressDeny"] == base["spec"]["egressDeny"]
     assert cnp["spec"]["ingress"] == base["spec"]["ingress"]
@@ -278,7 +278,8 @@ def test_control_matrix_points_at_component():
         assert "deploy/k8s/components/cilium-baseline/" in row, cid
         assert "patch-desktop-egress.yaml" in row, cid
         assert "implemented in code, not deployed" in row, cid
-        assert "Squid/HAProxy parts not done" in row, cid
+        assert "HAProxy part not done" in row, cid
+        assert "Squid egress" in row, cid
         assert row.rstrip().endswith("| Planned |"), cid
 
 

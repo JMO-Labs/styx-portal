@@ -36,6 +36,7 @@ from app.routers import turn_usage as turn_usage_router
 from app.routers import provisioned as provisioned_router
 from app.routers import stats as stats_router
 from app.routers import groups as groups_router
+from app.routers import provision as provision_router
 from app.routers import profiles as profiles_router
 from app.routers import me_storage as me_storage_router
 from app.routers import services as services_router
@@ -48,10 +49,11 @@ from app.services.k8s_runtime import instance_runtime
 from app.services.k8s_prepull import prepull_loop
 from app.services.background_loops import (  # noqa: F401 - re-exported for tests
     _capture_running_instances, _health_sample_loop, _log_portal_instances,
-    _metrics_db_loop, _metrics_sampler_loop, _monitor_tick, _reconcile_instances_at_boot,
-    _run_monitor_pass, _screenshot_capture_loop, _service_health_loop,
+    _lifecycle_loop, _metrics_db_loop, _metrics_sampler_loop, _monitor_tick,
+    _reconcile_instances_at_boot, _run_monitor_pass, _screenshot_capture_loop, _service_health_loop,
     _session_monitor_loop)
 from app.services.janitor import janitor_loop
+from app.services.settings_sync import settings_sync_loop
 from app.services.leader import LeaderTasks, get_elector
 from app.services.mount_jobs import sweep_interrupted
 from app.security.csrf import csrf_valid, CSRF_COOKIE, CSRF_HEADER, UNSAFE_METHODS
@@ -60,7 +62,8 @@ logger = logging.getLogger("styx-portal")
 _settings = Settings()
 
 _CSRF_EXEMPT = {"/api/auth/login", "/api/auth/login/matrix", "/api/auth/setup"}
-_CSRF_EXEMPT_PREFIXES = ("/api/enroll/", "/api/agent/")
+# /api/provision/: machine caller (mTLS + bearer), no cookies, so CSRF does not apply.
+_CSRF_EXEMPT_PREFIXES = ("/api/enroll/", "/api/agent/", "/api/provision/")
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):
@@ -74,10 +77,32 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class ProfileMiddleware:
+    """Enterprise profile: 404 for routes of hard-disabled features (ADR-0053)."""
+
+    def __init__(self, app, get_settings):
+        self.app, self.get_settings = app, get_settings
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            from app.services.profile import blocked_feature
+            feature = blocked_feature(self.get_settings(), scope["path"])
+            if feature:
+                resp = JSONResponse({"detail": f"feature disabled: {feature}"}, status_code=404)
+                return await resp(scope, receive, send)
+        await self.app(scope, receive, send)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Fail fast at boot if the auth secret is misconfigured, rather than
     # returning an opaque 500 the first time a token is minted (e.g. /auth/setup).
+    from app.services.profile import validate_profile
+    try:
+        validate_profile(_settings)
+    except RuntimeError as e:
+        logger.critical("FATAL: %s", e)
+        raise
     try:
         _settings.jwt_secret_or_raise()
     except RuntimeError as e:
@@ -140,11 +165,16 @@ async def lifespan(app: FastAPI):
             await refresh_routes_from_db(session)
 
     # Leader-only: boot steps run on every promotion, loops start after them.
+    from app.services.account_deletion import account_deletion_loop
     from app.services.new_account_review import new_account_review_loop
     from app.services.new_account_digest import digest_loop
     leader_loops = [_session_monitor_loop, _service_health_loop, _metrics_db_loop, janitor_loop,
+                    _lifecycle_loop,
                     partial(new_account_review_loop, async_session),
-                    partial(digest_loop, async_session)]
+                    partial(digest_loop, async_session),
+                    partial(account_deletion_loop, async_session),
+                    # Thumbnails live in the shared DB: one capturer avoids PK races (#99).
+                    partial(service_thumbnail_loop, async_session, _settings.SCREENSHOT_CACHE_DIR)]
     if _settings.ROUTE_BACKEND == "k8s":
         leader_loops.append(prepull_loop)
     leader = LeaderTasks(boot=[_probe_cleanup, _reconcile, _close_dangling, _refresh_routes],
@@ -155,8 +185,8 @@ async def lifespan(app: FastAPI):
     local_tasks = [
         asyncio.create_task(_metrics_sampler_loop()),
         asyncio.create_task(_screenshot_capture_loop()),
-        asyncio.create_task(service_thumbnail_loop(async_session, _settings.SCREENSHOT_CACHE_DIR)),
         asyncio.create_task(_health_sample_loop()),
+        asyncio.create_task(settings_sync_loop(async_session, _settings_store)),
     ]
     yield
     for t in local_tasks:
@@ -196,6 +226,8 @@ def cors_origins(s: Settings) -> list[str]:
 
 _cors_origins = cors_origins(_settings)
 
+app.add_middleware(ProfileMiddleware, get_settings=lambda: _settings)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
@@ -228,6 +260,7 @@ app.include_router(provisioned_router.router, prefix="/api/admin/provisioned", t
 app.include_router(turn_usage_router.router, prefix="/api/admin/turn-usage", tags=["turn-usage"])
 app.include_router(turn_usage_router.check_router, prefix="/api/admin/turn-check", tags=["turn-usage"])
 app.include_router(stats_router.router, prefix="/api/admin/stats", tags=["stats"])
+app.include_router(provision_router.router, prefix="/api/provision", tags=["provision"])
 app.include_router(groups_router.router, prefix="/api/groups", tags=["groups"])
 app.include_router(groups_router.users_router, prefix="/api/users", tags=["groups"])
 app.include_router(profiles_router.router, prefix="/api/profiles", tags=["profiles"])
@@ -400,6 +433,21 @@ async def system_diagnostics(
 ):
     from app.services.diagnostics import run_diagnostics
     return await run_diagnostics(session)
+
+
+@app.get("/api/diagnostics/features")
+async def diagnostics_features(admin: User = Depends(require_admin)):
+    from app.services.profile import ALL_FEATURES, disabled_features
+    off = disabled_features(_settings)
+    return {"profile": _settings.STYX_PROFILE, "disabled": off,
+            "enabled": [f for f in ALL_FEATURES if f not in off]}
+
+
+@app.get("/api/system/profile")
+async def system_profile():
+    """Public: lets the UI hide disabled features before login."""
+    from app.services.profile import disabled_features
+    return {"profile": _settings.STYX_PROFILE, "disabled": disabled_features(_settings)}
 
 
 @app.get("/api/system/diagnostics/history")

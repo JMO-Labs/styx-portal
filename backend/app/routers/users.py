@@ -10,7 +10,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.database import get_session
 from app.models import User, Invite, Group, UserGroup, RefreshToken, Instance, ServiceTemplate, FederatedIdentity
 from app.routers.instances import get_docker_manager
-from app.services import profiles
+from app.services import kc_admin, profiles
+from app.services.offboarding import disable_account
 from app.schemas import UserOut, CreateInviteRequest, InviteOut, PendingInviteOut, TempPasswordOut
 from app.security.deps import require_admin
 from app.security.passwords import hash_password, current_policy
@@ -87,6 +88,37 @@ async def disable_user(user_id: str, request: Request,
     await session.flush()
     await kick_unqualified(session, user_id=user.id)
     await audit_request(session, request, "user.disable", user_id=admin.id,
+                        resource=user.id)
+    await session.commit()
+    return await _user_out(user)
+
+
+@router.post("/{user_id}/remove-access", response_model=UserOut)
+async def remove_access(user_id: str, request: Request,
+                        admin: User = Depends(require_admin),
+                        session: AsyncSession = Depends(get_session)):
+    """Disable in Styx (kills sessions) and Keycloak. Local disable always happens."""
+    user = await session.get(User, user_id)
+    if not user:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    if user.id == admin.id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cannot remove your own access")
+    subjects = (await session.exec(select(FederatedIdentity.subject).where(
+        FederatedIdentity.user_id == user.id, FederatedIdentity.provider == "keycloak"))).all()
+    await disable_account(session, user, reason="remove_access", actor=admin.id)
+    try:
+        for sub in subjects:
+            await kc_admin.disable_user(sub)
+    except Exception as exc:
+        logger.exception("remove-access: keycloak disable failed for %s", user.id)
+        await audit_request(session, request, "user.remove_access_kc_failed",
+                            user_id=admin.id, resource=user.id,
+                            detail={"error": type(exc).__name__})
+        await session.commit()
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            "Account disabled in Styx, but Keycloak could not be updated. Retry or disable it in Keycloak.")
+    await audit_request(session, request, "user.remove_access", user_id=admin.id,
                         resource=user.id)
     await session.commit()
     return await _user_out(user)

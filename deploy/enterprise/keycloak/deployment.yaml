@@ -56,12 +56,17 @@ spec:
             - topologyKey: kubernetes.io/hostname
               labelSelector:
                 matchLabels: {app.kubernetes.io/name: keycloak}
+      volumes:
+        - name: realm
+          configMap: {name: keycloak-realm}
+        - name: crl
+          persistentVolumeClaim: {claimName: keycloak-crl, readOnly: true}
       containers:
         - name: keycloak
           # PLACEHOLDER(digest): mirror quay.io/keycloak/keycloak:26.4.7 into Harbor and
           # replace with the real digest (all-zero digest never pulls).
           image: harbor.example.internal/keycloak/keycloak:26.4.7@sha256:0000000000000000000000000000000000000000000000000000000000000000
-          args: [start]
+          args: [start, --import-realm]
           ports:
             - {name: http, containerPort: 8080}
             - {name: management, containerPort: 9000}
@@ -69,8 +74,16 @@ spec:
             - {name: KC_HTTP_ENABLED, value: "true"}
             - {name: KC_HOSTNAME, value: "https://login.example.internal"}   # PLACEHOLDER(ADR-0049)
             - {name: KC_PROXY_HEADERS, value: xforwarded}   # DMZ HAProxy (ADR-0050)
+            # X.509 client cert from the DMZ HAProxy headers (ADR-0050): base64 DER leaf/chain.
+            - {name: KC_SPI_X509CERT_LOOKUP__PROVIDER, value: haproxy}
+            - {name: KC_SPI_X509CERT_LOOKUP__HAPROXY__SSL_CLIENT_CERT, value: Client-Cert}
+            - {name: KC_SPI_X509CERT_LOOKUP__HAPROXY__SSL_CERT_CHAIN_PREFIX, value: Client-Cert-Chain}
+            - {name: KC_SPI_X509CERT_LOOKUP__HAPROXY__CERTIFICATE_CHAIN_LENGTH, value: "10"}
             - {name: KC_HEALTH_ENABLED, value: "true"}
             - {name: KC_METRICS_ENABLED, value: "true"}
+            - {name: KC_FEATURES, value: "user-event-metrics"}
+            - {name: KC_EVENT_METRICS_USER_ENABLED, value: "true"}   # break-glass alert (#131)
+            - {name: KC_EVENT_METRICS_USER_EVENTS, value: "login"}   # failures = event=login with error label
             - {name: KC_CACHE, value: ispn}
             - {name: KC_CACHE_STACK, value: jdbc-ping}
             - {name: KC_DB, value: postgres}
@@ -84,6 +97,9 @@ spec:
               valueFrom: {secretKeyRef: {name: keycloak-admin, key: username}}
             - name: KC_BOOTSTRAP_ADMIN_PASSWORD
               valueFrom: {secretKeyRef: {name: keycloak-admin, key: password}}
+          volumeMounts:
+            - {name: realm, mountPath: /opt/keycloak/data/import, readOnly: true}
+            - {name: crl, mountPath: /opt/keycloak/crl, readOnly: true}   # CRL mirror (#130)
           readinessProbe:
             httpGet: {path: /health/ready, port: management}
             periodSeconds: 10
