@@ -16,6 +16,7 @@ PLACEHOLDER_SECRETS = {
 
 class Settings(BaseSettings):
     DOMAIN: str = "localhost"
+    POSIX_UID_MIN: int = 100000  # first allocated POSIX UID (ADR-0052)
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/styx-portal.db"
     DOCKER_SOCKET: str = "unix:///var/run/docker.sock"
     DOCKER_NETWORK: str = "styx-portal"
