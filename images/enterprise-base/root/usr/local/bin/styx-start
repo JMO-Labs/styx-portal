@@ -1,6 +1,13 @@
 #!/bin/sh
 # Launch a Selkies session on port 8082 as the unprivileged user.
+# --wayland=true: pixelflux's own headless compositor is the display source.
+# --public: selkies 2.x binds loopback only by default; bind all interfaces
+# so the container port is reachable (--addr and --public are exclusive).
+# No gateway in this image: auth is enforced upstream (portal/ingress), so
+# basic auth defaults off; set SELKIES_ENABLE_BASIC_AUTH=true plus
+# SELKIES_BASIC_AUTH_PASSWORD to enable it.
 set -eu
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/runtime-$(id -u)}"
+export SELKIES_ENABLE_BASIC_AUTH="${SELKIES_ENABLE_BASIC_AUTH:-false}"
 mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
-exec /opt/selkies/bin/selkies --addr=0.0.0.0 --port="${SELKIES_PORT:-8082}" "$@"
+exec /opt/selkies/bin/selkies --wayland=true --public --port="${SELKIES_PORT:-8082}" "$@"

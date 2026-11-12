@@ -45,3 +45,20 @@ def test_healthcheck_and_entrypoint():
     assert script.is_file()
     assert "8082" in script.read_text()
     assert "ENTRYPOINT" in DOCKERFILE and "styx-start" in DOCKERFILE
+
+
+def test_start_script_has_display_source_and_port():
+    text = (BASE / "root/usr/local/bin/styx-start").read_text()
+    assert "--wayland=true" in text
+    assert "8082" in text
+    # selkies 2.x: --addr is loopback-only by default; --public binds all
+    # interfaces and is mutually exclusive with --addr.
+    assert "--public" in text
+    assert "--addr" not in text
+
+
+def test_apt_run_does_not_swallow_install_failure():
+    run = next(i for i in DOCKERFILE.split("\n\n") if "apt-get install" in i)
+    assert "apt-get install" in run
+    assert "{ find" in run and "|| true; }" in run
+    assert "-exec chmod a-s {} + 2>/dev/null || true \\" not in run
