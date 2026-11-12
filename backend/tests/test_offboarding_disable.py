@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from sqlmodel import select
 from starlette.requests import Request
 
-from app.models import AuditLog, Instance, RefreshToken, ServiceTemplate, User
+from app.models import AuditLog, Instance, PosixUid, RefreshToken, ServiceTemplate, User
 from app.security import tokens
 from app.security.deps import get_current_user
 from app.services.offboarding import disable_account
@@ -108,7 +108,7 @@ async def test_default_runtime_resolved_when_none(session, monkeypatch):
     rt.stop_container.assert_called_once_with("c0")
 
 
-async def test_stop_failure_still_disables_and_marks_stopped(session):
+async def test_stop_failure_still_disables_and_marks_stopped(session, caplog):
     u = await _user(session)
     insts = await _instances(session, u, ["running", "idle"])
     rt = MagicMock()
@@ -118,3 +118,37 @@ async def test_stop_failure_still_disables_and_marks_stopped(session):
     for i in insts:
         await session.refresh(i)
     assert [i.status for i in insts] == ["stopped"] * 2
+    assert "offboarding: stop failed" in caplog.text
+
+
+async def _k8s_user(session, monkeypatch, uid=2001):
+    monkeypatch.setenv("ROUTE_BACKEND", "k8s")
+    u = await _user(session)
+    if uid is not None:
+        session.add(PosixUid(uid=uid, user_key=u.id))
+        await session.commit()
+    return u
+
+
+async def test_freeze_home_resolves_default_runtime(session, monkeypatch):
+    u = await _k8s_user(session, monkeypatch)
+    rt = MagicMock()
+    monkeypatch.setattr("app.services.k8s_runtime.instance_runtime", lambda: rt)
+    await disable_account(session, u, "r", "a")
+    assert rt._c.patch_merge.call_args.args[3] == "home-2001"
+
+
+async def test_freeze_home_skipped_without_posix_uid(session, monkeypatch):
+    u = await _k8s_user(session, monkeypatch, uid=None)
+    rt = MagicMock()
+    await disable_account(session, u, "r", "a", runtime=rt)
+    rt._c.patch_merge.assert_not_called()
+
+
+async def test_freeze_home_failure_still_disables(session, monkeypatch, caplog):
+    u = await _k8s_user(session, monkeypatch)
+    rt = MagicMock()
+    rt._c.patch_merge.side_effect = RuntimeError("boom")
+    assert await disable_account(session, u, "r", "a", runtime=rt) is True
+    assert u.disabled_at is not None
+    assert "offboarding: home freeze failed" in caplog.text
