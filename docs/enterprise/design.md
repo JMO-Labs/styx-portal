@@ -152,7 +152,7 @@ Each row becomes an ADR in `adr/`. "Rationale" is the deciding reason; alternati
 ## 7. Open items for the builder
 - The Keycloak X.509 flow (HAProxy cert-header format vs the x509 lookup SPI) and the SCIM subset are
   deferred to their own Phase 2 ADRs. Phase 1 does not depend on either.
-- Closed: cosign key custody (OpenBao transit, CI-only) and medium/low CVE deadlines (30 d / 90 d) are decided in ADR-0062 (D61).
+- Closed (Phase 3): cosign key custody (OpenBao transit, CI-only) and medium/low CVE deadlines (30 d / 90 d) are decided in ADR-0063 (D62).
 
 ## 8. Risk acceptances and tailoring
 All items accepted by the owner 2026-11-09 (Rounds 1-5). Each still needs an owner signature in eMASS (POA&M or tailoring record).

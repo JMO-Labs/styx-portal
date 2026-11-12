@@ -40,7 +40,7 @@ Negative:
 
 Follow-up work:
 
-- Done: vulnerability SLAs (see D30) and cosign key custody, including medium/low CVE deadlines, in ADR-0062.
+- Done (Phase 3): vulnerability SLAs (see D30) and cosign key custody, including medium/low CVE deadlines, in ADR-0063.
 
 ## Implementation note (Phase 1, #5)
 

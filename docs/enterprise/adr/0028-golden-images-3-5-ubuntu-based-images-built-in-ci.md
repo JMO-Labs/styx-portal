@@ -43,4 +43,4 @@ Negative:
 Follow-up work:
 
 - Image bill of materials in phase 3.
-- Done: cosign key custody and medium/low CVE deadlines in ADR-0062.
+- Done: cosign key custody and medium/low CVE deadlines in ADR-0063.

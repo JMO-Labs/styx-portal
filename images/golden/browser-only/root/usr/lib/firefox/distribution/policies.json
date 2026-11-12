@@ -1,0 +1,8 @@
+{
+  "policies": {
+    "Homepage": {"URL": "https://portal.office365.us", "Locked": false, "StartPage": "homepage"},
+    "OverrideFirstRunPage": "https://portal.office365.us",
+    "DisableTelemetry": true,
+    "DisableAppUpdate": true
+  }
+}
