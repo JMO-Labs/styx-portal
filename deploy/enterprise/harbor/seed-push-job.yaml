@@ -1,0 +1,58 @@
+# Push the Phase 1 images (phase1.lock) into Harbor once it is up (issue #25).
+# Not part of kustomization.yaml: apply by hand after the robot account exists.
+# ConfigMap `phase1-lock` is made from the lock file:
+#   kubectl -n harbor create configmap phase1-lock --from-file=phase1.lock=deploy/enterprise/images/phase1.lock
+# PVC `phase1-seed` holds phase1-seed.tar (scripts/build_seed_bundle.sh); in-cluster pods cannot
+# reach upstream registries, so the source is the archive, not the internet.
+# Secret `harbor-seed-robot` (keys username, password) comes from OpenBao through ESO.
+# skopeo copy --all keeps the manifest digest, so Harbor serves the same repo@sha256 refs.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: harbor-seed-push
+  namespace: harbor
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: push
+          image: harbor.example.internal/quay.io/skopeo/stable:v1.20.0   # PLACEHOLDER: pin @sha256 (seed bundle)
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              grep -v '^#' /lock/phase1.lock | while read -r ref; do
+                [ -n "$ref" ] || continue
+                # docker.io and ghcr.io prefixes are dropped (Harbor project = first path part).
+                dest=$(echo "$ref" | sed -e 's#^docker.io/##' -e 's#^ghcr.io/##')
+                skopeo copy --all --dest-creds "$HARBOR_USER:$HARBOR_PASS" \
+                  "oci-archive:/seed/phase1-seed.tar:$ref" "docker://$HARBOR_HOST/$dest" || exit 1
+              done
+          env:
+            - {name: HARBOR_HOST, value: harbor.example.internal}
+            - name: HARBOR_USER
+              valueFrom: {secretKeyRef: {name: harbor-seed-robot, key: username}}
+            - name: HARBOR_PASS
+              valueFrom: {secretKeyRef: {name: harbor-seed-robot, key: password}}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: lock, mountPath: /lock, readOnly: true}
+            - {name: seed, mountPath: /seed, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: lock
+          configMap: {name: phase1-lock}
+        - name: seed
+          persistentVolumeClaim: {claimName: phase1-seed, readOnly: true}
+        - name: tmp
+          emptyDir: {}

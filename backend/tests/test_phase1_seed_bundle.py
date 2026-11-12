@@ -71,7 +71,9 @@ def test_harbor_push_job_manifest():
 
 def test_airgap_todo_closed_and_runbook_references_bundle():
     assert "TODO" not in (ROOT / "deploy/rke2/inventory/group_vars/all.yml").read_text().split("rke2_airgap_mode")[1].splitlines()[0]
-    assert "TODO" not in (ROOT / "deploy/rke2/README.md").read_text().split("Open placeholders")[1].split("Air-gap mode")[0]
+    readme = (ROOT / "deploy/rke2/README.md").read_text()
+    assert "`rke2_airgap_mode: false` for now" not in readme and "phase1.lock" in readme
+    assert "rke2_airgap_mode: true" in (ROOT / "deploy/rke2/inventory/group_vars/all.yml").read_text()
     rb = (ROOT / "docs/enterprise/runbooks/full-site-restore.md").read_text()
     step5 = rb.split("### Step 5: Images and Harbor")[1].split("### Step 6")[0]
     assert "phase1.lock" in step5 and "seed bundle" in step5.lower()
