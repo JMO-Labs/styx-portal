@@ -46,8 +46,10 @@ def test_kustomize_build_and_kubeconform():
                          text=True, check=True).stdout
     assert "kind: Deployment" in out
     _need("kubeconform")
-    subprocess.run(["kubeconform", "-strict", "-summary", "-ignore-missing-schemas"],
-                   input=out, text=True, check=True)
+    # Vendored CRD schemas + explicit SKIP list; no blanket ignore of unknown kinds.
+    res = subprocess.run([str(ROOT.parents[2] / "scripts/k8s_policy_check.sh"), "--stdin"],
+                         input=out, capture_output=True, text=True)
+    assert res.returncode == 0, res.stdout + res.stderr
 
 
 def test_db_cluster():
