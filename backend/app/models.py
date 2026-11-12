@@ -372,6 +372,7 @@ class Group(SQLModel, table=True):
     name: str = Field(unique=True, index=True)
     description: str | None = None
     allow_gpu: bool = False
+    egress_mode: str = "category"
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
