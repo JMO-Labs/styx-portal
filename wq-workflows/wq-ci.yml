@@ -1,0 +1,31 @@
+name: wq-ci
+on:
+  pull_request:
+    branches: [dev, enterprise]
+permissions: {contents: read, pull-requests: write}
+jobs:
+  # Docs/frontend-only PRs skip the gate (skipped = success). Backend changes run it.
+  changes:
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'homelab' }}
+    timeout-minutes: 5
+    permissions: {contents: read, pull-requests: read}
+    outputs:
+      backend: ${{ steps.f.outputs.backend }}
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: f
+        with:
+          filters: |
+            backend: ['backend/**', '.github/workflows/wq-ci.yml']
+  wq:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    uses: JMO-Labs/wq-ci/.github/workflows/wq-ci.yml@v1
+    with:
+      reruns: 1  # one rerun separates a flake from a real failure; a deterministic failure costs 2 runs, not 3
+      # The one backend run for PRs to dev (ci.yml skips its duplicate): no xdist: tests share setup state.
+      test-cmd: >-
+        cd backend && python3 -m venv .venv && .venv/bin/pip install -q -e ".[dev]" pytest-cov
+        && .venv/bin/python -m pytest -q --cov=app --cov-report=xml:../coverage.xml --junitxml=../junit.xml
+      fix-cmd: pip install -q ruff==0.15.14 && ruff check --fix backend/app backend/tests
+    secrets: inherit
