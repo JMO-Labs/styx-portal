@@ -53,12 +53,12 @@ def parse_crl(der):
         items = list(_children(der, s, e))
         if items[0][0] == 0x02:  # optional version
             items = items[1:]
-        times = [(t, a, b) for t, a, b in items[3:] if t in (0x17, 0x18)]
+        times = [(t, a, b) for t, a, b in items[2:] if t in (0x17, 0x18)]
         if not times:
             raise ValueError("no thisUpdate")
         nxt = _time(times[1][0], der[times[1][1]:times[1][2]]) if len(times) > 1 else None
         revoked = set()
-        for t, a, b in items[3:]:
+        for t, a, b in items[2:]:
             if t == 0x30:
                 for ct, ca, cb in _children(der, a, b):
                     st, sa, sb = next(_children(der, ca, cb))
