@@ -1,0 +1,6 @@
+#!/bin/sh
+# Launch a Selkies session on port 8082 as the unprivileged user.
+set -eu
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/runtime-$(id -u)}"
+mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
+exec /opt/selkies/bin/selkies --addr=0.0.0.0 --port="${SELKIES_PORT:-8082}" "$@"
