@@ -1,0 +1,40 @@
+# Desktop -> Squid rules, one policy per egress mode (label styx.io/egress-mode,
+# set by Styx: category | allowlist). Cilium allows are a union, so the two
+# selectors are mutually exclusive: allowlist desktops reach only the allowlist
+# port and every other desktop (incl. unlabeled) only the category port.
+# PROXY_* placeholders are filled from proxy-params.yaml.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: desktop-proxy-category
+  namespace: styx-instances
+spec:
+  endpointSelector:
+    matchExpressions:
+      - {key: styx.io/egress-mode, operator: NotIn, values: [allowlist]}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: PROXY_NAMESPACE
+            app.kubernetes.io/name: PROXY_NAME
+      toPorts:
+        - ports:
+            - {port: PROXY_PORT, protocol: TCP}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: desktop-proxy-allowlist
+  namespace: styx-instances
+spec:
+  endpointSelector:
+    matchLabels:
+      styx.io/egress-mode: allowlist
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: PROXY_NAMESPACE
+            app.kubernetes.io/name: PROXY_NAME
+      toPorts:
+        - ports:
+            - {port: PROXY_ALLOWLIST_PORT, protocol: TCP}
