@@ -1,14 +1,14 @@
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.config import settings
+from app.config import Settings
 from app.models import PosixUid
 from app.services.posix_uid import allocate_uid
 
 
 async def test_starts_at_min_and_is_idempotent(session):
     a = await allocate_uid(session, "alice")
-    assert a == settings.POSIX_UID_MIN == 100000
+    assert a == Settings().POSIX_UID_MIN == 100000
     assert await allocate_uid(session, "alice") == a
 
 
@@ -28,7 +28,7 @@ async def test_uid_not_reused_after_user_disabled(session):
 
 async def test_duplicate_uid_rejected(session):
     await allocate_uid(session, "alice")
-    session.add(PosixUid(uid=settings.POSIX_UID_MIN, user_key="mallory"))
+    session.add(PosixUid(uid=Settings().POSIX_UID_MIN, user_key="mallory"))
     with pytest.raises(IntegrityError):
         await session.commit()
     await session.rollback()

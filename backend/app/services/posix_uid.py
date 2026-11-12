@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.config import settings
+from app.config import Settings
 from app.models import PosixUid
 
 
@@ -22,7 +22,7 @@ async def allocate_uid(session: AsyncSession, user_key: str) -> int:
         if (uid := await _existing(session, user_key)) is not None:
             return uid
         top = (await session.exec(select(func.max(PosixUid.uid)))).one()
-        uid = max(settings.POSIX_UID_MIN, (top + 1) if top is not None else 0)
+        uid = max(Settings().POSIX_UID_MIN, (top + 1) if top is not None else 0)
         try:
             async with session.begin_nested():
                 session.add(PosixUid(uid=uid, user_key=user_key))
