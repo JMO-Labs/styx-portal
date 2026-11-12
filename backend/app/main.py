@@ -1,6 +1,7 @@
 import asyncio
 import re
 import logging
+from functools import partial
 from contextlib import asynccontextmanager
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
@@ -32,6 +33,7 @@ from app.routers import enroll as enroll_router
 from app.routers import agent as agent_router
 from app.routers import system_settings as system_settings_router
 from app.routers import turn_usage as turn_usage_router
+from app.routers import provisioned as provisioned_router
 from app.routers import stats as stats_router
 from app.routers import groups as groups_router
 from app.routers import profiles as profiles_router
@@ -137,7 +139,9 @@ async def lifespan(app: FastAPI):
             await refresh_routes_from_db(session)
 
     # Leader-only: boot steps run on every promotion, loops start after them.
-    leader_loops = [_session_monitor_loop, _service_health_loop, _metrics_db_loop, janitor_loop]
+    from app.services.new_account_review import new_account_review_loop
+    leader_loops = [_session_monitor_loop, _service_health_loop, _metrics_db_loop, janitor_loop,
+                    partial(new_account_review_loop, async_session)]
     if _settings.ROUTE_BACKEND == "k8s":
         leader_loops.append(prepull_loop)
     leader = LeaderTasks(boot=[_probe_cleanup, _reconcile, _close_dangling, _refresh_routes],
@@ -216,6 +220,7 @@ app.include_router(workstations_router.internal_router, prefix="/internal/workst
 app.include_router(enroll_router.router, prefix="/api/enroll", tags=["enroll"])
 app.include_router(agent_router.router, prefix="/api/agent", tags=["agent"])
 app.include_router(system_settings_router.router, prefix="/api/system-settings", tags=["system-settings"])
+app.include_router(provisioned_router.router, prefix="/api/admin/provisioned", tags=["provisioned"])
 app.include_router(turn_usage_router.router, prefix="/api/admin/turn-usage", tags=["turn-usage"])
 app.include_router(turn_usage_router.check_router, prefix="/api/admin/turn-check", tags=["turn-usage"])
 app.include_router(stats_router.router, prefix="/api/admin/stats", tags=["stats"])

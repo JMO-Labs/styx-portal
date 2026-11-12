@@ -6,6 +6,7 @@ from fastapi import HTTPException
 
 from app.config import Settings
 from app.services.k8s_api import incluster_client
+from app.services.k8s_homes import profile_pvc
 from app.services.k8s_instance_objects import build_objects, parse_qty, pvc
 
 logger = logging.getLogger("styx-portal")
@@ -36,7 +37,8 @@ class K8sInstanceRuntime:
 
     # volumes
     def create_volume(self, name: str, size: str | None = None) -> str:
-        self._c.apply(pvc(name, self._ns, size))
+        # a size is only passed for profile volumes (profiles.prepare_volumes)
+        self._c.apply(profile_pvc(name, self._ns) if size else pvc(name, self._ns))
         return name
 
     def gpu_free(self, n: int) -> bool:

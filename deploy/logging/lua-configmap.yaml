@@ -26,7 +26,25 @@ data:
         ev["id"] = nil
         record["_styx_audit"] = "1"
       end
+      -- Squid access lines (one JSON per line, squid == 1) go to their own stream.
+      if type(k) == "table" and k["namespace_name"] == "egress-proxy"
+          and k["container_name"] == "squid" and record["squid"] == 1 then
+        record["_squid"] = "1"
+      end
       return 2, ts, record
+    end
+
+    -- Squid: hostname-only allowlist; anything else (e.g. a URL path) is dropped.
+    function squid_filter(tag, ts, r)
+      local k = r["kubernetes"]
+      local out = {
+        ["@timestamp"] = r["@timestamp"] or iso(ts),
+        ts = r["ts"], src = r["src"], host = r["host"], method = r["method"],
+        status = r["status"], action = r["action"], port_name = r["port_name"],
+        bytes = r["bytes"],
+        kubernetes = {pod_name = type(k) == "table" and k["pod_name"] or nil},
+      }
+      return 2, ts, out
     end
 
     -- kube-apiserver audit.k8s.io/v1 Event -> ECS; the raw event stays under kubernetes.audit.

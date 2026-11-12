@@ -83,6 +83,66 @@ def test_no_kube_system_in_any_allow_selector_changes():
                 "values": ["kube-system"]} in sel.get("matchExpressions", [])
 
 
+KS_NOT_IN = {"key": "k8s:io.kubernetes.pod.namespace", "operator": "NotIn",
+             "values": ["kube-system"]}
+
+
+def _allow(name):
+    doc = _load(COMPONENT / f"ccnp-allow-{name}.yaml")
+    assert doc["kind"] == "CiliumClusterwideNetworkPolicy"
+    assert doc["metadata"]["name"] == f"allow-{name}"
+    assert KS_NOT_IN in doc["spec"]["endpointSelector"]["matchExpressions"]
+    return doc["spec"]
+
+
+def _excluded_namespaces(spec):
+    return {v for e in spec["endpointSelector"]["matchExpressions"]
+            if e["key"] == "k8s:io.kubernetes.pod.namespace" and e["operator"] == "NotIn"
+            for v in e["values"]}
+
+
+def test_dns_allowed():
+    rule = _allow("dns")["egress"][0]
+    assert rule["toEndpoints"][0]["matchLabels"] == {
+        "k8s:io.kubernetes.pod.namespace": "kube-system", "k8s-app": "kube-dns"}
+    ports = rule["toPorts"][0]
+    assert {(p["port"], p["protocol"]) for p in ports["ports"]} == {("53", "UDP"), ("53", "TCP")}
+    assert ports["rules"]["dns"] == [{"matchPattern": "*"}]
+
+
+def _rendered(name):
+    return next(d for d in _render(OVERLAY)
+                if d["kind"] == "CiliumClusterwideNetworkPolicy"
+                and d["metadata"]["name"] == name)["spec"]
+
+
+def test_dns_excludes_desktops():
+    # desktops get *.cluster.local-only DNS from the patched instances CNP;
+    # a cluster-wide "*" pattern would widen it (Cilium allows are a union)
+    assert "styx-instances" in _excluded_namespaces(_allow("dns"))
+
+
+def test_apiserver_allowed_on_6443():
+    spec = _allow("apiserver")
+    rule = spec["egress"][0]
+    assert rule["toEntities"] == ["kube-apiserver"]
+    assert [(p["port"], p["protocol"]) for p in rule["toPorts"][0]["ports"]] == [("6443", "TCP")]
+    proxy_ns = _load(COMPONENT / "proxy-params.yaml")["data"]["namespace"]
+    excluded = _excluded_namespaces(_rendered("allow-apiserver"))
+    assert {"styx-instances", proxy_ns} <= excluded
+    assert "traefik" not in excluded  # ingress providers watch the apiserver
+
+
+def test_webhooks_ingress_from_apiserver():
+    assert _allow("webhooks")["ingress"][0]["fromEntities"] == ["kube-apiserver"]
+
+
+def test_component_lists_allow_policies():
+    res = _load(COMPONENT / "kustomization.yaml")["resources"]
+    assert res[:4] == ["ccnp-allow-dns.yaml", "ccnp-allow-apiserver.yaml",
+                       "ccnp-allow-webhooks.yaml", "ccnp-default-deny.yaml"]
+
+
 # --- desktop egress patch + Squid proxy CCNP (#58) ---------------------------
 FORBIDDEN_EGRESS = {"toCIDR", "toCIDRSet", "toFQDNs", "toEntities"}
 SQUID = {"k8s:io.kubernetes.pod.namespace": "egress-proxy",
@@ -180,3 +240,40 @@ def test_squid_proxy_policy():
     # local-config params must not leak into the rendered output
     assert not any(d["kind"] == "ConfigMap" and d["metadata"]["name"] == "proxy-params"
                    for d in docs)
+
+
+# --- docs: control matrix + operator note (#61) ------------------------------
+MATRIX = K8S.parents[1] / "docs" / "enterprise" / "control-matrix.md"
+
+
+def test_control_matrix_points_at_component():
+    rows = {line.split("|")[1].strip(): line for line in MATRIX.read_text().splitlines()
+            if line.startswith("| ")}
+    for cid in ("AC-4", "SC-7", "SC-7(5)"):
+        row = rows[cid]
+        assert "deploy/k8s/components/cilium-baseline/" in row, cid
+        assert "patch-desktop-egress.yaml" in row, cid
+        assert "implemented in code, not deployed" in row, cid
+        assert "Squid/HAProxy parts not done" in row, cid
+        assert row.rstrip().endswith("| Planned |"), cid
+
+
+def test_operator_note_covers_rollout():
+    text = (COMPONENT / "README.md").read_text()
+    for needle in ("policyAuditMode", "hubble observe --verdict AUDIT", "default-deny",
+                   "toCIDR", "/32", "kubectl delete ccnp default-deny",
+                   "| desktop | world 443 direct | denied |",
+                   "| desktop | world SSH 22 | denied |",
+                   "| desktop | any UDP except DNS | denied |",
+                   "kube-apiserver", "break-glass"):
+        assert needle in text, needle
+    assert text.index("## Apply order") < text.index("## Audit-mode rollout")
+    assert "enable audit mode first" in text
+    rollback = text[text.index("## Rollback"):text.index("## Squid option B")]
+    assert "partial" in rollback
+    for name in ("allow-dns", "allow-webhooks", "squid-proxy", "CiliumClusterwideNetworkPolicy"):
+        assert name in rollback, name
+    assert "kubectl apply -f deploy/k8s/instances.yaml" in rollback
+    squid = text[text.index("## Squid option B"):text.index("## Manual connectivity")]
+    assert "replacement" in squid and "spec.egress.1.toPorts" in squid
+    assert len(text.splitlines()) < 500

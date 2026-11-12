@@ -1,0 +1,14 @@
+# Admission webhooks (Kyverno/CNPG/ESO, failurePolicy: Fail) are called by the
+# kube-apiserver; without this ingress allow, object creation blocks cluster-wide.
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: allow-webhooks
+spec:
+  endpointSelector:
+    matchExpressions:
+      - key: k8s:io.kubernetes.pod.namespace
+        operator: NotIn
+        values: [kube-system]
+  ingress:
+    - fromEntities: [kube-apiserver]
