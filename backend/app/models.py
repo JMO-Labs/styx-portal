@@ -418,7 +418,7 @@ class ServiceThumbnail(SQLModel, table=True):
     __tablename__ = "service_thumbnails"
     service_id: str = Field(primary_key=True, foreign_key="proxied_services.id", ondelete="CASCADE")
     data: bytes = Field(sa_column=Column(LargeBinary, nullable=False))
-    updated_at: NaiveDatetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    updated_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
 class ProxiedService(SQLModel, table=True):

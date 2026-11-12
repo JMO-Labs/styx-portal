@@ -1,6 +1,7 @@
 """Service thumbnails in the DB (bytea/BLOB) so every replica serves what any replica captured."""
 from datetime import datetime, timezone
 
+from sqlalchemy import delete as sa_delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -34,6 +35,5 @@ async def get(session: AsyncSession, service_id: str) -> bytes | None:
 
 
 async def delete(session: AsyncSession, service_id: str) -> None:
-    row = await session.get(ServiceThumbnail, service_id)
-    if row is not None:
-        await session.delete(row)
+    # Bulk DELETE (not ORM): avoids a stale-row warning when the FK cascade wins the race on PG.
+    await session.exec(sa_delete(ServiceThumbnail).where(ServiceThumbnail.service_id == service_id))
