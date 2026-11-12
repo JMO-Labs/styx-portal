@@ -96,7 +96,7 @@ def build_objects(name, image, env, volumes, port, ns, owner, *, gpu_enabled=Fal
                   gpu_count=1, memory_limit=None, cpu_limit=None, shm_size=None,
                   cap_add=None, read_only_rootfs=False, tmpfs=None, extra_hosts=None,
                   entrypoint=None, command=None, posix_uid: int | None = None,
-                  egress_mode=None) -> list[dict]:
+                  egress_mode=None, home_read_only: bool = False) -> list[dict]:
     if "/" not in image:
         image = Settings().K8S_DESKTOP_IMAGE
     image = image_digest.resolve_digest(image)
@@ -138,7 +138,8 @@ def build_objects(name, image, env, volumes, port, ns, owner, *, gpu_enabled=Fal
                        runAsNonRoot=True)
         vols.append({"name": "home",
                      "persistentVolumeClaim": {"claimName": f"home-{posix_uid}"}})
-        mounts.append({"name": "home", "mountPath": cfg.HOME_MOUNT_PATH})
+        mounts.append({"name": "home", "mountPath": cfg.HOME_MOUNT_PATH,
+                       **({"readOnly": True} if home_read_only else {})})
     caps = _caps(list(cap_add or []))
     cap_spec: dict = {"drop": ["ALL"]}
     if caps:
