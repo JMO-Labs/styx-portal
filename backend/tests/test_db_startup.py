@@ -13,7 +13,7 @@ from app.db_migrate import migrate
 from tests.db_helpers import diff_vs_models, scalar, table_names
 
 FIXTURES = Path(__file__).parent / "fixtures"
-HEAD = "0009_approved_requests"
+HEAD = "0010_card_review_queue"
 
 # Drift a legacy (ALTER-built) SQLite DB keeps after the stamp. SQLite is type-lax, so
 # these are harmless. Expected; do not "fix" them in the baseline.
