@@ -69,3 +69,4 @@ All ADRs were accepted 2026-11-09 (owner approval, Rounds 1-5; issue #1). One AD
 | [D62](0063-cosign-key-custody-and-medium-low-cve-deadlines.md) | Cosign key custody and medium/low CVE fix deadlines | Proposed | SI-2, SI-7, CM-14, SC-12 |
 | [D63](0064-squid-egress-implementation.md) | Squid egress implementation (two ports, label-selected, shared allowlist) | Accepted | SC-7, SC-7(5), AC-4, AU-12 |
 | [D64](0065-keycloak-x509-flow-and-haproxy-client-cert-header.md) | Keycloak X.509 flow and HAProxy client-cert header format | Proposed | IA-2, IA-2(12), IA-5, IA-5(2), SC-23, AC-17 |
+| [D65](0066-cephfs-homes-uid-ownership-and-freeze.md) | CephFS homes, UID ownership and freeze on disable | Proposed | SC-28, CM-12, CP-10, AC-3 |

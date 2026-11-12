@@ -38,6 +38,8 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Dump all stacks if one test runs >300 s, so CI hangs name the stuck test.
+faulthandler_timeout = 300
 markers = [
     "sqlite_only: runs only on the SQLite backend (skipped on Postgres)",
     "pg_only: runs only on the Postgres backend",

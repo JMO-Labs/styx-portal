@@ -1,7 +1,7 @@
 """approved_requests table for the provisioning webhook (styx-portal#120)
 
-Revision ID: 0008_approved_requests
-Revises: 0007_group_tier
+Revision ID: 0009_approved_requests
+Revises: 0008_service_thumbnails
 Create Date: 2026-11-12
 
 """
@@ -10,8 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = '0008_approved_requests'
-down_revision: Union[str, Sequence[str], None] = '0007_group_tier'
+revision: str = '0009_approved_requests'
+down_revision: Union[str, Sequence[str], None] = '0008_service_thumbnails'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
