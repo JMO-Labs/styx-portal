@@ -137,7 +137,7 @@ async def test_put_get_replace_and_size_cap(session, monkeypatch):
 
 
 async def test_write_on_one_replica_served_by_another(session, admin_client, monkeypatch):
-    """Replica A's capture pass writes via its own DB session; replica B (empty cache dir) serves it."""
+    """Replica A writes via its own DB session; replica B (empty cache dir) serves it."""
     from sqlmodel.ext.asyncio.session import AsyncSession
 
     from app.services.screenshot_url import capture_services_pass
