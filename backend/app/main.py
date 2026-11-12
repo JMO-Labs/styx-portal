@@ -52,6 +52,7 @@ from app.services.background_loops import (  # noqa: F401 - re-exported for test
     _run_monitor_pass, _screenshot_capture_loop, _service_health_loop,
     _session_monitor_loop)
 from app.services.janitor import janitor_loop
+from app.services.settings_sync import settings_sync_loop
 from app.services.leader import LeaderTasks, get_elector
 from app.services.mount_jobs import sweep_interrupted
 from app.security.csrf import csrf_valid, CSRF_COOKIE, CSRF_HEADER, UNSAFE_METHODS
@@ -181,6 +182,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_screenshot_capture_loop()),
         asyncio.create_task(service_thumbnail_loop(async_session, _settings.SCREENSHOT_CACHE_DIR)),
         asyncio.create_task(_health_sample_loop()),
+        asyncio.create_task(settings_sync_loop(async_session, _settings_store)),
     ]
     yield
     for t in local_tasks:
