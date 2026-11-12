@@ -28,6 +28,7 @@ nav = [
     { "GitLab mirror (enterprise)" = "operate/gitlab-mirror.md" },
     { "GitLab protected branches (enterprise)" = "operate/gitlab-protect.md" },
     { "Kubernetes enterprise" = "operate/kubernetes-enterprise.md" },
+    { "Enterprise images" = "operate/enterprise-images.md" },
     { "Enroll workstations" = "operate/workstations-enroll.md" },
     { "Templates and instances" = "operate/templates-instances.md" },
     { "Proxied services" = "operate/services.md" },

@@ -163,3 +163,25 @@ def test_password_policy_defaults():
     assert s.PASSWORD_REQUIRE_LOWER is False
     assert s.PASSWORD_REQUIRE_DIGIT is False
     assert s.PASSWORD_REQUIRE_SYMBOL is False
+
+
+@pytest.mark.parametrize("url", [
+    "postgresql+asyncpg://u:p@db/styx",
+    "postgresql://u:p@db/styx",
+])
+def test_jwt_secret_unset_on_postgres_refuses(tmp_path, url):
+    s = _settings(tmp_path, JWT_SECRET="", DATABASE_URL=url)
+    with pytest.raises(RuntimeError, match="JWT_SECRET"):
+        s.jwt_secret_or_raise()
+    assert not (tmp_path / "secrets.json").exists()
+
+
+def test_jwt_secret_set_on_postgres_ok(tmp_path):
+    s = _settings(tmp_path, JWT_SECRET="a" * 32, DATABASE_URL="postgresql+asyncpg://u:p@db/x")
+    assert s.jwt_secret_or_raise() == "a" * 32
+
+
+def test_jwt_secret_unset_on_sqlite_still_falls_back(tmp_path):
+    s = _settings(tmp_path, JWT_SECRET="", DATABASE_URL="sqlite+aiosqlite:///./x.db")
+    assert len(s.jwt_secret_or_raise()) >= 32
+    assert (tmp_path / "secrets.json").exists()

@@ -401,6 +401,7 @@ class Group(SQLModel, table=True):
     tier_memory: str | None = None
     manager_user_id: str | None = Field(default=None, foreign_key="users.id")
     kc_group_id: str | None = None
+    idp_managed: bool = False  # membership mirrored from the IdP groups claim; read-only in API
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
