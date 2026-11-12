@@ -1,7 +1,7 @@
 # Keycloak runbook
 
 Deploy and operate Keycloak for CAC/PIV/PIV-I login from `deploy/enterprise/keycloak/` and
-`deploy/enterprise/banner/` (issues #128-#133; ADR-0014, 0015, 0017, 0025, 0027, 0065, 0067).
+`deploy/enterprise/banner/` (issues #128-#133; ADR-0014, 0015, 0017, 0025, 0027, 0065, 0068).
 
 ## Deploy order
 

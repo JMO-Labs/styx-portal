@@ -316,6 +316,8 @@ def test_keycloak_runbook_and_matrix():
     for phrase in ("deploy order", "realm import", "CRL mirror", "KeycloakCRLStale",
                    "break-glass", "post-use review", "banner host"):
         assert has(text, phrase), phrase
+    intro = text.split("## ", 1)[0]
+    assert "0068" in intro and "0067" not in intro  # 0067 = image layout ADR
     _links_resolve(runbook)
     _links_resolve(DOCS / "runbooks/keycloak-breakglass.md")
     cm = (DOCS / "control-matrix.md").read_text()
