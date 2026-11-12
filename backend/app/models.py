@@ -386,6 +386,22 @@ class ApprovedRequest(SQLModel, table=True):
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
+class CardReview(SQLModel, table=True):
+    """First-login card that matched no single approved request; held for admin (#122)."""
+    __tablename__ = "card_review_queue"
+
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    kc_user_id: str = Field(index=True)
+    card_type: str
+    # Sensitive card ids (EDIPI / card UUID): never logged, audited or returned by the API.
+    claims: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    reason: str                         # no_match | multiple_matches | invalid_claims
+    status: str = "pending"             # pending | approved | rejected
+    resolved_by: str | None = None
+    resolved_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+
+
 class Group(SQLModel, table=True):
     __tablename__ = "groups"
     id: str = Field(default_factory=_uuid, primary_key=True)

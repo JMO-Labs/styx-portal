@@ -37,6 +37,7 @@ from app.routers import provisioned as provisioned_router
 from app.routers import stats as stats_router
 from app.routers import groups as groups_router
 from app.routers import provision as provision_router
+from app.routers import card_reviews as card_reviews_router
 from app.routers import profiles as profiles_router
 from app.routers import me_storage as me_storage_router
 from app.routers import services as services_router
@@ -261,6 +262,8 @@ app.include_router(turn_usage_router.router, prefix="/api/admin/turn-usage", tag
 app.include_router(turn_usage_router.check_router, prefix="/api/admin/turn-check", tags=["turn-usage"])
 app.include_router(stats_router.router, prefix="/api/admin/stats", tags=["stats"])
 app.include_router(provision_router.router, prefix="/api/provision", tags=["provision"])
+app.include_router(card_reviews_router.router, prefix="/api/admin/card-reviews",
+                   tags=["card-reviews"])
 app.include_router(groups_router.router, prefix="/api/groups", tags=["groups"])
 app.include_router(groups_router.users_router, prefix="/api/users", tags=["groups"])
 app.include_router(profiles_router.router, prefix="/api/profiles", tags=["profiles"])
