@@ -1,57 +1,89 @@
-"""One-time first-run setup code.
+"""One-time first-run setup code, stored in the DB so every replica agrees.
 
-While no user exists, POST /api/auth/setup must present this code. It is
-generated on demand, logged at boot and kept in <data dir>/setup-token (0600);
-deleted once the first admin exists.
+While no user exists, POST /api/auth/setup must present this code. It is a
+singleton row (id=1) created with INSERT ... ON CONFLICT DO NOTHING, so racing
+issuers converge on one token, and consumed with a DELETE whose rowcount decides
+the single winner. A pre-DB `<data dir>/setup-token` file is migrated at boot.
 """
 import asyncio
 import logging
-import os
 import secrets
 from pathlib import Path
 
+from sqlalchemy import delete, select
+from sqlalchemy.dialects import postgresql, sqlite
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from app.config import Settings
+from app.models import SetupToken
 
 logger = logging.getLogger("styx-portal")
 _settings = Settings()
 
-# Serialises first-run creation so racing requests cannot both create an admin.
+# Serialises first-run creation within a process; the DB guard covers replicas.
 setup_lock = asyncio.Lock()
 
 
-def _path() -> Path:
+def _legacy_path() -> Path:
     return Path(_settings.SECRETS_FILE).parent / "setup-token"
 
 
-def current() -> str:
-    """The active setup code, creating (0600) it if missing."""
-    p = _path()
+def take_legacy_file() -> str | None:
+    """Read and delete the old per-pod token file, if present."""
+    p = _legacy_path()
     try:
         tok = p.read_text().strip()
-        if tok:
-            return tok
     except FileNotFoundError:
-        pass
-    tok = secrets.token_urlsafe(24)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w") as f:
-        f.write(tok)
+        return None
+    p.unlink(missing_ok=True)
+    return tok or None
+
+
+async def current_or_none(session: AsyncSession) -> str | None:
+    return (await session.exec(select(SetupToken.token).where(SetupToken.id == 1))).first()
+
+
+async def _insert_if_absent(session: AsyncSession, token: str) -> None:
+    ins = (postgresql.insert if session.bind.dialect.name == "postgresql" else sqlite.insert)
+    await session.exec(ins(SetupToken).values(id=1, token=token).on_conflict_do_nothing())
+    await session.commit()
+
+
+async def current(session: AsyncSession) -> str:
+    """The active setup code, atomically creating it if missing."""
+    tok = await current_or_none(session)
+    if tok is None:
+        await _insert_if_absent(session, secrets.token_urlsafe(24))
+        tok = await current_or_none(session)
     return tok
 
 
-def verify(candidate: str | None) -> bool:
-    return bool(candidate) and secrets.compare_digest(candidate.encode(), current().encode())
+async def verify(session: AsyncSession, candidate: str | None) -> bool:
+    return bool(candidate) and secrets.compare_digest(
+        candidate.encode(), (await current(session)).encode())
 
 
-def clear() -> None:
-    _path().unlink(missing_ok=True)
+async def consume(session: AsyncSession, candidate: str | None) -> bool:
+    """Delete the token iff it matches; True for exactly one caller. Caller commits."""
+    if not await verify(session, candidate):
+        return False
+    res = await session.exec(delete(SetupToken).where(
+        SetupToken.id == 1, SetupToken.token == candidate))
+    return res.rowcount == 1
 
 
-def announce(setup_pending: bool) -> None:
-    """Boot hook: log the code while setup is pending, else drop a stale file."""
+async def clear(session: AsyncSession) -> None:
+    await session.exec(delete(SetupToken))
+    await session.commit()
+
+
+async def announce(session: AsyncSession, setup_pending: bool) -> None:
+    """Boot hook: log the code while setup is pending, else drop stale state."""
+    legacy = take_legacy_file()
     if not setup_pending:
-        clear()
+        await clear(session)
         return
-    logger.warning("Styx setup code: %s  (needed to create the first admin; also in %s)",
-                   current(), _path())
+    if legacy:
+        await _insert_if_absent(session, legacy)
+    logger.warning("Styx setup code: %s  (needed to create the first admin)",
+                   await current(session))

@@ -26,7 +26,7 @@ steps are in the Operate section.
 * **Local login**: Argon2id password hashes (`security/passwords.py`), password policy from runtime settings.
 * **JWTs** (`security/tokens.py`, HS256 with `JWT_SECRET`): access token carries `sub`, `role`, `type`, `tv` (user `token_version`) and `jti`. A mismatch on `tv` or a denylisted `jti` yields 401. Password change, role change or disable bumps `token_version`.
 * **Refresh tokens** live in `refresh_tokens` as families; reusing a rotated token revokes the family. Sessions have an absolute cap (`SESSION_MAX_AGE`; `MATRIX_SESSION_MAX_HOURS` for card sessions).
-* **First run**: `POST /api/auth/setup` requires a one-time code logged at boot and stored in `<data>/setup-token` (0600), deleted once an admin exists.
+* **First run**: `POST /api/auth/setup` requires a one-time code logged at boot and stored in the `setup_tokens` DB table (race-safe singleton row, shared by all replicas); it is consumed atomically by the first successful setup. A legacy `<data>/setup-token` file is migrated and removed on first boot.
 * **Forced password change**: `must_change_pw` restricts the user to `/auth/me`, `/auth/change-password`, `/auth/logout`.
 * **Admin writes** must originate from the Styx SPA (`security/same_origin.py`).
 
