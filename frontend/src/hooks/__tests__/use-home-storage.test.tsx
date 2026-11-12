@@ -16,6 +16,6 @@ describe("useHomeStorage", () => {
     vi.stubGlobal("fetch", f);
     const { result } = renderHook(() => useHomeStorage(), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual(body));
-    expect(String(f.mock.calls[0][0])).toContain("/api/me/storage");
+    expect(String(f.mock.calls[0]?.[0])).toContain("/api/me/storage");
   });
 });
