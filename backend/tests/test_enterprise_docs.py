@@ -104,16 +104,19 @@ def test_adr_0064_keycloak_x509():
     text = adr("0064")
     assert text.startswith("# ADR-0064: Keycloak X.509")
     assert "Decision ID: D63" in text
+    assert "- Status: Proposed" in text  # awaits owner acceptance
     for phrase in ("Client-Cert", "haproxy", "IA-2(12)"):
         assert has(text, phrase), phrase
     index = (ADR / "README.md").read_text()
     assert "[D63](0064-keycloak-x509" in index
-    assert "ADR-0064 (D63)" in (DOCS / "design.md").read_text()
+    d63 = next(ln for ln in index.splitlines() if "[D63]" in ln)
+    assert "| Proposed |" in d63
+    assert "proposed in ADR-0064 (D63)" in (DOCS / "design.md").read_text()
 
 
 def test_adr_index_matches_files():
     index = (ADR / "README.md").read_text()
-    older = [ln for ln in index.splitlines() if "(0062-" not in ln and "(0063-" not in ln]
+    older = [ln for ln in index.splitlines() if not any(f"({n}-" in ln for n in ("0062", "0063", "0064"))]
     assert "| Proposed |" not in "\n".join(older)
     assert f"accepted {DATE}" in index.lower()
     rows = dict(re.findall(r"^\| \[D\w+\]\(([^)]+)\) \|[^|]+\| ([^|]+) \|", index, re.M))
