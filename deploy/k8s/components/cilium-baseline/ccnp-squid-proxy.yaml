@@ -16,6 +16,7 @@ spec:
       toPorts:
         - ports:
             - {port: PROXY_PORT, protocol: TCP}
+            - {port: PROXY_ALLOWLIST_PORT, protocol: TCP}
   egress:
     - toEntities: [world]
       toPorts:

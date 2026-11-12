@@ -41,6 +41,7 @@ testpaths = ["tests"]
 markers = [
     "sqlite_only: runs only on the SQLite backend (skipped on Postgres)",
     "pg_only: runs only on the Postgres backend",
+    "pg: needs a real Postgres (TEST_PG_URL)",
 ]
 
 [tool.setuptools.packages.find]
