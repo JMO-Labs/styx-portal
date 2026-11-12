@@ -164,8 +164,9 @@ async def test_setup_adopts_ownerless_instances_and_templates(client, session):
     assert r.status_code == 201, r.text
 
     admin = (await session.exec(select(User).where(User.username == "admin"))).one()
+    admin_id = admin.id
     session.expire_all()
     inst = (await session.exec(select(Instance).where(Instance.name == "orphan"))).one()
     tpl = (await session.exec(select(ServiceTemplate).where(ServiceTemplate.name == "orphan-tpl"))).one()
-    assert inst.owner_id == admin.id
-    assert tpl.owner_id == admin.id
+    assert inst.owner_id == admin_id
+    assert tpl.owner_id == admin_id
