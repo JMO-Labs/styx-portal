@@ -119,3 +119,31 @@ def test_create_records_digest(monkeypatch):
                         lambda ref, *a, **k: "harbor.example/styx/desktop@sha256:new")
     rt.create_container("selkies-a", REF, {}, {}, {}, 3000)
     assert rt.pinned_digest("selkies-a") == "sha256:new"
+
+
+def test_is_signed_non_dict_false():
+    assert image_digest._is_signed("not-a-dict") is False
+
+
+def test_untagged_ref_with_registry_port_resolves():
+    """Colon belongs to the registry port, not a tag (_split no-tag branch)."""
+    c = Settings(HARBOR_URL="https://harbor.example:8443", HARBOR_USER="u", HARBOR_PASSWORD="p")
+    ref = "harbor.example:8443/styx/desktop"
+    assert image_digest._split(ref, "harbor.example:8443") == (ref, "styx", "desktop")
+
+    def h(r):
+        return httpx.Response(200, json=[art("sha256:a", "2026-01-01T00:00:00Z", True)])
+    assert resolve_digest(ref, c, client(h)) == f"{ref}@sha256:a"
+
+
+def test_owned_client_is_closed(monkeypatch):
+    created = []
+    real = httpx.Client
+
+    def factory(*a, **kw):
+        c = real(transport=httpx.MockTransport(lambda r: httpx.Response(200, json=[])))
+        created.append(c)
+        return c
+    monkeypatch.setattr(image_digest.httpx, "Client", factory)
+    assert resolve_digest(REF, cfg()) == REF
+    assert created and created[0].is_closed
