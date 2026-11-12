@@ -212,3 +212,90 @@ async def test_loop_forwards_configured_retention(monkeypatch):
     with pytest.raises(asyncio.CancelledError):
         await ad.account_deletion_loop(sf)
     assert seen["retention_days"] == 30
+
+
+async def test_no_admin_to_take_over_keeps_user(session):
+    u = await _seed(session, "solo", 100)
+    uid = u.id
+    session.add(ServiceTemplate(name="priv", display_name="P", image="i", owner_id=uid))
+    await session.commit()
+    rt, kc = _deps()
+    assert await run_deletion_pass(session, NOW, runtime=rt, kc_delete=kc) == 0
+    session.expire_all()
+    assert await session.get(User, uid) is not None
+
+
+async def test_volume_remove_failure_keeps_user(session):
+    u = await _seed(session, "volfail", 100)
+    uid = u.id
+    rt, kc = _deps()
+    rt.remove_volume.side_effect = RuntimeError("boom")
+    assert await run_deletion_pass(session, NOW, runtime=rt, kc_delete=kc) == 0
+    kc.assert_not_awaited()
+    session.expire_all()
+    assert await session.get(User, uid) is not None
+
+
+async def test_owned_instances_and_events_deleted(session):
+    from app.models import Instance, SessionEvent
+    u = await _seed(session, "owner", 100)
+    uid = u.id
+    tid = (await session.exec(select(UserProfile.template_id))).first()
+    inst = Instance(template_id=tid, owner_id=uid, name="i", subdomain="i-owner")
+    session.add(inst)
+    await session.commit()
+    session.add(SessionEvent(instance_id=inst.id, event_type="started"))
+    await session.commit()
+    rt, kc = _deps()
+    assert await run_deletion_pass(session, NOW, runtime=rt, kc_delete=kc) == 1
+    session.expire_all()
+    assert not (await session.exec(select(Instance))).all()
+    assert not (await session.exec(select(SessionEvent))).all()
+
+
+async def test_default_runtime_from_instance_runtime(session, monkeypatch):
+    from app.services import k8s_runtime
+    rt = MagicMock()
+    monkeypatch.setattr(k8s_runtime, "instance_runtime", lambda: rt)
+    await _seed(session, "defrt", 100)
+    assert await run_deletion_pass(session, NOW, kc_delete=AsyncMock()) == 1
+    rt.remove_volume.assert_called_once_with("home-defrt")
+
+
+def _loop_env(monkeypatch, ad, fake_pass):
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def sf():
+        yield "sess"
+
+    async def stop(_):
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(ad, "run_deletion_pass", fake_pass)
+    monkeypatch.setattr(ad.asyncio, "sleep", stop)
+    return sf
+
+
+async def test_loop_logs_when_accounts_deleted(monkeypatch, caplog):
+    from app.services import account_deletion as ad
+
+    async def fake_pass(s, now, **kw):
+        return 2
+
+    sf = _loop_env(monkeypatch, ad, fake_pass)
+    with caplog.at_level("WARNING"), pytest.raises(asyncio.CancelledError):
+        await ad.account_deletion_loop(sf)
+    assert "deleted 2 expired disabled account(s)" in caplog.text
+
+
+async def test_loop_survives_pass_failure(monkeypatch, caplog):
+    from app.services import account_deletion as ad
+
+    async def fake_pass(s, now, **kw):
+        raise RuntimeError("db down")
+
+    sf = _loop_env(monkeypatch, ad, fake_pass)
+    with caplog.at_level("ERROR"), pytest.raises(asyncio.CancelledError):
+        await ad.account_deletion_loop(sf)  # reaches sleep => exception was swallowed
+    assert "account deletion pass failed" in caplog.text
