@@ -73,7 +73,8 @@ async def test_home_kwargs_k8s_owner_gets_stable_allocated_uid(session):
     rt = K8sInstanceRuntime(client=MagicMock())
     inst = SimpleNamespace(owner_id="user-1")
     got = await _home_kwargs(rt, inst, session)
-    assert got == {"posix_uid": await allocate_uid(session, "user-1")}
+    assert got == {"posix_uid": await allocate_uid(session, "user-1"),
+                   "home_read_only": False}
     assert await _home_kwargs(rt, inst, session) == got
 
 
