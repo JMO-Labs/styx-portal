@@ -1,5 +1,4 @@
 import httpx
-import pytest
 
 from app.config import Settings
 from app.services import image_digest
