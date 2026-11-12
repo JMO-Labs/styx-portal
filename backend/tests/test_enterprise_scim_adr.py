@@ -4,6 +4,7 @@ import json
 import re
 from pathlib import Path
 
+import jsonschema as js
 import pytest
 
 DOCS = Path(__file__).resolve().parents[2] / "docs/enterprise"
@@ -76,12 +77,7 @@ def test_schema_has_no_delete_op():
     assert set(ops) == {"replace"}
 
 
-def jsonschema():
-    return pytest.importorskip("jsonschema")
-
-
 def check(defn: str, doc: dict) -> None:
-    js = jsonschema()
     root = schema()
     js.validate(doc, {"$ref": f"#/$defs/{defn}", "$defs": root["$defs"]},
                 cls=js.Draft202012Validator)
@@ -102,7 +98,6 @@ def test_valid_user_accepted():
     lambda u: u[EXT].pop("approvalId"),
 ])
 def test_invalid_user_rejected(mutate):
-    js = jsonschema()
     u = valid_user()
     mutate(u)
     with pytest.raises(js.ValidationError):
@@ -132,6 +127,40 @@ def test_disable_patch_and_error_and_audit():
         "approver": "boss@example.mil", "clientCertFingerprint": "ab" * 32,
         "sourceIp": "203.0.113.5", "outcome": "success", "httpStatus": 201,
         "resource": {"type": "User", "externalId": "req-1001"},
+    })
+
+
+def adr_error_rows() -> list[tuple[str, str]]:
+    """(status, styxCode) for every cell of the ADR error-model table."""
+    rows = []
+    for line in adr_text().splitlines():
+        m = re.match(r"^\| ([0-9/]+) \|[^|]*\|([^|]*)\|", line)
+        if not m:
+            continue
+        codes = re.findall(r"`([A-Z_]+)`", m.group(2))
+        rows += [(st, c) for st in m.group(1).split("/") for c in codes]
+    return rows
+
+
+def test_adr_error_table_parsed():
+    statuses = {st for st, _ in adr_error_rows()}
+    assert statuses >= {"400", "401", "403", "404", "405", "409", "422",
+                        "429", "500", "503"}
+
+
+@pytest.mark.parametrize("status,code", adr_error_rows())
+def test_every_adr_error_validates(status, code):
+    check("error", {
+        "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+        "status": status, "detail": "x", "styxCode": code,
+    })
+
+
+def test_unsupported_operation_405_validates():
+    check("error", {
+        "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+        "status": "405", "detail": "DELETE is not supported",
+        "styxCode": "UNSUPPORTED_OPERATION",
     })
 
 
