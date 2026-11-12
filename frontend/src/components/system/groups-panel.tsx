@@ -2,13 +2,28 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import "@/styles/admin-table.css";
 import { Plus, Trash2 } from "lucide-react";
-import { api, type Group, type ProxiedService } from "@/api/client";
+import { api, type EgressMode, type Group, type ProxiedService } from "@/api/client";
 import { SectionHead } from "@/components/common/section-head";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
+
+const EGRESS_OPTIONS: { value: EgressMode; label: string }[] = [
+  { value: "category", label: "Category filtering" },
+  { value: "allowlist", label: "Allowlist only" },
+];
+const EGRESS_HELP = "Allowlist only limits members to approved sites. The strictest group wins. Applies on next desktop launch.";
+
+function EgressSelect({ id, value, label, onChange }: { id?: string; value: EgressMode; label: string; onChange: (v: EgressMode) => void }) {
+  return (
+    <select id={id} aria-label={label} value={value} onChange={(e) => onChange(e.target.value as EgressMode)}
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm">
+      {EGRESS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  );
+}
 
 const errMsg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
@@ -18,6 +33,7 @@ export function GroupsPanel() {
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
+  const [egress, setEgress] = useState<EgressMode>("category");
   const [adding, setAdding] = useState(false);
   const [target, setTarget] = useState<Group | null>(null);
 
@@ -36,9 +52,10 @@ export function GroupsPanel() {
   const create = async () => {
     setAdding(true);
     try {
-      await api.createGroup({ name: name.trim(), description: desc.trim() || null });
+      await api.createGroup({ name: name.trim(), description: desc.trim() || null, egress_mode: egress });
       setName("");
       setDesc("");
+      setEgress("category");
       toast.success("Group created");
       await load();
     } catch (e) {
@@ -51,6 +68,15 @@ export function GroupsPanel() {
   const toggleGpu = async (g: Group, allow: boolean) => {
     try {
       await api.updateGroup(g.id, { allow_gpu: allow });
+      await load();
+    } catch (e) {
+      toast.error(errMsg(e, "Failed to update group"));
+    }
+  };
+
+  const changeEgress = async (g: Group, mode: EgressMode) => {
+    try {
+      await api.updateGroup(g.id, { egress_mode: mode });
       await load();
     } catch (e) {
       toast.error(errMsg(e, "Failed to update group"));
@@ -80,10 +106,13 @@ export function GroupsPanel() {
         <Label htmlFor="group-desc" className="sr-only">Description (optional)</Label>
         <Input id="group-desc" value={desc} maxLength={255} autoComplete="off" placeholder="Description (optional)"
                className="w-full sm:max-w-72" onChange={(e) => setDesc(e.target.value)} />
+        <EgressSelect label="New group egress mode" value={egress} onChange={setEgress} />
         <Button type="submit" aria-label="Add group" variant="secondary" disabled={!name.trim() || adding}>
           <Plus className="h-4 w-4" /> {adding ? "Adding..." : "Add group"}
         </Button>
       </form>
+
+      <p className="mb-3 text-xs text-muted-foreground">{EGRESS_HELP}</p>
 
       {error ? (
         <div role="alert" className="flex items-center justify-between rounded-md border border-destructive/20 bg-destructive/5 p-3">
@@ -101,7 +130,7 @@ export function GroupsPanel() {
         </div>
       ) : (
         <table className="dense">
-          <thead><tr><th>Name</th><th>Members</th><th>Allow GPU</th><th /></tr></thead>
+          <thead><tr><th>Name</th><th>Members</th><th>Allow GPU</th><th>Egress mode</th><th /></tr></thead>
           <tbody>
             {groups.map((g) => (
               <tr key={g.id}>
@@ -110,6 +139,10 @@ export function GroupsPanel() {
                 <td>
                   <Switch checked={g.allow_gpu} aria-label={`Allow GPU for ${g.name}`}
                           onCheckedChange={(v) => void toggleGpu(g, v)} />
+                </td>
+                <td>
+                  <EgressSelect label={`Egress mode for ${g.name}`} value={g.egress_mode ?? "category"}
+                                onChange={(v) => void changeEgress(g, v)} />
                 </td>
                 <td className="acts">
                   <Button variant="ghost" size="icon-sm" title="Delete group" aria-label={`Delete ${g.name}`}
