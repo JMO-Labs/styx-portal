@@ -119,6 +119,12 @@ class Settings(BaseSettings):
     LAN_CERT_DIR: str = "/app/data/lan-certs"      # backend-side path (lan-certs volume)
     TRAEFIK_LAN_CERT_DIR: str = "/lan-certs"       # same volume as seen by Traefik
 
+    # Keycloak admin client (offboarding); all empty = disabled (calls skipped).
+    KC_ADMIN_URL: str = ""
+    KC_ADMIN_REALM: str = ""
+    KC_ADMIN_CLIENT_ID: str = ""
+    KC_ADMIN_CLIENT_SECRET: str = ""
+
     # extra="ignore": the repo-root .env is shared with docker-compose,
     # cloudflared, and authentik, so it carries keys the backend does not
     # declare (CF_TUNNEL_TOKEN, AUTHENTIK_HOST, COMPOSE_PROFILES, ...).
