@@ -1,4 +1,3 @@
-import pytest
 
 from app.services.settings_store import SettingsService
 from app.services.settings_sync import settings_sync_loop, sync_once
