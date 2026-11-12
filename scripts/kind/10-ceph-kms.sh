@@ -86,9 +86,10 @@ spec:
         - {key: kubernetes.io/hostname, operator: In, values: [$NODE]}
 YAML
 
-step "OpenBao ${BAO_IMAGE} (file storage on hostPath so data survives stop/start)"
+step "OpenBao ${BAO_IMAGE} (single-node raft on hostPath so data survives stop/start)"
+# OpenBao 2.x has no "file" storage and no disable_mlock; raft is the supported backend.
 # The entrypoint's chown of a hostPath fails on kind (EPERM -> CrashLoop), so pre-create the
-# dir world-writable on the node and set SKIP_CHOWN/SKIP_SETCAP. disable_mlock: pods lack IPC_LOCK.
+# dir world-writable on the node and set SKIP_CHOWN/SKIP_SETCAP.
 docker exec "$NODE" bash -c "mkdir -p /var/lib/spike-openbao && chmod 0777 /var/lib/spike-openbao"
 kubectl create ns "$BAO_NS" --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f - <<YAML
@@ -108,11 +109,12 @@ metadata: {name: openbao-config, namespace: $BAO_NS}
 data:
   config.hcl: |
     ui = false
-    disable_mlock = true
     listener "tcp" { address = "0.0.0.0:8200"
       tls_disable = 1 }
-    storage "file" { path = "/openbao/file" }
+    storage "raft" { path = "/openbao/data"
+      node_id = "openbao-0" }
     api_addr = "http://openbao.$BAO_NS.svc:8200"
+    cluster_addr = "http://127.0.0.1:8201"
 ---
 apiVersion: v1
 kind: Service
@@ -139,11 +141,11 @@ spec:
         env: [{name: SKIP_CHOWN, value: "true"}, {name: SKIP_SETCAP, value: "true"}]
         ports: [{containerPort: 8200}]
         readinessProbe:
-          httpGet: {path: "/v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204", port: 8200}
+          httpGet: {path: "/v1/sys/health?sealedcode=204&uninitcode=204", port: 8200}
           periodSeconds: 3
         volumeMounts:
         - {name: cfg, mountPath: /etc/bao}
-        - {name: data, mountPath: /openbao/file}
+        - {name: data, mountPath: /openbao/data}
       volumes:
       - {name: cfg, configMap: {name: openbao-config}}
       - {name: data, hostPath: {path: /var/lib/spike-openbao, type: Directory}}
