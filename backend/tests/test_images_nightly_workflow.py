@@ -37,9 +37,9 @@ def test_triggers_schedule_and_dispatch():
 def test_builds_desktop_image_and_pushes_by_digest():
     steps = _steps()
     build = [s for s in steps if str(s.get("uses", "")).startswith("docker/build-push-action")]
-    assert build and build[0]["with"]["context"] == "images/desktop"
-    assert str(build[0]["with"]["push"]).lower() == "true"
-    assert build[0].get("id")
+    assert build and all(b["with"]["context"] == "images/desktop" for b in build)
+    push = [b for b in build if str(b["with"].get("push")).lower() == "true"]
+    assert push and push[0].get("id")
     assert "digest" in str(steps)
 
 
@@ -55,7 +55,7 @@ def test_trivy_fails_on_high_critical():
 def test_cosign_sign_and_attest_cyclonedx():
     runs = _runs()
     assert re.search(r"cosign sign\b", runs)
-    assert re.search(r"cosign attest\b.*--type cyclonedx", runs, re.S)
+    assert re.search(r"cosign attest\b.*--type cyclonedx", runs, re.DOTALL)
     assert "@${{ steps." in runs or "@$DIGEST" in runs or "@${DIGEST}" in runs
 
 
@@ -70,3 +70,11 @@ def test_all_actions_pinned_by_sha():
     assert uses
     for u in uses:
         assert re.fullmatch(r"[\w.-]+/[\w./-]+@[0-9a-f]{40}", u), u
+
+
+def test_cosign_signs_offline_without_public_tlog():
+    # cosign v3 rejects --tlog-upload=false unless the TUF signing config is off;
+    # air-gapped Harbor must never upload to public Rekor.
+    for line in _runs().splitlines():
+        if re.search(r"cosign (sign|attest)\b", line):
+            assert "--use-signing-config=false" in line and "--tlog-upload=false" in line

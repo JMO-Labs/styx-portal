@@ -71,6 +71,6 @@ jobs:
           VAULT_TOKEN: ${{ secrets.OPENBAO_TOKEN }}
         run: |
           set -euo pipefail
-          cosign sign --yes --key "$COSIGN_KEY" "$IMAGE@$DIGEST"
-          cosign attest --yes --key "$COSIGN_KEY" --type cyclonedx \
+          cosign sign --yes --use-signing-config=false --tlog-upload=false --key "$COSIGN_KEY" "$IMAGE@$DIGEST"
+          cosign attest --yes --use-signing-config=false --tlog-upload=false --key "$COSIGN_KEY" --type cyclonedx \
             --predicate sbom.cdx.json "$IMAGE@$DIGEST"
