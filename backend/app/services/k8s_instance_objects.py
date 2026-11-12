@@ -95,7 +95,8 @@ def proxy_env(mode: str, cfg) -> dict:
 def build_objects(name, image, env, volumes, port, ns, owner, *, gpu_enabled=False,
                   gpu_count=1, memory_limit=None, cpu_limit=None, shm_size=None,
                   cap_add=None, read_only_rootfs=False, tmpfs=None, extra_hosts=None,
-                  entrypoint=None, command=None, egress_mode=None) -> list[dict]:
+                  entrypoint=None, command=None, posix_uid: int | None = None,
+                  egress_mode=None) -> list[dict]:
     if "/" not in image:
         image = Settings().K8S_DESKTOP_IMAGE
     image = image_digest.resolve_digest(image)
@@ -131,6 +132,13 @@ def build_objects(name, image, env, volumes, port, ns, owner, *, gpu_enabled=Fal
     for i, path in enumerate(tmpfs or []):
         vols.append({"name": f"tmp{i}", "emptyDir": {"medium": "Memory"}})
         mounts.append({"name": f"tmp{i}", "mountPath": path})
+    sec_ctx: dict = {"seccompProfile": {"type": "RuntimeDefault"}}
+    if posix_uid is not None:
+        sec_ctx.update(runAsUser=posix_uid, runAsGroup=posix_uid, fsGroup=posix_uid,
+                       runAsNonRoot=True)
+        vols.append({"name": "home",
+                     "persistentVolumeClaim": {"claimName": f"home-{posix_uid}"}})
+        mounts.append({"name": "home", "mountPath": cfg.HOME_MOUNT_PATH})
     caps = _caps(list(cap_add or []))
     cap_spec: dict = {"drop": ["ALL"]}
     if caps:
@@ -155,7 +163,7 @@ def build_objects(name, image, env, volumes, port, ns, owner, *, gpu_enabled=Fal
     if command is not None:
         container["args"] = command
     pod: dict = {"automountServiceAccountToken": False, "enableServiceLinks": False,
-                 "securityContext": {"seccompProfile": {"type": "RuntimeDefault"}},
+                 "securityContext": sec_ctx,
                  "containers": [container], "volumes": vols}
     if extra_hosts:
         pod["hostAliases"] = [{"ip": ip, "hostnames": [h]}
