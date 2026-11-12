@@ -44,6 +44,14 @@ export function LoginPage() {
       .catch(() => {});
   }, [loading, user]);
 
+  // Enterprise profile (ADR-0053): password login is hard-disabled server-side; hide the form.
+  const [passwordOff, setPasswordOff] = useState(false);
+  useEffect(() => {
+    Promise.resolve(api.systemProfile?.())
+      .then((p) => setPasswordOff(!!p?.disabled?.includes("password_login")))
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     withRetry(api.oauthProviders).then(setProviders).catch(() => {});
   }, []);
@@ -169,7 +177,7 @@ export function LoginPage() {
                   Continue with {p.display_label}
                 </a>
               ))}
-              <div className="flex items-center gap-3 pt-1 text-xs text-muted-foreground">
+              <div hidden={passwordOff} className="flex items-center gap-3 pt-1 text-xs text-muted-foreground">
                 <span className="h-px flex-1 bg-border" />
                 or
                 <span className="h-px flex-1 bg-border" />
@@ -177,7 +185,7 @@ export function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={submit} className="space-y-4">
+          <form onSubmit={submit} className="space-y-4" hidden={passwordOff} data-testid="password-form">
             {challenge ? (
               <>
                 <p className="text-sm text-muted-foreground">Enter the codes from your matrix card.</p>

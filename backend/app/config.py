@@ -15,6 +15,8 @@ PLACEHOLDER_SECRETS = {
 
 
 class Settings(BaseSettings):
+    # homelab | enterprise (ADR-0053): enterprise hard-disables homelab features
+    STYX_PROFILE: str = "homelab"
     DOMAIN: str = "localhost"
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/styx-portal.db"
     DOCKER_SOCKET: str = "unix:///var/run/docker.sock"

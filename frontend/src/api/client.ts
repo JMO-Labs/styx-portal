@@ -388,6 +388,7 @@ export const api = {
   getInstanceLogs: (instanceId: string) =>
     request<string[]>(`/instances/${instanceId}/logs`),
 
+  systemProfile: () => request<{ profile: string; disabled: string[] }>("/system/profile"),
   setupRequired: () => request<{ setup_required: boolean }>("/auth/setup-required"),
   setupPreflight: () => request<SetupPreflight>("/auth/setup-preflight"),
   setup: (data: { username: string; email?: string; password: string; setup_token: string }) =>
