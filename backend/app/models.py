@@ -367,7 +367,20 @@ class Group(SQLModel, table=True):
     name: str = Field(unique=True, index=True)
     description: str | None = None
     allow_gpu: bool = False
+    manager_user_id: str | None = Field(default=None, foreign_key="users.id")
+    kc_group_id: str | None = None
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+
+
+class AccessReviewDecision(SQLModel, table=True):
+    __tablename__ = "access_review_decisions"
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    group_id: str = Field(foreign_key="groups.id", index=True)
+    user_id: str = Field(index=True)  # no FK: record survives user deletion
+    quarter: str = Field(index=True)  # e.g. 2026-Q4
+    decision: str  # certify | revoke
+    actor_id: str
+    decided_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
 class UserGroup(SQLModel, table=True):

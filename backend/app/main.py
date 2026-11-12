@@ -34,6 +34,7 @@ from app.routers import system_settings as system_settings_router
 from app.routers import turn_usage as turn_usage_router
 from app.routers import stats as stats_router
 from app.routers import groups as groups_router
+from app.routers import access_review as access_review_router
 from app.routers import profiles as profiles_router
 from app.routers import services as services_router
 from app.routers import service_mounts as service_mounts_router
@@ -203,6 +204,7 @@ app.include_router(turn_usage_router.router, prefix="/api/admin/turn-usage", tag
 app.include_router(turn_usage_router.check_router, prefix="/api/admin/turn-check", tags=["turn-usage"])
 app.include_router(stats_router.router, prefix="/api/admin/stats", tags=["stats"])
 app.include_router(groups_router.router, prefix="/api/groups", tags=["groups"])
+app.include_router(access_review_router.router, prefix="/api/access-review", tags=["access-review"])
 app.include_router(groups_router.users_router, prefix="/api/users", tags=["groups"])
 app.include_router(profiles_router.router, prefix="/api/profiles", tags=["profiles"])
 app.include_router(profiles_router.users_router, prefix="/api/users", tags=["profiles"])
