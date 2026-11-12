@@ -19,3 +19,9 @@ def _find(name: str) -> Path:
 def test_fork_safe_runs_on(name):
     text = _find(name).read_text()
     assert "runs-on: ubuntu-latest" not in text
+
+
+def test_dependabot_automerge_not_pull_request_target():
+    text = (ROOT / "wq-workflows" / "dependabot-automerge.yml").read_text()
+    assert "pull_request_target" not in text
+    assert "on: pull_request" in text
