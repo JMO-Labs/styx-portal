@@ -296,6 +296,8 @@ async def create_instance(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    if user.disabled_at is not None:
+        raise HTTPException(403, "Account disabled")
     template = await session.get(ServiceTemplate, body.template_id)
     if not template:
         raise HTTPException(404, "Template not found")
@@ -376,6 +378,8 @@ async def start_instance(
     docker: DockerManager = Depends(get_docker_manager),
     user: User = Depends(get_current_user),
 ):
+    if user.disabled_at is not None:
+        raise HTTPException(403, "Account disabled")
     instance = await session.get(Instance, instance_id)
     if not instance:
         raise HTTPException(404, "Instance not found")
