@@ -35,4 +35,6 @@ Negative:
 
 Follow-up work:
 
-- Enable OSD encryption and the OpenBao key backend during Phase 1 Rook-Ceph setup.
+- Implemented as IaC (not deployed): `encrypted: true` on every device set, Vault KMS and key rotation in `deploy/enterprise/rook-ceph/cephcluster.yaml`, OpenBao policy `deploy/enterprise/openbao/policies/rook-ceph.hcl`, tests `backend/tests/test_enterprise_ceph_encryption.py`, spike `scripts/kind/10-ceph-kms.sh`.
+- Operations (KEK rotation, OpenBao outage, break-glass unlock, NVMe changes, why encryption/KMS cannot change after first deploy): [runbook](../runbooks/ceph-osd-encryption.md).
+- SC-13 (non-FIPS dm-crypt) remains open compliance debt under ADR-0011.

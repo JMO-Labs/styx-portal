@@ -1,0 +1,76 @@
+name: images-nightly
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      REGISTRY: ${{ secrets.HARBOR_REGISTRY }}
+      IMAGE: ${{ secrets.HARBOR_REGISTRY }}/${{ secrets.HARBOR_PROJECT }}/desktop
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ${{ secrets.HARBOR_REGISTRY }}
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
+      # Build locally first so Trivy gates the push.
+      - name: Build image (load)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: images/desktop
+          load: true
+          push: false
+          pull: true
+          no-cache: true
+          tags: desktop:scan
+      - name: Trivy scan (fails on HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: desktop:scan
+          format: table
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          ignore-unfixed: false
+          trivyignores: .trivyignore
+      - name: Push image
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: images/desktop
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:nightly
+            ${{ env.IMAGE }}:${{ github.run_id }}
+      - name: SBOM (CycloneDX)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}@${{ steps.push.outputs.digest }}
+          format: cyclonedx
+          output: sbom.cdx.json
+          trivyignores: .trivyignore
+        env:
+          TRIVY_USERNAME: ${{ secrets.HARBOR_USERNAME }}
+          TRIVY_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+      - name: Sign and attest digest
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          # Reference to the OpenBao-held key (e.g. hashivault://cosign), per key-custody ADR.
+          COSIGN_KEY: ${{ secrets.COSIGN_KEY_REF }}
+          VAULT_ADDR: ${{ secrets.OPENBAO_ADDR }}
+          VAULT_TOKEN: ${{ secrets.OPENBAO_TOKEN }}
+        run: |
+          set -euo pipefail
+          cosign sign --yes --use-signing-config=false --tlog-upload=false --key "$COSIGN_KEY" "$IMAGE@$DIGEST"
+          cosign attest --yes --use-signing-config=false --tlog-upload=false --key "$COSIGN_KEY" --type cyclonedx \
+            --predicate sbom.cdx.json "$IMAGE@$DIGEST"
