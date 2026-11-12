@@ -87,7 +87,7 @@ def test_no_external_resources_and_csp():
 def _require(tool):
     if shutil.which(tool):
         return
-    if os.environ.get("REQUIRE_KUSTOMIZE") == "1" or os.environ.get("REQUIRE_KUBECONFORM") == "1":
+    if os.environ.get(f"REQUIRE_{tool.upper()}") == "1":
         pytest.fail(f"{tool} required but not installed")
     pytest.skip(f"{tool} not installed")
 
@@ -122,3 +122,13 @@ def test_nginx_conf_not_in_web_root():
     items = vol["configMap"]["items"]
     assert sorted(i["path"] for i in items) == ["declined.html", "index.html", "styles.css"]
     assert all(i["key"] == i["path"] for i in items)
+
+
+def test_require_uses_per_tool_flag(monkeypatch):
+    monkeypatch.setattr(shutil, "which", lambda _t: None)
+    monkeypatch.setenv("REQUIRE_KUSTOMIZE", "1")
+    monkeypatch.delenv("REQUIRE_KUBECONFORM", raising=False)
+    with pytest.raises(pytest.skip.Exception):
+        _require("kubeconform")
+    with pytest.raises(pytest.fail.Exception):
+        _require("kustomize")
