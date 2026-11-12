@@ -112,3 +112,10 @@ def test_airgap_todo_closed_and_runbook_references_bundle():
     rb = (ROOT / "docs/enterprise/runbooks/full-site-restore.md").read_text()
     step5 = rb.split("### Step 5: Images and Harbor")[1].split("### Step 6")[0]
     assert "phase1.lock" in step5 and "seed bundle" in step5.lower()
+
+
+def test_kind_spike_keeps_archive_out_of_uploaded_artifacts():
+    # The workflow uploads out/ as an artifact; a multi-GB tar there failed the upload step.
+    t = (ROOT / "scripts" / "kind" / "10-seed-bundle-import.sh").read_text()
+    assert "out/phase1-seed.tar" not in t
+    assert "mktemp" in t and "trap" in t

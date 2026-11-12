@@ -6,13 +6,17 @@ cd "$(git rev-parse --show-toplevel)"
 lock=deploy/enterprise/images/phase1.lock
 command -v skopeo >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq skopeo; }
 python3 scripts/check_phase1_lock.py --strict "$lock"
-scripts/build_seed_bundle.sh out/phase1-seed.tar
-du -h out/phase1-seed.tar
-df -h . | tail -n1
+# Keep the multi-GB archive out of out/: the workflow uploads out/ as an artifact.
+work=$(mktemp -d "${RUNNER_TEMP:-/tmp}/seed.XXXXXX")
+trap 'rm -rf "$work"' EXIT
+tar="$work/phase1-seed.tar"
+scripts/build_seed_bundle.sh "$tar"
+du -h "$tar"
+df -h "$work" | tail -n1
 node=$(kind get nodes --name spike | head -n1)
 # Stream via stdin: the kind node's /tmp is a tmpfs, so copying the archive there hides it from ctr,
 # and streaming avoids a second 7 GB copy on the node.
-docker exec -i "$node" ctr -n k8s.io images import --local - < out/phase1-seed.tar
+docker exec -i "$node" ctr -n k8s.io images import --local - < "$tar"
 # --no-trunc: crictl shortens digests otherwise and the full-digest grep below never matches.
 listing=$(docker exec "$node" crictl images --digests --no-trunc)
 rc=0
