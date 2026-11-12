@@ -9,8 +9,9 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.config import Settings
 from app.database import get_session
-from app.models import AccessReviewDecision, Group, User, UserGroup
+from app.models import AccessReviewDecision, FederatedIdentity, Group, User, UserGroup
 from app.security.deps import get_current_user
 from app.services import kc_admin
 from app.services.audit import audit_request
@@ -103,16 +104,29 @@ async def decide(body: DecisionIn, request: Request, user: User = Depends(get_cu
         raise HTTPException(status.HTTP_409_CONFLICT, "Already decided this quarter")
     session.add(AccessReviewDecision(group_id=g.id, user_id=body.user_id, quarter=body.quarter,
                                      decision=body.decision, actor_id=user.id))
+    detail = {"target_user": body.user_id, "quarter": body.quarter}
+    kc_sub = None
     if body.decision == "revoke":
         await session.delete(link)
+        if g.kc_group_id:
+            kc_sub = await _kc_subject(session, body.user_id)
+            if kc_sub is None:
+                detail["kc_skipped"] = "no identity"
     await audit_request(session, request, f"access_review.{body.decision}", user_id=user.id,
-                        resource=g.id, detail={"target_user": body.user_id,
-                                               "quarter": body.quarter})
+                        resource=g.id, detail=detail)
     await session.commit()
-    if body.decision == "revoke" and g.kc_group_id:
-        await kc_admin.remove_from_group(body.user_id, g.kc_group_id)
+    if kc_sub:
+        await kc_admin.remove_from_group(kc_sub, g.kc_group_id)
     return {"group_id": g.id, "user_id": body.user_id, "quarter": body.quarter,
             "decision": body.decision}
+
+
+async def _kc_subject(session: AsyncSession, user_id: str) -> str | None:
+    """Keycloak user id = OIDC `sub` of the user's Keycloak FederatedIdentity."""
+    fi = (await session.exec(select(FederatedIdentity).where(
+        FederatedIdentity.user_id == user_id,
+        FederatedIdentity.provider == Settings().KC_PROVIDER_NAME))).first()
+    return fi.subject if fi else None
 
 
 @router.get("/export.csv")

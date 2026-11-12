@@ -133,6 +133,8 @@ class Settings(BaseSettings):
     KC_ADMIN_REALM: str = ""
     KC_ADMIN_CLIENT_ID: str = ""
     KC_ADMIN_CLIENT_SECRET: str = ""
+    # oauth_providers.name of the Keycloak IdP; its FederatedIdentity.subject is the KC user id.
+    KC_PROVIDER_NAME: str = "keycloak"
     # Comma-separated Keycloak group ids (not names) the admin client must never add users to.
     KEYCLOAK_ADMIN_GROUPS: str = ""
 
