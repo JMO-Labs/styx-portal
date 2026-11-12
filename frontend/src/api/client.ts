@@ -163,10 +163,8 @@ export type TurnUsage = {
 
 const BASE = "/api";
 
-export interface ProvisionedUser {
-  id: string; username: string; email: string | null; created_at: string;
-  reviewed_at: string | null; status: "active" | "disabled"; disabled_reason: string | null;
-}
+export type { ProvisionedUser } from "./provisioned";
+import type { ProvisionedUser } from "./provisioned";
 
 export type LoginResult = {
   id: string; username: string; role: string; must_change_pw?: boolean;

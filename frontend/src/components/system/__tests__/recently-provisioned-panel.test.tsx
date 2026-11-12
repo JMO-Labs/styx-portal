@@ -37,6 +37,9 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("dueBy", () => {
+  test("treats naive timestamps as UTC", () => {
+    expect(dueBy("2026-11-10T12:00:00").toISOString()).toBe("2026-11-11T12:00:00.000Z");
+  });
   test("adds one business day, skipping weekends", () => {
     expect(dueBy("2026-11-10T12:00:00Z").toISOString()).toBe("2026-11-11T12:00:00.000Z");
     expect(dueBy("2026-11-13T12:00:00Z").toISOString()).toBe("2026-11-16T12:00:00.000Z"); // Fri -> Mon

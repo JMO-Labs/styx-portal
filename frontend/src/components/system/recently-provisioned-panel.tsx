@@ -9,14 +9,17 @@ import { Button } from "@/components/ui/button";
 const errMsg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
 /** Review deadline: creation time plus one business day (weekends skipped). */
+/** Backend timestamps may be naive (no offset); treat those as UTC. */
+const parseTs = (iso: string) => new Date(/(Z|[+-]\d\d:?\d\d)$/.test(iso) ? iso : `${iso}Z`);
+
 export function dueBy(createdAt: string): Date {
-  const d = new Date(createdAt);
+  const d = parseTs(createdAt);
   do d.setUTCDate(d.getUTCDate() + 1);
   while (d.getUTCDay() === 0 || d.getUTCDay() === 6);
   return d;
 }
 
-const fmt = (iso: string | Date) => new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" });
+const fmt = (iso: string | Date) => (typeof iso === "string" ? parseTs(iso) : iso).toLocaleDateString(undefined, { dateStyle: "medium" });
 
 export function RecentlyProvisionedPanel() {
   const [rows, setRows] = useState<ProvisionedUser[] | null>(null);
