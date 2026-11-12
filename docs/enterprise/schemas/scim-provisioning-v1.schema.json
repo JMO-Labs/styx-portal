@@ -167,7 +167,7 @@
           "maxItems": 1,
           "items": {"const": "urn:ietf:params:scim:api:messages:2.0:Error"}
         },
-        "status": {"type": "string", "pattern": "^(400|401|403|404|409|422|429|500|503)$"},
+        "status": {"type": "string", "pattern": "^(400|401|403|404|405|409|422|429|500|503)$"},
         "scimType": {"enum": ["invalidSyntax", "invalidValue", "uniqueness", "mutability", "noTarget", "invalidPath"]},
         "detail": {"type": "string", "maxLength": 256},
         "styxCode": {
