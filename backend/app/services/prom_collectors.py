@@ -1,6 +1,7 @@
 """Scrape-time DB gauges (instances by status, active stream sessions).
 
-Single-replica safe only: with N replicas values duplicate (leader gating: ADR-0056).
+Leader-owned (ADR-0056, #98): the values are cluster-wide DB state, so only the
+leader replica exports them; non-leaders yield nothing and never query the DB.
 Runs on the scrape thread, so it uses its own short-lived sync connection and never raises.
 """
 import logging
@@ -9,6 +10,7 @@ from prometheus_client.core import GaugeMetricFamily
 from sqlalchemy import create_engine, text
 
 from app.config import Settings
+from app.services.leader import get_elector
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +20,9 @@ def _sync_url() -> str:
     url = Settings().DATABASE_URL
     scheme, sep, rest = url.partition("://")
     return scheme.split("+", 1)[0] + sep + rest
+
+
+LEADER_OWNED = ("styx_instances", "styx_stream_sessions_active")
 
 
 def _families():
@@ -33,6 +38,8 @@ class DbGaugesCollector:
         return list(_families())
 
     def collect(self):
+        if not get_elector().is_leader:
+            return
         try:
             engine = create_engine(_sync_url())
             try:
