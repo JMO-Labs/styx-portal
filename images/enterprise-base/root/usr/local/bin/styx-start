@@ -2,7 +2,7 @@
 # Launch a Selkies session on port 8082 as the unprivileged user.
 # --wayland=true: pixelflux's own headless compositor is the display source.
 # --public: selkies 2.x binds loopback only by default; bind all interfaces
-# so the container port is reachable (--addr and --public are exclusive).
+# so the container port is reachable (the bind-address flag is exclusive with it).
 # No gateway in this image: auth is enforced upstream (portal/ingress), so
 # basic auth defaults off; set SELKIES_ENABLE_BASIC_AUTH=true plus
 # SELKIES_BASIC_AUTH_PASSWORD to enable it.
