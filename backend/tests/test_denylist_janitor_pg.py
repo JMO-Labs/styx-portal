@@ -16,6 +16,8 @@ from app.services.abuse import ban_ip
 from app.services.janitor import fail_window, purge_expired
 
 PG = os.environ.get("TEST_PG_URL")
+_COMMITTED_TABLES = ("revoked_access_tokens", "banned_ip", "auth_fail_events",
+                     "auth_blocks", "rate_counters")
 pytestmark = [pytest.mark.pg, pytest.mark.skipif(not PG, reason="TEST_PG_URL not set")]
 
 
@@ -25,6 +27,11 @@ async def factory():
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
     yield async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    # Rows here are committed outside the per-test rollback; clear them so later
+    # tests (janitor key sets, sqlite_to_pg empty-target gate) see a clean DB.
+    async with engine.begin() as conn:
+        for table in _COMMITTED_TABLES:
+            await conn.execute(text(f"DELETE FROM {table}"))  # nosec B608 - fixed names
     await engine.dispose()
 
 
