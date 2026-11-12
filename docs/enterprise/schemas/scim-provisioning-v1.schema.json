@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://styx.invalid/schemas/scim-provisioning-v1.schema.json",
+  "title": "Styx SCIM-shaped provisioning webhook v1 (ADR-0062, D61)",
+  "description": "Request, error and audit shapes for the Power Automate provisioning webhook. Validate bodies with $defs/user (POST), $defs/patchOp (PATCH), $defs/error and $defs/auditEvent.",
+  "$defs": {
+    "approvalId": {
+      "description": "Power Automate approval run ID (UUID), one per approval.",
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "groupSlug": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+    },
+    "user": {
+      "description": "POST /scim/v2/Users body (create).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemas", "externalId", "name", "emails", "active",
+                   "urn:styx:scim:schemas:provisioning:1.0:Request"],
+      "properties": {
+        "schemas": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {"const": "urn:ietf:params:scim:schemas:core:2.0:User"}
+        },
+        "externalId": {
+          "description": "Form response ID; the stable request identity.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "userName": {
+          "description": "Accepted for SCIM compatibility, ignored. Styx derives first.last (ADR-0016).",
+          "type": "string",
+          "maxLength": 128
+        },
+        "name": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["givenName", "familyName"],
+          "properties": {
+            "givenName": {"type": "string", "minLength": 1, "maxLength": 64},
+            "familyName": {"type": "string", "minLength": 1, "maxLength": 64}
+          }
+        },
+        "emails": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["value"],
+            "properties": {
+              "value": {"type": "string", "format": "email", "maxLength": 254},
+              "primary": {"type": "boolean"}
+            }
+          }
+        },
+        "active": {"const": true},
+        "urn:styx:scim:schemas:provisioning:1.0:Request": {"$ref": "#/$defs/requestExt"}
+      }
+    },
+    "requestExt": {
+      "description": "Form (D21) and approval (D20) data carried with a create.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approvalId", "approverEmail", "cardType", "groups", "personType"],
+      "properties": {
+        "approvalId": {"$ref": "#/$defs/approvalId"},
+        "approverEmail": {"type": "string", "format": "email", "maxLength": 254},
+        "cardType": {"enum": ["CAC", "PIV", "PIV-I"]},
+        "edipi": {"type": "string", "pattern": "^[0-9]{10}$"},
+        "groups": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/groupSlug"}
+        },
+        "personType": {"enum": ["employee", "contractor"]},
+        "endDate": {"type": "string", "format": "date"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"cardType": {"const": "CAC"}}},
+          "then": {"required": ["edipi"]},
+          "else": {"not": {"required": ["edipi"]}}
+        },
+        {
+          "if": {"properties": {"personType": {"const": "contractor"}}},
+          "then": {"required": ["endDate"]}
+        }
+      ]
+    },
+    "patchOp": {
+      "description": "PATCH /scim/v2/Users/{id} body: update groups/endDate or disable. Identity attributes are immutable (ADR-0016).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemas", "Operations", "urn:styx:scim:schemas:provisioning:1.0:Request"],
+      "properties": {
+        "schemas": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {"const": "urn:ietf:params:scim:api:messages:2.0:PatchOp"}
+        },
+        "Operations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["op", "path", "value"],
+            "properties": {
+              "op": {"enum": ["replace"]},
+              "path": {
+                "enum": ["active",
+                         "urn:styx:scim:schemas:provisioning:1.0:Request:groups",
+                         "urn:styx:scim:schemas:provisioning:1.0:Request:endDate"]
+              },
+              "value": {}
+            },
+            "allOf": [
+              {
+                "if": {"properties": {"path": {"const": "active"}}},
+                "then": {"properties": {"value": {"const": false}}}
+              },
+              {
+                "if": {"properties": {"path": {"const": "urn:styx:scim:schemas:provisioning:1.0:Request:groups"}}},
+                "then": {"properties": {"value": {
+                  "type": "array", "minItems": 1, "maxItems": 20, "uniqueItems": true,
+                  "items": {"$ref": "#/$defs/groupSlug"}}}}
+              },
+              {
+                "if": {"properties": {"path": {"const": "urn:styx:scim:schemas:provisioning:1.0:Request:endDate"}}},
+                "then": {"properties": {"value": {"type": "string", "format": "date"}}}
+              }
+            ]
+          }
+        },
+        "urn:styx:scim:schemas:provisioning:1.0:Request": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["approvalId"],
+          "properties": {
+            "approvalId": {"$ref": "#/$defs/approvalId"},
+            "approverEmail": {"type": "string", "format": "email", "maxLength": 254}
+          }
+        }
+      }
+    },
+    "error": {
+      "description": "RFC 7644 section 3.12 error plus a stable Styx code. Never echoes request values.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemas", "status", "detail", "styxCode"],
+      "properties": {
+        "schemas": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {"const": "urn:ietf:params:scim:api:messages:2.0:Error"}
+        },
+        "status": {"type": "string", "pattern": "^(400|401|403|404|405|409|422|429|500|503)$"},
+        "scimType": {"enum": ["invalidSyntax", "invalidValue", "uniqueness", "mutability", "noTarget", "invalidPath"]},
+        "detail": {"type": "string", "maxLength": 256},
+        "styxCode": {
+          "enum": ["SCHEMA_INVALID", "UNAUTHENTICATED", "CLIENT_CERT_REJECTED",
+                   "IP_NOT_ALLOWED", "APPROVER_UNKNOWN", "GROUP_NOT_ALLOWED",
+                   "APPROVAL_REUSED", "IDEMPOTENCY_CONFLICT", "IDEMPOTENCY_KEY_MISSING",
+                   "USER_NOT_FOUND", "USER_EXISTS", "IMMUTABLE_ATTRIBUTE",
+                   "UNSUPPORTED_OPERATION", "RATE_LIMITED", "UPSTREAM_UNAVAILABLE",
+                   "INTERNAL"]
+        },
+        "retryAfterSeconds": {"type": "integer", "minimum": 1}
+      }
+    },
+    "auditEvent": {
+      "description": "One record per webhook call, accepted or rejected, shipped to Elastic (AU-2, AU-3). Contains no EDIPI, name or email of the subject.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "timestamp", "requestId", "outcome", "httpStatus", "sourceIp"],
+      "properties": {
+        "event": {"enum": ["provision.user.create", "provision.user.update",
+                           "provision.user.disable", "provision.rejected"]},
+        "timestamp": {"type": "string", "format": "date-time"},
+        "requestId": {"type": "string", "minLength": 1},
+        "idempotencyKey": {"type": "string"},
+        "approvalId": {"type": "string"},
+        "approver": {"type": "string"},
+        "clientCertFingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "sourceIp": {"type": "string"},
+        "outcome": {"enum": ["success", "replay", "rejected", "error"]},
+        "httpStatus": {"type": "integer", "minimum": 100, "maximum": 599},
+        "styxCode": {"type": "string"},
+        "resource": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": {"const": "User"},
+            "externalId": {"type": "string"},
+            "keycloakId": {"type": "string"},
+            "username": {"type": "string"}
+          }
+        },
+        "changes": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

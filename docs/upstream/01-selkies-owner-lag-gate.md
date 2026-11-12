@@ -1,7 +1,12 @@
 # Hold the display owner's video queue to the same lag gate other pages get
 
+- **Upstream project:** selkies-project/selkies
+- **Offered:** not yet
+- **Status:** local-only
+- **Reason kept locally:** write-up is ready but not submitted; carried downstream (`agent/shallow_pipe.py::owner_gate`), guarded to selkies 2.2.0.
+
 Target: selkies-project/selkies, `src/selkies/websockets_mode.py`, selkies 2.1.0.
-Patch: `01-selkies-owner-lag-gate.patch` (`diff -u` against the 2.1.0 file; applies with `patch -p1` from the package parent dir).
+Patch: `patches/selkies/01-selkies-owner-lag-gate.patch` (`diff -u` against the 2.1.0 file; applies with `patch -p1` from the package parent dir).
 
 ## Problem
 

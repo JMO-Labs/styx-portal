@@ -16,6 +16,7 @@ PLACEHOLDER_SECRETS = {
 
 class Settings(BaseSettings):
     DOMAIN: str = "localhost"
+    POSIX_UID_MIN: int = 100000  # first allocated POSIX UID (ADR-0052)
     # Provisioning webhook auth (ADR-0020 / D20): mTLS (forwarded Client-Cert) + bearer
     PROVISION_HOST: str = ""
     PROVISION_BEARER_TOKEN: str = ""
@@ -47,6 +48,9 @@ class Settings(BaseSettings):
     K8S_DESKTOP_IMAGE: str = "ghcr.io/jmo-labs/styx-desktop:latest"
     INSTANCE_STORAGE_CLASS: str = "longhorn"
     INSTANCE_VOLUME_SIZE: str = "20Gi"
+    HOME_STORAGE_CLASS: str = "ceph-cephfs"
+    HOME_QUOTA: str = "10Gi"
+    PROFILE_QUOTA: str = "2Gi"
     CPU_TIER_RESOLUTION: str = "1920x1080"  # ADR-0031 CPU-tier launch defaults
     CPU_TIER_FPS: int = 30
     CPU_TIER_HIDPI: bool = False
@@ -132,6 +136,8 @@ class Settings(BaseSettings):
     KC_ADMIN_REALM: str = ""
     KC_ADMIN_CLIENT_ID: str = ""
     KC_ADMIN_CLIENT_SECRET: str = ""
+    # Comma-separated Keycloak group ids (not names) the admin client must never add users to.
+    KEYCLOAK_ADMIN_GROUPS: str = ""
 
     # extra="ignore": the repo-root .env is shared with docker-compose,
     # cloudflared, and authentik, so it carries keys the backend does not
