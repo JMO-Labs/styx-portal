@@ -1,4 +1,4 @@
-import { AlertTriangle, KeyRound, MoreHorizontal, RefreshCw, Trash2, Unlock, UserRound, UsersRound } from "lucide-react";
+import { AlertTriangle, KeyRound, MoreHorizontal, RefreshCw, Trash2, Unlock, UserRound, UserX, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -10,6 +10,7 @@ export type UserActions = {
   resetPassword: (u: UserRow) => void;
   forceChange: (u: UserRow) => void;
   disable: (u: UserRow) => void;
+  askRemoveAccess: (u: UserRow) => void;
   askDelete: (u: UserRow) => void;
   groups: (u: UserRow) => void;
   profiles: (u: UserRow) => void;
@@ -39,6 +40,7 @@ export function UserRowActions({ u, locked, a, self }: { u: UserRow; locked: boo
           )}
           <DropdownMenuSeparator />
           <DropdownMenuItem disabled={self} onClick={() => a.disable(u)}><Trash2 className="mr-2 h-4 w-4" />Disable</DropdownMenuItem>
+          <DropdownMenuItem disabled={self || !u.is_active} onClick={() => a.askRemoveAccess(u)}><UserX className="mr-2 h-4 w-4" />Remove access</DropdownMenuItem>
           <DropdownMenuItem disabled={self} className="text-destructive focus:text-destructive" onClick={() => a.askDelete(u)}>
             <Trash2 className="mr-2 h-4 w-4" />Delete permanently
           </DropdownMenuItem>
