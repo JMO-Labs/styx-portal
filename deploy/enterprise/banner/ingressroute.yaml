@@ -1,0 +1,14 @@
+# No tls.options: banner.<domain> never requests a client certificate (ADR-0049).
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: banner
+  namespace: banner
+spec:
+  entryPoints: [websecure]
+  routes:
+    - kind: Rule
+      match: Host(`banner.example.internal`)   # PLACEHOLDER: banner.<domain>
+      services:
+        - {name: banner, port: 80}
+  tls: {}

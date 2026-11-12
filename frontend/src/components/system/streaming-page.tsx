@@ -13,6 +13,7 @@ import { StreamingTurn } from "./streaming-turn";
 import { StreamingWsTable } from "./streaming-ws-table";
 import { editCount, mergedSettings, type WsEdits } from "./streaming-overrides";
 import { useAdminPoll } from "@/hooks/use-admin-poll";
+import { useProfile } from "@/hooks/use-profile";
 
 const TRANSPORTS = [["websockets", "WebSockets"], ["webrtc", "WebRTC"]] as const;
 const CODEC_OPTS = [["auto", "Auto"], ["av1", "AV1"], ["hevc", "HEVC"], ["h264", "H.264"]] as const;
@@ -26,7 +27,8 @@ export function StreamingPage() {
   const { setCount } = useUnsaved();
   const { data: groups = [], isLoading } = useQuery({ queryKey: ["system-settings"], queryFn: api.getSystemSettings });
   const poll = useAdminPoll(30000);
-  const { data: workstations = [] } = useQuery({ queryKey: ["workstations"], queryFn: api.listWorkstations, refetchInterval: poll });
+  const wsOn = !useProfile().isDisabled("workstation_enrollment");  // ADR-0053
+  const { data: workstations = [] } = useQuery({ queryKey: ["workstations"], queryFn: api.listWorkstations, refetchInterval: poll, enabled: wsOn });
   const [edits, setEdits] = useState<Record<string, SettingValue>>({});
   const [wsEdits, setWsEdits] = useState<WsEdits>({});
 
@@ -90,7 +92,7 @@ export function StreamingPage() {
   return (
     <>
       <div className="groups">
-        <fieldset className="grp">
+        {wsOn && <fieldset className="grp">
           <legend>Defaults for every workstation</legend>
           <div className={`row wide${isChanged(byKey.WORKSTATION_TRANSPORT as Setting, edits.WORKSTATION_TRANSPORT) ? " changed" : ""}`}>
             <span>Connection</span>
@@ -105,12 +107,14 @@ export function StreamingPage() {
               <Seg label="Frame rate" value={String(fps)} options={fpsOpts} disabled={save.isPending} onChange={(v) => stage("WORKSTATION_DEFAULT_FRAMERATE", Number(v))} /></div>
           )}
           {AFTER_SEGS.map(field)}
-        </fieldset>
+        </fieldset>}
         <StreamingTurn provider={val("WEBRTC_TURN_PROVIDER") ?? "none"} byKey={byKey} edits={edits} disabled={save.isPending}
           onProvider={(v) => stage("WEBRTC_TURN_PROVIDER", v)} onToken={(v) => stage("CLOUDFLARE_TURN_API_TOKEN", v)} field={field} />
       </div>
-      <div className="mt-[26px]"><SectionHead title="Per workstation" note="Gold values override the defaults" /></div>
-      <StreamingWsTable workstations={workstations} edits={wsEdits} defaults={{ transport, encoder, framerate: fps }} disabled={save.isPending} onEdits={setWsEdits} />
+      {wsOn && <>
+        <div className="mt-[26px]"><SectionHead title="Per workstation" note="Gold values override the defaults" /></div>
+        <StreamingWsTable workstations={workstations} edits={wsEdits} defaults={{ transport, encoder, framerate: fps }} disabled={save.isPending} onEdits={setWsEdits} />
+      </>}
       <SavePill count={dirty} saving={save.isPending} onSave={() => save.mutate()} onDiscard={() => { setEdits({}); setWsEdits({}); }} />
     </>
   );

@@ -12,6 +12,7 @@ import { LoginBrandPanel } from "@/components/auth/LoginBrandPanel";
 import { friendlyLoginError } from "@/lib/auth-errors";
 import { safeNext } from "@/lib/safe-next";
 import { KeyRound, Loader2, Waves } from "lucide-react";
+import { useProfile } from "@/hooks/use-profile";
 
 export function LoginPage() {
   const [username, setU] = useState("");
@@ -43,6 +44,9 @@ export function LoginPage() {
       .then(() => window.location.replace(target))
       .catch(() => {});
   }, [loading, user]);
+
+  // Enterprise profile (ADR-0053): password login is hard-disabled server-side; hide the form.
+  const passwordOff = useProfile().isDisabled("password_login");
 
   useEffect(() => {
     withRetry(api.oauthProviders).then(setProviders).catch(() => {});
@@ -169,7 +173,7 @@ export function LoginPage() {
                   Continue with {p.display_label}
                 </a>
               ))}
-              <div className="flex items-center gap-3 pt-1 text-xs text-muted-foreground">
+              <div hidden={passwordOff} className="flex items-center gap-3 pt-1 text-xs text-muted-foreground">
                 <span className="h-px flex-1 bg-border" />
                 or
                 <span className="h-px flex-1 bg-border" />
@@ -177,7 +181,7 @@ export function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={submit} className="space-y-4">
+          <form onSubmit={submit} className="space-y-4" hidden={passwordOff} data-testid="password-form">
             {challenge ? (
               <>
                 <p className="text-sm text-muted-foreground">Enter the codes from your matrix card.</p>

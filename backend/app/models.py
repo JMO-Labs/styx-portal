@@ -256,6 +256,7 @@ class Instance(SQLModel, table=True):
     profile_volume: str | None = None
     gpu: bool | None = None  # None = legacy: use template.gpu_enabled
     notice: str | None = None
+    image_digest: str | None = None  # pinned at launch (k8s), never changed after
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
     started_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
     stopped_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
@@ -371,6 +372,13 @@ class Group(SQLModel, table=True):
     name: str = Field(unique=True, index=True)
     description: str | None = None
     allow_gpu: bool = False
+    egress_mode: str = "category"
+    # Per-group CPU-tier overrides (ADR-0031); None = use the global default.
+    tier_resolution: str | None = None
+    tier_fps: int | None = None
+    tier_hidpi: bool | None = None
+    tier_cpu: str | None = None
+    tier_memory: str | None = None
     manager_user_id: str | None = Field(default=None, foreign_key="users.id")
     kc_group_id: str | None = None
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)

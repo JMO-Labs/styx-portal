@@ -1,0 +1,103 @@
+# Daily UT1 category refresh (#166, ADR-0040). Writes dstdomain lists to the RWX PVC that the
+# Squid pods mount read-only. Script + seeds come from configMapGenerator (kustomization.yaml).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: squid-categories
+  namespace: egress-proxy
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ceph-cephfs
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: squid-categories-params
+  namespace: egress-proxy
+data:
+  # Point at an internal mirror here if the cluster has no direct internet access.
+  UT1_BASE_URL: https://dsi.ut-capitole.fr/blacklists/download
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: squid-categories-update
+  namespace: egress-proxy
+spec:
+  schedule: "17 3 * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: squid-categories-update
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 13
+            runAsGroup: 13
+            fsGroup: 13
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: update
+              image: python:3.12-slim
+              command: ["python3", "/scripts/update_categories.py"]
+              envFrom:
+                - configMapRef: {name: squid-categories-params}
+              env:
+                - {name: OUT_DIR, value: /categories}
+                - {name: SEED_DIR, value: /seed}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: [ALL]}
+              resources:
+                requests: {cpu: 100m, memory: 128Mi}
+                limits: {cpu: 500m, memory: 512Mi}
+              volumeMounts:
+                - {name: scripts, mountPath: /scripts, readOnly: true}
+                - {name: seed, mountPath: /seed, readOnly: true}
+                - {name: categories, mountPath: /categories}
+          volumes:
+            - name: scripts
+              configMap: {name: squid-categories-script}
+            - name: seed
+              configMap: {name: squid-categories-seed}
+            - name: categories
+              persistentVolumeClaim: {claimName: squid-categories}
+---
+# Only the CronJob pod gets internet egress (443) and DNS; the Squid pods are unchanged.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: squid-categories-update-egress
+  namespace: egress-proxy
+spec:
+  endpointSelector:
+    matchLabels: {app.kubernetes.io/name: squid-categories-update}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: ANY}
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toEntities: [world]
+      toPorts:
+        - ports:
+            - {port: "443", protocol: TCP}

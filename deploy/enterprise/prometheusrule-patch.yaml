@@ -1,0 +1,41 @@
+# Replaces the base rules: the CronJob-based StyxBackupFailed/StyxBackupStale
+# are swapped for CNPG ones (CronJob is removed in this overlay). Lists in CRDs
+# are replaced wholesale, so StyxBackendDown is restated unchanged.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: styx
+  namespace: styx
+spec:
+  groups:
+    - name: styx
+      rules:
+        - alert: StyxBackendDown
+          expr: kube_deployment_status_replicas_available{namespace="styx",deployment="backend"} < 1
+          for: 2m
+          labels: {severity: critical}
+          annotations:
+            summary: Styx backend has no available replicas
+        - alert: StyxCnpgBackupStale
+          # barman-cloud plugin metrics (in-core cnpg_collector_* are not filled for plugin backups).
+          # absent() and a 0 value (no backup yet) both count as stale.
+          expr: >-
+            (time() - max(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="styx"}) > 93600)
+            or (max(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="styx"}) == 0)
+            or absent(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="styx"})
+          for: 30m
+          labels: {severity: warning}
+          annotations:
+            summary: No CNPG backup available in the last 26h
+        - alert: StyxCnpgBackupFailed
+          expr: max(barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace="styx"}) > max(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="styx"})
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: Most recent CNPG backup failed
+        - alert: StyxCnpgWalArchiveFailing
+          expr: increase(cnpg_pg_stat_archiver_failed_count{namespace="styx"}[15m]) > 0
+          for: 5m
+          labels: {severity: critical}
+          annotations:
+            summary: CNPG WAL archiving is failing

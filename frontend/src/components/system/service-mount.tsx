@@ -6,6 +6,7 @@ import { api, type MountJob, type ProxiedService } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Stepper } from "@/components/ui/stepper";
 import { MountConsentDialog } from "./mount-consent-dialog";
+import { useProfile } from "@/hooks/use-profile";
 
 export const ACTIVE = ["pending", "running"];
 const RETRY_MS = 120_000;
@@ -26,11 +27,18 @@ const shortSteps = (steps: MountJob["steps"]) => steps.map((s) =>
 export const fetchLatestMount = (id: string): Promise<MountJob | null> =>
   api.mountLatest(id).catch((e: { status?: number }) => (e?.status === 404 ? null : Promise.reject(e)));
 
-export function ServiceMount({ service, onChanged, onDone, autoOpenConsent }: {
+type MountProps = {
   service: ProxiedService; onChanged?: (svc: ProxiedService) => void; onDone?: () => void;
   /** Open the consent dialog once as soon as the plan has changes to apply (add flow). */
   autoOpenConsent?: boolean;
-}) {
+};
+
+/** Hidden when the enterprise profile disables the Docker routers (ADR-0053). */
+export function ServiceMount(props: MountProps) {
+  return useProfile().isDisabled("docker_routers") ? null : <ServiceMountInner {...props} />;
+}
+
+function ServiceMountInner({ service, onChanged, onDone, autoOpenConsent }: MountProps) {
   const { id, name, slug } = service;
   const qc = useQueryClient();
   const [asking, setAsking] = useState(false);
