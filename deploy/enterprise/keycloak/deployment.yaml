@@ -56,12 +56,15 @@ spec:
             - topologyKey: kubernetes.io/hostname
               labelSelector:
                 matchLabels: {app.kubernetes.io/name: keycloak}
+      volumes:
+        - name: realm
+          configMap: {name: keycloak-realm}
       containers:
         - name: keycloak
           # PLACEHOLDER(digest): mirror quay.io/keycloak/keycloak:26.4.7 into Harbor and
           # replace with the real digest (all-zero digest never pulls).
           image: harbor.example.internal/keycloak/keycloak:26.4.7@sha256:0000000000000000000000000000000000000000000000000000000000000000
-          args: [start]
+          args: [start, --import-realm]
           ports:
             - {name: http, containerPort: 8080}
             - {name: management, containerPort: 9000}
@@ -84,6 +87,8 @@ spec:
               valueFrom: {secretKeyRef: {name: keycloak-admin, key: username}}
             - name: KC_BOOTSTRAP_ADMIN_PASSWORD
               valueFrom: {secretKeyRef: {name: keycloak-admin, key: password}}
+          volumeMounts:
+            - {name: realm, mountPath: /opt/keycloak/data/import, readOnly: true}
           readinessProbe:
             httpGet: {path: /health/ready, port: management}
             periodSeconds: 10

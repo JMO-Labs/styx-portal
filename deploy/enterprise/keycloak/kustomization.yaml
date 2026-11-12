@@ -9,3 +9,9 @@ resources:
   - deployment.yaml
   - networkpolicy.yaml
   - pdb.yaml
+configMapGenerator:
+  - name: keycloak-realm
+    files:
+      - styx-realm.json=realm/styx-realm.json
+generatorOptions:
+  disableNameSuffixHash: true
