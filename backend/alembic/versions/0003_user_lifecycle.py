@@ -15,7 +15,7 @@ down_revision: Union[str, Sequence[str], None] = '0002_abuse_tables'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-_TS = sa.DateTime(timezone=True)
+_TS = sa.DateTime()
 _COLS = [('end_date', _TS), ('disabled_at', _TS),
          ('disabled_reason', sa.String()), ('reviewed_at', _TS)]
 
