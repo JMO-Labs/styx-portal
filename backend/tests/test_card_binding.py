@@ -152,7 +152,7 @@ async def test_admin_approve_binds(admin_client, session, kc):
     await session.refresh(ar)
     assert ar.status == "bound"
     logs = (await session.exec(select(AuditLog))).all()
-    assert EDIPI not in json.dumps([l.detail for l in logs])
+    assert EDIPI not in json.dumps([row.detail for row in logs])
 
 
 async def test_approve_requires_request_id(admin_client, session, kc):
