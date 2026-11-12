@@ -56,7 +56,14 @@ def test_image_mapping():
 
 def test_env_default_and_override():
     env = {e["name"]: e["value"] for e in _build()[3]["env"]}
-    assert env == {"PIXELFLUX_WAYLAND": "true", "A": "1"}
+    assert env == {
+        "PIXELFLUX_WAYLAND": "true",
+        "SELKIES_MANUAL_WIDTH": "1920",
+        "SELKIES_MANUAL_HEIGHT": "1080",
+        "SELKIES_FRAMERATE": "30",
+        "SELKIES_SCALING_DPI": "96",
+        "A": "1",
+    }
     env = {e["name"]: e["value"] for e in _build(env={"PIXELFLUX_WAYLAND": "false"})[3]["env"]}
     assert env["PIXELFLUX_WAYLAND"] == "false"
 
