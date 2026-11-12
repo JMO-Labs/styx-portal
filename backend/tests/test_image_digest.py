@@ -35,11 +35,30 @@ def test_newest_signed_picked():
 
 
 def test_unsigned_newer_skipped():
+    """Harbor semantics: the tag sits on the newest (unsigned) push; the older
+    signed artifact no longer holds it and is untagged."""
+    seen = []
+
     def h(r):
+        seen.append(r)
         return httpx.Response(200, json=[
-            art("sha256:signed", "2026-01-01T00:00:00Z", True),
-            art("sha256:unsigned", "2026-03-01T00:00:00Z", False)])
+            {**art("sha256:unsigned", "2026-03-01T00:00:00Z", False),
+             "tags": [{"name": "latest"}]},
+            {**art("sha256:signed", "2026-01-01T00:00:00Z", True), "tags": None}])
     assert resolve_digest(REF, cfg(), client(h)).endswith("@sha256:signed")
+    assert "tags=" not in str(seen[0].url.params.get("q", ""))
+
+
+def test_foreign_registry_untouched():
+    def h(r):
+        raise AssertionError("harbor must not be queried")
+    ref = "ghcr.io/jmo-labs/styx-desktop:latest"
+    assert resolve_digest(ref, cfg(), client(h)) == ref
+
+
+def test_non_list_body_falls_back():
+    assert resolve_digest(REF, cfg(), client(lambda r: httpx.Response(
+        200, json={"errors": [{"code": "x"}]}))) == REF
 
 
 def test_harbor_down_falls_back(caplog):
