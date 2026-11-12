@@ -3,7 +3,7 @@
 The enterprise profile runs desktops from a rootless base image plus three golden images.
 Decisions: [ADR-0067](../enterprise/adr/0067-enterprise-image-layout-and-cpu-tier-overrides.md),
 [ADR-0057](../enterprise/adr/0057-own-rootless-selkies-pixelflux-base-image.md),
-[ADR-0028](../enterprise/adr/0028-golden-images.md) (see the [ADR index](../enterprise/adr/README.md)).
+[ADR-0028](../enterprise/adr/0028-golden-images-3-5-ubuntu-based-images-built-in-ci.md) (see the [ADR index](../enterprise/adr/README.md)).
 
 | Path | What |
 |---|---|
