@@ -4,6 +4,7 @@ Least privilege (ADR-0051): no role-mapping operations are exposed.
 """
 import logging
 import time
+from urllib.parse import quote
 from collections.abc import Callable
 
 import httpx
@@ -13,6 +14,10 @@ from app.config import Settings
 logger = logging.getLogger("styx-portal")
 
 _EXPIRY_SKEW_S = 10
+
+
+def _seg(value: str) -> str:
+    return quote(value, safe="")
 
 
 class KeycloakAdminError(Exception):
@@ -75,19 +80,30 @@ class KeycloakAdminClient:
             raise KeycloakAdminError(f"{op} failed: {resp.status_code}")
 
     async def disable_user(self, kc_user_id: str) -> None:
-        await self._request("disable_user", "PUT", f"/users/{kc_user_id}", {"enabled": False})
+        await self._request("disable_user", "PUT", f"/users/{_seg(kc_user_id)}", {"enabled": False})
 
     async def delete_user(self, kc_user_id: str) -> None:
-        await self._request("delete_user", "DELETE", f"/users/{kc_user_id}")
+        await self._request("delete_user", "DELETE", f"/users/{_seg(kc_user_id)}")
 
     async def remove_from_group(self, kc_user_id: str, group_id: str) -> None:
         await self._request(
-            "remove_from_group", "DELETE", f"/users/{kc_user_id}/groups/{group_id}"
+            "remove_from_group", "DELETE", f"/users/{_seg(kc_user_id)}/groups/{_seg(group_id)}"
         )
 
 
+_instance: KeycloakAdminClient | None = None
+
+
 def _client() -> KeycloakAdminClient:
-    return KeycloakAdminClient(Settings())
+    global _instance
+    if _instance is None:
+        _instance = KeycloakAdminClient(Settings())
+    return _instance
+
+
+def reset_client() -> None:
+    global _instance
+    _instance = None
 
 
 async def disable_user(kc_user_id: str) -> None:

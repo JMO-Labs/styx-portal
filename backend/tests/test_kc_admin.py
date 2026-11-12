@@ -108,3 +108,35 @@ def test_no_role_mapping_api():
 
     assert "role-mappings" not in inspect.getsource(kc_admin)
     assert not [n for n in dir(KeycloakAdminClient) if "role" in n]
+
+
+async def test_encoded_path_raw():
+    paths = []
+
+    def h(req: httpx.Request):
+        if req.url.path.endswith("/token"):
+            return httpx.Response(200, json={"access_token": "t", "expires_in": 60})
+        paths.append(req.url.raw_path.decode())
+        return httpx.Response(204)
+
+    await make(h).remove_from_group("a/../b", "g/x")
+    assert paths == ["/admin/realms/r/users/a%2F..%2Fb/groups/g%2Fx"]
+
+
+async def test_module_level_calls_share_one_client_and_token():
+    tokens = []
+
+    def h(req: httpx.Request):
+        if req.url.path.endswith("/token"):
+            tokens.append(1)
+            return httpx.Response(200, json={"access_token": "t", "expires_in": 60})
+        return httpx.Response(204)
+
+    kc_admin.reset_client()
+    kc_admin._instance = make(h)
+    try:
+        await kc_admin.disable_user("u1")
+        await kc_admin.delete_user("u1")
+    finally:
+        kc_admin.reset_client()
+    assert len(tokens) == 1
