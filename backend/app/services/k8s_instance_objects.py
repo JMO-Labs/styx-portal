@@ -3,6 +3,7 @@ import logging
 import re
 
 from app.config import Settings
+from app.services import image_digest
 
 logger = logging.getLogger("styx-portal")
 MANAGED = {"app.kubernetes.io/managed-by": "styx-backend"}
@@ -88,6 +89,7 @@ def build_objects(name, image, env, volumes, port, ns, owner, *, gpu_enabled=Fal
                   entrypoint=None, command=None) -> list[dict]:
     if "/" not in image:
         image = Settings().K8S_DESKTOP_IMAGE
+    image = image_digest.resolve_digest(image)
     labels = {"app": name, "styx/owner": owner, **MANAGED}
     limits: dict = {}
     requests: dict = {}

@@ -71,6 +71,13 @@ async def _refresh_routes(session: AsyncSession):
     await refresh_routes_from_db(session)
 
 
+def _pinned(docker, instance) -> str | None:
+    """Digest the k8s runtime pinned at launch (None on Docker)."""
+    pin = getattr(docker, "pinned_digest", None)
+    d = pin(f"selkies-{instance.subdomain}") if callable(pin) else None
+    return d if isinstance(d, str) else None
+
+
 async def _isolate_or_409(docker, instance, container_id):
     """Fail closed: never start an instance container that may share styx-portal with the backend."""
     try:
@@ -140,6 +147,7 @@ async def _build_and_start_container(instance, template, docker, session):
         await asyncio.to_thread(docker.remove_container, container_id)
         raise
     instance.container_id = container_id
+    instance.image_digest = _pinned(docker, instance)
     await asyncio.to_thread(docker.start_container, container_id)
     return container_id
 
@@ -248,6 +256,7 @@ async def _launch_instance_background(instance_id: str, template_id: str):
 
             instance.status = "starting"
             instance.container_id = container_id
+            instance.image_digest = _pinned(docker, instance)
             session.add(instance)
             await session.commit()
 

@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     ROUTE_BACKEND: str = "file"   # file | k8s
     K8S_NAMESPACE: str = "styx"
     K8S_INSTANCE_NAMESPACE: str = "styx-instances"
+    HARBOR_URL: str = ""   # empty = no digest pinning (ADR-0030)
+    HARBOR_USER: str = ""
+    HARBOR_PASSWORD: str = ""
     K8S_DESKTOP_IMAGE: str = "ghcr.io/jmo-labs/styx-desktop:latest"
     INSTANCE_STORAGE_CLASS: str = "longhorn"
     INSTANCE_VOLUME_SIZE: str = "20Gi"
