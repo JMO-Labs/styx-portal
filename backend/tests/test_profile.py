@@ -8,10 +8,19 @@ from app.services import profile
 # One probe per disabled feature: (feature, method, path)
 PROBES = [
     ("password_login", "POST", "/api/auth/login"),
+    ("password_login", "POST", "/api/auth/setup"),
+    ("password_login", "POST", "/api/auth/change-password"),
+    ("password_login", "POST", "/api/auth/accept-invite"),
+    ("password_login", "POST", "/api/users/x/reset-password"),
+    ("password_login", "POST", "/api/users/x/force-password-change"),
     ("matrix_2fa", "POST", "/api/auth/login/matrix"),
     ("matrix_2fa", "GET", "/api/auth/matrix"),
+    ("matrix_2fa", "DELETE", "/api/users/x/matrix"),
     ("generic_oidc", "GET", "/api/auth/oauth/providers"),
     ("generic_oidc", "GET", "/api/oauth-providers"),
+    ("generic_oidc", "GET", "/api/auth/link/providers"),
+    ("generic_oidc", "GET", "/api/auth/link/google/start"),
+    ("generic_oidc", "DELETE", "/api/auth/link/google"),
     ("workstation_enrollment", "POST", "/api/enroll/register"),
     ("workstation_enrollment", "POST", "/api/agent/heartbeat"),
     ("workstation_enrollment", "GET", "/api/workstations"),
@@ -70,12 +79,13 @@ def test_unknown_profile_rejected():
 
 
 @pytest.mark.asyncio
-async def test_features_endpoint(client, admin_client, monkeypatch):
+async def test_features_endpoint(client, admin_client, second_member_client, monkeypatch):
     # client and admin_client are the same object: drop the cookies to be anonymous
     saved = dict(client.cookies)
     client.cookies.clear()
     assert (await client.get("/api/diagnostics/features")).status_code == 401
     client.cookies.update(saved)
+    assert (await second_member_client.get("/api/diagnostics/features")).status_code == 403
     r = await admin_client.get("/api/diagnostics/features")
     body = r.json()
     assert body["profile"] == "homelab"

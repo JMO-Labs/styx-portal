@@ -12,6 +12,7 @@ import { LoginBrandPanel } from "@/components/auth/LoginBrandPanel";
 import { friendlyLoginError } from "@/lib/auth-errors";
 import { safeNext } from "@/lib/safe-next";
 import { KeyRound, Loader2, Waves } from "lucide-react";
+import { useProfile } from "@/hooks/use-profile";
 
 export function LoginPage() {
   const [username, setU] = useState("");
@@ -45,12 +46,7 @@ export function LoginPage() {
   }, [loading, user]);
 
   // Enterprise profile (ADR-0053): password login is hard-disabled server-side; hide the form.
-  const [passwordOff, setPasswordOff] = useState(false);
-  useEffect(() => {
-    Promise.resolve(api.systemProfile?.())
-      .then((p) => setPasswordOff(!!p?.disabled?.includes("password_login")))
-      .catch(() => {});
-  }, []);
+  const passwordOff = useProfile().isDisabled("password_login");
 
   useEffect(() => {
     withRetry(api.oauthProviders).then(setProviders).catch(() => {});
