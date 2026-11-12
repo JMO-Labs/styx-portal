@@ -4,6 +4,7 @@
 set -euo pipefail
 
 NS=node-loss
+shellcheck scripts/node-out-of-service.sh scripts/kind/node-loss.sh
 trap 'kubectl delete ns "$NS" --wait=false >/dev/null 2>&1 || true' EXIT
 
 kubectl wait --for=condition=Ready nodes --all --timeout=180s
@@ -42,7 +43,8 @@ done
 [ "$st" != "True" ] || { echo "FAIL: $victim still Ready"; exit 1; }
 
 # Refuses Ready nodes
-other=$(kubectl get nodes -o name | sed 's|node/||' | grep -v -e "$victim" -e control-plane | head -1)
+other=$(kubectl get nodes -o name | sed 's|node/||' | grep -vx -e "$victim" -e '.*control-plane' | head -1)
+[ -n "$other" ] || { echo "FAIL: no Ready worker"; exit 1; }
 if scripts/node-out-of-service.sh --yes "$other"; then
   echo "FAIL: script accepted Ready node $other"; exit 1
 fi

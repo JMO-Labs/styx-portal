@@ -19,7 +19,9 @@ Taint only when **all** hold:
 2. You have confirmed it is powered off, or fenced from the network and storage (IPMI/BMC
    power-off, switch port down). A node that is still running workloads and writing to Ceph
    risks two pods mounting the same home.
-3. Waiting for the default eviction timeout (about 5 minutes) is not acceptable.
+3. Waiting for the default eviction timeout (about 5 minutes) is not acceptable. Without the
+   taint, pods on a dead node also stay `Terminating` and their volume attachments are never
+   released, so replacements cannot mount the home.
 
 Do not taint a node that is merely draining or `Ready`; the script refuses a `Ready` node.
 
