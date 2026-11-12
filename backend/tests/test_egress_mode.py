@@ -1,5 +1,4 @@
 import pytest
-from sqlmodel import select
 
 from app.models import Group, User, UserGroup
 from app.services.egress_mode import resolve_egress_mode
