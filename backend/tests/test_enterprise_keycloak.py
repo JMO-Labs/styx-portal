@@ -29,7 +29,7 @@ def of_kind(kind):
 def _need(tool):
     if shutil.which(tool):
         return
-    if os.environ.get("REQUIRE_KUSTOMIZE") == "1":
+    if os.environ.get("REQUIRE_" + tool.upper()) == "1":
         pytest.fail(f"{tool} required but not installed")
     pytest.skip(f"{tool} not installed")
 
