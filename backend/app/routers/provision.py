@@ -33,6 +33,9 @@ def _validator() -> jsonschema.Draft202012Validator:
     return jsonschema.Draft202012Validator({"$ref": "#/$defs/user", "$defs": defs})
 
 
+MAX_KEY_LEN = 128
+
+
 def _csv(raw: str) -> set[str]:
     return {x.strip().lower() for x in raw.split(",") if x.strip()}
 
@@ -42,7 +45,7 @@ def _managers() -> dict[str, set[str]]:
         raw = json.loads(_settings.PROVISION_GROUP_MANAGERS or "{}")
     except ValueError:
         return {}
-    return {g: {e.lower() for e in emails} for g, emails in raw.items()}
+    return {g.lower(): {e.lower() for e in emails} for g, emails in raw.items()}
 
 
 def _body_hash(body: dict) -> str:
@@ -68,11 +71,13 @@ async def _finish(session, request, action, status, code, *, key, approval=None,
 
 @router.post("/requests", status_code=201, dependencies=[Depends(require_provision_caller)])
 async def create_request(request: Request,
-                         idempotency_key: str | None = Header(default=None, max_length=128),
+                         idempotency_key: str | None = Header(default=None),
                          session: AsyncSession = Depends(get_session)):
     key = (idempotency_key or "").strip()
-    if not key:
-        raise HTTPException(status_code=400, detail="IDEMPOTENCY_KEY_MISSING")
+    if not key or len(key) > MAX_KEY_LEN:  # never audit an oversized key value
+        await _finish(session, request, "provision.request.invalid", 400,
+                      "IDEMPOTENCY_KEY_INVALID" if key else "IDEMPOTENCY_KEY_MISSING",
+                      key=None)
     try:
         body = json.loads(await request.body())
         errors = list(_validator().iter_errors(body))
@@ -100,7 +105,7 @@ async def create_request(request: Request,
         await _finish(session, request, "provision.request.denied", 403,
                       "GROUP_NOT_ALLOWED", **ctx)
     managers = _managers()
-    if not all(approver.lower() in managers.get(g, set()) for g in ext["groups"]):
+    if not all(approver.lower() in managers.get(g.lower(), set()) for g in ext["groups"]):
         await _finish(session, request, "provision.request.denied", 403,
                       "APPROVER_UNKNOWN", **ctx)
 

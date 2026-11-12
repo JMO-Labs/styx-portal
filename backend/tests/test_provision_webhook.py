@@ -84,14 +84,38 @@ async def test_invalid_body_422_audited(client, session, events):
     assert [e for e in events() if e["event"]["action"] == "provision.request.invalid"]
 
 
-async def test_not_json_422(client):
+def actions(events, name):
+    return [e for e in events() if e["event"]["action"] == name]
+
+
+async def test_not_json_422(client, events):
     r = await client.post("/api/provision/requests", content=b"{x", headers=hdr())
     assert r.status_code == 422
+    assert len(actions(events, "provision.request.invalid")) == 1
 
 
-async def test_missing_idempotency_key_400(client):
+async def test_missing_idempotency_key_400(client, events):
     r = await post(client, body(), key=None)
     assert r.status_code == 400
+    assert r.json()["detail"] == "IDEMPOTENCY_KEY_MISSING"
+    assert len(actions(events, "provision.request.invalid")) == 1
+
+
+async def test_oversized_idempotency_key_400(client, session, events):
+    big = "k" * 129
+    r = await post(client, body(), key=big)
+    assert r.status_code == 400
+    assert r.json()["detail"] == "IDEMPOTENCY_KEY_INVALID"
+    assert await rows(session) == 0
+    (ev,) = actions(events, "provision.request.invalid")
+    assert big not in json.dumps(ev)
+
+
+async def test_group_manager_keys_case_insensitive(client, monkeypatch):
+    monkeypatch.setattr(prov._settings, "PROVISION_GROUP_MANAGERS",
+                        json.dumps({"ENG": ["mgr@example.mil"]}))
+    r = await post(client, body(groups=["eng"], approverEmail="mgr@example.mil"))
+    assert r.status_code == 201
 
 
 async def test_unauthenticated_rejected(client, session):
