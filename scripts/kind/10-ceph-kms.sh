@@ -176,7 +176,8 @@ step "Rook operator chart ${ROOK_CHART_VERSION}"
 helm repo add rook-release https://charts.rook.io/release >/dev/null
 helm upgrade --install rook-ceph rook-release/rook-ceph --version "$ROOK_CHART_VERSION" \
   -n "$RK" --create-namespace --set csi.enableRbdDriver=false --set csi.enableCephfsDriver=false \
-  --set monitoring.enabled=false --wait --timeout 8m
+  --set monitoring.enabled=false --set allowLoopDevices=true --wait --timeout 8m
+# allowLoopDevices: osd-prepare otherwise fails with "unsupported diskType loop" (test-only setting).
 
 step "CephCluster: encrypted PVC OSD, KMS=vault (kubernetes auth), key rotation on"
 # NOTE: KMS connectionDetails below mirror deploy/enterprise/rook-ceph/cephcluster.yaml (Child 1)
