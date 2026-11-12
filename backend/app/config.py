@@ -16,6 +16,7 @@ PLACEHOLDER_SECRETS = {
 
 class Settings(BaseSettings):
     DOMAIN: str = "localhost"
+    POSIX_UID_MIN: int = 100000  # first allocated POSIX UID (ADR-0052)
     # Provisioning webhook auth (ADR-0020 / D20): mTLS (forwarded Client-Cert) + bearer
     PROVISION_HOST: str = ""
     PROVISION_BEARER_TOKEN: str = ""
