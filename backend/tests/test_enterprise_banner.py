@@ -1,5 +1,6 @@
 """Static checks for deploy/enterprise/banner (issue #132, ADR-0027/0049)."""
 
+import os
 import re
 import shutil
 import subprocess
@@ -66,6 +67,9 @@ def test_page_banner_agree_and_decline():
     assert "You are accessing a U.S. Government" in page
     assert 'id="agree"' in page and "I agree" in page
     assert "/start" in page  # configurable login start URL
+    conf = data["nginx.conf"]
+    m = re.search(r"location = /start \{[^}]*?return 30\d\s+(\S+?);", conf, re.S)
+    assert m and re.search(r"/api/auth/oauth/[^/]+/start$", m.group(1))
     assert "declined" in page.lower()
     # decline path shows no link
     assert "<a " not in data["declined.html"]
@@ -80,7 +84,41 @@ def test_no_external_resources_and_csp():
     assert "Content-Security-Policy" in data["nginx.conf"]
 
 
-@pytest.mark.skipif(not shutil.which("kustomize"), reason="kustomize missing")
-def test_kustomize_build():
+def _require(tool):
+    if shutil.which(tool):
+        return
+    if os.environ.get("REQUIRE_KUSTOMIZE") == "1" or os.environ.get("REQUIRE_KUBECONFORM") == "1":
+        pytest.fail(f"{tool} required but not installed")
+    pytest.skip(f"{tool} not installed")
+
+
+def _build():
+    _require("kustomize")
     r = subprocess.run(["kustomize", "build", str(ROOT)], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
+    return r.stdout
+
+
+def test_kustomize_build():
+    _build()
+
+
+def test_kubeconform_strict():
+    out = _build()
+    _require("kubeconform")
+    script = ROOT.parents[2] / "scripts/k8s_policy_check.sh"
+    r = subprocess.run([str(script), "--stdin"], input=out, capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_policy_check_targets_banner():
+    script = (ROOT.parents[2] / "scripts/k8s_policy_check.sh").read_text()
+    assert "deploy/enterprise/banner" in script
+
+
+def test_nginx_conf_not_in_web_root():
+    vol = next(v for v in docs()[("Deployment", "banner")]["spec"]["template"]["spec"]["volumes"]
+               if v["name"] == "site")
+    items = vol["configMap"]["items"]
+    assert sorted(i["path"] for i in items) == ["declined.html", "index.html", "styles.css"]
+    assert all(i["key"] == i["path"] for i in items)
