@@ -16,6 +16,10 @@ PLACEHOLDER_SECRETS = {
 
 class Settings(BaseSettings):
     DOMAIN: str = "localhost"
+    # Provisioning webhook auth (ADR-0020 / D20): mTLS (forwarded Client-Cert) + bearer
+    PROVISION_HOST: str = ""
+    PROVISION_BEARER_TOKEN: str = ""
+    PROVISION_CLIENT_CERT_FINGERPRINTS: str = ""  # comma-separated SHA-256 hex of DER
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/styx-portal.db"
     DOCKER_SOCKET: str = "unix:///var/run/docker.sock"
     DOCKER_NETWORK: str = "styx-portal"
