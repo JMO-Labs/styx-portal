@@ -195,3 +195,23 @@ async def test_webhook_calls_provision(client, monkeypatch):
     monkeypatch.setattr(prov, "provision", fake)
     assert (await post(client, body())).status_code == 201
     assert seen == [("req-1", "create")]
+
+
+@pytest.mark.parametrize("raw", ["{not json", "nope"])
+def test_managers_bad_json_is_empty(monkeypatch, raw):
+    monkeypatch.setattr(prov._settings, "PROVISION_GROUP_MANAGERS", raw)
+    assert prov._managers() == {}
+
+
+async def test_flush_race_returns_409_audited(client, session, events, monkeypatch):
+    from sqlalchemy.exc import IntegrityError
+    from sqlmodel.ext.asyncio.session import AsyncSession
+
+    async def boom(self, *a, **kw):
+        raise IntegrityError("insert", {}, Exception("dup"))
+
+    monkeypatch.setattr(AsyncSession, "flush", boom)
+    r = await post(client, body())
+    assert r.status_code == 409 and r.json()["detail"] == "APPROVAL_REUSED"
+    assert await rows(session) == 0
+    assert any(e["event"]["action"] == "provision.request.conflict" for e in events())
