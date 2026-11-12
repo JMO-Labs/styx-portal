@@ -1,0 +1,10 @@
+# keycloak-db uses the PDBs CNPG creates.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: keycloak
+  namespace: keycloak
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: keycloak}
