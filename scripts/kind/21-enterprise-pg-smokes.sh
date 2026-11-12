@@ -5,7 +5,7 @@ set -euo pipefail
 ent_setup
 PROBE=$REPO/test/kind/enterprise-verify/leader_probe.py
 PRE_EPIC=655c3ed^   # parent of the #21 merge (PR #128)
-TAKEOVER_MAX=8      # LEADER_RETRY_S 5 + LEADER_HEARTBEAT_TIMEOUT_S 3; runbook: crash <= 5 s
+TAKEOVER_MAX=5      # #23 runbook (leader-election.md): leader process crash <= 5 s
 fail=0
 bad() { echo "FAIL: $*"; fail=1; }
 cd "$ENT/backend"
@@ -37,7 +37,7 @@ psql_c "DROP DATABASE IF EXISTS leader WITH (FORCE)" >/dev/null; psql_c "CREATE 
 export DATABASE_URL="postgresql+asyncpg://${PG_BASE}/leader" PROBE_DIR=$work/probe
 mkdir -p "$PROBE_DIR"
 start_probe() { $PY "$PROBE" >"$work/probe-$RANDOM.log" 2>&1 & }
-leaders() { cat "$PROBE_DIR"/* 2>/dev/null | grep -c 1 || true; }
+leaders() { grep -lx 1 "$PROBE_DIR"/* 2>/dev/null | wc -l; }  # count files, not lines
 db_leaders() { psql_c "SELECT count(*) FROM pg_locks WHERE locktype='advisory' AND granted AND classid=21332 AND objid=1 AND objsubid=2"; }
 now_ms() { echo $(( $(date +%s%N) / 1000000 )); }
 wait_one() {  # $1 timeout s; prints elapsed ms when exactly one leader (probe + pg_locks)
@@ -48,15 +48,20 @@ wait_one() {  # $1 timeout s; prints elapsed ms when exactly one leader (probe +
     sleep 0.2
   done
 }
-max_seen() {  # $1 seconds: sample, print max self-reported leaders
-  local m=0 n end=$((SECONDS + $1))
-  while [ $SECONDS -lt "$end" ]; do n=$(leaders); [ "$n" -gt "$m" ] && m=$n; sleep 0.2; done
+max_seen() {  # $1 seconds: sample, print max leaders (self-reported or pg_locks holders)
+  local m=0 n d end=$((SECONDS + $1))
+  while [ $SECONDS -lt "$end" ]; do
+    n=$(leaders); d=$(db_leaders 2>/dev/null || true)  # db down during restart -> ignore
+    [[ "$d" =~ ^[0-9]+$ ]] && [ "$d" -gt "$n" ] && n=$d
+    [ "$n" -gt "$m" ] && m=$n
+    sleep 0.2
+  done
   echo "$m"
 }
 start_probe; start_probe
 wait_one 20 >/dev/null || bad "no single leader after start"
 [ "$(max_seen 6)" -le 1 ] || bad "two leaders while idle"
-lp=$(grep -l 1 "$PROBE_DIR"/* | head -1); lpid=$(basename "$lp")
+lp=$(grep -lx 1 "$PROBE_DIR"/* | head -1); lpid=$(basename "$lp")
 echo "leader pid $lpid; kill -9"
 kill -9 "$lpid"; rm -f "$lp"
 if t=$(wait_one "$TAKEOVER_MAX"); then echo "takeover in ${t} ms (max ${TAKEOVER_MAX}s)"; else bad "no takeover within ${TAKEOVER_MAX}s"; fi
@@ -93,6 +98,6 @@ for d in sqlite-to-postgres.md leader-election.md; do
 done
 for n in 21 22 23 24; do grep -qE "#$n\b" CHANGELOG.md || bad "CHANGELOG lacks #$n"; done
 
-docker rm -f "$PG_NAME" >/dev/null
+ent_cleanup
 [ "$fail" -eq 0 ] && echo "ALL SMOKES OK"
 exit "$fail"

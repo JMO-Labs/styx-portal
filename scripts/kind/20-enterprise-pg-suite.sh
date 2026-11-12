@@ -22,5 +22,5 @@ run_suite sqlite || rc=1
 echo "== suite: postgres 17"
 STYX_TEST_DATABASE_URL="postgresql+asyncpg://${PG_BASE}/styx_test" \
 TEST_PG_URL="postgresql://${PG_BASE}/styx_test" run_suite postgres || rc=1
-docker rm -f "$PG_NAME" >/dev/null
+ent_cleanup
 exit "$rc"

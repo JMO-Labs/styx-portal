@@ -47,3 +47,7 @@ venv_up() {
 }
 
 ent_setup() { ent_checkout; pg_up; venv_up; }
+
+# Always remove the Postgres container and any leader probes, even on an early set -e exit.
+ent_cleanup() { pkill -f leader_probe.py 2>/dev/null || true; docker rm -f "$PG_NAME" >/dev/null 2>&1 || true; }
+trap ent_cleanup EXIT
