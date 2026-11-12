@@ -38,6 +38,8 @@ overwritten. Once the new release works, you may delete it; to undo the switch,
 stop the backend, roll back the image and copy the `.bak` over the database
 file. Postgres databases always start from an empty schema, so there is no stamp.
 
+Moving an existing SQLite install to PostgreSQL is a separate, one-off step: see [SQLite to PostgreSQL](sqlite-to-postgres.md).
+
 ## Kubernetes
 
 Bump the `newTag` values in `deploy/k8s/kustomization.yaml`, then:

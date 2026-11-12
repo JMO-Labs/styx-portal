@@ -41,6 +41,7 @@ nav = [
     { "Offsite backup" = "operate/offsite-backup.md" },
     { "DR restore test" = "operate/dr-restore-test.md" },
     { "Upgrade" = "operate/upgrade.md" },
+    { "SQLite to PostgreSQL" = "operate/sqlite-to-postgres.md" },
     { "Enterprise: OpenBao" = "enterprise/runbooks/openbao.md" },
     { "Enterprise: DMZ HAProxy" = "enterprise/runbooks/dmz-haproxy.md" },
     { "Enterprise: Rook-Ceph" = "enterprise/runbooks/rook-ceph.md" },
