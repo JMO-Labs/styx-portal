@@ -10,11 +10,11 @@ async def test_setup_required_initially_true(client):
 
 @pytest.mark.asyncio
 async def test_setup_creates_admin_and_locks(client):
-    r = await client.post("/api/auth/setup", json={**st(), 
+    r = await client.post("/api/auth/setup", json={**await st(), 
         "username": "admin", "password": "correct horse battery staple"})
     assert r.status_code == 201
     assert r.json()["role"] == "admin"
-    r2 = await client.post("/api/auth/setup", json={**st(), 
+    r2 = await client.post("/api/auth/setup", json={**await st(), 
         "username": "user2", "password": "another long password"})
     assert r2.status_code == 404
 
@@ -100,7 +100,7 @@ async def test_setup_enforces_password_policy(client, session):
     await settings.set(session, "PASSWORD_MIN_LENGTH", 12, actor_id=None)
     await session.commit()
     r = await client.post("/api/auth/setup",
-                          json={**st(), "username": "admin", "password": "no-digits-here!"})
+                          json={**await st(), "username": "admin", "password": "no-digits-here!"})
     assert r.status_code == 422, r.text
 
 

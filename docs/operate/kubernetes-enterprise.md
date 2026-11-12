@@ -14,19 +14,12 @@ Postgres cluster with offsite backups. It builds on
 | External Secrets Operator (ESO) | current | Syncs DB credentials and bucket keys from OpenBao |
 | Reloader | current | Restarts backend pods when a Secret changes |
 
-## First boot: start with one replica
+## First boot: setup code
 
-!!! warning
-    Do the first start with `replicas: 1`. Scale to 3 only after setup is done.
-
-The setup token is a per-pod file with a per-process lock, so with several
-replicas each pod issues its own token and setup can fail on another pod.
-Until styx-portal#86 (setup token in the DB) ships, use this procedure:
-
-1. Apply the overlay and override the backend to one replica
-   (`kubectl -n styx scale deploy/backend --replicas=1`).
-2. Read the setup token from the pod log and finish setup in the browser.
-3. Scale up: `kubectl -n styx scale deploy/backend --replicas=3`.
+The setup token lives in the database (`setup_tokens`, a singleton row created
+with `INSERT ... ON CONFLICT DO NOTHING`), so all replicas share one code and it
+is consumed exactly once. Read it from any pod log (`setup code`) and finish setup
+in the browser; no need to scale down first.
 
 Set `JWT_SECRET` in `styx-secrets`. If it is unset each pod writes its own
 `/app/data/secrets.json` and tokens fail across replicas (styx-portal#85 will make
