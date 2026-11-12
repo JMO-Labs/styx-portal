@@ -462,3 +462,9 @@ async def test_boot_logs_portal_instances_without_mutating(caplog):
         await _log_portal_instances(d)
     assert "selkies-foo" in caplog.text and "isolate" in caplog.text
     assert [c[0] for c in d.method_calls] == ["on_portal_network"]
+
+
+async def test_get_unknown_instance_is_404(admin_client):
+    resp = await admin_client.get("/api/instances/does-not-exist")
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Instance not found"
