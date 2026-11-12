@@ -35,7 +35,7 @@ Positive:
 Negative:
 
 - Hourly polling means a new critical CVE can wait up to one interval for its warning.
-- Fail-open recycle needs the Harbor alerts to be watched (see the runbook).
+- A fail open recycle needs the Harbor alerts to be watched (see the runbook).
 
 Follow-up work:
 
