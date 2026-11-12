@@ -394,6 +394,7 @@ export const api = {
   getInstanceLogs: (instanceId: string) =>
     request<string[]>(`/instances/${instanceId}/logs`),
 
+  systemProfile: () => request<{ profile: string; disabled: string[] }>("/system/profile"),
   setupRequired: () => request<{ setup_required: boolean }>("/auth/setup-required"),
   setupPreflight: () => request<SetupPreflight>("/auth/setup-preflight"),
   setup: (data: { username: string; email?: string; password: string; setup_token: string }) =>
@@ -423,6 +424,7 @@ export const api = {
     request<{ token: string; expires_at: string | null }>("/users/invites", {
       method: "POST", body: JSON.stringify(data) }),
   disableUser: (id: string) => request<unknown>(`/users/${id}/disable`, { method: "PATCH" }),
+  removeAccess: (id: string) => request<unknown>(`/users/${id}/remove-access`, { method: "POST" }),
   changeRole: (id: string, role: string) =>
     request<unknown>(`/users/${id}/role?role=${role}`, { method: "PATCH" }),
   unlockUser: (id: string) => request(`/users/${id}/unlock`, { method: "POST" }),

@@ -52,6 +52,7 @@ from app.services.background_loops import (  # noqa: F401 - re-exported for test
     _run_monitor_pass, _screenshot_capture_loop, _service_health_loop,
     _session_monitor_loop)
 from app.services.janitor import janitor_loop
+from app.services.settings_sync import settings_sync_loop
 from app.services.leader import LeaderTasks, get_elector
 from app.services.mount_jobs import sweep_interrupted
 from app.security.csrf import csrf_valid, CSRF_COOKIE, CSRF_HEADER, UNSAFE_METHODS
@@ -74,10 +75,32 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class ProfileMiddleware:
+    """Enterprise profile: 404 for routes of hard-disabled features (ADR-0053)."""
+
+    def __init__(self, app, get_settings):
+        self.app, self.get_settings = app, get_settings
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            from app.services.profile import blocked_feature
+            feature = blocked_feature(self.get_settings(), scope["path"])
+            if feature:
+                resp = JSONResponse({"detail": f"feature disabled: {feature}"}, status_code=404)
+                return await resp(scope, receive, send)
+        await self.app(scope, receive, send)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Fail fast at boot if the auth secret is misconfigured, rather than
     # returning an opaque 500 the first time a token is minted (e.g. /auth/setup).
+    from app.services.profile import validate_profile
+    try:
+        validate_profile(_settings)
+    except RuntimeError as e:
+        logger.critical("FATAL: %s", e)
+        raise
     try:
         _settings.jwt_secret_or_raise()
     except RuntimeError as e:
@@ -140,11 +163,13 @@ async def lifespan(app: FastAPI):
             await refresh_routes_from_db(session)
 
     # Leader-only: boot steps run on every promotion, loops start after them.
+    from app.services.account_deletion import account_deletion_loop
     from app.services.new_account_review import new_account_review_loop
     from app.services.new_account_digest import digest_loop
     leader_loops = [_session_monitor_loop, _service_health_loop, _metrics_db_loop, janitor_loop,
                     partial(new_account_review_loop, async_session),
-                    partial(digest_loop, async_session)]
+                    partial(digest_loop, async_session),
+                    partial(account_deletion_loop, async_session)]
     if _settings.ROUTE_BACKEND == "k8s":
         leader_loops.append(prepull_loop)
     leader = LeaderTasks(boot=[_probe_cleanup, _reconcile, _close_dangling, _refresh_routes],
@@ -157,6 +182,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_screenshot_capture_loop()),
         asyncio.create_task(service_thumbnail_loop(async_session, _settings.SCREENSHOT_CACHE_DIR)),
         asyncio.create_task(_health_sample_loop()),
+        asyncio.create_task(settings_sync_loop(async_session, _settings_store)),
     ]
     yield
     for t in local_tasks:
@@ -195,6 +221,8 @@ def cors_origins(s: Settings) -> list[str]:
 
 
 _cors_origins = cors_origins(_settings)
+
+app.add_middleware(ProfileMiddleware, get_settings=lambda: _settings)
 
 app.add_middleware(
     CORSMiddleware,
@@ -400,6 +428,21 @@ async def system_diagnostics(
 ):
     from app.services.diagnostics import run_diagnostics
     return await run_diagnostics(session)
+
+
+@app.get("/api/diagnostics/features")
+async def diagnostics_features(admin: User = Depends(require_admin)):
+    from app.services.profile import ALL_FEATURES, disabled_features
+    off = disabled_features(_settings)
+    return {"profile": _settings.STYX_PROFILE, "disabled": off,
+            "enabled": [f for f in ALL_FEATURES if f not in off]}
+
+
+@app.get("/api/system/profile")
+async def system_profile():
+    """Public: lets the UI hide disabled features before login."""
+    from app.services.profile import disabled_features
+    return {"profile": _settings.STYX_PROFILE, "disabled": disabled_features(_settings)}
 
 
 @app.get("/api/system/diagnostics/history")

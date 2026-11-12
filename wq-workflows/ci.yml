@@ -1,0 +1,248 @@
+name: CI
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Path filter: docs-only PRs skip the heavy jobs (skipped counts as success). Non-PR events run everything.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ github.event_name != 'pull_request' || steps.f.outputs.backend == 'true' }}
+      frontend: ${{ github.event_name != 'pull_request' || steps.f.outputs.frontend == 'true' }}
+      pg: ${{ github.event_name != 'pull_request' || steps.f.outputs.pg == 'true' }}
+      plugin: ${{ github.event_name != 'pull_request' || steps.f.outputs.plugin == 'true' }}
+      rke2: ${{ github.event_name != 'pull_request' || steps.f.outputs.rke2 == 'true' }}
+      code: ${{ github.event_name != 'pull_request' || steps.code.outputs.code == 'true' }}
+      license: ${{ github.event_name != 'pull_request' || steps.f.outputs.license == 'true' }}
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: f
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            backend: ['backend/**', '.github/actions/setup-backend/**', '.github/workflows/ci.yml']
+            frontend: ['frontend/**', '.github/actions/setup-node/**', '.github/workflows/ci.yml']
+            pg: ['backend/app/database.py', 'backend/app/db_migrate.py', 'backend/app/db_types.py', 'backend/app/models.py', 'backend/app/services/settings_sync.py', 'backend/app/services/settings_store.py', 'backend/tests/test_*_pg.py', 'backend/app/tools/**', 'backend/tests/test_sqlite_to_pg*.py', 'backend/tests/migrate_fixtures.py', 'backend/alembic/**', 'backend/alembic.ini', 'backend/pyproject.toml', 'backend/uv.lock', '.github/actions/setup-backend/**', '.github/workflows/ci.yml']
+            plugin: ['traefik/**', '.github/workflows/ci.yml']
+            rke2: ['deploy/rke2/**', '.github/workflows/ci.yml']
+            # Component/license register inputs live partly under docs/ (excluded from `code`).
+            license: ['backend/uv.lock', 'docs/enterprise/components.yaml', 'docs/enterprise/license-policy.yaml', 'docs/enterprise/component-register.*', 'scripts/license_*', '.github/workflows/ci.yml']
+      # Anything that is not docs/images: gates quality + security.
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: code
+        if: github.event_name == 'pull_request'
+        with:
+          predicate-quantifier: every
+          filters: |
+            code: ['**', '!docs/**', '!**/*.md', '!zensical.toml', '!images/**', '!LICENSE']
+
+  commitlint:
+    # Enforce Conventional Commits so semantic-release can derive versions +
+    # changelog. PR commits only (base..head); config in commitlint.config.js.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: commitlint (PR commits)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: npx commitlint --from "$BASE_SHA" --to "$HEAD_SHA" --verbose
+
+  quality:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-backend
+      - name: ruff (blocking)
+        working-directory: backend
+        run: .venv/bin/python -m ruff check app tests
+      - name: mypy (non-blocking baseline)
+        continue-on-error: true
+        working-directory: backend
+        run: .venv/bin/python -m mypy
+      - uses: ./.github/actions/setup-node
+      - name: frontend typecheck/build (blocking)
+        working-directory: frontend
+        run: npm run build
+
+  test:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      # PRs to enterprise get the sqlite backend suite (with coverage) from wq-ci; skip the duplicate run here.
+      - name: Backend deps
+        if: needs.changes.outputs.backend == 'true' && !(github.event_name == 'pull_request' && github.base_ref == 'enterprise')
+        uses: ./.github/actions/setup-backend
+      - name: pytest
+        if: needs.changes.outputs.backend == 'true' && !(github.event_name == 'pull_request' && github.base_ref == 'enterprise')
+        working-directory: backend
+        env:
+          REQUIRE_KUSTOMIZE: "1"  # render-based netpol tests must run, not skip
+        run: .venv/bin/python -m pytest -q
+      - name: Frontend deps
+        if: needs.changes.outputs.frontend == 'true'
+        uses: ./.github/actions/setup-node
+      - name: vitest
+        if: needs.changes.outputs.frontend == 'true'
+        working-directory: frontend
+        run: npm test
+
+  test-postgres:
+    # Same backend suite against Postgres (CNPG major). Only when db/models/migrations/deps change.
+    needs: changes
+    if: needs.changes.outputs.pg == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: styx
+          POSTGRES_PASSWORD: styx-ci
+          POSTGRES_DB: styx_test
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U styx -d styx_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-backend
+      - name: pytest (postgres)
+        working-directory: backend
+        env:
+          STYX_TEST_DATABASE_URL: postgresql+asyncpg://styx:styx-ci@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/styx_test
+          TEST_PG_URL: postgresql://styx:styx-ci@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/styx_test
+        run: .venv/bin/python -m pytest -q
+
+  # Pure lint/syntax-check/helm-template/kubeconform on localhost: no inventory hosts or home network needed.
+  rke2-iac:
+    needs: changes
+    if: needs.changes.outputs.rke2 == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: deploy/rke2
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -q ansible-core==2.21.6 ansible-lint==26.11.0 yamllint==1.38.0
+      - run: ansible-galaxy install -r requirements.yml
+      - run: yamllint .
+      - run: ansible-lint
+      - run: ansible-playbook -i inventory/hosts.example.yml site.yml --syntax-check
+      - name: Cilium HelmChartConfig (helm template + kubeconform, pinned, sha256-checked)
+        run: |
+          T="$RUNNER_TEMP/k8stools"; mkdir -p "$T"
+          curl -sSfL -o "$T/helm.tgz" https://get.helm.sh/helm-v3.22.1-linux-amd64.tar.gz
+          curl -sSfL -o "$T/kc.tgz" https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz
+          printf '%s  %s\n' \
+            896cf63684a42a723d61c980369d6e588330927deb13676ca0d85006dd6da0ea "$T/helm.tgz" \
+            9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883 "$T/kc.tgz" | sha256sum -c -
+          tar xzf "$T/helm.tgz" -C "$T" --strip-components=1 linux-amd64/helm
+          tar xzf "$T/kc.tgz" -C "$T" kubeconform
+          PATH="$T:$PATH" ./validate-cilium.sh "$T/out"
+
+  k8s-policy:
+    needs: changes
+    if: needs.changes.outputs.deploy == 'true' || needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      KUSTOMIZE_VERSION: "5.8.1"
+      KUSTOMIZE_SHA256: 029a7f0f4e1932c52a0476cf02a0fd855c0bb85694b82c338fc648dcb53a819d
+      KUBECONFORM_VERSION: "0.7.0"
+      KUBECONFORM_SHA256: c31518ddd122663b3f3aa874cfe8178cb0988de944f29c74a0b9260920d115d3
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pinned kustomize + kubeconform
+        run: |
+          curl -sfL -o /tmp/k.tgz "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          echo "${KUSTOMIZE_SHA256}  /tmp/k.tgz" | sha256sum -c -
+          sudo tar -xzf /tmp/k.tgz -C /usr/local/bin kustomize
+          curl -sfL -o /tmp/kc.tgz "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
+          echo "${KUBECONFORM_SHA256}  /tmp/kc.tgz" | sha256sum -c -
+          sudo tar -xzf /tmp/kc.tgz -C /usr/local/bin kubeconform
+      - run: scripts/k8s_policy_check.sh
+      - uses: ./.github/actions/setup-backend
+      - name: pytest (kustomize required)
+        working-directory: backend
+        run: REQUIRE_KUSTOMIZE=1 REQUIRE_KUBECONFORM=1 .venv/bin/python -m pytest tests/test_cilium_baseline.py tests/test_cilium_schemas.py tests/test_enterprise_banner.py -q
+
+  plugin-test:
+    needs: changes
+    if: needs.changes.outputs.plugin == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.22"
+      - name: go test (styxlocation Traefik plugin)
+        working-directory: traefik/plugins-local/src/github.com/styx-portal/styxlocation
+        run: go test ./...
+
+  security:
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || needs.changes.outputs.license == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-backend
+      - name: bandit (fail on HIGH/CRITICAL)
+        working-directory: backend
+        run: .venv/bin/python -m bandit -c pyproject.toml -r app -ll -ii
+      - name: Trivy filesystem scan (deps + secrets, fail HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+      - name: Component and license register (issue #17, blocking)
+        run: |
+          set -eu
+          T="$RUNNER_TEMP/trivy-bin"; mkdir -p "$T"
+          curl -sSfL -o "$T/trivy.tar.gz" https://github.com/aquasecurity/trivy/releases/download/v0.76.2/trivy_0.76.2_Linux-64bit.tar.gz
+          echo "bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf  $T/trivy.tar.gz" | sha256sum -c -
+          tar xzf "$T/trivy.tar.gz" -C "$T" trivy
+          scripts/license_scan.sh "$T/trivy"
+          backend/.venv/bin/python scripts/license_register.py check --sbom repo.cdx.json venv.cdx.json

@@ -6,6 +6,7 @@ import { useOpenChoice } from "@/components/open-prompt";
 import { WorkstationIcon } from "@/components/system/workstation-icon";
 import { openPending } from "@/lib/connect-wipe";
 import type { Instance } from "@/lib/types";
+import { useProfile } from "@/hooks/use-profile";
 
 type Item = { key: string; name: string; icon: React.ReactNode; status: string; ok: boolean; url: () => Promise<string>; verb: string };
 
@@ -29,7 +30,8 @@ const DOT = (ok: boolean) => (ok ? "bg-success" : "bg-transparent ring-1 ring-in
 /** Dock Workspaces list: open per the Workspaces preference; starting/waking stays on home. */
 export function DockWorkspaces({ onPicked }: { onPicked: () => void }) {
   const choose = useOpenChoice();
-  const ws = useQuery({ queryKey: ["my-workstations"], queryFn: api.myWorkstations, refetchInterval: 30_000 });
+  const wsOn = !useProfile().isDisabled("workstation_enrollment");  // ADR-0053: no workstations in enterprise
+  const ws = useQuery({ queryKey: ["my-workstations", wsOn], queryFn: () => (wsOn ? api.myWorkstations() : Promise.resolve([] as Workstation[])), refetchInterval: 30_000 });
   const inst = useQuery({ queryKey: ["instances"], queryFn: api.listInstances, refetchInterval: 30_000 });
   if (ws.isPending || inst.isPending) return <p aria-busy="true" className="py-6 text-muted-foreground">Loading workspaces…</p>;
   const items = [...(ws.data ?? []).map(wsItem), ...(inst.data ?? []).map(instItem)];

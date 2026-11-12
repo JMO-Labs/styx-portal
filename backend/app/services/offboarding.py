@@ -16,6 +16,11 @@ log = logging.getLogger(__name__)
 LIVE = ("running", "idle")
 
 
+def is_disabled(user: User) -> bool:
+    """Single definition of "disabled": stamp set and account not re-enabled."""
+    return user.disabled_at is not None and not user.is_active
+
+
 async def _freeze_home(session: AsyncSession, user: User, runtime) -> None:
     """k8s only: label the home PVC frozen. Best effort; never blocks the disable."""
     if Settings().ROUTE_BACKEND != "k8s":
