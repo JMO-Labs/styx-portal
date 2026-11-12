@@ -1,8 +1,8 @@
-# ADR-0064: CephFS homes, UID ownership and freeze on disable
+# ADR-0065: CephFS homes, UID ownership and freeze on disable
 
 - Status: Proposed
 - Date: 2026-11-12
-- Decision ID: D63
+- Decision ID: D64
 - Related controls: SC-28, CM-12, CP-10, AC-3
 
 ## Context
@@ -11,7 +11,7 @@ ADR-0054 moved profiles to CephFS (RWX) and ADR-0052 fixed one immutable POSIX U
 The implementation (home PVCs, quota warning, node-loss script, disable freeze) needs one
 record of how these fit together.
 
-Note: the ticket suggested 0062; that number is taken, so the next free one (0064) is used.
+Note: the ticket suggested 0062; that number is taken, so the next free one (0065) is used.
 
 ## Decision
 
