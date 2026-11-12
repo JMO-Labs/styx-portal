@@ -57,6 +57,7 @@ check `kubectl -n rook-ceph get cronjob,job` and the pod logs.
 
 ## NOTES
 
+- Node loss and CephFS home reattach: [node-loss-reattach.md](node-loss-reattach.md).
 - Registry: images use the placeholder `harbor.example.internal`; override it per site
   (Helm values, generator constant, kustomize `images`).
 - OpenBao must not use Ceph storage.
