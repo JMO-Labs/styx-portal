@@ -11,3 +11,9 @@ resources:
   - pdb.yaml
   - breakglass/externalsecret.yaml
   - breakglass/prometheusrule.yaml
+configMapGenerator:
+  - name: keycloak-realm
+    files:
+      - styx-realm.json=realm/styx-realm.json
+generatorOptions:
+  disableNameSuffixHash: true

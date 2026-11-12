@@ -48,7 +48,7 @@ def has(text: str, phrase: str) -> bool:
 def test_all_original_adrs_accepted():
     originals = sorted(ADR.glob("00[0-5][0-9]-*.md"))
     assert len(originals) == 59
-    assert len(adr_files()) == 64
+    assert len(adr_files()) == 65
     for path in adr_files():
         if path.name >= "0062-":  # later ADRs await owner acceptance
             continue
@@ -100,22 +100,22 @@ def test_adr_0063_cosign_custody():
     assert "Closed (Phase 3)" in s7 and "ADR-0063" in s7
 
 
-def test_adr_0064_keycloak_x509():
-    text = adr("0064")
-    assert text.startswith("# ADR-0064: Keycloak X.509")
-    assert "Decision ID: D63" in text
+def test_adr_0065_keycloak_x509():
+    text = adr("0065")
+    assert text.startswith("# ADR-0065: Keycloak X.509")
+    assert "Decision ID: D64" in text
     assert "- Status: Proposed" in text  # awaits owner acceptance
     for phrase in ("Client-Cert", "haproxy", "IA-2(12)"):
         assert has(text, phrase), phrase
     index = (ADR / "README.md").read_text()
-    assert "[D63](0064-keycloak-x509" in index
-    d63 = next(ln for ln in index.splitlines() if "[D63]" in ln)
-    assert "| Proposed |" in d63
-    assert "proposed in ADR-0064 (D63)" in (DOCS / "design.md").read_text()
+    assert "[D64](0065-keycloak-x509" in index
+    d64 = next(ln for ln in index.splitlines() if "[D64]" in ln)
+    assert "| Proposed |" in d64
+    assert "proposed in ADR-0065 (D64)" in (DOCS / "design.md").read_text()
 
 
-def test_adr_0064_policy_oids_and_revocation():
-    text = adr("0064")
+def test_adr_0065_policy_oids_and_revocation():
+    text = adr("0065")
     # PIV-I hardware OID; .3.40 is derived-PIV Auth, not PIV-I.
     assert "2.16.840.1.101.3.2.1.3.18" in text
     assert "2.16.840.1.101.3.2.1.3.40" not in text
@@ -127,7 +127,7 @@ def test_adr_0064_policy_oids_and_revocation():
 
 def test_adr_index_matches_files():
     index = (ADR / "README.md").read_text()
-    older = [ln for ln in index.splitlines() if not any(f"({n}-" in ln for n in ("0062", "0063", "0064"))]
+    older = [ln for ln in index.splitlines() if not any(f"({n}-" in ln for n in ("0062", "0063", "0065"))]
     assert "| Proposed |" not in "\n".join(older)
     assert f"accepted {DATE}" in index.lower()
     rows = dict(re.findall(r"^\| \[D\w+\]\(([^)]+)\) \|[^|]+\| ([^|]+) \|", index, re.M))

@@ -150,7 +150,7 @@ Each row becomes an ADR in `adr/`. "Rationale" is the deciding reason; alternati
 | 6 GPU | GPU tier on funding | Does not gate "all users" |
 
 ## 7. Open items for the builder
-- The Keycloak X.509 flow and HAProxy cert-header format are proposed in ADR-0064 (D63). The SCIM subset
+- The Keycloak X.509 flow and HAProxy cert-header format are proposed in ADR-0065 (D64). The SCIM subset
   Phase 2 ADR is proposed as ADR-0062 (D61). Phase 1 does not depend on either.
 - Closed (Phase 3): cosign key custody (OpenBao transit, CI-only) and medium/low CVE deadlines (30 d / 90 d) are decided in ADR-0063 (D62).
 

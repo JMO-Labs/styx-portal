@@ -105,7 +105,9 @@ async def _isolate_or_409(docker, instance, container_id):
 async def _home_kwargs(docker, instance, session) -> dict:
     """k8s only: owner's POSIX UID so the pod mounts home-<uid> and runs as that UID."""
     if isinstance(docker, K8sInstanceRuntime) and instance.owner_id:
-        return {"posix_uid": await allocate_uid(session, instance.owner_id)}
+        owner = await session.get(User, instance.owner_id)
+        return {"posix_uid": await allocate_uid(session, instance.owner_id),
+                "home_read_only": owner is not None and not owner.is_active}
     return {}
 
 

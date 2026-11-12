@@ -1,0 +1,40 @@
+# kind spike overlay (scripts/kind/20-squid-egress.sh): real Squid + cilium-baseline,
+# with a test category list instead of the CephFS PVC / CronJob.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../deploy/enterprise/squid
+  - instances.yaml
+components:
+  - ../../../deploy/k8s/components/cilium-baseline
+configMapGenerator:
+  - name: squid-test-categories
+    namespace: egress-proxy
+    files: [paste.txt]
+    options: {disableNameSuffixHash: true}
+patches:
+  - target: {kind: PersistentVolumeClaim, name: squid-categories}
+    patch: |
+      $patch: delete
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata: {name: squid-categories}
+  - target: {kind: CronJob, name: squid-categories-update}
+    patch: |
+      $patch: delete
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata: {name: squid-categories-update}
+  - target: {kind: Deployment, name: squid}
+    patch: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: squid}
+      spec:
+        replicas: 1
+        template:
+          spec:
+            volumes:
+              - name: categories
+                persistentVolumeClaim: null
+                configMap: {name: squid-test-categories}

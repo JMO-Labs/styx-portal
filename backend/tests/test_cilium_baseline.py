@@ -117,7 +117,7 @@ def _rendered(name):
 
 
 def test_dns_excludes_desktops():
-    # desktops get *.cluster.local-only DNS from the patched instances CNP;
+    # desktops get **.cluster.local-only DNS from the patched instances CNP;
     # a cluster-wide "*" pattern would widen it (Cilium allows are a union)
     assert "styx-instances" in _excluded_namespaces(_allow("dns"))
 
@@ -165,7 +165,7 @@ def test_desktop_egress_only_dns():
     (dns,) = cnp["spec"]["egress"]
     assert not FORBIDDEN_EGRESS & dns.keys()
     assert dns["toEndpoints"] == base["spec"]["egress"][0]["toEndpoints"]
-    assert dns["toPorts"][0]["rules"]["dns"] == [{"matchPattern": "*.cluster.local"}]
+    assert dns["toPorts"][0]["rules"]["dns"] == [{"matchPattern": "**.cluster.local"}]
     assert dns["toPorts"][0]["ports"] == [{"port": "53", "protocol": "ANY"}]
     assert cnp["spec"]["egressDeny"] == base["spec"]["egressDeny"]
     assert cnp["spec"]["ingress"] == base["spec"]["ingress"]
