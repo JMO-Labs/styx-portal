@@ -168,7 +168,9 @@ async def lifespan(app: FastAPI):
     leader_loops = [_session_monitor_loop, _service_health_loop, _metrics_db_loop, janitor_loop,
                     partial(new_account_review_loop, async_session),
                     partial(digest_loop, async_session),
-                    partial(account_deletion_loop, async_session)]
+                    partial(account_deletion_loop, async_session),
+                    # Thumbnails live in the shared DB: one capturer avoids PK races (#99).
+                    partial(service_thumbnail_loop, async_session, _settings.SCREENSHOT_CACHE_DIR)]
     if _settings.ROUTE_BACKEND == "k8s":
         leader_loops.append(prepull_loop)
     leader = LeaderTasks(boot=[_probe_cleanup, _reconcile, _close_dangling, _refresh_routes],
@@ -179,7 +181,6 @@ async def lifespan(app: FastAPI):
     local_tasks = [
         asyncio.create_task(_metrics_sampler_loop()),
         asyncio.create_task(_screenshot_capture_loop()),
-        asyncio.create_task(service_thumbnail_loop(async_session, _settings.SCREENSHOT_CACHE_DIR)),
         asyncio.create_task(_health_sample_loop()),
     ]
     yield

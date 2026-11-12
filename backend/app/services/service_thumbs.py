@@ -20,13 +20,18 @@ async def put(session: AsyncSession, service_id: str, data: bytes) -> None:
     if len(data) > max_bytes():
         raise ThumbnailTooLarge(f"{len(data)} > {max_bytes()} bytes")
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    row = await session.get(ServiceThumbnail, service_id)
-    if row is None:
-        session.add(ServiceThumbnail(service_id=service_id, data=data, updated_at=now))
-    else:
-        row.data, row.updated_at = data, now
-        session.add(row)
-    await session.commit()
+    try:
+        row = await session.get(ServiceThumbnail, service_id)
+        if row is None:
+            session.add(ServiceThumbnail(service_id=service_id, data=data, updated_at=now))
+        else:
+            row.data, row.updated_at = data, now
+            session.add(row)
+        await session.commit()
+    except Exception:
+        # Leave the session usable for the next service in the same pass.
+        await session.rollback()
+        raise
 
 
 async def get(session: AsyncSession, service_id: str) -> bytes | None:

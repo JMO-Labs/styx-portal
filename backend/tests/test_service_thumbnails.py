@@ -136,8 +136,10 @@ async def test_put_get_replace_and_size_cap(session, monkeypatch):
     assert await service_thumbs.get(session, s.id) == PNG + b"2"
 
 
-async def test_write_on_one_replica_served_by_another(session, admin_client):
-    """Replica A's capture pass writes via the DB; replica B (own cache dir) serves it."""
+async def test_write_on_one_replica_served_by_another(session, admin_client, monkeypatch):
+    """Replica A's capture pass writes via its own DB session; replica B (empty cache dir) serves it."""
+    from sqlmodel.ext.asyncio.session import AsyncSession
+
     from app.services.screenshot_url import capture_services_pass
     s = await _mk(session)
     shots = MagicMock()
@@ -146,9 +148,24 @@ async def test_write_on_one_replica_served_by_another(session, admin_client):
         await on_png(PNG)
         return True
     shots.capture_url = cap
-    await capture_services_pass(session, shots)
-    r = await admin_client.get(f"/api/services/{s.id}/thumbnail")
-    assert r.status_code == 200 and r.content == PNG
+    async with AsyncSession(session.bind, expire_on_commit=False,
+                            join_transaction_mode="create_savepoint") as replica_a:
+        await capture_services_pass(replica_a, shots)
+    with tempfile.TemporaryDirectory() as empty:
+        monkeypatch.setenv("SCREENSHOT_CACHE_DIR", empty)
+        r = await admin_client.get(f"/api/services/{s.id}/thumbnail")
+        assert r.status_code == 200 and r.content == PNG
+        assert list(Path(empty).iterdir()) == []
+
+
+async def test_put_rolls_back_on_commit_failure():
+    sess = MagicMock()
+    sess.get = AsyncMock(return_value=None)
+    sess.commit = AsyncMock(side_effect=RuntimeError("boom"))
+    sess.rollback = AsyncMock()
+    with pytest.raises(RuntimeError):
+        await service_thumbs.put(sess, "sid", PNG)
+    sess.rollback.assert_awaited_once()
 
 
 async def test_oversize_capture_is_dropped(session, monkeypatch):
