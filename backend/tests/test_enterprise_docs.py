@@ -48,7 +48,8 @@ def has(text: str, phrase: str) -> bool:
 def test_all_original_adrs_accepted():
     originals = sorted(ADR.glob("00[0-5][0-9]-*.md"))
     assert len(originals) == 59
-    assert len(adr_files()) == 65
+    nums = [int(path.name[:4]) for path in adr_files()]
+    assert nums == list(range(1, len(nums) + 1))  # contiguous, none deleted
     for path in adr_files():
         if path.name >= "0062-":  # later ADRs await owner acceptance
             continue

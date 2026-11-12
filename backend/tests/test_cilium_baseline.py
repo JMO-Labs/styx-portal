@@ -279,6 +279,7 @@ def test_control_matrix_points_at_component():
         assert "patch-desktop-egress.yaml" in row, cid
         assert "implemented in code, not deployed" in row, cid
         assert "HAProxy part not done" in row, cid
+        assert "Squid egress" in row, cid
         assert row.rstrip().endswith("| Planned |"), cid
 
 
