@@ -1,7 +1,7 @@
 """instances.recycle_deadline: critical-CVE stop deadline (styx-portal#148)
 
-Revision ID: 0006_instance_recycle_deadline
-Revises: 0005_instance_image_digest
+Revision ID: 0010_instance_recycle_deadline
+Revises: 0009_approved_requests
 Create Date: 2026-11-12
 
 """
@@ -10,8 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = '0006_instance_recycle_deadline'
-down_revision: Union[str, Sequence[str], None] = '0005_instance_image_digest'
+revision: str = '0010_instance_recycle_deadline'
+down_revision: Union[str, Sequence[str], None] = '0009_approved_requests'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
