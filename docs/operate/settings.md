@@ -108,3 +108,5 @@ These need a restart of the backend (or a redeploy). They are documented where t
 ## Multiple replicas
 
 On Postgres every replica re-reads the settings table every 2 seconds, so a change saved on one replica applies on all others within about 2 s (limit: 5 s). On SQLite (single process) nothing changes: values apply immediately and no refresh loop runs.
+
+Only values are refreshed on the other replicas. Side effects of a save (for example regenerating Traefik routes for domain-related keys) run only on the replica that served the write, so routes must be shared state (Kubernetes CRDs / a shared route volume) for all replicas to pick them up.
