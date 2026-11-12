@@ -11,14 +11,14 @@ def test_naming_convention_set():
 
 def test_single_head():
     heads = ScriptDirectory.from_config(alembic_config()).get_heads()
-    assert heads == ["0011_access_review"]
+    assert heads == ["0012_access_review"]
 
 
 async def test_upgrade_head_matches_models(scratch_engine):
     await migrate(scratch_engine)
     async with scratch_engine.connect() as conn:
         assert await conn.run_sync(diff_vs_models) == []
-    assert await scalar(scratch_engine, "SELECT version_num FROM alembic_version") == "0011_access_review"
+    assert await scalar(scratch_engine, "SELECT version_num FROM alembic_version") == "0012_access_review"
 
 
 async def test_downgrade_base_then_upgrade(scratch_engine):
