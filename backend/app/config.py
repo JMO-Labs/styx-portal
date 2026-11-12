@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     HARBOR_USER: str = ""
     HARBOR_PASSWORD: str = ""
     K8S_DESKTOP_IMAGE: str = "ghcr.io/jmo-labs/styx-desktop:latest"
+    EGRESS_PROXY_HOST: str = "squid.egress-proxy.svc.cluster.local"
+    EGRESS_PROXY_PORT_CATEGORY: int = 3128
+    EGRESS_PROXY_PORT_ALLOWLIST: int = 3129
     INSTANCE_STORAGE_CLASS: str = "longhorn"
     INSTANCE_VOLUME_SIZE: str = "20Gi"
     HOME_STORAGE_CLASS: str = "ceph-cephfs"
