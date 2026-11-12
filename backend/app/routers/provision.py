@@ -1,5 +1,5 @@
 """Provisioning webhook (ADR-0062): validate, check, de-duplicate and record approved
-requests from Power Automate. Keycloak user creation and card binding are separate."""
+requests from Power Automate. Accepted requests are then provisioned into Keycloak; card binding is separate."""
 import hashlib
 import json
 from functools import lru_cache
@@ -17,6 +17,7 @@ from app.database import get_session
 from app.models import ApprovedRequest
 from app.security.provision_auth import require_provision_caller
 from app.services.audit import audit_request
+from app.services.provisioning import provision
 
 router = APIRouter()
 _settings = Settings()
@@ -97,6 +98,8 @@ async def create_request(request: Request,
         if prior.body_hash != digest:
             await _finish(session, request, "provision.request.conflict", 409,
                           "IDEMPOTENCY_CONFLICT", **ctx)
+        if prior.status == "failed":  # retry of a failed provisioning is safe
+            prior = await provision(session, prior)
         return await _finish(session, request, "provision.request.replay", 201, None,
                              replay=_result(prior), **ctx)
 
@@ -132,4 +135,4 @@ async def create_request(request: Request,
                                 "approver": approver, "http_status": 201,
                                 "request_id": row.id})
     await session.commit()
-    return _result(row)
+    return _result(await provision(session, row))
