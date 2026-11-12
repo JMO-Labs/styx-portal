@@ -10,8 +10,9 @@ import logging
 import secrets
 from pathlib import Path
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete
 from sqlalchemy.dialects import postgresql, sqlite
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
