@@ -1,0 +1,56 @@
+name: enterprise-images
+
+on:
+  pull_request:
+    branches: [enterprise]
+    paths:
+      - "images/enterprise-base/**"
+      - "images/golden/**"
+      - ".github/workflows/enterprise-images.yml"
+  push:
+    branches: [enterprise]
+    paths:
+      - "images/enterprise-base/**"
+      - "images/golden/**"
+      - ".github/workflows/enterprise-images.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: enterprise-images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      BASE_TAG: styx-enterprise-base:ci
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Resolve Ubuntu base digest
+        run: |
+          set -euo pipefail
+          digest=$(docker buildx imagetools inspect ubuntu:24.04 --format '{{.Manifest.Digest}}')
+          case "$digest" in sha256:????????????????????????????????????????????????????????????????) ;; *) echo "bad digest: $digest"; exit 1 ;; esac
+          echo "UBUNTU_DIGEST=$digest" >> "$GITHUB_ENV"
+          echo "ubuntu:24.04 -> $digest"
+
+      - name: Build base image
+        run: |
+          docker build \
+            --build-arg UBUNTU_DIGEST="$UBUNTU_DIGEST" \
+            -t "$BASE_TAG" images/enterprise-base
+
+      - name: Build golden images
+        run: |
+          set -euo pipefail
+          for name in base-office developer browser-only; do
+            echo "::group::$name"
+            docker build \
+              --build-arg BASE_IMAGE="$BASE_TAG" \
+              -t "styx-golden-$name:ci" "images/golden/$name"
+            echo "::endgroup::"
+          done
