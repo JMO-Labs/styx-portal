@@ -3,6 +3,8 @@ import ipaddress
 import re
 from urllib.parse import urlsplit
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 SERVICE_SLUG_RE = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")
@@ -214,13 +216,18 @@ class DiscoveredContainer(BaseModel):
     suggested_preset: str | None = None
 
 
+EgressMode = Literal["category", "allowlist"]
+
+
 class GroupCreate(BaseModel):
     name: str = Field(min_length=1, max_length=64, pattern=r"^[^,]+$")  # X-Styx-Groups is comma-joined
     description: str | None = Field(default=None, max_length=255)
+    egress_mode: EgressMode = "category"
 
 
 class GroupUpdate(BaseModel):
     allow_gpu: bool | None = None
+    egress_mode: EgressMode | None = None
     description: str | None = Field(default=None, max_length=255)
 
 
@@ -229,6 +236,7 @@ class GroupOut(BaseModel):
     name: str
     description: str | None
     allow_gpu: bool = False
+    egress_mode: str = "category"
     member_count: int = 0
 
 
