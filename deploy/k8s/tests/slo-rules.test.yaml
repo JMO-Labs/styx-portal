@@ -152,3 +152,35 @@ tests:
               - exp_labels: {severity: ticket}
                 exp_annotations:
                   summary: "Median launch time above the 5s goal over 1d"
+
+  - name: launch_p95_about_12s_fires
+    interval: 1m
+    input_series:
+      - series: 'styx_launch_duration_seconds_bucket{le="10",outcome="ok",kind="start"}'
+        values: '0x60'
+      - series: 'styx_launch_duration_seconds_bucket{le="12",outcome="ok",kind="start"}'
+        values: '0+10x60'
+      - series: 'styx_launch_duration_seconds_bucket{le="+Inf",outcome="ok",kind="start"}'
+        values: '0+10x60'
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: StyxLaunchP95High
+        exp_alerts:
+              - exp_labels: {severity: warning}
+                exp_annotations:
+                  summary: "Launch p95 is 10s or more (5m window)"
+                  runbook: "docs/operate/slo.md"
+
+  - name: launch_p95_about_4s_no_fire
+    interval: 1m
+    input_series:
+      - series: 'styx_launch_duration_seconds_bucket{le="2",outcome="ok",kind="start"}'
+        values: '0x60'
+      - series: 'styx_launch_duration_seconds_bucket{le="5",outcome="ok",kind="start"}'
+        values: '0+10x60'
+      - series: 'styx_launch_duration_seconds_bucket{le="+Inf",outcome="ok",kind="start"}'
+        values: '0+10x60'
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: StyxLaunchP95High
+        exp_alerts: []

@@ -219,3 +219,12 @@ spec:
           labels: {severity: ticket}
           annotations:
             summary: "Median launch time above the 5s goal over 1d"
+        - record: styx:launch_duration_seconds:p95_5m
+          expr: histogram_quantile(0.95, sum by (le) (rate(styx_launch_duration_seconds_bucket{outcome="ok"}[5m])))
+        - alert: StyxLaunchP95High
+          expr: styx:launch_duration_seconds:p95_5m >= 10 and on() styx:slo_in_scope == 1
+          for: 15m
+          labels: {severity: warning}
+          annotations:
+            summary: "Launch p95 is 10s or more (5m window)"
+            runbook: "docs/operate/slo.md"
