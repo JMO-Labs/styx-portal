@@ -1,12 +1,15 @@
 import pytest
 from sqlmodel import select
 
-from app.models import AuditLog, Instance, SessionTakeover, User
+from app.models import AuditLog, Instance, ServiceTemplate, SessionTakeover, User
 
 
 @pytest.fixture
 async def inst(session):
-    i = Instance(id="i-1", template_id="t", name="n", subdomain="s1", owner_id=None)
+    t = ServiceTemplate(name="t", display_name="T", image="img")
+    session.add(t)
+    await session.commit()
+    i = Instance(id="i-1", template_id=t.id, name="n", subdomain="s1", owner_id=None)
     session.add(i)
     await session.commit()
     return i
