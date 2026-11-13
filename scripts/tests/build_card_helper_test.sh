@@ -11,7 +11,7 @@ if [ "$1" = version ]; then echo "go version go1.22.12 linux/amd64"; exit 0; fi
 [ "${CGO_ENABLED:-}" = 0 ] && [ "${GOOS:-}" = windows ] || { echo "bad env" >&2; exit 2; }
 out=""; flags="$*"
 while [ $# -gt 0 ]; do [ "$1" = -o ] && out="$2"; shift; done
-for f in -trimpath -buildvcs=false '-ldflags=-buildid='; do
+for f in -mod=readonly -trimpath -buildvcs=false '-ldflags=-buildid='; do
   case "$flags" in *"$f"*) ;; *) echo "missing $f" >&2; exit 2;; esac
 done
 if [ -n "${STUB_NONDET:-}" ]; then echo "$RANDOM$RANDOM" >"$out"; else echo same >"$out"; fi
@@ -25,5 +25,10 @@ OUT_DIR="$tmp/ok" "$script"
 ( cd "$tmp/ok" && sha256sum -c styx-card-helper.exe.sha256 >/dev/null )
 if STUB_NONDET=1 OUT_DIR="$tmp/bad" "$script" 2>/dev/null; then
   echo "FAIL: nondeterministic build accepted"; exit 1
+fi
+# A different patch release must be rejected (exact pin).
+sed -i 's/go1.22.12/go1.22.13/' "$tmp/bin/go"
+if OUT_DIR="$tmp/wrong" "$script" 2>/dev/null; then
+  echo "FAIL: wrong Go patch version accepted"; exit 1
 fi
 echo "ok"

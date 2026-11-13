@@ -6,11 +6,12 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 out_dir="${OUT_DIR:-$root/smartcard/dist}"
 name=styx-card-helper.exe
-want_go="${GO_VERSION:-1.22}"
+want_go="${GO_VERSION:-1.22.12}"
+export GOTOOLCHAIN=local
 
 have="$(go version | awk '{print $3}')"
 case "$have" in
-  go"$want_go"|go"$want_go".*) ;;
+  go"$want_go") ;;
   *) echo "Go $want_go required, found $have" >&2; exit 1 ;;
 esac
 
@@ -18,7 +19,7 @@ tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 build() { # $1 = clean output dir
   mkdir -p "$1"
   ( cd "$root/smartcard" && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
-      go build -trimpath -buildvcs=false -ldflags=-buildid= \
+      go build -mod=readonly -trimpath -buildvcs=false -ldflags=-buildid= \
       -o "$1/$name" ./cmd/styx-card-helper )
 }
 build "$tmp/a"; build "$tmp/b"
