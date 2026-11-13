@@ -1,0 +1,52 @@
+# Synapse homeserver config. No secret values: every secret is a *_path into the
+# synapse-secrets / synapse-oidc ExternalSecret mounts.
+server_name: example.internal          # PLACEHOLDER(ADR-0049): base domain
+public_baseurl: https://matrix.example.internal/   # PLACEHOLDER(ADR-0049)
+pid_file: /data/homeserver.pid
+report_stats: false
+listeners:
+  - port: 8008
+    type: http
+    bind_addresses: ["0.0.0.0"]
+    x_forwarded: true
+    resources:
+      - names: [client]
+        compress: false
+database:
+  name: psycopg2
+  args:
+    host: synapse-db-rw
+    port: 5432
+    dbname: synapse
+    user: synapse
+    passfile: /secrets/db/pgpass
+    sslmode: verify-full
+    sslrootcert: /secrets/db-ca/ca.crt
+    cp_min: 5
+    cp_max: 10
+media_store_path: /data/media_store
+log_config: /config/log.config
+macaroon_secret_key_path: /secrets/synapse/macaroon
+registration_shared_secret_path: /secrets/synapse/registration
+signing_key_path: /secrets/synapse/signing.key
+# Identity: Keycloak OIDC only.
+password_config:
+  enabled: false
+enable_registration: false
+oidc_providers:
+  - idp_id: keycloak
+    idp_name: Styx
+    issuer: https://login.example.internal/realms/styx   # PLACEHOLDER(ADR-0049)
+    client_id: synapse
+    client_secret_path: /secrets/oidc/client-secret
+    scopes: [openid, profile, email]
+    user_mapping_provider:
+      config:
+        localpart_template: "{{ user.preferred_username }}"
+        display_name_template: "{{ user.name }}"
+        email_template: "{{ user.email }}"
+# Federation disabled: empty whitelist means no remote servers.
+federation_domain_whitelist: []
+allow_public_rooms_over_federation: false
+suppress_key_server_warning: true
+trusted_key_servers: []

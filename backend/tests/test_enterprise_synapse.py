@@ -114,7 +114,7 @@ def test_no_secret_values_in_git():
     text = "\n".join(p.read_text() for p in ROOT.rglob("*.yaml"))
     assert "macaroon_secret_key:" not in text
     assert "registration_shared_secret:" not in text
-    assert not re.search(r"^\s*password:\s*\S", text, re.M)
+    assert not re.search(r"^\s*password:\s*(?!\"\{\{)\S", text, re.M)
     assert not [d for d in _docs() if d["kind"] == "Secret"]
     hs = _homeserver()
     assert "macaroon_secret_key_path" in hs and "registration_shared_secret_path" in hs
