@@ -171,8 +171,6 @@ class Settings(BaseSettings):
     KC_ADMIN_REALM: str = ""
     KC_ADMIN_CLIENT_ID: str = ""
     KC_ADMIN_CLIENT_SECRET: str = ""
-    # Comma-separated Keycloak group ids (not names) the admin client must never add users to.
-    KEYCLOAK_ADMIN_GROUPS: str = ""
     # FederatedIdentity.provider name whose subjects are Keycloak user ids.
     KC_PROVIDER_NAME: str = "keycloak"
     # Days after disable before the account and its homes are deleted (ADR-0022).

@@ -13,6 +13,7 @@ keepalive settings below) so a partitioned leader stops before another wins.
 import asyncio
 import inspect
 import logging
+from typing import Any
 import time
 
 from app.config import Settings
@@ -47,7 +48,7 @@ class LeaderElector:
         self._s = settings or Settings()
         self._url = self._s.leader_url()
         self._pg = not self._url.startswith("sqlite")
-        self._conn = None
+        self._conn: Any = None
         self._leader = False
         self._stop = asyncio.Event()
         self._running = False

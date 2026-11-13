@@ -43,7 +43,8 @@ class SessionMonitor:
         actions = []
 
         if instance.status == "idle" and idle_duration > (idle_timeout + grace_period):
-            self._docker.stop_container(instance.container_id)
+            if instance.container_id:
+                self._docker.stop_container(instance.container_id)
             instance.status = "stopped"
             instance.stopped_at = now
             session.add(instance)
