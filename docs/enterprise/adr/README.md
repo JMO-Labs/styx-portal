@@ -82,3 +82,4 @@ All ADRs were accepted 2026-11-09 (owner approval, Rounds 1-5; issue #1). One AD
 | [D75](0076-fast-launch-prepull-signed-digests.md) | Fast launch: pre-pull signed digests | Proposed | CM-2, CM-3, SC-5, CP-2 |
 | [D76](0077-load-test-gate-harness.md) | Load-test gate harness | Proposed | CA-2, CA-7, SA-11, SC-5 |
 | [D77](0078-selkies-patch-set-implementation.md) | Selkies patch set implementation | Proposed | AU-2, AC-11, SI-7, SA-10 |
+| [D78](0079-smart-card-helper-implementation.md) | Smart-card helper implementation | Proposed | IA-2(12), SC-12, SA-11 |
