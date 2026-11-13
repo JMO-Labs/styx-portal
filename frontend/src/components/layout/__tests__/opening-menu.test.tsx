@@ -42,3 +42,11 @@ test("menu offers Log out and Toggle theme for narrow screens", async () => {
   fireEvent.click(screen.getByRole("menuitem", { name: "Log out" }));
   expect(onLogout).toHaveBeenCalled();
 });
+
+test("menu links to the My account page", async () => {
+  render(<QueryClientProvider client={new QueryClient()}><OpeningMenu username="alice" /></QueryClientProvider>);
+  const trigger = screen.getByRole("button", { name: /account menu/i });
+  await waitFor(() => expect(trigger).toBeEnabled());
+  fireEvent.keyDown(trigger, { key: "Enter" });
+  expect(await screen.findByRole("menuitem", { name: "My account" })).toHaveAttribute("href", "/account");
+});
