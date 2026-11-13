@@ -380,7 +380,7 @@ export const api = {
   restoreArchive: (path: string) => request<unknown>("/archive/restore", { method: "POST", body: JSON.stringify({ relpath: path }) }),
   sendToArchive: (path: string) => request<unknown>("/archive/send", { method: "POST", body: JSON.stringify({ relpath: path }) }),
   listNotices: () => request<Notice[]>("/notices"),
-  dismissNotice: (id: string) => request<void>(`/notices/${id}/dismiss`, { method: "POST" }),
+  dismissNotice: (id: string) => request<void>(`/notices/${encodeURIComponent(id)}/dismiss`, { method: "POST" }),
   getHomeStorage: () => request<HomeStorage>("/me/storage"),
   getGpuInfo: () => request<{ available: boolean; type: string | null; devices: string[] }>("/system/gpu"),
 

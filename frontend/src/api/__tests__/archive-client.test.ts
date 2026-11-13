@@ -21,3 +21,9 @@ describe("archive client", () => {
     expect(JSON.parse(init.body)).toEqual({ relpath: "docs/a.txt" });
   });
 });
+
+test("dismissNotice url-encodes the id", async () => {
+  const f = stubFetch();
+  await api.dismissNotice("a/b c");
+  expect(String(f.mock.calls[0]![0])).toContain("/notices/a%2Fb%20c/dismiss");
+});
