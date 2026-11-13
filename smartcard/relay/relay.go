@@ -4,7 +4,7 @@ package relay
 
 import (
 	"bytes"
-		"encoding/binary"
+	"encoding/binary"
 	"encoding/json"
 	"io"
 	"net"
@@ -55,7 +55,8 @@ func New(cfg Config) *Handler {
 	if cfg.HTTPClient == nil {
 		cfg.HTTPClient = &http.Client{Timeout: 5 * time.Second}
 	}
-	return &Handler{cfg: cfg, up: websocket.Upgrader{} // default CheckOrigin: same-origin or no Origin (native helper)}
+	// Default CheckOrigin: same-origin or no Origin (native helper).
+	return &Handler{cfg: cfg, up: websocket.Upgrader{}}
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
