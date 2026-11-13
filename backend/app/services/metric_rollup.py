@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta, timezone
 from threading import Lock
 
-from sqlmodel import delete, select
+from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models import MetricHour
@@ -53,7 +53,7 @@ def _fold(samples: list[dict]) -> dict:
         "cpu_avg": sum(cpus) / len(cpus) if cpus else None, "cpu_max": max(cpus, default=None),
         "ram_avg": sum(rams) / len(rams) if rams else None,
         "disk_pct": samples[-1]["disk"], "live_max": max(s["live"] for s in samples),
-        "health": max((s["health"] for s in samples if s["health"]), key=_RANK.get, default=None),
+        "health": max((s["health"] for s in samples if s["health"]), key=_RANK.__getitem__, default=None),
     }
 
 
@@ -88,12 +88,13 @@ async def rollup(session: AsyncSession, now: datetime | None = None, force: bool
             setattr(row, k, new if old is None else old if new is None else (old + new) / 2)
         for k in ("cpu_max", "health"):
             vals = [x for x in (getattr(row, k), v[k]) if x is not None]
-            setattr(row, k, max(vals, key=_RANK.get if k == "health" else None, default=None))
+            setattr(row, k, max(vals, key=_RANK.__getitem__, default=None) if k == "health"
+                    else max(vals, default=None))
         row.live_max = max(row.live_max, v["live_max"])
         row.disk_pct = v["disk_pct"]
         session.add(row)
     await session.exec(delete(MetricHour).where(
-        MetricHour.ts_hour < cur - timedelta(days=RETENTION_DAYS)))
+        col(MetricHour.ts_hour) < cur - timedelta(days=RETENTION_DAYS)))
     await session.commit()
     return len(by)
 
@@ -101,4 +102,4 @@ async def rollup(session: AsyncSession, now: datetime | None = None, force: bool
 async def hour_rows(session: AsyncSession, days: int, now: datetime | None = None) -> list[MetricHour]:
     since = _hour(now or datetime.now(timezone.utc)) - timedelta(days=days)
     return list((await session.exec(select(MetricHour).where(
-        MetricHour.ts_hour >= since).order_by(MetricHour.ts_hour))).all())
+        col(MetricHour.ts_hour) >= since).order_by(col(MetricHour.ts_hour)))).all())

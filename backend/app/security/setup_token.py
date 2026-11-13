@@ -9,10 +9,11 @@ import asyncio
 import logging
 import secrets
 from pathlib import Path
+from typing import cast
 
 from sqlalchemy import delete
 from sqlalchemy.dialects import postgresql, sqlite
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -45,7 +46,8 @@ async def current_or_none(session: AsyncSession) -> str | None:
 
 
 async def _insert_if_absent(session: AsyncSession, token: str) -> None:
-    ins = (postgresql.insert if session.bind.dialect.name == "postgresql" else sqlite.insert)
+    bind = session.bind
+    ins = (postgresql.insert if bind is not None and bind.dialect.name == "postgresql" else sqlite.insert)
     await session.exec(ins(SetupToken).values(id=1, token=token).on_conflict_do_nothing())
     await session.commit()
 
@@ -56,7 +58,7 @@ async def current(session: AsyncSession) -> str:
     if tok is None:
         await _insert_if_absent(session, secrets.token_urlsafe(24))
         tok = await current_or_none(session)
-    return tok
+    return cast(str, tok)
 
 
 async def verify(session: AsyncSession, candidate: str | None) -> bool:
@@ -72,7 +74,7 @@ async def consume(session: AsyncSession, candidate: str | None) -> bool:
     if not await verify(session, candidate):
         return False
     res = await session.exec(delete(SetupToken).where(
-        SetupToken.id == 1, SetupToken.token == candidate))
+        col(SetupToken.id) == 1, col(SetupToken.token) == candidate))
     return res.rowcount == 1
 
 

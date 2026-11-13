@@ -7,6 +7,7 @@ vi.mock("@/hooks/use-auth", () => ({ useAuth: () => ({ user: { id: "u", role: ro
 vi.mock("@/api/client", () => ({
   api: {
     getHomeStorage: () => Promise.resolve({ used_bytes: null, quota_bytes: null, percent: null, warn: false }),
+    listNotices: () => Promise.resolve([]),
     myWorkstations: () => Promise.resolve([{ id: "w1", name: "mini", status: "online", in_use: false, in_use_self: false, in_use_by: null, icon_etag: "e", os_info: {} }]),
     listServiceTiles: () => Promise.resolve([{ id: "s1", slug: "sonarr", name: "Sonarr", icon_kind: "image", icon_etag: "e", mount_mode: "path", frame_ok: true, enabled: true, up: true, needs_setup: true }]),
     serviceFocus: () => Promise.resolve({ slug: null }),
@@ -38,7 +39,7 @@ describe("HomePage", () => {
     renderHome();
     await screen.findByText("mini");
     const names = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-    expect(names).toEqual(["Recent", "Desktops", "Apps", "Containers"]);
+    expect(names).toEqual(["Recent", "My desktops", "My services", "Containers"]);
   });
 
   test("New container button sits in the Containers heading row", async () => {

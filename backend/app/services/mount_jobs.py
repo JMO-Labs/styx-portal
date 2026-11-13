@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from docker.errors import APIError
-from sqlmodel import select
+from sqlmodel import col, select
 
 from app.config import Settings
 from app.models import MountJob, ProxiedService, ServicePreset, upstream_base
@@ -39,14 +39,15 @@ def plan_mount(svc: ProxiedService, preset: ServicePreset | None, docker) -> Mou
     if svc.kind != "docker-local" or not svc.container:
         return MountPlan(reason="Styx can only configure apps running as local containers.")
     methods = [m for m in ((preset.subpath or {}).get("methods", []) if preset else [])
-               if m.get("type") == "config_file"]   # ponytail: env method not implemented (spec §3.1)
+               if m.get("type") == "config_file"]
+    pname = preset.name if preset else "this app"   # ponytail: env method not implemented (spec §3.1)
     if not methods:
         return MountPlan(reason="This app can't be configured by Styx. Set its base path by hand.")
     if Settings().ROUTE_BACKEND == "k8s":
         m = methods[0]
         path = m["paths"][0]
         return MountPlan("config_file", path, m["format"], m["key"], needs_consent=False, manual=True,
-                         reason=f"On Kubernetes, Styx can't edit {preset.name}'s files. Set `{m['key']}` to "
+                         reason=f"On Kubernetes, Styx can't edit {pname}'s files. Set `{m['key']}` to "
                                 f"`/{svc.slug}` in `{path}` and restart the app — or switch this service "
                                 "to cookie-root mode, which needs no base path.")
     needs_consent = docker.container_labels(svc.container).get("styx.managed") != "true"
@@ -57,14 +58,14 @@ def plan_mount(svc: ProxiedService, preset: ServicePreset | None, docker) -> Mou
                 got = docker.read_file(svc.container, path)
             except (ValueError, APIError) as err:
                 return MountPlan(needs_consent=needs_consent,
-                                 reason=f"Styx couldn't read {preset.name}'s settings file: {err}")
+                                 reason=f"Styx couldn't read {pname}'s settings file: {err}")
             if got is None:
                 continue
             try:
                 old = read_config(got[0].decode("utf-8"), m["format"], m["key"])
             except ValueError as err:  # UnicodeDecodeError is a ValueError
                 return MountPlan(needs_consent=needs_consent,
-                                 reason=f"Styx couldn't read {preset.name}'s settings file: {err}")
+                                 reason=f"Styx couldn't read {pname}'s settings file: {err}")
             plan = MountPlan("config_file", path, m["format"], m["key"], [], needs_consent)
             if old == new:
                 plan.reason = f"Base path is already {new}."
@@ -73,12 +74,12 @@ def plan_mount(svc: ProxiedService, preset: ServicePreset | None, docker) -> Mou
                 plan.changes = [{"target": path, "key": m["key"], "old": old, "new": new}]
             return plan
     for m in methods:
-        if (c := m.get("create")) and (plan := _plan_create(m, c, new, svc, needs_consent, docker)):
-            return plan
+        if (c := m.get("create")) and (created := _plan_create(m, c, new, svc, needs_consent, docker)):
+            return created
     return MountPlan(needs_consent=needs_consent, retry=True,
-                     reason=f"Styx can't find {preset.name}'s settings file in the container "
+                     reason=f"Styx can't find {pname}'s settings file in the container "
                              "(settings on a tmpfs mount can't be read)."
-                             + (f" {hint}" if (hint := (preset.subpath or {}).get("missing_hint")) else ""))
+                             + (f" {hint}" if (hint := ((preset.subpath if preset else None) or {}).get("missing_hint")) else ""))
 
 
 def _plan_create(m, c, new, svc, needs_consent, docker) -> MountPlan | None:
@@ -295,7 +296,7 @@ async def run_job(job_id, svc_id, plan, docker, session_factory, http_get=None,
 
 
 async def sweep_interrupted(session) -> int:
-    rows = (await session.exec(select(MountJob).where(MountJob.state.in_(["pending", "running"])))).all()
+    rows = (await session.exec(select(MountJob).where(col(MountJob.state).in_(["pending", "running"])))).all()
     for j in rows:
         j.state = "failed"
         where = f" (backup: {j.backup_dir})" if j.backup_dir else ""

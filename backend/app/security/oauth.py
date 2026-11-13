@@ -80,7 +80,7 @@ async def _discover(issuer: str) -> dict:
 
 async def _endpoints(provider: OAuthProvider) -> dict:
     if provider.kind == "oidc":
-        d = await _discover(provider.issuer_url)
+        d = await _discover(provider.issuer_url or "")
         return {"authorize": d["authorization_endpoint"], "token": d["token_endpoint"],
                 "userinfo": d["userinfo_endpoint"]}
     if provider.name == "github":

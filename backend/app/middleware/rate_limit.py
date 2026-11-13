@@ -4,6 +4,7 @@ import threading
 import time
 from collections import deque
 from functools import lru_cache
+from typing import cast
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -263,8 +264,8 @@ def is_rate_limit_exempt(path: str, method: str = "GET") -> bool:
 class RateLimitMiddleware(BaseHTTPMiddleware):
     def _window_for(self, spec: str) -> SlidingWindow:
         """The memory store's window for a spec (introspection; memory store only)."""
-        from app.services.abuse_store import get_abuse_store
-        return get_abuse_store().window_for(*_parse(spec))
+        from app.services.abuse_store import MemoryAbuseStore, get_abuse_store
+        return cast(MemoryAbuseStore, get_abuse_store()).window_for(*_parse(spec))
 
     async def dispatch(self, request: Request, call_next):
         if is_rate_limit_exempt(request.url.path, request.method):

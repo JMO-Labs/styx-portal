@@ -4,7 +4,7 @@ All functions add to the session but never commit (callers commit). Naive UTC da
 internally (SQLite returns naive)."""
 from datetime import datetime, timedelta, timezone
 
-from sqlmodel import delete, select
+from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models import Instance, StreamSession, User, Workstation
@@ -21,7 +21,7 @@ def _utc(now: datetime | None = None) -> datetime:
 async def _open_rows(session: AsyncSession, kind: str, target_id: str) -> list[StreamSession]:
     return list((await session.exec(select(StreamSession).where(
         StreamSession.target_kind == kind, StreamSession.target_id == target_id,
-        StreamSession.ended_at.is_(None)))).all())
+        col(StreamSession.ended_at).is_(None)))).all())
 
 
 async def open_session(session: AsyncSession, kind: str, target_id: str, user_id: str | None,
@@ -89,7 +89,7 @@ async def close_dangling(session: AsyncSession, older_than_s: int,
     server downtime never counts as streaming time."""
     cutoff = _utc(now) - timedelta(seconds=older_than_s)
     rows = (await session.exec(select(StreamSession).where(
-        StreamSession.ended_at.is_(None), StreamSession.started_at < cutoff))).all()
+        col(StreamSession.ended_at).is_(None), col(StreamSession.started_at) < cutoff))).all()
     for r in rows:
         end = r.started_at
         if r.target_kind == "workstation":
@@ -107,7 +107,7 @@ async def close_dangling(session: AsyncSession, older_than_s: int,
 
 async def prune(session: AsyncSession, now: datetime | None = None) -> None:
     await session.exec(delete(StreamSession).where(
-        StreamSession.started_at < _utc(now) - timedelta(days=RETENTION_DAYS)))
+        col(StreamSession.started_at) < _utc(now) - timedelta(days=RETENTION_DAYS)))
 
 
 async def _clipped(session: AsyncSession, days: int, now: datetime | None):
@@ -115,8 +115,8 @@ async def _clipped(session: AsyncSession, days: int, now: datetime | None):
     end = _utc(now)
     start = end - timedelta(days=days)
     rows = (await session.exec(select(StreamSession).where(
-        StreamSession.started_at < end,
-        (StreamSession.ended_at.is_(None)) | (StreamSession.ended_at > start)))).all()
+        col(StreamSession.started_at) < end,
+        (col(StreamSession.ended_at).is_(None)) | (col(StreamSession.ended_at) > start)))).all()
     for r in rows:
         a, b = max(r.started_at, start), min(r.ended_at or end, end)
         if b > a:
@@ -134,7 +134,7 @@ async def streaming_hours(session: AsyncSession, days: int = 7, top: int = 5,
     users = {u.id: u.username for u in (await session.exec(select(User))).all()}
     ws = {w.id: w for w in (await session.exec(select(Workstation))).all()}
     ins = {i.id: i for i in (await session.exec(select(Instance))).all()}
-    rows = []
+    rows: list[dict] = []
     for (kind, tid), parts in by.items():
         if kind == "workstation":
             w = ws.get(tid)

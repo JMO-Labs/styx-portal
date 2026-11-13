@@ -4,7 +4,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field, field_validator, model_validator
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.database import get_session
@@ -81,7 +81,7 @@ async def _get(session: AsyncSession, aid: str) -> Announcement:
 async def list_announcements(admin: User = Depends(require_admin),
                              session: AsyncSession = Depends(get_session)):
     return (await session.exec(
-        select(Announcement).order_by(Announcement.starts_at.desc()))).all()
+        select(Announcement).order_by(col(Announcement.starts_at).desc()))).all()
 
 
 @admin_router.post("", response_model=AnnouncementOut, status_code=201)
@@ -134,6 +134,6 @@ async def active_announcements(user: User = Depends(get_current_user),
     rows = (await session.exec(
         select(Announcement).where(
             Announcement.starts_at <= now,
-            (Announcement.ends_at.is_(None)) | (Announcement.ends_at > now))
-        .order_by(Announcement.starts_at.desc()))).all()
+            (col(Announcement.ends_at).is_(None)) | (col(Announcement.ends_at) > now))
+        .order_by(col(Announcement.starts_at).desc()))).all()
     return sorted(rows, key=lambda a: a.kind != "maintenance")

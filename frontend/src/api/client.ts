@@ -13,6 +13,7 @@ export type Workstation = {
   in_use: boolean; in_use_by: string | null; in_use_self: boolean;
   icon_kind: "auto" | "emoji" | "image"; icon_etag: string;
 };
+export type Announcement = { id: string; title: string; body: string; kind: "info" | "maintenance"; starts_at: string; ends_at: string | null };
 export type BypassRule = {
   path_prefix: string; required_header: string | null;
   header_prefix?: string | null; required_query?: string | null;
@@ -61,7 +62,9 @@ export type DiscoveredContainer = {
 };
 export type OpenMode = "new_tab" | "same_tab";
 export type Me = { id: string; username: string; email: string | null; role: string;
-  open_workspaces: OpenMode | null; open_apps: OpenMode | null; must_change_pw?: boolean; can_use_gpu?: boolean; can_takeover?: boolean };
+  open_workspaces: OpenMode | null; open_apps: OpenMode | null; must_change_pw?: boolean; can_use_gpu?: boolean; can_takeover?: boolean; staff_role?: string };
+export type AdminSession = { id: string; owner: string | null; template: string; image: string; started_at: string | null; node: string | null };
+export type AdminCapacity = { running: number; max_per_user: number | null; limit: number | null; live_streams: number; per_node: Record<string, number> };
 export type EgressMode = "category" | "allowlist";
 export type Group = { id: string; name: string; description: string | null; member_count: number; allow_gpu: boolean; egress_mode?: EgressMode };
 export type Profile = { template_id: string; template_name: string; display_name: string; volume_name: string; in_use: boolean };
@@ -220,6 +223,8 @@ const silentRefresh = singleFlight(async (): Promise<boolean> => {
   return res.ok;
 });
 
+export interface ArchiveFile { relpath: string; size: number; mtime: number }
+export interface Notice { id: string; message: string; dismissed?: boolean }
 export interface HomeStorage { used_bytes: number | null; quota_bytes: number | null; percent: number | null; warn: boolean }
 
 async function request<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
@@ -272,6 +277,8 @@ export function expiredLoginUrl(pathname: string, search: string): string {
 }
 
 export const api = {
+  adminSessions: () => request<{ sessions: AdminSession[] }>("/admin/console/sessions"),
+  adminCapacity: () => request<AdminCapacity>("/admin/console/capacity"),
   listServices: () => request<ProxiedService[]>("/services"),
   /** Role-dependent shape: tiles for members, full services for admins. Always fetch fresh. */
   listServiceTiles: () => request<(ServiceTile | ProxiedService)[]>("/services"),
@@ -351,6 +358,8 @@ export const api = {
     ),
   getInstanceStatus: (id: string) =>
     request<InstanceStatus>(`/instances/${id}/status`),
+  takeover: (id: string) =>
+    request<{ actor_name: string; mode: string; started_at: string } | null>(`/instances/${id}/takeover`),
   keepalive: (id: string) =>
     request<Instance>(`/instances/${id}/keepalive`, { method: "POST" }),
   getInstanceStats: (id: string) =>
@@ -374,6 +383,12 @@ export const api = {
   getRegistryImage: (name: string) => request<RegistryImage>(`/registry/images/${name}`),
 
   getRuntime: () => request<{ runtime: "docker" | "kubernetes" }>("/system/runtime"),
+  listArchive: () => request<ArchiveFile[]>("/archive"),
+  restoreArchive: (path: string) => request<unknown>("/archive/restore", { method: "POST", body: JSON.stringify({ relpath: path }) }),
+  sendToArchive: (path: string) => request<unknown>("/archive/send", { method: "POST", body: JSON.stringify({ relpath: path }) }),
+  listAnnouncements: () => request<Announcement[]>("/announcements/active"),
+  listNotices: () => request<Notice[]>("/notices"),
+  dismissNotice: (id: string) => request<void>(`/notices/${encodeURIComponent(id)}/dismiss`, { method: "POST" }),
   getHomeStorage: () => request<HomeStorage>("/me/storage"),
   getGpuInfo: () => request<{ available: boolean; type: string | null; devices: string[] }>("/system/gpu"),
 

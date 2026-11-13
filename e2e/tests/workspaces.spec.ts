@@ -10,7 +10,7 @@ test("first app open asks, remember new tab, second open goes straight to a new 
   await expect(p.getByRole("button", { name: "Log out" })).toBeVisible();
   await apiCall(ctx, "PUT", "/api/auth/me/preferences", { open_apps: null, open_workspaces: null });
   await p.goto("/");
-  const tile = p.getByRole("region", { name: "Apps" }).getByRole("link", { name: "Open Sonarr" });
+  const tile = p.getByRole("region", { name: "My services" }).getByRole("link", { name: "Open Sonarr" });
   await tile.click();
   const dlg = p.getByRole("dialog", { name: "Open Sonarr" });
   await expect(dlg.getByRole("checkbox", { name: "Remember for all apps" })).toBeChecked();
