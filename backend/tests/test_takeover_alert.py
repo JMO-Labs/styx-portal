@@ -94,7 +94,7 @@ async def test_list_admin_newest_first_and_since(admin_client, session):
     r = await admin_client.get("/api/admin/takeovers")
     assert [x["reason"] for x in r.json()] == ["r2", "r1", "r0"]
     r = await admin_client.get("/api/admin/takeovers",
-                               params={"since": "2026-11-02T00:00:00"})
+                               params={"since": "2026-11-02T18:00:00"})
     assert [x["reason"] for x in r.json()] == ["r2"]
 
 
