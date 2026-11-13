@@ -30,6 +30,7 @@ import yarl
 from aiohttp import web
 from multidict import CIMultiDict
 from gateway_webrtc import KILL_SUFFIX, WebRTCGateway
+from gateway_dlp import allow_message
 from gateway_ws import same_origin
 from viewers import StallClock, Viewers, split_vid  # noqa: F401
 from gateway_html import (  # noqa: F401  (re-exported for tests)
@@ -367,8 +368,11 @@ def create_app(user: str, password: str,
                 transports[ws_server] = request.transport
                 stall = StallClock(time.time())
 
-                async def pump(src, dst, on_activity=None, on_binary=None):
+                async def pump(src, dst, direction, on_activity=None, on_binary=None):
                     async for msg in src:
+                        if (msg.type in (aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY)
+                                and not allow_message(msg.data, direction, None)):
+                            continue    # DLP (D38 defaults until backend policy lands)
                         if msg.type == aiohttp.WSMsgType.TEXT:
                             out = on_activity(msg.data) if on_activity else None
                             if out is True:
@@ -456,8 +460,8 @@ def create_app(user: str, password: str,
                 log(f"ws open vid={vid[:8]} role={'viewer' if shared else 'controller'} "
                     f"from={peer} (n={conns['n']})")
 
-                await asyncio.gather(pump(ws_server, ws_client, on_activity=on_client),
-                                     pump(ws_client, ws_server, on_binary=mark_frame),
+                await asyncio.gather(pump(ws_server, ws_client, "in", on_activity=on_client),
+                                     pump(ws_client, ws_server, "out", on_binary=mark_frame),
                                      idle_closer(),
                                      return_exceptions=True)
             finally:

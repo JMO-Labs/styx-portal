@@ -83,9 +83,6 @@ def test_other_messages_pass():
 
 
 async def _relay(msgs, direction, policy):
-    from aiohttp import web
-    from aiohttp.test_utils import TestClient, TestServer
-    from gateway_ws import raw_ws_proxy  # noqa: F401
     import gateway_ws
     import aiohttp
 
@@ -142,3 +139,45 @@ def test_pump_without_direction_is_unfiltered():
     pytest.importorskip("aiohttp")
     sent = asyncio.run(_relay(["cw,x"], None, {"clipboard_in": False}))
     assert sent == ["cw,x"]
+
+
+@pytest.mark.asyncio
+async def test_live_gateway_relay_drops_cw_in_and_clipboard_out():
+    import base64
+    gateway = pytest.importorskip("gateway")
+    import aiohttp
+    from aiohttp import web
+    from aiohttp.test_utils import TestClient, TestServer
+
+    got = []
+
+    async def upstream_ws(request):
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
+        await ws.send_str("clipboard,aGk=")
+        await ws.send_str("hello")
+        async for msg in ws:
+            if msg.type == aiohttp.WSMsgType.TEXT:
+                got.append(msg.data)
+        return ws
+
+    up = web.Application()
+    up.router.add_get("/api/websockets", upstream_ws)
+    upc = TestClient(TestServer(up))
+    await upc.start_server()
+    app = gateway.create_app("styx", "pw", upstream_port=upc.server.port)
+    client = TestClient(TestServer(app))
+    await client.start_server()
+    try:
+        auth = "Basic " + base64.b64encode(b"styx:pw").decode()
+        ws = await client.ws_connect("/websocket", headers={"Authorization": auth})
+        await ws.send_str("cw,aGk=")
+        await ws.send_str("m2,1,2")
+        recv = [(await asyncio.wait_for(ws.receive(), 2)).data]
+        await asyncio.sleep(0.2)
+        await ws.close()
+        assert recv == ["hello"]
+        assert got == ["m2,1,2"]
+    finally:
+        await client.close()
+        await upc.close()
