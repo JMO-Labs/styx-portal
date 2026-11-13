@@ -44,6 +44,7 @@ from app.routers import access_review as access_review_router
 from app.routers import takeover as takeover_router
 from app.routers import provision as provision_router
 from app.routers import profiles as profiles_router
+from app.routers import notices as notices_router
 from app.routers import me_storage as me_storage_router
 from app.routers import services as services_router
 from app.routers import service_mounts as service_mounts_router
@@ -282,6 +283,7 @@ app.include_router(group_dlp_router.router, prefix="/api/groups", tags=["groups"
 app.include_router(access_review_router.router, prefix="/api/access-review", tags=["access-review"])
 app.include_router(groups_router.users_router, prefix="/api/users", tags=["groups"])
 app.include_router(profiles_router.router, prefix="/api/profiles", tags=["profiles"])
+app.include_router(notices_router.router, prefix="/api/notices", tags=["notices"])
 app.include_router(profiles_router.users_router, prefix="/api/users", tags=["profiles"])
 app.include_router(service_mounts_router.router, prefix="/api/services", tags=["services"])
 app.include_router(service_icons_router.router, prefix="/api/services", tags=["services"])

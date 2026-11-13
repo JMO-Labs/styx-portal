@@ -457,6 +457,22 @@ class UserProfile(SQLModel, table=True):
     template_id: str = Field(foreign_key="service_templates.id", primary_key=True)
     volume_name: str
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+    last_used_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+
+
+class Notice(SQLModel, table=True):
+    """Portal notification for a user (ADR-0059); unique per (user, kind, key)."""
+    __tablename__ = "notices"
+    __table_args__ = (UniqueConstraint("user_id", "kind", "key", name="uq_notice_user_kind_key"),)
+
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    user_id: str = Field(foreign_key="users.id", index=True)
+    kind: str
+    key: str
+    message: str
+    due_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+    dismissed_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
 
 
 class ServicePreset(SQLModel, table=True):
