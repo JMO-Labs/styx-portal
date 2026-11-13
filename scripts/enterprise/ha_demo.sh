@@ -82,7 +82,7 @@ k rollout status deploy/backend --timeout=600s
 k get pods -o wide | tee -a "$REPORT"
 
 # ---- first-run setup + functional checks -----------------------------------
-tok=$(k exec "$(primary)" -c postgres -- psql -U postgres -d styx -tAc "SELECT token FROM setup_token WHERE id=1")
+tok=$(k exec "$(primary)" -c postgres -- psql -U postgres -d styx -tAc "SELECT token FROM setup_tokens WHERE id=1")
 [ -n "$tok" ] || { say "FAIL: no setup token"; exit 1; }
 code=$(api -o /dev/null -w '%{http_code}' -X POST http://styx-backend:8000/api/auth/setup \
   -H 'content-type: application/json' \
