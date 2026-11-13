@@ -8,6 +8,9 @@ from sqlmodel import select
 
 from app.models import Group, Instance, SessionEvent, User, UserGroup
 from app.services.session_audit import record_session_event
+from tests.test_instances_api import (  # noqa: F401  fixtures
+    _make_owned_instance, shared_docker, template_id,
+)
 
 
 @pytest.fixture
@@ -69,3 +72,58 @@ async def test_node_falls_back_to_hostname(session, lines, monkeypatch):
     _, inst = await _inst(session)
     await record_session_event(session, inst, "paused", action="session.lock")
     assert lines()[0]["host"]["name"] == "box"
+
+
+# --- router wiring (#235 AC 2) ---
+
+@pytest.mark.parametrize(
+    "status,verb,action,reason",
+    [
+        ("stopped", "start", "session.launch", None),
+        ("running", "stop", "session.stop", "user"),
+        ("running", "pause", "session.lock", None),
+        ("paused", "unpause", "session.unlock", None),
+        ("running", "delete", "session.stop", "deleted"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_router_emits_session_line(admin_client, session, shared_docker, lines,
+                                         status, verb, action, reason):
+    inst = await _make_owned_instance(session, status=status)
+    iid = inst.id
+    url = f"/api/instances/{iid}"
+    if verb == "delete":
+        resp = await admin_client.delete(url)
+        assert resp.status_code == 204
+    else:
+        resp = await admin_client.post(f"{url}/{verb}")
+        assert resp.status_code == 200, resp.text
+    (ev,) = lines()
+    assert ev["event"]["action"] == action
+    assert ev["styx"]["session"]["id"] == iid
+    assert ev["styx"]["session"].get("reason") == reason
+
+
+@pytest.mark.asyncio
+async def test_router_launch_emits_session_launch(admin_client, template_id, lines):
+    import asyncio
+
+    resp = await admin_client.post(
+        "/api/instances", json={"template_id": template_id, "name": "l", "subdomain": "l"})
+    assert resp.status_code == 201
+    iid = resp.json()["id"]
+    for _ in range(100):
+        if lines():
+            break
+        await asyncio.sleep(0.05)
+    (ev,) = lines()
+    assert ev["event"]["action"] == "session.launch"
+    assert ev["styx"]["session"]["id"] == iid
+
+
+@pytest.mark.asyncio
+async def test_router_restart_emits_no_line(admin_client, session, shared_docker, lines):
+    inst = await _make_owned_instance(session, status="running")
+    resp = await admin_client.post(f"/api/instances/{inst.id}/restart")
+    assert resp.status_code == 200, resp.text
+    assert lines() == []
