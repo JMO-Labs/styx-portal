@@ -13,12 +13,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
 from app.database import get_session
-from app.models import Workstation, WorkstationAccess
-from app.models import User
+from app.models import User, Workstation, WorkstationAccess
 from app.schemas import DlpEventIn, WorkstationHeartbeatRequest, WorkstationHeartbeatResponse
 from app.services import stream_sessions, ws_icon, ws_thumb
 from app.services.audit import audit_request
-from app.services.audit_ecs import dlp_event, emit
+from app.services.audit_ecs import dlp_event, emit, session_event
 from app.services.workstations import (
     build_update_manifest, can_self_update, get_latest_agent_version, request_agent_update, sha256_hex,
 )
@@ -119,6 +118,7 @@ async def heartbeat(body: WorkstationHeartbeatRequest,
     disconnect = ws.disconnect_pending
     if disconnect:
         ws.disconnect_pending = False
+    await _emit_session_events(session, ws, body.health.get("session_events"))
     session.add(ws)
     await session.commit()
     if routes_dirty:
@@ -132,6 +132,32 @@ async def heartbeat(body: WorkstationHeartbeatRequest,
         update=({"version": ws.update_target}
                 if ws.update_state == "requested"
                 and ws.agent_version != ws.update_target else None))
+
+
+_MAX_SESSION_EVENTS = 100
+
+
+async def _emit_session_events(session: AsyncSession, ws: Workstation, events) -> None:
+    """Agent viewer connect/disconnect records -> ECS session lines. Bad records are skipped."""
+    if not isinstance(events, list):
+        return
+    owner = await session.get(User, ws.occupied_by) if ws.occupied_by else None
+    for rec in events[:_MAX_SESSION_EVENTS]:
+        if not isinstance(rec, dict) or rec.get("action") not in ("connect", "disconnect"):
+            continue
+        viewer, raw_ts = rec.get("viewer_id"), rec.get("ts")
+        if not isinstance(viewer, str) or not isinstance(raw_ts, str):
+            continue
+        try:
+            ts = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        emit(session_event(f"session.{rec['action']}", session_id=ws.id, kind="workstation",
+                           viewer_id=viewer, node=ws.hostname or None, ts=ts,
+                           user_id=owner.id if owner else None,
+                           user_name=owner.username if owner else None))
 
 
 def _apply_update_report(ws: Workstation, rep) -> None:

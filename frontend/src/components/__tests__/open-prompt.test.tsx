@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
 
 const me = vi.fn();
 const setOpenPrefs = vi.fn();
-vi.mock("@/api/client", () => ({ api: { me: () => me(), setOpenPrefs: (p: unknown) => setOpenPrefs(p) } }));
+const profile = vi.fn();
+vi.mock("@/api/client", () => ({ api: { me: () => me(), systemProfile: () => profile(), setOpenPrefs: (p: unknown) => setOpenPrefs(p) } }));
 const toastError = vi.fn();
 vi.mock("sonner", () => ({ toast: { error: (m: string) => toastError(m) } }));
 import { OpenPrefProvider, useOpenChoice, useOpenPrefs } from "../open-prompt";
@@ -20,7 +21,7 @@ function setup() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(<QueryClientProvider client={qc}><OpenPrefProvider><Pref /><Btn /></OpenPrefProvider></QueryClientProvider>);
 }
-beforeEach(() => { me.mockReset(); run.mockReset(); setOpenPrefs.mockReset(); toastError.mockReset(); me.mockResolvedValue(base); });
+beforeEach(() => { profile.mockReset(); profile.mockResolvedValue({ profile: "homelab", disabled: [] }); me.mockReset(); run.mockReset(); setOpenPrefs.mockReset(); toastError.mockReset(); me.mockResolvedValue(base); });
 
 test("set preference runs directly, no dialog", async () => {
   me.mockResolvedValue({ ...base, open_apps: "same_tab" });
@@ -98,4 +99,23 @@ test("mounting after auth applies saved prefs (a 401 before login must not stick
   fireEvent.click(screen.getByText("go"));
   expect(run).toHaveBeenCalledWith("same_tab");
   expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+test("enterprise profile defaults an unset preference to a new tab, no dialog", async () => {
+  profile.mockResolvedValue({ profile: "enterprise", disabled: [] });
+  setup();
+  await waitFor(() => { expect(me).toHaveBeenCalled(); expect(profile).toHaveBeenCalled(); });
+  await act(async () => { await new Promise((r) => setTimeout(r, 50)); }); // let both queries settle
+  fireEvent.click(screen.getByText("go"));
+  expect(run).toHaveBeenCalledWith("new_tab");
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+test("enterprise profile still honours an explicit preference", async () => {
+  profile.mockResolvedValue({ profile: "enterprise", disabled: [] });
+  me.mockResolvedValue({ ...base, open_apps: "same_tab" });
+  setup();
+  await screen.findByText("same_tab");
+  fireEvent.click(screen.getByText("go"));
+  expect(run).toHaveBeenCalledWith("same_tab");
 });
