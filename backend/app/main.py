@@ -174,6 +174,7 @@ async def lifespan(app: FastAPI):
 
     # Leader-only: boot steps run on every promotion, loops start after them.
     from app.services.account_deletion import account_deletion_loop
+    from app.services.profile_reclaim import profile_reclaim_loop
     from app.services.new_account_review import new_account_review_loop
     from app.services.new_account_digest import digest_loop
     leader_loops = [_session_monitor_loop, _service_health_loop, _metrics_db_loop, janitor_loop,
@@ -181,6 +182,7 @@ async def lifespan(app: FastAPI):
                     partial(new_account_review_loop, async_session),
                     partial(digest_loop, async_session),
                     partial(account_deletion_loop, async_session),
+                    partial(profile_reclaim_loop, async_session, instance_runtime),
                     # Thumbnails live in the shared DB: one capturer avoids PK races (#99).
                     partial(service_thumbnail_loop, async_session, _settings.SCREENSHOT_CACHE_DIR)]
     if _settings.ROUTE_BACKEND == "k8s":
