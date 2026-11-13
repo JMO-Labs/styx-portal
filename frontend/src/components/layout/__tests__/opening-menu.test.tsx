@@ -7,6 +7,8 @@ vi.mock("@/api/client", () => ({ api: {
   setOpenPrefs: (p: unknown) => setOpenPrefs(p),
 } }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const setTheme = vi.fn();
+vi.mock("@/theme/ThemeProvider", () => ({ useTheme: () => ({ theme: "system", setTheme }) }));
 import { OpeningMenu } from "../opening-menu";
 
 test("shows current values incl. Ask, and saves a change", async () => {
@@ -49,4 +51,13 @@ test("menu links to the My account page", async () => {
   await waitFor(() => expect(trigger).toBeEnabled());
   fireEvent.keyDown(trigger, { key: "Enter" });
   expect(await screen.findByRole("menuitem", { name: "My account" })).toHaveAttribute("href", "/account");
+});
+
+test("theme group (System/Light/Dark) sets the theme", async () => {
+  render(<QueryClientProvider client={new QueryClient()}><OpeningMenu username="alice" /></QueryClientProvider>);
+  fireEvent.keyDown(screen.getByRole("button", { name: /account menu/i }), { key: "Enter" });
+  const g = await screen.findByRole("group", { name: "Theme" });
+  expect(within(g).getByRole("menuitemradio", { name: "System" })).toHaveAttribute("aria-checked", "true");
+  fireEvent.click(within(g).getByRole("menuitemradio", { name: "Dark" }));
+  expect(setTheme).toHaveBeenCalledWith("dark");
 });
