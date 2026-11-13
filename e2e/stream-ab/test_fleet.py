@@ -8,7 +8,8 @@ import fleet  # noqa: E402
 class FakeClient:
     """In-memory portal. `polls_to_run[name]` = polls before running (None = never)."""
 
-    def __init__(self, polls_to_run=None, fail_create=()):
+    def __init__(self, polls_to_run=None, fail_create=(), error_names=()):
+        self.error_names = set(error_names)
         self.polls_to_run = polls_to_run or {}
         self.fail_create = set(fail_create)
         self.items = {}
@@ -21,8 +22,8 @@ class FakeClient:
             if json["name"] in self.fail_create:
                 raise RuntimeError("boom")
             iid = f"i-{json['name']}"
-            self.items[iid] = {"id": iid, "name": json["name"], "status": "created", "polls": 0}
-            return {"id": iid, "status": "created"}
+            self.items[iid] = {"id": iid, "name": json["name"], "status": "starting", "polls": 0}
+            return {"id": iid, "status": "starting"}
         iid = path.split("/")[3]
         if method == "POST" and path.endswith("/start"):
             return {"id": iid, "status": "starting"}
@@ -30,7 +31,9 @@ class FakeClient:
             it = self.items[iid]
             it["polls"] += 1
             limit = self.polls_to_run.get(it["name"], 1)
-            if limit is not None and it["polls"] >= limit:
+            if it["name"] in self.error_names:
+                it["status"] = "error"
+            elif limit is not None and it["polls"] >= limit:
                 it["status"] = "running"
             return {"id": iid, "status": it["status"]}
         if method == "DELETE":
@@ -81,3 +84,15 @@ def test_teardown_deletes_all_even_on_error():
     errors = fleet.teardown(c, s)
     assert set(c.deleted) >= {s[1].id, s[2].id}
     assert len(errors) == 1
+
+
+def test_no_start_call_when_starting():
+    c = FakeClient()
+    _run(c, 2, timeout_s=2)
+    assert not [x for x in c.calls if x[1].endswith("/start")]
+
+
+def test_error_status_is_terminal():
+    c = FakeClient(error_names={"fleet-0"})
+    s = fleet.launch(c, 1, "tpl", 5, poll_s=0.001)[0]
+    assert s.launch_s is None and s.error == "instance status error"

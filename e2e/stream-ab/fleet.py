@@ -37,11 +37,16 @@ def _launch_one(client, name, template, timeout_s, poll_s):
         inst = client.request("POST", "/api/instances",
                               {"template_id": template, "name": name, "subdomain": name})
         s.id = inst["id"]
-        if inst.get("status") != "running":
+        # create already schedules a background launch for starting/pulling
+        if inst.get("status") == "stopped":
             client.request("POST", f"/api/instances/{s.id}/start")
         while True:
-            if client.request("GET", f"/api/instances/{s.id}").get("status") == "running":
+            status = client.request("GET", f"/api/instances/{s.id}").get("status")
+            if status == "running":
                 s.launch_s = time.monotonic() - t0
+                return s
+            if status == "error":
+                s.error = "instance status error"
                 return s
             if time.monotonic() - t0 >= timeout_s:
                 s.error = f"timeout after {timeout_s}s"
