@@ -6,7 +6,7 @@ export function NoticesBanner() {
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["notices"], queryFn: api.listNotices, staleTime: 60000 });
   const dismiss = useMutation({
-    mutationFn: api.dismissNotice,
+    mutationFn: (id: string) => api.dismissNotice(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notices"] }),
   });
   const items = (data ?? []).filter((n) => !n.dismissed);

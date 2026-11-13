@@ -13,12 +13,12 @@ export function ArchivePage() {
   const list = useQuery({ queryKey: ["archive"], queryFn: api.listArchive, retry: false });
   const refresh = () => qc.invalidateQueries({ queryKey: ["archive"] });
   const restore = useMutation({
-    mutationFn: api.restoreArchive,
+    mutationFn: (p: string) => api.restoreArchive(p),
     onSuccess: () => { toast.success("Restored"); refresh(); },
     onError: (e) => toast.error(e instanceof ApiError && e.status === 409 ? `Conflict: ${e.message}` : `Restore failed: ${errMsg(e)}`),
   });
   const send = useMutation({
-    mutationFn: api.sendToArchive,
+    mutationFn: (p: string) => api.sendToArchive(p),
     onSuccess: () => { toast.success("Sent to archive"); setPath(""); refresh(); },
     onError: (e) => toast.error(`Send failed: ${errMsg(e)}`),
   });
