@@ -107,6 +107,9 @@ class Settings(BaseSettings):
     SESSION_MAX_AGE: int = 2592000  # 30 days: absolute cap on a refresh family
     MATRIX_SESSION_MAX_HOURS: int = 12  # absolute cap on a session-only (card) family
     MATRIX_DIGEST_WEBHOOK_URL: str = ""  # daily new-account digest target; unset = skipped
+    MATRIX_NOTIFY_HOMESERVER: str = ""  # Matrix notify adapter; any of the three empty = off
+    MATRIX_NOTIFY_ROOM_ID: str = ""
+    MATRIX_NOTIFY_TOKEN: str = ""
     COOKIE_SECURE: bool = True
     DEV_CORS: bool = False          # allow the Vite dev origin (http://localhost:5173) with credentials
     ENABLE_DOCS: bool = False       # expose /docs, /redoc, /openapi.json (dev only)
@@ -168,6 +171,13 @@ class Settings(BaseSettings):
     KC_PROVIDER_NAME: str = "keycloak"
     # Days after disable before the account and its homes are deleted (ADR-0022).
     ACCOUNT_DELETION_RETENTION_DAYS: int = 90
+
+    # Home archive on S3/RGW; disabled when archive_s3_endpoint is empty.
+    archive_s3_endpoint: str = ""
+    archive_s3_bucket: str = ""
+    archive_s3_access_key: str = ""
+    archive_s3_secret_key: str = ""
+    homes_root: str = "/homes"
 
     LIFECYCLE_INACTIVITY_DAYS: int = 35   # auto-disable after this many idle days (ADR-0022)
 

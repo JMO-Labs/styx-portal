@@ -72,4 +72,50 @@ describe("DesktopPage", () => {
     renderAt([inst("running")]);
     expect(screen.queryByText(/Pausing soon/)).toBeNull();
   });
+
+  describe("toolbar", () => {
+    it("shows name, fullscreen, disconnect and a back-to-home link", () => {
+      renderAt([inst("running")]);
+      const bar = screen.getByRole("toolbar", { name: "Desktop controls" });
+      expect(bar.textContent).toContain("My Desk");
+      expect(screen.getByRole("link", { name: /Home/ }).getAttribute("href")).toBe("/");
+      expect(screen.getByRole("button", { name: /Fullscreen/ })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /Disconnect/ })).toBeTruthy();
+    });
+
+    it("fullscreen button requests fullscreen on the document", () => {
+      renderAt([inst("running")]);
+      const req = vi.fn();
+      document.documentElement.requestFullscreen = req;
+      fireEvent.click(screen.getByRole("button", { name: /Fullscreen/ }));
+      expect(req).toHaveBeenCalled();
+    });
+
+    it("disconnect closes the tab", () => {
+      renderAt([inst("running")]);
+      const close = vi.spyOn(window, "close").mockImplementation(() => {});
+      fireEvent.click(screen.getByRole("button", { name: /Disconnect/ }));
+      expect(close).toHaveBeenCalled();
+    });
+
+    it("is at most 40px high and the iframe fills the rest", () => {
+      renderAt([inst("running")]);
+      expect(screen.getByRole("toolbar").className).toContain("h-10");
+      expect(screen.getByTitle("My Desk").className).toContain("flex-1");
+    });
+
+    it("home link navigates to /", () => {
+      useInstances.mockReturnValue({ data: [inst("running")], isPending: false });
+      render(
+        <MemoryRouter initialEntries={["/desktop/desk"]}>
+          <Routes>
+            <Route path="/desktop/:sub" element={<DesktopPage />} />
+            <Route path="/" element={<p>home page</p>} />
+          </Routes>
+        </MemoryRouter>,
+      );
+      fireEvent.click(screen.getByRole("link", { name: /Home/ }));
+      expect(screen.getByText("home page")).toBeTruthy();
+    });
+  });
 });
