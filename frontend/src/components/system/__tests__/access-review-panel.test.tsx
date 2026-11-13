@@ -8,10 +8,11 @@ vi.mock("@/api/client", () => ({
     accessReview: (...a: unknown[]) => accessReview(...a),
     decideAccessReview: (...a: unknown[]) => decideAccessReview(...a),
   },
-  ApiError: class extends Error {},
+  ApiError: class extends Error { constructor(m: string, public status = 0) { super(m); } },
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
+import { ApiError } from "@/api/client";
 import { AccessReviewPanel, currentQuarter } from "../access-review-panel";
 
 const row = (o: object) => ({
@@ -68,5 +69,25 @@ describe("AccessReviewPanel", () => {
     await screen.findByText("alice");
     const a = screen.getByRole("link", { name: /export csv/i });
     expect(a.getAttribute("href")).toBe(`/api/access-review/export.csv?quarter=${currentQuarter()}`);
+  });
+
+  test("decision uses the row's quarter even if the input is edited", async () => {
+    render(<AccessReviewPanel />);
+    await screen.findByText("alice");
+    fireEvent.click(screen.getByRole("button", { name: /revoke alice/i }));
+    const dlg = await screen.findByRole("dialog");
+    fireEvent.change(screen.getByLabelText("Quarter"), { target: { value: "2025-Q1" } });
+    fireEvent.click(within(dlg).getByRole("button", { name: "Revoke" }));
+    await waitFor(() => expect(decideAccessReview).toHaveBeenCalledWith(
+      expect.objectContaining({ user_id: "u1", quarter: "2026-Q4" })));
+  });
+
+  test("409 refreshes rows", async () => {
+    const err = new ApiError("Already decided this quarter", 409);
+    decideAccessReview.mockRejectedValue(err);
+    render(<AccessReviewPanel />);
+    await screen.findByText("alice");
+    fireEvent.click(screen.getByRole("button", { name: /certify alice/i }));
+    await waitFor(() => expect(accessReview).toHaveBeenCalledTimes(2));
   });
 });

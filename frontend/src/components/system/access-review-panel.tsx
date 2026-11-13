@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import "@/styles/admin-table.css";
 import { Download } from "lucide-react";
-import { api, type AccessReviewRow } from "@/api/client";
+import { api, ApiError, type AccessReviewRow } from "@/api/client";
 import { SectionHead } from "@/components/common/section-head";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,11 +33,12 @@ export function AccessReviewPanel() {
 
   const decide = async (r: AccessReviewRow, decision: "certify" | "revoke") => {
     try {
-      await api.decideAccessReview({ group_id: r.group_id, user_id: r.user_id, quarter, decision });
+      await api.decideAccessReview({ group_id: r.group_id, user_id: r.user_id, quarter: r.quarter, decision });
       setRows((cur) => cur && cur.map((x) => x === r ? { ...x, decision } : x));
       toast.success(decision === "certify" ? "Certified" : "Revoked");
     } catch (e) {
       toast.error(e instanceof Error && e.message ? e.message : "Decision failed");
+      if (e instanceof ApiError && e.status === 409) void load();
     }
   };
 
