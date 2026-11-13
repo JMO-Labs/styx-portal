@@ -106,3 +106,13 @@ async def test_list_roles(member_client, session, staff, code):
     session.add(u)
     await session.commit()
     assert (await member_client.get("/api/admin/takeovers")).status_code == code
+
+
+async def test_cancellation_propagates():
+    import asyncio
+
+    def handler(req):
+        raise asyncio.CancelledError
+
+    with pytest.raises(asyncio.CancelledError):
+        await takeover_alert.notify_start(_t(), URL, transport=httpx.MockTransport(handler))
