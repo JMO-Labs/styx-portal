@@ -61,12 +61,16 @@ def run(a, *, client, fleet_mod=fleet, probe_fn=session_probe.probe, results: Pa
     sessions = []
     old = signal.signal(signal.SIGTERM, _term) if _main_thread() else None
     try:
-        sessions = fleet_mod.launch(client, a.sessions, a.template, LAUNCH_TIMEOUT_S)
+        fleet_mod.launch(client, a.sessions, a.template, LAUNCH_TIMEOUT_S, sessions=sessions)
+        sessions.sort(key=lambda s: int(s.name.rsplit('-', 1)[1]))
         up = [s for s in sessions if s.id and not s.error]
-        with ThreadPoolExecutor(max_workers=max(len(up), 1)) as ex:
+        ex = ThreadPoolExecutor(max_workers=max(len(up), 1))
+        try:
             futs = {s.name: ex.submit(probe_fn, session_url(a.portal, s.name), a.minutes, a.probe)
                     for s in up}
             probed = {n: f.result() for n, f in futs.items()}
+        finally:  # on interrupt don't wait for probes: teardown starts right away
+            ex.shutdown(wait=False, cancel_futures=True)
         rows = [{"session": s.name, "launch_s": s.launch_s if not s.error else None,
                  "rtt_ms": probed.get(s.name, {}).get("rtt_ms", []),
                  "drops": probed.get(s.name, {}).get("drops", 0)} for s in sessions]

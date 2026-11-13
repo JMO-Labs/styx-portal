@@ -14,8 +14,10 @@ class FakeFleet:
         self.fail, self.launch_raises = fail, launch_raises
         self.torn = None
 
-    def launch(self, client, n, template, timeout_s, **kw):
+    def launch(self, client, n, template, timeout_s, sessions=None, **kw):
         if self.launch_raises:
+            if sessions is not None:
+                sessions.extend(fleet.Session(name=f"fleet-{i}", id=f"i{i}") for i in range(2))
             raise self.launch_raises
         return [fleet.Session(name=f"fleet-{i}", id=f"i{i}", launch_s=1.0) for i in range(n)]
 
@@ -62,6 +64,26 @@ def test_teardown_on_interrupt(tmp_path):
     with pytest.raises(KeyboardInterrupt):
         run(tmp_path, fl, boom)
     assert fl.torn == ["i0", "i1", "i2"]
+
+
+def test_teardown_on_interrupt_during_launch(tmp_path):
+    fl = FakeFleet(launch_raises=KeyboardInterrupt())
+    with pytest.raises(KeyboardInterrupt):
+        run(tmp_path, fl, fake_probe(10.0))
+    assert fl.torn == ["i0", "i1"]
+
+
+def test_launch_tracks_sessions_on_interrupt():
+    class C:
+        def request(self, method, path, json=None):
+            if method == "POST":
+                return {"id": "x-" + json["name"], "status": "running"}
+            raise KeyboardInterrupt
+
+    out = []
+    with pytest.raises(KeyboardInterrupt):
+        fleet.launch(C(), 2, "t", 5, sessions=out)
+    assert sorted(s.id for s in out) == ["x-fleet-0", "x-fleet-1"]
 
 
 def test_session_url_and_http_mode():
