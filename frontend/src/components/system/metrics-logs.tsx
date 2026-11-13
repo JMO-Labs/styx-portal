@@ -55,9 +55,10 @@ export function MetricsLogs() {
       <div className="flex items-center gap-3 flex-wrap">
         {/* Instance selector */}
         <select
+          aria-label="Instance"
           value={selectedId ?? ""}
           onChange={(e) => { setSelectedId(e.target.value); setLiveTail(false); }}
-          className="rounded-md border border-border bg-background px-3 py-1.5 pointer-coarse:py-2.5 text-xs text-foreground outline-none focus:border-border min-w-[180px]"
+          className="rounded-md border border-border bg-background px-3 py-1.5 pointer-coarse:py-2.5 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[180px]"
         >
           <option value="" disabled>Select instance…</option>
           {instances?.map((inst) => (
@@ -87,10 +88,11 @@ export function MetricsLogs() {
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/60" />
           <input
             type="text"
+            aria-label="Filter logs"
             placeholder="Filter logs…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-md border border-border bg-background pl-7 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-border"
+            className="w-full rounded-md border border-border bg-background pl-7 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </div>
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { cloneElement, isValidElement, useEffect, useId, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -534,11 +534,16 @@ function Field({
   hint?: string;
   children: React.ReactNode;
 }) {
+  const id = useId();
+  const hintId = `${id}-hint`;
+  const control = isValidElement<Record<string, unknown>>(children)
+    ? cloneElement(children, { id, ...(hint ? { "aria-describedby": hintId } : {}) })
+    : children;
   return (
     <div className="space-y-1">
-      <label className="block text-xs font-medium text-muted-foreground">{label}</label>
-      {children}
-      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+      <label htmlFor={id} className="block text-xs font-medium text-muted-foreground">{label}</label>
+      {control}
+      {hint && <p id={hintId} className="text-[11px] text-muted-foreground">{hint}</p>}
     </div>
   );
 }

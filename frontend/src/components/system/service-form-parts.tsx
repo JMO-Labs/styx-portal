@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { BYPASS_PREFIX_ERROR, type FieldErrors } from "./service-validation";
 
 export const selectCls =
-  "h-9 max-sm:h-11 max-sm:text-base w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none dark:bg-background/60 " +
+  "h-9 max-sm:h-11 max-sm:text-base w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-background/60 " +
   "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 " +
   "aria-invalid:border-destructive";
 
