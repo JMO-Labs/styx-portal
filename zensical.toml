@@ -52,11 +52,8 @@ nav = [
     { "Enterprise: Keycloak" = "enterprise/runbooks/keycloak.md" },
     { "Enterprise: Ceph OSD encryption" = "enterprise/runbooks/ceph-osd-encryption.md" },
     { "Enterprise: Image supply chain" = "enterprise/runbooks/image-supply-chain.md" },
-<<<<<<< HEAD
     { "Enterprise: DLP policy" = "enterprise/runbooks/dlp-policy.md" },
-=======
     { "Enterprise: Offboarding" = "enterprise/runbooks/offboarding.md" },
->>>>>>> fa1a557 (docs(enterprise): offboarding and access-review ADR-0070, runbook, control matrix)
   ] },
   { "Build" = [
     "build/index.md",
