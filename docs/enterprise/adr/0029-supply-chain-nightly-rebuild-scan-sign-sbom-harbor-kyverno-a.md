@@ -45,3 +45,4 @@ Follow-up work:
 ## Implementation note (Phase 1, #5)
 
 Phase 1 covers the Harbor part only, as IaC in `deploy/enterprise/harbor/` (not deployed). It uses the upstream `goharbor/harbor` chart 1.19.4 (Harbor 2.15.4) with a dedicated CNPG cluster `harbor-db`, Ceph RGW S3 blobs, chart-internal Valkey, ESO secrets from OpenBao, `db_auth` with only `admin` and robot accounts, and internal-only exposure through Traefik. Trivy, cosign, SBOM and Kyverno admission are later phases. Runbook: docs/operate/harbor-enterprise.md.
+- Implementation choices: [ADR-0069](0069-image-supply-chain-implementation-choices.md); runbook: [image supply chain](../runbooks/image-supply-chain.md).
