@@ -26,6 +26,7 @@ import refit
 from codecpref import inject_codecpref
 from gamemode import GameMode
 import seat_scale
+import session_events
 import yarl
 from aiohttp import web
 from multidict import CIMultiDict
@@ -108,6 +109,8 @@ def create_app(user: str, password: str,
     # The supervisor can promote a warm standby selkies on a refit: the live
     # port is then in <seat_dir>/selkies-port, re-read per request.
     port_file = os.path.join(seat_dir, "selkies-port") if seat_dir else ""
+    events_path = (os.path.join(os.path.dirname(state_file), session_events.NAME)
+                   if state_file else "")
 
     def live_port() -> int:
         try:
@@ -237,6 +240,7 @@ def create_app(user: str, password: str,
         """Register a stream socket for `vid`; a controller claims or takes the size."""
         rec = viewers.connect(vid, ws)
         rec.vid, rec.shared = vid, shared
+        events_path and session_events.record(events_path, "connect", vid)
         if seat_dir and not shared:
             if size_owner.owner and size_owner.owner != vid:
                 set_owner(vid)
@@ -246,6 +250,7 @@ def create_app(user: str, password: str,
 
     def detach(vid, ws, rec):
         if rec and viewers.disconnect(vid, ws):
+            events_path and session_events.record(events_path, "disconnect", vid)
             rec.timer and rec.timer.cancel()
             # Not released at once: a refit reconnect brings the same vid back.
             rec.gone = asyncio.get_running_loop().call_later(OWNER_GRACE_S, expire, vid)
