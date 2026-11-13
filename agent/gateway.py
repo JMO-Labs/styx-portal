@@ -107,7 +107,8 @@ def create_app(user: str, password: str,
                seat_dir: str = "", icon_dir: str = "",
                transport: str = "", max_session_s: int = 0,
                webrtc_off: bool = False,
-               dlp_policy: dict | None = None) -> web.Application:
+               dlp_policy: dict | None = None,
+               dlp_reporter=None) -> web.Application:
     # The supervisor can promote a warm standby selkies on a refit: the live
     # port is then in <seat_dir>/selkies-port, re-read per request.
     port_file = os.path.join(seat_dir, "selkies-port") if seat_dir else ""
@@ -376,9 +377,12 @@ def create_app(user: str, password: str,
 
                 async def pump(src, dst, direction, on_activity=None, on_binary=None):
                     async for msg in src:
-                        if (msg.type in (aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY)
-                                and not allow_message(msg.data, direction, dlp_policy)):
-                            continue    # DLP (gateway_dlp)
+                        if msg.type in (aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY):
+                            ok = allow_message(msg.data, direction, dlp_policy)
+                            if dlp_reporter:
+                                dlp_reporter.record(msg.data, direction, ok)
+                            if not ok:
+                                continue    # DLP (gateway_dlp)
                         if msg.type == aiohttp.WSMsgType.TEXT:
                             out = on_activity(msg.data) if on_activity else None
                             if out is True:
