@@ -16,9 +16,9 @@ case "$have" in
 esac
 
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
-build() { # $1 = clean output dir
-  mkdir -p "$1"
-  ( cd "$root/smartcard" && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
+build() { # $1 = clean output dir; own GOCACHE so the second build is not a cache hit
+  mkdir -p "$1/gocache"
+  ( cd "$root/smartcard" && GOCACHE="$1/gocache" CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
       go build -mod=readonly -trimpath -buildvcs=false -ldflags=-buildid= \
       -o "$1/$name" ./cmd/styx-card-helper )
 }
