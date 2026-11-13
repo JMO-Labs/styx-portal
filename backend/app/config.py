@@ -65,6 +65,11 @@ class Settings(BaseSettings):
     PREPULL_INTERVAL_S: int = 3600  # image prepull sync loop
     CVE_RECYCLE_INTERVAL_S: int = 3600  # critical-CVE scan loop (ADR-0030)
     CVE_RECYCLE_GRACE_H: int = 24
+    SESSION_REAPER_INTERVAL_S: int = 60  # leader-only session reaper (ADR-0039)
+    SESSION_DISCONNECT_MAX_H: float = 2
+    SESSION_MAX_H: float = 12
+    SESSION_WARN_MIN: int = 15
+    GATEWAY_PORT: int = 8080  # in-pod gateway serving /styx/state
     K8S_DESKTOP_IMAGE: str = "ghcr.io/jmo-labs/styx-desktop:latest"
     EGRESS_PROXY_HOST: str = "squid.egress-proxy.svc.cluster.local"
     EGRESS_PROXY_PORT_CATEGORY: int = 3128
