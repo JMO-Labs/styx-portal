@@ -34,6 +34,8 @@ async def _reclaim(session, runtime, p: UserProfile, n: Notice, now: datetime) -
     except HTTPException as e:  # still referenced by an instance row: keep, retry next tick
         log.info("profile reclaim skipped for %s: %s", volume, e.detail)
         return
+    n.dismissed_at = now
+    session.add(n)
     await audit(session, "profile.reclaim", user_id=user_id, resource=template_id,
                 detail={"volume": volume})
     await session.commit()
@@ -48,7 +50,8 @@ async def profile_reclaim_tick(session: AsyncSession, runtime, now: datetime,
         last = p.last_used_at or p.created_at
         n = await _notice(session, p)
         if n is not None and n.dismissed_at is None:
-            if last > n.created_at:  # used since the notice: keep it
+            noticed_at = n.due_at - GRACE if n.due_at is not None else n.created_at
+            if last > noticed_at:  # used since the notice: keep it
                 n.dismissed_at = now
                 session.add(n)
                 await session.commit()

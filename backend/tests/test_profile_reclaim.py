@@ -48,7 +48,7 @@ async def test_notice_once_for_stale_profile(session):
 
 
 @pytest.mark.asyncio
-async def test_fresh_profile_untouched_and_null_uses_created(session):
+async def test_fresh_profile_untouched(session):
     await _profile(session, last_used=NOW - timedelta(days=10))
     await profile_reclaim_tick(session, MagicMock(), NOW, True)
     assert await _notices(session) == []
@@ -73,6 +73,8 @@ async def test_deleted_after_grace_with_audit(session):
     rt.remove_volume.assert_called_once_with("profile-v")
     audits = (await session.exec(select(AuditLog).where(AuditLog.action == "profile.reclaim"))).all()
     assert len(audits) == 1 and audits[0].user_id == u.id
+    (n,) = await _notices(session)
+    assert n.dismissed_at is not None
 
 
 @pytest.mark.asyncio
@@ -99,5 +101,19 @@ async def test_in_use_profile_kept(session):
                          profile_volume="profile-v"))
     await session.commit()
     await profile_reclaim_tick(session, rt, NOW + timedelta(days=20), True)
+    assert await session.get(UserProfile, (u.id, t.id)) is not None
+    rt.remove_volume.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_used_after_notice_independent_of_wall_clock(session):
+    far = datetime(2030, 1, 1)
+    u, t, p = await _profile(session, last_used=far - timedelta(days=61))
+    rt = MagicMock()
+    await profile_reclaim_tick(session, rt, far, True)
+    p.last_used_at = far + timedelta(days=1)
+    session.add(p)
+    await session.commit()
+    await profile_reclaim_tick(session, rt, far + timedelta(days=15), True)
     assert await session.get(UserProfile, (u.id, t.id)) is not None
     rt.remove_volume.assert_not_called()
