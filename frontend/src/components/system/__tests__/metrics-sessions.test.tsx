@@ -7,6 +7,8 @@ vi.mock("@/hooks/use-instances", () => {
   return { useInstances: () => ({ data: [inst] }), useStartInstance: m, useStopInstance: m, useRestartInstance: m,
     usePauseInstance: m, useUnpauseInstance: m, useDeleteInstance: m };
 });
+let canTakeover = false;
+vi.mock("@/hooks/use-auth", () => ({ useAuth: () => ({ user: { can_takeover: canTakeover } }) }));
 vi.mock("@/hooks/use-system", () => ({ useSessionEvents: () => ({ data: [] }) }));
 const choose = vi.fn();
 vi.mock("@/components/open-prompt", () => ({ useOpenChoice: () => choose }));
@@ -21,4 +23,14 @@ test("Connect honours the Workspaces preference", async () => {
   expect(choose).toHaveBeenCalledWith("workspaces", "Desk", expect.any(Function));
   (choose.mock.calls[0]![2] as (m: string) => void)("same_tab");
   expect(openPending).toHaveBeenCalledWith("same_tab", "Launching Desk…", expect.any(Function));
+});
+
+test("Take over is shown only when can_takeover", () => {
+  canTakeover = false;
+  const { unmount } = render(<MetricsSessions />);
+  expect(screen.queryByTitle("Take over")).toBeNull();
+  unmount();
+  canTakeover = true;
+  render(<MetricsSessions />);
+  expect(screen.getByTitle("Take over")).toBeInTheDocument();
 });
