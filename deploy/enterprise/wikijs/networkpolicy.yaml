@@ -1,0 +1,120 @@
+# Default deny (Cilium idiom: empty rule selects the pods for enforcement without
+# allowing anything), then only the flows Keycloak needs.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: wikijs-default-deny
+  namespace: wikijs
+spec:
+  endpointSelector: {}
+  ingress:
+    - {}
+  egress:
+    - {}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: wikijs-ingress-from-traefik
+  namespace: wikijs
+spec:
+  endpointSelector:
+    matchLabels: {app.kubernetes.io/name: wikijs}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: traefik
+      toPorts:
+        - ports:
+            - {port: "3000", protocol: TCP}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: wikijs-egress
+  namespace: wikijs
+spec:
+  endpointSelector:
+    matchLabels: {app.kubernetes.io/name: wikijs}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: wikijs-db
+      toPorts:
+        - ports:
+            - {port: "5432", protocol: TCP}
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchPattern: "*"
+    # OIDC discovery/token/userinfo against Keycloak (in-cluster, plain HTTP behind the proxy).
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: keycloak
+            app.kubernetes.io/name: keycloak
+      toPorts:
+        - ports:
+            - {port: "8080", protocol: TCP}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: wikijs-db-from-cnpg-operator
+  namespace: wikijs
+spec:
+  endpointSelector:
+    matchLabels:
+      cnpg.io/cluster: wikijs-db
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cnpg-system
+      toPorts:
+        - ports:
+            - {port: "8000", protocol: TCP}
+    - fromEndpoints:
+        - matchLabels: {app.kubernetes.io/name: wikijs}
+      toPorts:
+        - ports:
+            - {port: "5432", protocol: TCP}
+    # Standby streams WAL from the primary (DB pod to DB pod).
+    - fromEndpoints:
+        - matchLabels: {cnpg.io/cluster: wikijs-db}
+      toPorts:
+        - ports:
+            - {port: "5432", protocol: TCP}
+    # Prometheus scrapes the CNPG exporter (9187).
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - {port: "9187", protocol: TCP}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: wikijs-db-egress-offsite
+  namespace: wikijs
+spec:
+  endpointSelector:
+    matchLabels:
+      cnpg.io/cluster: wikijs-db
+  egress:
+    - toEndpoints:
+        - matchLabels: {cnpg.io/cluster: wikijs-db}
+      toPorts:
+        - ports:
+            - {port: "5432", protocol: TCP}
+    - toCIDRSet:
+        - cidr: 192.0.2.10/32           # PLACEHOLDER(#24): offsite object store address
+      toPorts:
+        - ports:
+            - {port: "443", protocol: TCP}
