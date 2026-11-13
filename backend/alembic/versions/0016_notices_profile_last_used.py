@@ -1,7 +1,7 @@
 """notices table + user_profiles.last_used_at (styx-portal#266)
 
-Revision ID: 0013_notices_profile_last_used
-Revises: 0012_instance_recycle_deadline
+Revision ID: 0016_notices_profile_last_used
+Revises: 0015_group_idle_lock_minutes
 Create Date: 2026-11-13
 
 """
