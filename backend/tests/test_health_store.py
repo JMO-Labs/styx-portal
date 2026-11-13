@@ -31,5 +31,5 @@ def test_new_key_backpadded_with_typed_series():
     health_store.record(1.0, {"a": True}, {"a": 7})
     health_store.record(2.0, {"a": True, "b": True}, {"a": 7, "b": 3})
     h = health_store.get_history("1h")
-    assert h["status"]["b"] == [True, True]
+    assert h["status"]["b"] == [False, True]
     assert h["latency_ms"]["b"] == [0, 3]
