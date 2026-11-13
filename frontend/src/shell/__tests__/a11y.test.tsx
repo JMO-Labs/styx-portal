@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
+import type { ServiceTile } from "@/api/client";
 import { expectNoSeriousA11y } from "@/test/axe";
 
 vi.mock("@/api/client", () => ({ api: {
@@ -13,7 +14,7 @@ import { Dock } from "../dock";
 import { EdgeTab } from "../edge-tab";
 import { Card, Frame } from "../frame";
 
-const tile = { id: "1", slug: "sonarr", name: "Sonarr", icon_kind: "auto" as const, icon_etag: "e", mount_mode: "path", enabled: true, up: true, frame_ok: true, needs_setup: false };
+const tile: ServiceTile = { id: "1", slug: "sonarr", name: "Sonarr", icon_kind: "auto", icon_etag: "e", mount_mode: "path", enabled: true, up: true, frame_ok: true, needs_setup: false };
 
 test("frame has no serious a11y violations", async () => {
   const { container } = render(<Frame tile={tile} inner="/" onTitle={() => {}} />);
