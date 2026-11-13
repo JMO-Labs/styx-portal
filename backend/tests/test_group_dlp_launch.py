@@ -11,18 +11,24 @@ def test_d38_defaults():
     env = dlp_env(dict(DLP_DEFAULTS), username="alice")
     assert env["SELKIES_FILE_TRANSFERS"] == "upload"
     assert env["STYX_WATERMARK_USER"] == "alice"
-    assert env["SELKIES_CLIPBOARD_ENABLED"] == "true"
-    assert "SELKIES_PRINTING_ENABLED" not in env
+    assert env["SELKIES_ENABLE_CLIPBOARD"] == "true"
+    # Selkies 2.2.0 defaults printing to true; D38 wants it off, so set it explicitly.
+    assert env["SELKIES_PRINTING_ENABLED"] == "false"
 
 
 @pytest.mark.parametrize("cin,cout,want", [
-    (True, True, "true"), (True, False, "false"), (False, True, "false"),
+    (True, True, "true"), (True, False, "in"), (False, True, "out"),
     (False, False, "false")])
-def test_clipboard_fails_closed_unless_both(cin, cout, want):
+def test_clipboard_direction(cin, cout, want):
     env = dlp_env({**DLP_DEFAULTS, "clipboard_in": cin, "clipboard_out": cout,
                    "watermark": False})
-    assert env["SELKIES_CLIPBOARD_ENABLED"] == want
-    assert "SELKIES_ENABLE_CLIPBOARD" not in env
+    assert env["SELKIES_ENABLE_CLIPBOARD"] == want
+    assert "SELKIES_CLIPBOARD_ENABLED" not in env
+
+
+def test_printing_allowed():
+    env = dlp_env({**DLP_DEFAULTS, "printing": True, "watermark": False})
+    assert env["SELKIES_PRINTING_ENABLED"] == "true"
 
 
 def test_watermark_requires_username():
@@ -66,6 +72,24 @@ async def test_launch_overrides_dlp_wins_over_template(session):
     env, _, _ = await launch_overrides(session, MagicMock(spec=K8sInstanceRuntime), inst, tpl)
     assert env["STYX_WATERMARK_USER"] == "dave"
     merged = merge_launch_env(env, tpl.env_vars, {"SELKIES_FILE_TRANSFERS": "upload,download"})
-    assert merged["SELKIES_CLIPBOARD_ENABLED"] == "false"
+    assert merged["SELKIES_ENABLE_CLIPBOARD"] == "false"
+    assert merged["SELKIES_PRINTING_ENABLED"] == "false"
+    assert "SELKIES_CLIPBOARD_ENABLED" not in merged  # not a Selkies 2.2.0 env; dropped
     assert merged["SELKIES_FILE_TRANSFERS"] == "upload"
     assert merged["SELKIES_FRAMERATE"] == "144"  # tier keys: template wins
+
+
+@pytest.mark.asyncio
+async def test_launch_overrides_refuses_ownerless_k8s_instance(session):
+    """No owner means no watermark identity: refuse the launch (fail closed)."""
+    from fastapi import HTTPException
+
+    from app.services.group_tier import launch_overrides
+    from app.services.k8s_instances import K8sInstanceRuntime
+
+    tpl = NS(memory_limit=None, cpu_limit=None, env_vars={})
+    with pytest.raises(HTTPException) as exc:
+        await launch_overrides(session, MagicMock(spec=K8sInstanceRuntime),
+                               NS(owner_id=None), tpl)
+    assert exc.value.status_code == 409
+    assert "owner" in exc.value.detail

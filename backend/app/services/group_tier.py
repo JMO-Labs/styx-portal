@@ -1,6 +1,7 @@
 """Per-group CPU-tier overrides (ADR-0031) resolved for a launching user."""
 import re
 
+from fastapi import HTTPException
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -85,8 +86,11 @@ async def launch_overrides(session: AsyncSession, runtime, instance, template):
 
     if not isinstance(runtime, K8sInstanceRuntime):
         return {}, template.memory_limit, template.cpu_limit
+    if not instance.owner_id:
+        # DLP watermark needs an owner identity: refuse rather than launch unmarked.
+        raise HTTPException(409, "Instance has no owner; DLP policy cannot be applied")
     tier = await user_group_tier(session, instance.owner_id)
-    owner = await session.get(User, instance.owner_id) if instance.owner_id else None
+    owner = await session.get(User, instance.owner_id)
     dlp = dlp_env(await user_group_dlp(session, instance.owner_id),
                   (owner.username if owner else None) or instance.owner_id)
     return ({**tier_env(tier), **dlp}, template.memory_limit or tier.get("memory"),

@@ -8,14 +8,19 @@ DLP_DEFAULTS = {
     "download": False, "printing": False, "watermark": True,
 }
 
-# Names below are those in the pinned Selkies (selkies-defaults.ts). Selkies has no
-# per-direction clipboard or env-configurable printing switch, so clipboard stays on
-# only when both directions are allowed (fail closed) and printing is not configurable
-# via env. STYX_WATERMARK_USER is read by the ADR-0058 pixelflux patch (05), which
-# adds the UTC time itself (the watermark's time placeholder).
+# Env names verified against the pinned selkies==2.2.0 (scripts/build_agent_artifacts.sh):
+# upstream tag 2.2.0 (9e0d8e7c), src/selkies/settings.py settings enable_clipboard
+# (true/in/out/false), file_transfers and printing_enabled (default true, so it is
+# always set), read as SELKIES_<NAME>. STYX_WATERMARK_USER is read by our pixelflux
+# watermark patch (patches/selkies/05-pixelflux-watermark.patch, enterprise 89596bb),
+# which adds the UTC time itself. SELKIES_CLIPBOARD_ENABLED is not a Selkies env (only
+# a derived client setting); it is listed so a template value is stripped.
 DLP_ENV_KEYS = frozenset({
-    "SELKIES_CLIPBOARD_ENABLED", "SELKIES_FILE_TRANSFERS", "STYX_WATERMARK_USER",
+    "SELKIES_ENABLE_CLIPBOARD", "SELKIES_FILE_TRANSFERS", "SELKIES_PRINTING_ENABLED",
+    "STYX_WATERMARK_USER", "SELKIES_CLIPBOARD_ENABLED",
 })
+_CLIPBOARD = {(True, True): "true", (True, False): "in", (False, True): "out",
+              (False, False): "false"}
 
 
 def dlp_env(policy: dict[str, bool], username: str | None = None) -> dict[str, str]:
@@ -24,10 +29,11 @@ def dlp_env(policy: dict[str, bool], username: str | None = None) -> dict[str, s
     A watermark needs a non-empty identifier: the patch treats "" as unset.
     """
     env = {
-        "SELKIES_CLIPBOARD_ENABLED": (
-            "true" if policy["clipboard_in"] and policy["clipboard_out"] else "false"),
+        "SELKIES_ENABLE_CLIPBOARD": _CLIPBOARD[
+            (bool(policy["clipboard_in"]), bool(policy["clipboard_out"]))],
         "SELKIES_FILE_TRANSFERS": ",".join(
             d for d in ("upload", "download") if policy[d]) or "none",
+        "SELKIES_PRINTING_ENABLED": "true" if policy["printing"] else "false",
     }
     if policy["watermark"]:
         if not username:
