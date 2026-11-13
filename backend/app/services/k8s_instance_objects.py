@@ -140,6 +140,9 @@ def build_objects(name, image, env, volumes, port, ns, owner, *, gpu_enabled=Fal
                      "persistentVolumeClaim": {"claimName": f"home-{posix_uid}"}})
         mounts.append({"name": "home", "mountPath": cfg.HOME_MOUNT_PATH,
                        **({"readOnly": True} if home_read_only else {})})
+    if env.get("STYX_INSTANCE_ID"):
+        env = {**env, "STYX_UNLOCK_URL":
+               f"https://login.{cfg.DOMAIN}/api/instances/{env['STYX_INSTANCE_ID']}/unlock"}
     caps = _caps(list(cap_add or []))
     cap_spec: dict = {"drop": ["ALL"]}
     if caps:

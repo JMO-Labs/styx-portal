@@ -4,7 +4,8 @@ import re
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models import Group, UserGroup
+from app.models import Group, User, UserGroup
+from app.services.session_policy import DEFAULT_IDLE_LOCK_S, effective_idle_lock_s
 
 _MULT = {"k": 1024, "m": 1024**2, "g": 1024**3, "t": 1024**4}
 
@@ -71,5 +72,8 @@ async def launch_overrides(session: AsyncSession, runtime, instance, template):
     if not isinstance(runtime, K8sInstanceRuntime):
         return {}, template.memory_limit, template.cpu_limit
     tier = await user_group_tier(session, instance.owner_id)
-    return (tier_env(tier), template.memory_limit or tier.get("memory"),
+    owner = await session.get(User, instance.owner_id) if instance.owner_id else None
+    lock_s = await effective_idle_lock_s(owner, session) if owner else DEFAULT_IDLE_LOCK_S
+    return ({**tier_env(tier), "STYX_INSTANCE_ID": instance.id,
+             "STYX_LOCK_IDLE_S": str(lock_s)}, template.memory_limit or tier.get("memory"),
             template.cpu_limit or tier.get("cpu"))

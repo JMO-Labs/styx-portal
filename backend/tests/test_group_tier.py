@@ -99,7 +99,7 @@ async def test_launch_overrides_template_wins_and_k8s_only(session):
     session.add(UserGroup(user_id=u.id, group_id=g.id))
     await session.commit()
     k8s = MagicMock(spec=K8sInstanceRuntime)
-    inst = NS(owner_id=u.id)
+    inst = NS(owner_id=u.id, id="i1")
 
     env, mem, cpu = await launch_overrides(session, k8s, inst, NS(memory_limit=None, cpu_limit=None))
     assert (mem, cpu, env["SELKIES_FRAMERATE"]) == ("8Gi", "6", "60")
