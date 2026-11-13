@@ -1,0 +1,145 @@
+From: wq-agent <wq-agent@dev.local>
+Subject: [PATCH] feat(watermark): burn user + UTC time into frames before encode
+
+Adds pixelflux::watermark. Text is read from STYX_WATERMARK_USER at
+startup; no client setting can change or disable it. The capture loop
+calls Watermark::stamp_rgb on each frame ahead of the encoder.
+
+---
+diff --git a/pixelflux/src/watermark.rs b/pixelflux/src/watermark.rs
+new file mode 100644
+index 0000000..d976529
+--- /dev/null
++++ b/pixelflux/src/watermark.rs
+@@ -0,0 +1,131 @@
++//! Server-side watermark: burns "<user> <UTC time>" into each frame before encode.
++//! Text comes only from the STYX_WATERMARK_USER env var; no client message can
++//! change or disable it. Mirrors agent/watermark.py (the snapshot-tested spec).
++
++const SCALE: usize = 3;
++const PAD: usize = 6;
++const ORIGIN: (usize, usize) = (16, 16);
++const GLYPH_W: usize = 5;
++const GLYPH_H: usize = 7;
++
++/// 7 rows of 5 columns, rows joined by '/', '#' = set.
++const FONT: &[(char, &str)] = &[
++    (' ', "...../...../...../...../...../...../....."),
++    ('-', "...../...../...../#####/...../...../....."),
++    (':', "...../..#../..#../...../..#../..#../....."),
++    ('.', "...../...../...../...../...../.##../.##.."),
++    ('_', "...../...../...../...../...../...../#####"),
++    ('@', ".###./#...#/#.###/#.###/#.##./#..../.###."),
++    ('/', "....#/....#/...#./..#../.#.../#..../#...."),
++    ('0', ".###./#...#/#..##/#.#.#/##..#/#...#/.###."),
++    ('1', "..#../.##../..#../..#../..#../..#../.###."),
++    ('2', ".###./#...#/....#/...#./..#../.#.../#####"),
++    ('3', "####./....#/....#/.###./....#/....#/####."),
++    ('4', "...#./..##./.#.#./#..#./#####/...#./...#."),
++    ('5', "#####/#..../####./....#/....#/#...#/.###."),
++    ('6', "..##./.#.../#..../####./#...#/#...#/.###."),
++    ('7', "#####/....#/...#./..#../.#.../.#.../.#..."),
++    ('8', ".###./#...#/#...#/.###./#...#/#...#/.###."),
++    ('9', ".###./#...#/#...#/.####/....#/...#./.##.."),
++    ('A', ".###./#...#/#...#/#####/#...#/#...#/#...#"),
++    ('B', "####./#...#/#...#/####./#...#/#...#/####."),
++    ('C', ".###./#...#/#..../#..../#..../#...#/.###."),
++    ('D', "####./#...#/#...#/#...#/#...#/#...#/####."),
++    ('E', "#####/#..../#..../####./#..../#..../#####"),
++    ('F', "#####/#..../#..../####./#..../#..../#...."),
++    ('G', ".###./#...#/#..../#.###/#...#/#...#/.###."),
++    ('H', "#...#/#...#/#...#/#####/#...#/#...#/#...#"),
++    ('I', ".###./..#../..#../..#../..#../..#../.###."),
++    ('J', "..###/...#./...#./...#./...#./#..#./.##.."),
++    ('K', "#...#/#..#./#.#../##.../#.#../#..#./#...#"),
++    ('L', "#..../#..../#..../#..../#..../#..../#####"),
++    ('M', "#...#/##.##/#.#.#/#.#.#/#...#/#...#/#...#"),
++    ('N', "#...#/##..#/#.#.#/#..##/#...#/#...#/#...#"),
++    ('O', ".###./#...#/#...#/#...#/#...#/#...#/.###."),
++    ('P', "####./#...#/#...#/####./#..../#..../#...."),
++    ('Q', ".###./#...#/#...#/#...#/#.#.#/#..#./.##.#"),
++    ('R', "####./#...#/#...#/####./#.#../#..#./#...#"),
++    ('S', ".####/#..../#..../.###./....#/....#/####."),
++    ('T', "#####/..#../..#../..#../..#../..#../..#.."),
++    ('U', "#...#/#...#/#...#/#...#/#...#/#...#/.###."),
++    ('V', "#...#/#...#/#...#/#...#/#...#/.#.#./..#.."),
++    ('W', "#...#/#...#/#...#/#.#.#/#.#.#/##.##/#...#"),
++    ('X', "#...#/#...#/.#.#./..#../.#.#./#...#/#...#"),
++    ('Y', "#...#/#...#/.#.#./..#../..#../..#../..#.."),
++    ('Z', "#####/....#/...#./..#../.#.../#..../#####"),
++];
++
++pub struct Watermark {
++    user: String,
++}
++
++impl Watermark {
++    /// None when STYX_WATERMARK_USER is unset or blank (watermark not configured).
++    pub fn from_env() -> Option<Self> {
++        let user = std::env::var("STYX_WATERMARK_USER").ok()?.trim().to_string();
++        if user.is_empty() { None } else { Some(Self { user }) }
++    }
++
++    pub fn text(&self, unix_secs: i64) -> String {
++        let days = unix_secs.div_euclid(86400);
++        let rem = unix_secs.rem_euclid(86400);
++        let (y, m, d) = civil(days);
++        format!("{} {:04}-{:02}-{:02} {:02}:{:02}:{:02}Z", self.user, y, m, d, rem / 3600, rem % 3600 / 60, rem % 60)
++            .to_uppercase()
++    }
++
++    /// Stamp an RGB (3 bytes/pixel, tightly packed) frame in place.
++    pub fn stamp_rgb(&self, frame: &mut [u8], width: usize, height: usize, unix_secs: i64) {
++        let text = self.text(unix_secs);
++        let adv = (GLYPH_W + 1) * SCALE;
++        let (x0, y0) = ORIGIN;
++        let bw = text.chars().count() * adv - SCALE + 2 * PAD;
++        let bh = GLYPH_H * SCALE + 2 * PAD;
++        for y in y0..(y0 + bh).min(height) {
++            for x in x0..(x0 + bw).min(width) {
++                let a = (y * width + x) * 3;
++                frame[a..a + 3].fill(0);
++            }
++        }
++        for (i, ch) in text.chars().enumerate() {
++            let glyph = FONT.iter().find(|(c, _)| *c == ch).or_else(|| FONT.iter().find(|(c, _)| *c == '_')).unwrap().1;
++            for (r, row) in glyph.split('/').enumerate() {
++                for (c, bit) in row.chars().enumerate() {
++                    if bit != '#' { continue; }
++                    for dy in 0..SCALE {
++                        let y = y0 + PAD + r * SCALE + dy;
++                        let x = x0 + PAD + i * adv + c * SCALE;
++                        if y < height && x + SCALE <= width {
++                            let a = (y * width + x) * 3;
++                            frame[a..a + 3 * SCALE].fill(255);
++                        }
++                    }
++                }
++            }
++        }
++    }
++}
++
++/// Days since 1970-01-01 to (year, month, day), proleptic Gregorian.
++fn civil(z: i64) -> (i64, i64, i64) {
++    let z = z + 719468;
++    let era = z.div_euclid(146097);
++    let doe = z.rem_euclid(146097);
++    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
++    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
++    let mp = (5 * doy + 2) / 153;
++    let d = doy - (153 * mp + 2) / 5 + 1;
++    let m = if mp < 10 { mp + 3 } else { mp - 9 };
++    (yoe + era * 400 + (m <= 2) as i64, m, d)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn text_is_user_and_utc_time() {
++        let w = Watermark { user: "alice".into() };
++        assert_eq!(w.text(1794560707), "ALICE 2026-11-13 09:05:07Z");
++    }
++}
