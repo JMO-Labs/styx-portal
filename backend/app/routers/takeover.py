@@ -1,4 +1,5 @@
 """Session takeover start/end with mandatory reason and audit events (ADR-0060)."""
+import logging
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -8,13 +9,17 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.config import Settings
 from app.database import get_session
 from app.models import Instance, SessionTakeover, User
 from app.security.deps import can_takeover, get_current_user, require_staff_role
+from app.services import takeover_alert
 from app.services.audit import audit_request
 from app.services.takeover_report import build_report, month_bounds
 
 router = APIRouter()
+admin_router = APIRouter()
+log = logging.getLogger("styx.takeover")
 report_router = APIRouter()
 
 
@@ -37,6 +42,12 @@ class TakeoverOut(BaseModel):
     mode: str
     reason: str
     started_at: datetime
+
+
+class TakeoverListOut(TakeoverOut):
+    actor_id: str
+    user_id: str | None = None
+    ended_at: datetime | None = None
 
 
 async def _gate(session: AsyncSession, request: Request, user: User, iid: str,
@@ -81,6 +92,10 @@ async def start_takeover(iid: str, body: TakeoverIn, request: Request,
     except IntegrityError:  # lost a race against the partial unique index
         await session.rollback()
         raise conflict
+    try:
+        await takeover_alert.notify_start(t, Settings().MATRIX_SECURITY_WEBHOOK_URL)
+    except Exception as e:  # noqa: BLE001 - alert must never fail the takeover
+        log.warning("takeover alert failed: %s", type(e).__name__)
     return t
 
 
@@ -97,6 +112,16 @@ async def end_takeover(iid: str, request: Request, user: User = Depends(get_curr
                         resource=iid, detail=_detail(t))
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@admin_router.get("/takeovers", response_model=list[TakeoverListOut])
+async def list_takeovers(since: datetime | None = None,
+                         _: User = Depends(require_staff_role("platform-admin", "auditor")),
+                         session: AsyncSession = Depends(get_session)):
+    q = select(SessionTakeover).order_by(SessionTakeover.started_at.desc())
+    if since is not None:
+        q = q.where(SessionTakeover.started_at >= (since.astimezone(timezone.utc) if since.tzinfo else since).replace(tzinfo=None))
+    return (await session.exec(q)).all()
 
 
 @report_router.get("/report")

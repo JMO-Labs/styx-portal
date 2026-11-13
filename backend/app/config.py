@@ -113,6 +113,7 @@ class Settings(BaseSettings):
     SESSION_MAX_AGE: int = 2592000  # 30 days: absolute cap on a refresh family
     MATRIX_SESSION_MAX_HOURS: int = 12  # absolute cap on a session-only (card) family
     MATRIX_DIGEST_WEBHOOK_URL: str = ""  # daily new-account digest target; unset = skipped
+    MATRIX_SECURITY_WEBHOOK_URL: str = ""  # takeover-start alert target; unset = skipped
     MATRIX_NOTIFY_HOMESERVER: str = ""  # Matrix notify adapter; any of the three empty = off
     MATRIX_NOTIFY_ROOM_ID: str = ""
     MATRIX_NOTIFY_TOKEN: str = ""
