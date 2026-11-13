@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import "@/styles/admin-table.css";
 import { Download } from "lucide-react";
@@ -19,12 +19,18 @@ export function AccessReviewPanel() {
   const [target, setTarget] = useState<AccessReviewRow | null>(null);
   const valid = QUARTER_RE.test(quarter);
 
+  const seq = useRef(0);
+
   const load = useCallback(async () => {
     if (!valid) return;
+    const id = ++seq.current;
     try {
-      setRows(await api.accessReview(quarter));
+      const data = await api.accessReview(quarter);
+      if (id !== seq.current) return;
+      setRows(data);
       setError(null);
     } catch (e) {
+      if (id !== seq.current) return;
       setRows(null);
       setError(e instanceof Error && e.message ? e.message : "Failed to load access review");
     }
@@ -61,14 +67,14 @@ export function AccessReviewPanel() {
         : rows === null ? <p className="text-sm text-muted-foreground">Loading…</p>
         : rows.length === 0 ? <p className="text-sm text-muted-foreground">No members to review.</p>
         : (
-          <table className="admin-table w-full text-sm">
+          <table className="dense">
             <thead><tr><th>Group</th><th>User</th><th>Email</th><th>Decision</th><th /></tr></thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={`${r.group_id}:${r.user_id}`}>
                   <td>{r.group}</td><td>{r.username}</td><td>{r.email ?? "—"}</td>
                   <td>{r.decision ? LABEL[r.decision] : "Pending"}</td>
-                  <td className="text-right">
+                  <td className="acts">
                     {r.decision ? null : (
                       <span className="inline-flex gap-2">
                         <Button size="sm" variant="outline" aria-label={`Certify ${r.username}`} onClick={() => void decide(r, "certify")}>Certify</Button>

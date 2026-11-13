@@ -90,4 +90,18 @@ describe("AccessReviewPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: /certify alice/i }));
     await waitFor(() => expect(accessReview).toHaveBeenCalledTimes(2));
   });
+  test("ignores stale responses when the quarter changes quickly", async () => {
+    let resolveOld: (v: unknown) => void = () => {};
+    accessReview.mockReset();
+    accessReview
+      .mockImplementationOnce(() => new Promise((r) => { resolveOld = r; }))
+      .mockResolvedValueOnce([row({ quarter: "2026-Q3", username: "carol", email: "carol@x.io" })]);
+    render(<AccessReviewPanel />);
+    fireEvent.change(screen.getByLabelText("Quarter"), { target: { value: "2026-Q3" } });
+    expect(await screen.findByText("carol")).toBeInTheDocument();
+    resolveOld([row({ username: "stale" })]);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByText("stale")).toBeNull();
+    expect(screen.getByText("carol")).toBeInTheDocument();
+  });
 });
