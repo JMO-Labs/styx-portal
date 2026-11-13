@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 import httpx
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -23,7 +23,7 @@ def _utc(d: datetime) -> datetime:
 async def build_digest(session: AsyncSession, now: datetime) -> str:
     """Accounts created in the last 24 h plus all still-unreviewed ones."""
     since = _utc(now) - timedelta(hours=24)
-    users = (await session.exec(select(User).order_by(User.created_at.desc()))).all()
+    users = (await session.exec(select(User).order_by(col(User.created_at).desc()))).all()
     rows = [u for u in users
             if _utc(u.created_at) >= since or (u.reviewed_at is None and not u.disabled_at)]
     if not rows:

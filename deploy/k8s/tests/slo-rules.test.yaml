@@ -1,0 +1,186 @@
+# Run via scripts/slo_rules_test.sh (promtool; rules file is the unwrapped spec).
+rule_files:
+  - slo-rules.yaml
+evaluation_interval: 5m
+tests:
+  - name: availability_100pct_failing_pages
+    interval: 1m
+    input_series:
+      - series: 'styx_slo_business_hours'
+        values: '1x40'
+      - series: 'styx_maintenance_active'
+        values: '0x40'
+      - series: 'probe_success{instance="a"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: StyxAvailabilityBurnRatePage
+        exp_alerts:
+              - exp_labels: {severity: page, slo: availability, window: 1h}
+                exp_annotations:
+                  summary: "availability below 99.9%: burning error budget at >14.4x (1h/5m)"
+              - exp_labels: {severity: page, slo: availability, window: 6h}
+                exp_annotations:
+                  summary: "availability below 99.9%: burning error budget at >6x (6h/30m)"
+
+  - name: availability_maintenance_no_alert
+    interval: 1m
+    input_series:
+      - series: 'styx_slo_business_hours'
+        values: '1x40'
+      - series: 'styx_maintenance_active'
+        values: '1x40'
+      - series: 'probe_success{instance="a"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: StyxAvailabilityBurnRatePage
+        exp_alerts: []
+
+  - name: availability_out_of_business_hours_no_page
+    interval: 1m
+    input_series:
+      - series: 'styx_slo_business_hours'
+        values: '0x40'
+      - series: 'styx_maintenance_active'
+        values: '0x40'
+      - series: 'probe_success{instance="a"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: StyxAvailabilityBurnRatePage
+        exp_alerts: []
+
+  - name: availability_gauges_absent_failsafe_pages
+    interval: 1m
+    input_series:
+      - series: 'probe_success{instance="a"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: StyxAvailabilityBurnRatePage
+        exp_alerts:
+              - exp_labels: {severity: page, slo: availability, window: 1h}
+                exp_annotations:
+                  summary: "availability below 99.9%: burning error budget at >14.4x (1h/5m)"
+              - exp_labels: {severity: page, slo: availability, window: 6h}
+                exp_annotations:
+                  summary: "availability below 99.9%: burning error budget at >6x (6h/30m)"
+
+  - name: availability_tiny_error_share_no_page
+    interval: 1s
+    input_series:
+      - series: 'probe_success{instance="a"}'
+        values: '1x1800 0 1x1800'
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: StyxAvailabilityBurnRatePage
+        exp_alerts: []
+
+  - name: launch_3_slow_launches_total_guard_no_page
+    interval: 1m
+    input_series:
+      - series: 'styx_launch_duration_seconds_bucket{le="10",outcome="ok",kind="start"}'
+        values: '0x40'
+      - series: 'styx_launch_duration_seconds_count{outcome="ok",kind="start"}'
+        values: '0 1 2 3x40'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: StyxLaunchBurnRatePage
+        exp_alerts: []
+
+  - name: launch_20_slow_launches_pages
+    interval: 1m
+    input_series:
+      - series: 'styx_launch_duration_seconds_bucket{le="10",outcome="ok",kind="start"}'
+        values: '0x40'
+      - series: 'styx_launch_duration_seconds_count{outcome="ok",kind="start"}'
+        values: '0+20x40'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: StyxLaunchBurnRatePage
+        exp_alerts:
+              - exp_labels: {severity: page, slo: launch, window: 1h}
+                exp_annotations:
+                  summary: "launches slower than 10s: burning error budget at >14.4x (1h/5m)"
+              - exp_labels: {severity: page, slo: launch, window: 6h}
+                exp_annotations:
+                  summary: "launches slower than 10s: burning error budget at >6x (6h/30m)"
+
+  - name: rtt_50pct_slow_pages_6x_only
+    interval: 1m
+    input_series:
+      - series: 'styx_stream_rtt_seconds_bucket{le="0.08"}'
+        values: '0+10x40'
+      - series: 'styx_stream_rtt_seconds_count'
+        values: '0+20x40'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: StyxStreamRttBurnRatePage
+        exp_alerts:
+              - exp_labels: {severity: page, slo: rtt, window: 6h}
+                exp_annotations:
+                  summary: "stream RTT above 80ms: burning error budget at >6x (6h/30m)"
+
+  - name: rtt_2pct_slow_no_page
+    interval: 1m
+    input_series:
+      - series: 'styx_stream_rtt_seconds_bucket{le="0.08"}'
+        values: '0+98x40'
+      - series: 'styx_stream_rtt_seconds_count'
+        values: '0+100x40'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: StyxStreamRttBurnRatePage
+        exp_alerts: []
+
+  - name: launch_p50_about_7s_fires
+    interval: 1m
+    input_series:
+      - series: 'styx_launch_duration_seconds_bucket{le="6",outcome="ok",kind="start"}'
+        values: '0x180'
+      - series: 'styx_launch_duration_seconds_bucket{le="8",outcome="ok",kind="start"}'
+        values: '0+10x180'
+      - series: 'styx_launch_duration_seconds_bucket{le="10",outcome="ok",kind="start"}'
+        values: '0+10x180'
+      - series: 'styx_launch_duration_seconds_bucket{le="+Inf",outcome="ok",kind="start"}'
+        values: '0+10x180'
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: StyxLaunchP50AboveGoal
+        exp_alerts:
+              - exp_labels: {severity: ticket}
+                exp_annotations:
+                  summary: "Median launch time above the 5s goal over 1d"
+
+  - name: launch_p95_about_12s_fires
+    interval: 1m
+    input_series:
+      - series: 'styx_launch_duration_seconds_bucket{le="10",outcome="ok",kind="start"}'
+        values: '0x60'
+      - series: 'styx_launch_duration_seconds_bucket{le="12",outcome="ok",kind="start"}'
+        values: '0+10x60'
+      - series: 'styx_launch_duration_seconds_bucket{le="+Inf",outcome="ok",kind="start"}'
+        values: '0+10x60'
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: StyxLaunchP95High
+        exp_alerts:
+              - exp_labels: {severity: warning}
+                exp_annotations:
+                  summary: "Launch p95 is 10s or more (5m window)"
+                  runbook: "docs/operate/slo.md"
+
+  - name: launch_p95_about_4s_no_fire
+    interval: 1m
+    input_series:
+      - series: 'styx_launch_duration_seconds_bucket{le="2",outcome="ok",kind="start"}'
+        values: '0x60'
+      - series: 'styx_launch_duration_seconds_bucket{le="5",outcome="ok",kind="start"}'
+        values: '0+10x60'
+      - series: 'styx_launch_duration_seconds_bucket{le="+Inf",outcome="ok",kind="start"}'
+        values: '0+10x60'
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: StyxLaunchP95High
+        exp_alerts: []

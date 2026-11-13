@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models import StreamSession, TurnUsage, TurnUsageDay, User, Workstation
@@ -30,7 +30,7 @@ async def record_turn_usage(session: AsyncSession, ws: Workstation, delta: Any,
     delta = min(delta, MAX_HEARTBEAT_DELTA)     # agents self-report: bound what one beat adds
     month = _month(now or datetime.now(timezone.utc))
     uid = ws.occupied_by
-    cond = TurnUsage.user_id.is_(None) if uid is None else TurnUsage.user_id == uid
+    cond = col(TurnUsage.user_id).is_(None) if uid is None else col(TurnUsage.user_id) == uid
     row = (await session.exec(select(TurnUsage).where(
         TurnUsage.month == month, TurnUsage.workstation_id == ws.id, cond))).first()
     if row:
@@ -82,7 +82,7 @@ async def relay_reasons(session: AsyncSession, month: str) -> list[dict]:
     start = datetime(y, m, 1)
     end = datetime(y + (m == 12), m % 12 + 1, 1)
     rows = (await session.exec(select(StreamSession.relay_reason).where(
-        StreamSession.relayed.is_(True), StreamSession.started_at >= start,
+        col(StreamSession.relayed).is_(True), col(StreamSession.started_at) >= start,
         StreamSession.started_at < end))).all()
     counts: dict[str, int] = {}
     for r in rows:

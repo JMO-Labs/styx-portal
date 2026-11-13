@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import update
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -55,10 +55,10 @@ async def disable_account(session: AsyncSession, user: User, reason: str,
     user.disabled_reason = reason
     user.token_version += 1
     session.add(user)
-    await session.exec(update(RefreshToken).where(RefreshToken.user_id == user.id)
+    await session.exec(update(RefreshToken).where(col(RefreshToken.user_id) == user.id)
                        .values(revoked=True))
     insts = (await session.exec(select(Instance).where(
-        Instance.owner_id == user.id, Instance.status.in_(LIVE)))).all()
+        col(Instance.owner_id) == user.id, col(Instance.status).in_(LIVE)))).all()
     if insts and runtime is None:
         from app.services.k8s_runtime import instance_runtime
         runtime = instance_runtime()

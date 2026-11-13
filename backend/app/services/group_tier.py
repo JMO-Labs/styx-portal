@@ -2,7 +2,7 @@
 import re
 
 from fastapi import HTTPException
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models import Group, User, UserGroup
@@ -47,7 +47,7 @@ async def user_group_tier(session: AsyncSession, user_id: str | None) -> dict:
     if not user_id:
         return {}
     groups = (await session.exec(
-        select(Group).join(UserGroup, UserGroup.group_id == Group.id)
+        select(Group).join(UserGroup, col(UserGroup.group_id) == Group.id)
         .where(UserGroup.user_id == user_id))).all()
     return resolve_group_tier(list(groups))
 

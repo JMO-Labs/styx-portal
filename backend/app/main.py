@@ -8,7 +8,7 @@ from importlib.metadata import PackageNotFoundError, version as _pkg_version
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -41,6 +41,7 @@ from app.routers import group_dlp as group_dlp_router
 from app.routers import groups as groups_router
 from app.routers import announcements as announcements_router
 from app.routers import access_review as access_review_router
+from app.routers import takeover as takeover_router
 from app.routers import provision as provision_router
 from app.routers import profiles as profiles_router
 from app.routers import notices as notices_router
@@ -64,6 +65,7 @@ from app.services.janitor import janitor_loop
 from app.services.settings_sync import settings_sync_loop
 from app.services.leader import LeaderTasks, get_elector
 from app.services.mount_jobs import sweep_interrupted
+from app.services.prom_metrics import PrometheusMiddleware, start_metrics_server
 from app.security.csrf import csrf_valid, CSRF_COOKIE, CSRF_HEADER, UNSAFE_METHODS
 
 logger = logging.getLogger("styx-portal")
@@ -122,6 +124,8 @@ async def lifespan(app: FastAPI):
     snapshot_own_networks()
     _tunnel_pod_ips()   # k8s: start the first cloudflared pod lookup (no-op in compose)
 
+    start_metrics_server(_settings.METRICS_PORT)
+
     await init_db()
 
     async with async_session() as _s:
@@ -174,13 +178,17 @@ async def lifespan(app: FastAPI):
 
     # Leader-only: boot steps run on every promotion, loops start after them.
     from app.services.account_deletion import account_deletion_loop
+    from app.services.profile_reclaim import profile_reclaim_loop
     from app.services.new_account_review import new_account_review_loop
     from app.services.new_account_digest import digest_loop
+    from app.services.scratch_reclaim import scratch_reclaim_loop
     leader_loops = [_session_monitor_loop, _service_health_loop, _metrics_db_loop, janitor_loop,
                     _lifecycle_loop,
                     partial(new_account_review_loop, async_session),
                     partial(digest_loop, async_session),
                     partial(account_deletion_loop, async_session),
+                    partial(scratch_reclaim_loop, async_session, instance_runtime()),
+                    partial(profile_reclaim_loop, async_session, instance_runtime),
                     # Thumbnails live in the shared DB: one capturer avoids PK races (#99).
                     partial(service_thumbnail_loop, async_session, _settings.SCREENSHOT_CACHE_DIR)]
     if _settings.ROUTE_BACKEND == "k8s":
@@ -190,6 +198,9 @@ async def lifespan(app: FastAPI):
     if _settings.HARBOR_URL:
         from app.services.cve_recycle import cve_recycle_loop
         leader_loops.append(cve_recycle_loop)
+    if _settings.archive_s3_endpoint:
+        from app.services.ageoff_job import ageoff_loop
+        leader_loops.append(ageoff_loop)
     leader = LeaderTasks(boot=[_probe_cleanup, _reconcile, _close_dangling, _refresh_routes],
                          loops=leader_loops)
     elector = get_elector()
@@ -248,12 +259,16 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "X-CSRF-Token", "X-Styx-Client"],
 )
+app.add_middleware(PrometheusMiddleware)  # outermost: also records 403/429 from inner middleware
 
 app.include_router(templates.router, prefix="/api/templates", tags=["templates"])
 app.include_router(smartcard_router.mint_router, prefix="/api/instances", tags=["smartcard"])
 app.include_router(smartcard_router.router, prefix="/api/smartcard", tags=["smartcard"])
 app.include_router(instance_thumbs.router, prefix="/api/instances", tags=["instances"])
 app.include_router(instances.router, prefix="/api/instances", tags=["instances"])
+app.include_router(takeover_router.router, prefix="/api/instances", tags=["takeover"])
+app.include_router(takeover_router.admin_router, prefix="/api/admin", tags=["takeover"])
+app.include_router(takeover_router.report_router, prefix="/api/admin/takeovers", tags=["takeover"])
 app.include_router(registry.router, prefix="/api/registry/images", tags=["registry"])
 app.include_router(images.router, prefix="/api/images", tags=["images"])
 app.include_router(auth_router.router, prefix="/api/auth", tags=["auth"])
@@ -378,7 +393,7 @@ async def system_metrics(
     docker = instance_runtime()
 
     result = await session.exec(
-        select(Instance).where(Instance.status.in_(["running", "idle"]))
+        select(Instance).where(col(Instance.status).in_(["running", "idle"]))
     )
     running = result.all()
 
@@ -398,14 +413,14 @@ async def system_metrics(
     gpu_info = detect_gpu()
 
     events_result = await session.exec(
-        select(SessionEvent).order_by(SessionEvent.id.desc()).limit(20)
+        select(SessionEvent).order_by(col(SessionEvent.id).desc()).limit(20)
     )
     events = events_result.all()
 
     instances_map = {}
     if events:
         inst_ids = list({e.instance_id for e in events})
-        insts_result = await session.exec(select(Instance).where(Instance.id.in_(inst_ids)))
+        insts_result = await session.exec(select(Instance).where(col(Instance.id).in_(inst_ids)))
         instances_map = {i.id: i.name for i in insts_result.all()}
 
     recent_events = []

@@ -3,7 +3,7 @@ const LABELS: Record<string, [string, string]> = {
   updating: ["Updating…", "bg-sky-500/15 text-sky-400"],
   ok: ["Updated", "bg-emerald-500/15 text-emerald-400"],
   rolled_back: ["Rolled back", "bg-amber-500/15 text-amber-400"],
-  failed: ["Update failed", "bg-rose-500/15 text-rose-400"],
+  failed: ["Update failed", "bg-destructive/15 text-destructive"],
 };
 
 export function AgentUpdateChip({ state, error }: { state?: string; error?: string | null }) {

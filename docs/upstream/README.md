@@ -1,6 +1,6 @@
 # Upstream patch index
 
-Patches live in `patches/selkies/` (apply order in `series`). Every patch has a note `docs/upstream/<patch-name>.md` with the fields Upstream project, Offered, Status, Reason kept locally. `scripts/check_patch_notes.py` enforces this.
+Patches live in `patches/selkies/` (apply order in `series`; patches merged upstream stay for history but are not listed there). Every patch has a note `docs/upstream/<patch-name>.md` with the fields Upstream project, Offered, Status, Reason kept locally. `scripts/check_patch_notes.py` enforces this.
 
 | Patch | Upstream project | Status | Note |
 |---|---|---|---|

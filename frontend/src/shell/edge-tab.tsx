@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { animate, m, useMotionValue, useReducedMotion } from "framer-motion";
 import { spring } from "@/lib/motion";
+import { EDGE_IDLE_OPACITY, EDGE_OUTLINE } from "./edge-tab-style";
 import { clampY, markDragging, readPos, snapSide, writePos, type FerryPos } from "./ferry-pos";
 
 const SIZE_X = 44;
@@ -44,7 +45,6 @@ export function EdgeTab({ onOpen, open = false, tabRef }:
         aria-label="Open the Styx menu (Alt+Shift+S)"
         drag dragConstraints={bounds} dragElastic={0.1} dragMomentum={false}
         style={{ x, y, width: SIZE_X, height: SIZE_Y }}
-        animate={{ opacity: idle ? 0.35 : 1 }}
         onPointerEnter={wake} onFocus={wake} onTouchStart={wake}
         onPointerDown={() => {
           dragged.current = false; wake();
@@ -68,8 +68,11 @@ export function EdgeTab({ onOpen, open = false, tabRef }:
         onClick={() => { if (!dragged.current) onOpen(); dragged.current = false; }}
         className={`fixed left-0 top-0 z-40 flex cursor-grab touch-none items-center bg-transparent outline-none active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-ring ${left ? "justify-start rounded-r-md" : "justify-end rounded-l-md"}`}
       >
-        <span className={`flex h-14 w-2.5 items-center justify-center bg-primary ${left ? "rounded-r-full" : "rounded-l-full"}`}>
-          <span className="h-6 w-px bg-[#EDF1EF]/20" />
+        <span data-testid="edge-tab-outline" style={{ boxShadow: `0 0 0 1px ${EDGE_OUTLINE}` }}
+          className={`relative flex h-14 w-2.5 items-center justify-center ${left ? "rounded-r-full" : "rounded-l-full"}`}>
+          <m.span aria-hidden animate={{ opacity: idle ? EDGE_IDLE_OPACITY : 1 }}
+            className={`absolute inset-0 bg-primary ${left ? "rounded-r-full" : "rounded-l-full"}`} />
+          <span className="relative h-6 w-px bg-[#EDF1EF]/20" />
         </span>
       </m.button>
     </>

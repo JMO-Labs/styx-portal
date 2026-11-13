@@ -37,7 +37,9 @@ spec:
       containers:
         - name: backend
           image: ghcr.io/jmo-labs/styx-backend
-          ports: [{name: http, containerPort: 8000}]
+          ports:
+            - {name: http, containerPort: 8000}
+            - {name: metrics, containerPort: 9000}
           envFrom:
             - configMapRef: {name: styx-config}
             - secretRef: {name: styx-secrets}
@@ -71,6 +73,9 @@ kind: Service
 metadata:
   name: backend
   namespace: styx
+  labels: {app: styx-backend}
 spec:
   selector: {app: styx-backend}
-  ports: [{name: http, port: 8000, targetPort: 8000}]
+  ports:
+    - {name: http, port: 8000, targetPort: 8000}
+    - {name: metrics, port: 9000, targetPort: metrics}

@@ -188,7 +188,7 @@ def validate_icon(kind: str, value: str | None) -> str | None:
     if kind != "image":
         raise ValueError("Unknown icon kind")
     m = _DATA_URI.fullmatch(value or "")
-    if not m or len(value) > MAX_IMAGE_BYTES * 4 // 3 + 200:
+    if not m or not value or len(value) > MAX_IMAGE_BYTES * 4 // 3 + 200:
         raise ValueError("Image must be a base64 data URI under 256 KB")
     try:
         data = base64.b64decode(re.sub(r"\s", "", m.group(2)), validate=True)
@@ -217,7 +217,8 @@ def render_icon(icon: str | None, name: str, ws_id: str) -> tuple[bytes, str]:
     """(body, content-type). Only stored/derived values are emitted."""
     if icon and icon.startswith("data:"):
         m = _DATA_URI.fullmatch(icon)
-        return base64.b64decode(m.group(2)), m.group(1)
+        if m:
+            return base64.b64decode(m.group(2)), m.group(1)
     bg = PALETTE[int(hashlib.sha256(ws_id.encode()).hexdigest()[:8], 16) % len(PALETTE)]
     if icon and icon.startswith("emoji:"):
         return _svg(icon[6:], "#1F2430", 36), "image/svg+xml"

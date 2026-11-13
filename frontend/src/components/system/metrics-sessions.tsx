@@ -71,7 +71,7 @@ export function MetricsSessions() {
           >
             {f.charAt(0).toUpperCase() + f.slice(1)}
             {f !== "all" && instances && (
-              <span className="ml-1 text-muted-foreground/60">
+              <span className="ml-1 text-muted-foreground">
                 {instances.filter((i) =>
                   f === "running" ? i.status === "running" || i.status === "idle" : i.status === f
                 ).length}
@@ -84,7 +84,7 @@ export function MetricsSessions() {
       {/* Session Table */}
       <div className="styx-card rounded-lg overflow-hidden">
         {/* Header */}
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] sm:grid-cols-[1fr_100px_80px_80px_140px] gap-2 px-4 py-2.5 border-b border-border/40 text-[10px] uppercase tracking-wider text-muted-foreground/60 font-medium">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] sm:grid-cols-[1fr_100px_80px_80px_140px] gap-2 px-4 py-2.5 border-b border-border/40 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
           <span>Instance</span>
           <span>Status</span>
           <span className="max-sm:hidden">Uptime</span>
@@ -95,7 +95,7 @@ export function MetricsSessions() {
         {/* Rows */}
         <div className="divide-y divide-border/40">
           {filtered.length === 0 ? (
-            <div className="py-8 text-center text-xs text-muted-foreground/60">
+            <div className="py-8 text-center text-xs text-muted-foreground">
               No instances match filter
             </div>
           ) : (
@@ -224,12 +224,12 @@ function SessionRow({
         <div className="flex items-center gap-2.5 min-w-0">
           <ChevronDown
             className={cn(
-              "h-3 w-3 text-muted-foreground/60 transition-transform shrink-0",
+              "h-3 w-3 text-muted-foreground transition-transform shrink-0",
               expanded && "rotate-180"
             )}
           />
           <span className="text-sm text-foreground truncate">{instance.name}</span>
-          <span className="text-[10px] text-muted-foreground/60 font-mono truncate">{instance.subdomain}</span>
+          <span className="text-[10px] text-muted-foreground font-mono truncate">{instance.subdomain}</span>
         </div>
         <StatusBadge status={instance.status} />
         <span className="text-xs text-muted-foreground tabular-nums max-sm:hidden">
@@ -283,11 +283,11 @@ function SessionRow({
               )}
               <div className="border-l-2 border-border pl-3 space-y-1.5">
                 {(!events || events.length === 0) ? (
-                  <span className="text-[11px] text-muted-foreground/60">No events recorded</span>
+                  <span className="text-[11px] text-muted-foreground">No events recorded</span>
                 ) : (
                   events.slice(0, 10).map((ev, i) => (
                     <div key={i} className="flex items-center gap-2 text-[11px]">
-                      <span className="text-muted-foreground/60 tabular-nums w-20">{ev.time}</span>
+                      <span className="text-muted-foreground tabular-nums w-20">{ev.time}</span>
                       <span className={cn(
                         "font-medium",
                         ev.type === "error" ? "text-destructive" :
@@ -297,7 +297,7 @@ function SessionRow({
                       )}>
                         {ev.type}
                       </span>
-                      {ev.details && <span className="text-muted-foreground/60 truncate">{ev.details}</span>}
+                      {ev.details && <span className="text-muted-foreground truncate">{ev.details}</span>}
                     </div>
                   ))
                 )}

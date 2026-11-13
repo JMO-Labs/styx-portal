@@ -7,7 +7,7 @@ NS=smartcard-smoke
 POD=smartcard-smoke
 
 DIGEST=$(docker buildx imagetools inspect ubuntu:24.04 --format '{{json .Manifest.Digest}}' | tr -d '"')
-docker build --build-context smartcard=smartcard --build-arg "UBUNTU_DIGEST=$DIGEST" -t "$IMG" images/enterprise-base
+docker build --build-arg "UBUNTU_DIGEST=$DIGEST" -f images/enterprise-base/Dockerfile -t "$IMG" .
 kind load docker-image "$IMG" --name spike
 
 kubectl create ns "$NS"

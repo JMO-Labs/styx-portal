@@ -3,11 +3,10 @@
 # (`docker buildx imagetools inspect ubuntu:24.04`); pass --build-arg in CI.
 ARG UBUNTU_DIGEST=sha256:0000000000000000000000000000000000000000000000000000000000000000
 
-# Relay binary (static), built from smartcard/ (build context = images/enterprise-base,
-# so CI passes `--build-context smartcard=smartcard`).
+# Relay binary (static), built from smartcard/ (build context = repo root).
 FROM golang:1.22-bookworm AS relay
 WORKDIR /src
-COPY --from=smartcard . .
+COPY smartcard/ .
 # go.sum is not committed yet: resolve it at build time (TODO styx-portal#325: commit go.sum, build -mod=readonly).
 RUN go mod tidy && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/styx-card-relay ./cmd/styx-card-relay
 
@@ -39,7 +38,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # No sudo, no setuid helpers are installed.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates curl python3 python3-pip python3-venv \
+        ca-certificates curl patch python3 python3-pip python3-venv \
         pcscd libpcsclite1 xwayland labwc pulseaudio libgl1 libegl1 libopus0 fonts-dejavu-core \
     && { find / -xdev -perm /6000 -type f -exec chmod a-s {} + 2>/dev/null || true; } \
     && rm -rf /var/lib/apt/lists/*
@@ -49,6 +48,14 @@ RUN python3 -m venv /opt/selkies \
         "selkies==${SELKIES_VERSION}" \
         "pixelflux==${PIXELFLUX_VERSION}" \
         "pcmflux==${PCMFLUX_VERSION}"
+
+# Build context is the repo root (docker build -f images/enterprise-base/Dockerfile .).
+# Fails the build if any patch in the series does not apply.
+COPY patches/selkies/ /opt/selkies-patches/
+COPY --chmod=0755 scripts/apply_selkies_patches.sh /usr/local/bin/apply_selkies_patches.sh
+RUN SELKIES_PATCH_DIR=/opt/selkies-patches /usr/local/bin/apply_selkies_patches.sh \
+        "$(/opt/selkies/bin/python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
+    && rm -rf /opt/selkies-patches /usr/local/bin/apply_selkies_patches.sh
 
 # Ubuntu 24.04 ships uid 1000 ("ubuntu"); replace it with our user.
 RUN userdel -r ubuntu 2>/dev/null || true \
@@ -60,8 +67,8 @@ RUN install -d -o 1000 -g 1000 /run/pcscd
 
 COPY --from=vpcd /out/ /
 COPY --from=relay /out/styx-card-relay /usr/local/bin/styx-card-relay
-COPY --from=smartcard --chmod=0644 apdu-allowlist.yaml /etc/styx/apdu-allowlist.yaml
-COPY --chmod=0755 root/usr/local/bin/styx-start /usr/local/bin/styx-start
+COPY --chmod=0644 smartcard/apdu-allowlist.yaml /etc/styx/apdu-allowlist.yaml
+COPY --chmod=0755 images/enterprise-base/root/usr/local/bin/styx-start /usr/local/bin/styx-start
 
 EXPOSE 8082
 # Health URL: http://localhost:8082/
