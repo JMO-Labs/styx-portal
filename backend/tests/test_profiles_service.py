@@ -110,3 +110,19 @@ async def test_delete_profile_ignores_runtime_not_found(session):
 def test_pvc_size_override():
     assert pvc("n", "ns", size="5Gi")["spec"]["resources"]["requests"]["storage"] == "5Gi"
     assert pvc("n", "ns")["spec"]["resources"]["requests"]["storage"] == "20Gi"
+
+
+@pytest.mark.asyncio
+async def test_claim_and_start_set_last_used(session):
+    u, t = await _seed(session)
+    await profiles.claim_profile(session, u.id, t)
+    row = await session.get(UserProfile, (u.id, t.id))
+    assert row.last_used_at is not None
+    row.last_used_at = None
+    session.add(row)
+    await session.commit()
+    inst = Instance(template_id=t.id, owner_id=u.id, name="a", subdomain="a",
+                    profile_volume=row.volume_name)
+    await profiles.check_instance_profile(session, inst)
+    await session.refresh(row)
+    assert row.last_used_at is not None
