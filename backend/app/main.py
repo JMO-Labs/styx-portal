@@ -39,6 +39,7 @@ from app.routers import stats as stats_router
 from app.routers import admin_console as admin_console_router
 from app.routers import group_dlp as group_dlp_router
 from app.routers import groups as groups_router
+from app.routers import announcements as announcements_router
 from app.routers import access_review as access_review_router
 from app.routers import provision as provision_router
 from app.routers import profiles as profiles_router
@@ -276,6 +277,8 @@ app.include_router(stats_router.router, prefix="/api/admin/stats", tags=["stats"
 app.include_router(admin_console_router.router, prefix="/api/admin/console", tags=["admin-console"])
 app.include_router(provision_router.router, prefix="/api/provision", tags=["provision"])
 app.include_router(groups_router.router, prefix="/api/groups", tags=["groups"])
+app.include_router(announcements_router.admin_router, prefix="/api/admin/announcements", tags=["announcements"])
+app.include_router(announcements_router.router, prefix="/api/announcements", tags=["announcements"])
 app.include_router(group_dlp_router.router, prefix="/api/groups", tags=["groups"])
 app.include_router(access_review_router.router, prefix="/api/access-review", tags=["access-review"])
 app.include_router(groups_router.users_router, prefix="/api/users", tags=["groups"])

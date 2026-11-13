@@ -592,3 +592,15 @@ class SetupToken(SQLModel, table=True):
     id: int = Field(default=1, primary_key=True)
     token: str
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+
+
+class Announcement(SQLModel, table=True):
+    __tablename__ = "announcements"
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    title: str = Field(sa_column=Column(String(120), nullable=False))
+    body: str = Field(sa_column=Column(String(2000), nullable=False))
+    kind: str = Field(default="info", sa_column=Column(String(16), nullable=False))  # info|maintenance
+    starts_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+    ends_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+    created_by: str | None = Field(default=None, foreign_key="users.id")
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
