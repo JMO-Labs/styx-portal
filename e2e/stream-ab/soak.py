@@ -4,6 +4,7 @@ RSS, GPU VRAM/GTT), selkies crashes (non-zero exits, e.g. the rc=-6 aborts of
 2026-10-20), and agent watchdog restarts.
 
     python3 soak.py --minutes 90 [--profile office]
+    python3 soak.py --sessions N --minutes M [--probe stream|http]   (multi-session; see soak_fleet.py)
 
 Results: results/soak-<stamp>.json (per-cycle rows + 10 s memory series) and .md.
 """
@@ -16,6 +17,7 @@ import time
 
 import ab
 import probes
+import soak_fleet
 
 EXIT = re.compile(r"selkies exited rc=(-?\d+)")
 
@@ -29,7 +31,11 @@ def main() -> None:
     ap.add_argument("--minutes", type=float, default=90)
     ap.add_argument("--profile", default="office")
     ap.add_argument("--variant", default="", help="run under an ab.VARIANTS override instead of the live settings")
+    soak_fleet.add_args(ap)
     a = ap.parse_args()
+    if a.sessions:
+        user, pw = soak_fleet.env_creds()
+        sys.exit(soak_fleet.run(a, client=soak_fleet.portal_client(a.portal, user, pw)))
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(1))   # stop -> finally restores selkies
     user, pw = ab.creds()
     if a.variant:
