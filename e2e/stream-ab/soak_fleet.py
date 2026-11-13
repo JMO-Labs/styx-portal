@@ -61,7 +61,8 @@ def run(a, *, client, fleet_mod=fleet, probe_fn=session_probe.probe, results: Pa
     sessions = []
     old = signal.signal(signal.SIGTERM, _term) if _main_thread() else None
     try:
-        fleet_mod.launch(client, a.sessions, a.template, LAUNCH_TIMEOUT_S, sessions=sessions)
+        launched = fleet_mod.launch(client, a.sessions, a.template, LAUNCH_TIMEOUT_S, sessions=sessions)
+        sessions[:] = launched
         sessions.sort(key=lambda s: int(s.name.rsplit('-', 1)[1]))
         up = [s for s in sessions if s.id and not s.error]
         ex = ThreadPoolExecutor(max_workers=max(len(up), 1))
