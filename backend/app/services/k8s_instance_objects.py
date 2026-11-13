@@ -96,11 +96,15 @@ def build_objects(name, image, env, volumes, port, ns, owner, *, gpu_enabled=Fal
                   gpu_count=1, memory_limit=None, cpu_limit=None, shm_size=None,
                   cap_add=None, read_only_rootfs=False, tmpfs=None, extra_hosts=None,
                   entrypoint=None, command=None, posix_uid: int | None = None,
-                  egress_mode=None, home_read_only: bool = False) -> list[dict]:
+                  egress_mode=None, home_read_only: bool = False,
+                  client=None) -> list[dict]:
     if "/" not in image:
         image = Settings().K8S_DESKTOP_IMAGE
     image = image_digest.resolve_digest(image)
     cfg = Settings()
+    if client is not None:  # launch only on a digest every node has pulled
+        from app.services.k8s_prepull import ready_digest
+        image = ready_digest(client, ns, image)
     memory_limit = memory_limit or cfg.CPU_TIER_MEMORY
     cpu_limit = cpu_limit or cfg.CPU_TIER_CPU
     w, _, h = cfg.CPU_TIER_RESOLUTION.partition("x")

@@ -49,6 +49,26 @@ def _validate_size_presets(value: Any) -> None:
         ids.add(p["id"])
 
 
+_ACCENT_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+def _validate_accent(value: Any) -> None:
+    if not isinstance(value, str):
+        raise JsonValueError("brand_accent must be a string")
+    if value and not _ACCENT_RE.fullmatch(value):
+        raise JsonValueError("brand_accent must be empty or a #RRGGBB hex colour")
+
+
+def _validate_logo_url(value: Any) -> None:
+    if not isinstance(value, str):
+        raise JsonValueError("brand_logo_url must be a string")
+    if re.search(r"[\\\x00-\x20\x7f]", value):
+        raise JsonValueError("brand_logo_url must not contain backslashes, spaces or control characters")
+    if value and not (value.startswith("https://") or
+                      (value.startswith("/") and not value.startswith("//"))):
+        raise JsonValueError("brand_logo_url must be empty, a relative path or an https:// URL")
+
+
 @dataclass
 class SettingSpec:
     key: str
@@ -212,6 +232,14 @@ _SPECS: list[SettingSpec] = [
     _spec("TURN_USD_PER_GB", "webrtc", "TURN price (USD/GB)",
           "Price per GB beyond the free allowance, e.g. 0.05.", "str",
           default="0.05", pattern=r"^\d+(\.\d+)?$"),
+    _spec("brand_name", "branding", "Brand name",
+          "Organisation name shown in the UI.", "str", default="Styx"),
+    _spec("brand_logo_url", "branding", "Brand logo URL",
+          "Empty, a relative path or an https:// URL.", "str", default="",
+          validator=_validate_logo_url),
+    _spec("brand_accent", "branding", "Brand accent colour",
+          "Hex colour like #3b82f6, or empty for the default.", "str", default="",
+          validator=_validate_accent),
 ]
 
 SCHEMA: dict[str, SettingSpec] = {s.key: s for s in _SPECS}
@@ -225,6 +253,7 @@ _GROUP_LABELS = {
     "quota": "Quotas",
     "password_policy": "Password policy",
     "webrtc": "WebRTC / TURN",
+    "branding": "Branding",
 }
 
 _TRAEFIK_KEYS = {"TRAEFIK_RATELIMIT_AVERAGE", "TRAEFIK_RATELIMIT_BURST"}
@@ -270,6 +299,8 @@ class SettingsService:
             if spec.validator:
                 spec.validator(value)
         elif spec.type in ("str", "secret"):
+            if spec.validator:
+                spec.validator(value)
             if not isinstance(value, str) or len(value) > 512:
                 raise ValueError(f"{spec.key} must be a string of at most 512 characters")
             if spec.pattern and not re.fullmatch(spec.pattern, value):

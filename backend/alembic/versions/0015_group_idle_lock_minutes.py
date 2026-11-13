@@ -1,7 +1,7 @@
 """groups.idle_lock_minutes: per-group idle-lock timeout (styx-portal#244)
 
-Revision ID: 0014_group_idle_lock_minutes
-Revises: 0013_group_dlp
+Revision ID: 0015_group_idle_lock_minutes
+Revises: 0014_access_review
 Create Date: 2026-11-13
 
 """
@@ -10,8 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = '0014_group_idle_lock_minutes'
-down_revision: Union[str, Sequence[str], None] = '0013_group_dlp'
+revision: str = '0015_group_idle_lock_minutes'
+down_revision: Union[str, Sequence[str], None] = '0014_access_review'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
