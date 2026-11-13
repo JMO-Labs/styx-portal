@@ -29,6 +29,7 @@ backend/app/
 | `instance_auth` | `/internal/instances` | forwardAuth for `/i/` routes |
 | `system_settings`, `audit`, `oauth_admin` | `/api/...` | Admin settings, audit log, SSO provider admin |
 | `stats`, `turn_usage` | `/api/admin/stats/{overview,streaming,relay}` | Admin charts: hourly metric rollups, stream sessions, TURN relay cost |
+| `admin_console` | `/api/admin/console/{sessions,capacity}` | Admin console reads, gated by `require_staff_role` (platform-admin, help-desk, auditor; ADR-0026) |
 
 `/internal/*` is never routed by Traefik to the public; only Traefik's
 forwardAuth addresses (`BACKEND_INTERNAL_URL`) reach it.
