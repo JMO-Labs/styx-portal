@@ -3,10 +3,11 @@ import { useCanvasEffect } from "@/hooks/use-canvas-effect";
 import { createWaves } from "@/lib/effects/waves";
 import { Link, useParams } from "react-router";
 import { Home, Loader2, Maximize, Unplug } from "lucide-react";
-import { useInstances, useKeepalive } from "@/hooks/use-instances";
+import { useInstances, useKeepalive, useTakeover } from "@/hooks/use-instances";
 import { useTemplates } from "@/hooks/use-templates";
 import { startActivityHeartbeat } from "@/lib/activity";
 import { useProfile } from "@/hooks/use-profile";
+import { TakeoverBanner } from "@/components/common/takeover-banner";
 import { SmartcardConnect } from "@/components/launch/smartcard-connect";
 import { startThumbUploader } from "@/lib/stream-thumb";
 
@@ -69,6 +70,7 @@ export function DesktopPage() {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const live = instance?.status === "running" || instance?.status === "idle";
   const id = instance?.id;
+  const { data: takeover } = useTakeover(id, live);
 
   const { data: templates } = useTemplates();
   const icon = faviconHref(templates?.find((t) => t.id === instance?.template_id)?.icon);
@@ -115,6 +117,7 @@ export function DesktopPage() {
   return (
     <div className="flex h-dvh w-screen flex-col bg-black">
       <Toolbar name={instance.name} />
+      <TakeoverBanner takeover={takeover} />
       {instance.status === "idle" && (
         <div role="alert" className="fixed inset-x-0 top-10 z-10 flex items-center justify-center gap-3 bg-amber-500 px-3 py-2 text-sm font-medium text-black">
           Pausing soon due to inactivity

@@ -120,6 +120,48 @@ def test_takeover_has_no_instance_fk():
     assert not SessionTakeover.__table__.c.instance_id.foreign_keys
 
 
+async def _own(session, inst, username="member"):
+    u = (await session.exec(select(User).where(User.username == username))).one()
+    inst.owner_id = u.id
+    session.add(inst)
+    await session.commit()
+
+
+async def test_get_null_for_owner(member_client, inst, session):
+    await _own(session, inst)
+    r = await member_client.get("/api/instances/i-1/takeover")
+    assert r.status_code == 200 and r.json() is None
+
+
+async def test_get_active_for_owner_and_actor(member_client, second_member_client, inst, session):
+    """Owner (member) and actor (member2, help-desk) use separate clients/cookie jars."""
+    await _own(session, inst)
+    actor = (await session.exec(select(User).where(User.username == "member2"))).one()
+    actor.staff_role = "help-desk"
+    session.add(actor)
+    await session.commit()
+    sc = second_member_client
+    r = await sc.post("/api/instances/i-1/takeover", json={"mode": "control", "reason": "fix"})
+    assert r.status_code == 201, r.text
+    for c in (member_client, sc):
+        g = await c.get("/api/instances/i-1/takeover")
+        assert g.status_code == 200, g.text
+        body = g.json()
+        assert body["actor_name"] == "member2" and body["mode"] == "control"
+        assert body["started_at"] and "reason" not in body
+    await sc.delete("/api/instances/i-1/takeover")
+    assert (await member_client.get("/api/instances/i-1/takeover")).json() is None
+
+
+async def test_get_forbidden_for_others(member_client, inst):
+    r = await member_client.get("/api/instances/i-1/takeover")
+    assert r.status_code == 403
+
+
+async def test_get_unknown_instance(admin_client):
+    assert (await admin_client.get("/api/instances/nope/takeover")).status_code == 404
+
+
 async def test_start_race_lost_to_unique_index(admin_client, inst, session, monkeypatch):
     """Pre-check misses (race); the partial unique index rejects the insert -> 409."""
     from app.routers import takeover
