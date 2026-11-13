@@ -1,5 +1,6 @@
 # synapse-db uses the PDBs CNPG creates. Synapse is a single replica (no worker split),
-# so maxUnavailable 1 keeps node drains possible.
+# so maxUnavailable 1 keeps node drains possible. Placeholder: with one replica it
+# never blocks anything; revisit once replicas > 1.
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:

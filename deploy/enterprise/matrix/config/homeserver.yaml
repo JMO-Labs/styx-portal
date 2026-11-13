@@ -37,6 +37,13 @@ oidc_providers:
   - idp_id: keycloak
     idp_name: Styx
     issuer: https://login.example.internal/realms/styx   # PLACEHOLDER(ADR-0049)
+    # Browser-facing URLs are public; backchannel goes in-cluster (the public
+    # name hits the DMZ HAProxy, which demands a CAC).
+    discover: false
+    authorization_endpoint: https://login.example.internal/realms/styx/protocol/openid-connect/auth   # PLACEHOLDER(ADR-0049)
+    token_endpoint: http://keycloak.keycloak.svc:8080/realms/styx/protocol/openid-connect/token
+    userinfo_endpoint: http://keycloak.keycloak.svc:8080/realms/styx/protocol/openid-connect/userinfo
+    jwks_uri: http://keycloak.keycloak.svc:8080/realms/styx/protocol/openid-connect/certs
     client_id: synapse
     client_secret_path: /secrets/oidc/client-secret
     scopes: [openid, profile, email]

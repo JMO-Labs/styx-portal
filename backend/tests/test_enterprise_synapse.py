@@ -100,6 +100,13 @@ def test_homeserver_oidc_only_no_federation():
     assert p["idp_id"] == "keycloak"
     assert p["issuer"] == "https://login.example.internal/realms/styx"
     assert p["client_id"] == "synapse"
+    # Backchannel stays in-cluster (egress allows keycloak:8080 only).
+    assert p["discover"] is False
+    assert p["authorization_endpoint"].startswith("https://login.example.internal/")
+    base = "http://keycloak.keycloak.svc:8080/realms/styx/protocol/openid-connect/"
+    assert p["token_endpoint"] == base + "token"
+    assert p["userinfo_endpoint"] == base + "userinfo"
+    assert p["jwks_uri"] == base + "certs"
     assert p["client_secret_path"].startswith("/")
     assert "client_secret" not in p
     assert hs["password_config"]["enabled"] is False
