@@ -1246,7 +1246,7 @@
   {"cost": "free", "ecosystem": "pypi", "license": "MIT", "name": "pyjwt", "origin": "sbom", "scope": "enterprise", "source_url": "pkg:pypi/pyjwt@2.15.1", "version": "2.15.1"},
   {"cost": "free", "ecosystem": "pypi", "license": "MIT", "name": "pytest", "origin": "sbom", "scope": "enterprise", "source_url": "pkg:pypi/pytest@9.2.0", "version": "9.2.0"},
   {"cost": "free", "ecosystem": "pypi", "license": "Apache-2.0", "name": "pytest-asyncio", "origin": "sbom", "scope": "enterprise", "source_url": "pkg:pypi/pytest-asyncio@1.4.1.post1", "version": "1.4.1.post1"},
-  {"cost": "free", "ecosystem": "pypi", "license": "Apache-2.0", "name": "python-dateutil", "origin": "sbom", "scope": "enterprise", "source_url": "pkg:pypi/python-dateutil@2.9.0.post0", "version": "2.9.0.post0"},
+  {"cost": "free", "ecosystem": "pypi", "license": "Apache-2.0 AND BSD-3-Clause", "name": "python-dateutil", "origin": "sbom", "scope": "enterprise", "source_url": "pkg:pypi/python-dateutil@2.9.0.post0", "version": "2.9.0.post0"},
   {"cost": "free", "ecosystem": "pypi", "license": "BSD-3-Clause", "name": "python-dotenv", "origin": "sbom", "scope": "enterprise", "source_url": "pkg:pypi/python-dotenv@1.2.4", "version": "1.2.4"},
   {"cost": "free", "ecosystem": "pypi", "license": "PSF-2.0", "name": "pywin32", "origin": "override", "scope": "enterprise", "source_url": "https://github.com/mhammond/pywin32/blob/main/Pythonwin/License.txt", "version": "312"},
   {"cost": "free", "ecosystem": "pypi", "license": "MIT", "name": "pyyaml", "origin": "sbom", "scope": "enterprise", "source_url": "pkg:pypi/pyyaml@6.0.3", "version": "6.0.3"},

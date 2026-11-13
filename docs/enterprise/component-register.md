@@ -1270,7 +1270,7 @@ outside `scope: service`, proprietary licenses without an ADR exception and a st
 | pypi | pyjwt | 2.15.1 | MIT | enterprise | free |  | pkg:pypi/pyjwt@2.15.1 |
 | pypi | pytest | 9.2.0 | MIT | enterprise | free |  | pkg:pypi/pytest@9.2.0 |
 | pypi | pytest-asyncio | 1.4.1.post1 | Apache-2.0 | enterprise | free |  | pkg:pypi/pytest-asyncio@1.4.1.post1 |
-| pypi | python-dateutil | 2.9.0.post0 | Apache-2.0 | enterprise | free |  | pkg:pypi/python-dateutil@2.9.0.post0 |
+| pypi | python-dateutil | 2.9.0.post0 | Apache-2.0 AND BSD-3-Clause | enterprise | free |  | pkg:pypi/python-dateutil@2.9.0.post0 |
 | pypi | python-dotenv | 1.2.4 | BSD-3-Clause | enterprise | free |  | pkg:pypi/python-dotenv@1.2.4 |
 | pypi | pywin32 | 312 | PSF-2.0 | enterprise | free |  | https://github.com/mhammond/pywin32/blob/main/Pythonwin/License.txt |
 | pypi | pyyaml | 6.0.3 | MIT | enterprise | free |  | pkg:pypi/pyyaml@6.0.3 |
