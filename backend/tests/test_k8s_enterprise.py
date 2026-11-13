@@ -256,7 +256,7 @@ def test_backend_patch_multi_replica():
     assert spec["strategy"] == {"type": "RollingUpdate",
                                 "rollingUpdate": {"maxSurge": 1, "maxUnavailable": 0}}
     ann = _pod()["metadata"]["annotations"]
-    assert ann["secret.reloader.stakater.com/reload"] == "styx-db-app,styx-secrets"
+    assert ann["secret.reloader.stakater.com/reload"] == "styx-db-app,styx-secrets,styx-archive-s3"
     (tsc,) = _pod()["spec"]["topologySpreadConstraints"]
     assert tsc["topologyKey"] == "kubernetes.io/hostname"
     assert _container()["startupProbe"]["failureThreshold"] == 60
