@@ -104,7 +104,8 @@ test("mounting after auth applies saved prefs (a 401 before login must not stick
 test("enterprise profile defaults an unset preference to a new tab, no dialog", async () => {
   profile.mockResolvedValue({ profile: "enterprise", disabled: [] });
   setup();
-  await act(async () => {}); // let me + profile resolve
+  await waitFor(() => { expect(me).toHaveBeenCalled(); expect(profile).toHaveBeenCalled(); });
+  await act(async () => { await new Promise((r) => setTimeout(r, 50)); }); // let both queries settle
   fireEvent.click(screen.getByText("go"));
   expect(run).toHaveBeenCalledWith("new_tab");
   expect(screen.queryByRole("dialog")).toBeNull();
