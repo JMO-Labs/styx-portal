@@ -52,12 +52,18 @@ def _validate_size_presets(value: Any) -> None:
 _ACCENT_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
-def _validate_accent(value: str) -> None:
+def _validate_accent(value: Any) -> None:
+    if not isinstance(value, str):
+        raise JsonValueError("brand_accent must be a string")
     if value and not _ACCENT_RE.fullmatch(value):
         raise JsonValueError("brand_accent must be empty or a #RRGGBB hex colour")
 
 
-def _validate_logo_url(value: str) -> None:
+def _validate_logo_url(value: Any) -> None:
+    if not isinstance(value, str):
+        raise JsonValueError("brand_logo_url must be a string")
+    if re.search(r"[\\\x00-\x20\x7f]", value):
+        raise JsonValueError("brand_logo_url must not contain backslashes, spaces or control characters")
     if value and not (value.startswith("https://") or
                       (value.startswith("/") and not value.startswith("//"))):
         raise JsonValueError("brand_logo_url must be empty, a relative path or an https:// URL")
@@ -293,12 +299,12 @@ class SettingsService:
             if spec.validator:
                 spec.validator(value)
         elif spec.type in ("str", "secret"):
+            if spec.validator:
+                spec.validator(value)
             if not isinstance(value, str) or len(value) > 512:
                 raise ValueError(f"{spec.key} must be a string of at most 512 characters")
             if spec.pattern and not re.fullmatch(spec.pattern, value):
                 raise ValueError(f"{spec.key} has an invalid format")
-            if spec.validator:
-                spec.validator(value)
 
     async def set(self, session: AsyncSession, key: str, value: Any, actor_id: str | None) -> None:
         if key not in SCHEMA:

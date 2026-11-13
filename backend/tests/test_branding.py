@@ -29,6 +29,9 @@ async def test_public_endpoint_needs_no_auth_and_reflects_patch(admin_client):
     ("brand_accent", "123456"), ("brand_logo_url", "http://x.io/l.png"),
     ("brand_logo_url", "javascript:alert(1)"), ("brand_logo_url", "//evil.io/l.png"),
     ("brand_logo_url", "data:image/png;base64,AA"),
+    ("brand_logo_url", "/\\evil.io/l.png"), ("brand_logo_url", "/\t/evil.io/l.png"),
+    ("brand_logo_url", "/\n/evil.io/l.png"), ("brand_logo_url", "https://x.io/a b.png"),
+    ("brand_accent", 123), ("brand_logo_url", 123),
 ])
 async def test_invalid_values_422(admin_client, key, value):
     r = await admin_client.patch("/api/system-settings", json={key: value})
