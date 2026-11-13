@@ -17,6 +17,7 @@ ROLES=deploy/enterprise/openbao/auth-roles.json
 step() { printf '\n=== %s ===\n' "$*"; }
 fail() { echo "FAIL: $*" >&2; diag; exit 1; }
 diag() {
+  kubectl get ns "$RK" >/dev/null 2>&1 || echo "ns $RK not created yet"
   kubectl -n "$RK" get pods -o wide || true
   kubectl -n "$RK" describe pods -l app=rook-ceph-osd | tail -60 || true
   kubectl -n "$BAO_NS" get pods -o wide || true
@@ -155,7 +156,7 @@ spec:
         - {name: data, mountPath: /openbao/data}
       volumes:
       - {name: cfg, configMap: {name: openbao-config}}
-      - {name: data, hostPath: {path: /var/lib/spike-openbao, type: Directory}}
+      - {name: data, hostPath: {path: /var/lib/spike-openbao, type: DirectoryOrCreate}}
 YAML
 wait_for 180 "openbao container running" bao_up
 INIT=$(kubectl -n "$BAO_NS" exec openbao-0 -c openbao -- env BAO_ADDR=http://127.0.0.1:8200 bao operator init -key-shares=1 -key-threshold=1 -format=json)
