@@ -31,6 +31,7 @@ outside `scope: service`, proprietary licenses without an ADR exception and a st
 | binary | trivy | 0.76.2 | Apache-2.0 | build-only | free |  | https://github.com/aquasecurity/trivy |
 | binary | uv | 0.13.7 | MIT OR Apache-2.0 | build-only | free |  | https://github.com/astral-sh/uv |
 | external | elastic-stack | org-managed | Elastic-2.0 OR SSPL-1.0 OR AGPL-3.0-only | external | free |  | https://www.elastic.co/licensing |
+| golang | github.com/gorilla/websocket | v1.5.3 | BSD-2-Clause | enterprise | free |  | https://github.com/gorilla/websocket/blob/v1.5.3/LICENSE |
 | golang | github.com/styx-portal/styxlocation | local | GPL-2.0 | homelab | free |  | https://github.com/JMO-Labs/styx-portal |
 | golang | gopkg.in/yaml.v3 | v3.0.1 | MIT AND Apache-2.0 | enterprise | free |  | https://github.com/go-yaml/yaml/blob/v3.0.1/LICENSE |
 | helm | external-secrets | 2.14.0 | Apache-2.0 | enterprise | free |  | https://github.com/external-secrets/external-secrets |
