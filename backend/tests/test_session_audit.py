@@ -91,8 +91,9 @@ async def test_node_falls_back_to_hostname(session, lines, monkeypatch):
         ("running", "delete", "session.stop", "deleted"),
     ],
 )
+@pytest.mark.usefixtures("shared_docker")
 @pytest.mark.asyncio
-async def test_router_emits_session_line(admin_client, session, shared_docker, lines,
+async def test_router_emits_session_line(admin_client, session, lines,
                                          status, verb, action, reason):
     inst = await _make_owned_instance(session, status=status)
     iid = inst.id
@@ -141,8 +142,9 @@ async def test_background_launch_emits_session_launch(session, lines):
     assert ev["styx"]["session"]["id"] == inst.id
 
 
+@pytest.mark.usefixtures("shared_docker")
 @pytest.mark.asyncio
-async def test_router_restart_emits_no_line(admin_client, session, shared_docker, lines):
+async def test_router_restart_emits_no_line(admin_client, session, lines):
     inst = await _make_owned_instance(session, status="running")
     resp = await admin_client.post(f"/api/instances/{inst.id}/restart")
     assert resp.status_code == 200, resp.text
