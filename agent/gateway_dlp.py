@@ -16,6 +16,7 @@ from the 2.0/2.1 protocol, which 2.2 replaced with HTTP POST /api/upload):
 Server->client binary 0x01 is Opus audio, so binary file chunks are "in" only.
 """
 import asyncio
+import re
 import zlib
 
 # D38: clipboard both ways, upload in allowed, download out off.
@@ -25,6 +26,9 @@ CLIP_IN = frozenset(("cw", "cws", "cwd", "cwe", "cb", "cbs", "cbd", "cbe"))
 CLIP_READ = frozenset(("cr", "REQUEST_CLIPBOARD"))
 CLIP_OUT = frozenset(("clipboard", "clipboard_binary", "clipboard_start", "clipboard_data",
                       "clipboard_finish", "clipboard_reply", "clipboard_secret"))
+# Tokens whose second field is a MIME type (all others: field 1 is content).
+MIME_TOKENS = frozenset(("cbs", "clipboard_start", "clipboard_binary"))
+MIME_RE = re.compile(r"[a-z0-9][a-z0-9!#$&^_.+-]{0,63}/[a-z0-9][a-z0-9!#$&^_.+-]{0,63}", re.I)
 GZIP_OPCODE = 0x05
 FILE_CHUNK_OPCODE = 0x01
 MAX_INFLATED = 64 * 1024 * 1024
@@ -106,7 +110,7 @@ def event_meta(data, direction: str) -> dict | None:
         parts = text.replace(",", ":").split(":")
         if tok in CLIP_IN or tok in CLIP_READ or tok in CLIP_OUT:
             channel = "clipboard"
-            if len(parts) > 1 and "/" in parts[1]:
+            if tok in MIME_TOKENS and len(parts) > 1 and MIME_RE.fullmatch(parts[1]):
                 mime = parts[1]
         elif tok.startswith(("FILE_UPLOAD", "FILE_DOWNLOAD")):
             channel = "file"
@@ -128,8 +132,16 @@ class DlpReporter:
         self._post, self._interval, self._log = post, interval, log
         self._buf: list[dict] = []
         self._timer = None
+        self._task = None
 
     def record(self, data, direction: str, allowed: bool) -> None:
+        """Never raises: a reporter error must not break the relay."""
+        try:
+            self._record(data, direction, allowed)
+        except Exception as e:  # noqa: BLE001
+            self._log(f"dlp record failed: {e}")
+
+    def _record(self, data, direction: str, allowed: bool) -> None:
         meta = event_meta(data, direction)
         if meta is None:
             return
@@ -137,7 +149,10 @@ class DlpReporter:
             self._buf.append({**meta, "allowed": allowed})
         if self._timer is None:
             self._timer = asyncio.get_running_loop().call_later(
-                self._interval, lambda: asyncio.ensure_future(self._flush()))
+                self._interval, self._start_flush)
+
+    def _start_flush(self) -> None:
+        self._task = asyncio.ensure_future(self._flush())
 
     async def _flush(self) -> None:
         batch, self._buf, self._timer = self._buf, [], None
@@ -153,3 +168,13 @@ def portal_poster(cfg: dict):
     """post(events) callable for DlpReporter: POST /api/agent/dlp-events."""
     from portal_api import api
     return lambda events: api(cfg, "/api/agent/dlp-events", {"events": events})
+
+
+def safe_record(reporter, data, direction: str, allowed: bool) -> None:
+    """reporter.record that can never raise (reporter may be None)."""
+    if reporter is None:
+        return
+    try:
+        reporter.record(data, direction, allowed)
+    except Exception:  # noqa: BLE001
+        pass

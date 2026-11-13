@@ -91,3 +91,79 @@ def test_reporter_ignores_non_transfers():
         return posted
 
     assert asyncio.run(run()) == []
+
+
+def test_base64_clipboard_never_becomes_mime():
+    b64 = base64.b64encode(b"\xff\xff\xff").decode()          # "////"
+    for msg in ("cw," + b64, "clipboard," + b64, "cb,aGk/Pz8="):
+        m = event_meta(msg, "in")
+        assert m["mime_type"] is None
+        assert b64 not in repr(m)
+
+
+def test_mime_must_be_strict():
+    assert event_meta("cbs,text/plain;x=1,9", "in")["mime_type"] is None
+    assert event_meta("clipboard_start,image/png,9", "out")["mime_type"] == "image/png"
+    assert event_meta("cbs,a/" + "b" * 200 + ",9", "in")["mime_type"] is None
+
+
+def test_record_without_loop_or_failure_never_raises():
+    r = DlpReporter(lambda e: None)
+    r.record("cw,x", "in", True)            # no running loop
+    r._buf = None                           # broken state
+    r.record("cw,x", "in", True)
+
+
+def test_flush_task_is_referenced():
+    async def run():
+        r = DlpReporter(lambda e: None, interval=0.01)
+        r.record("cw,x", "in", True)
+        await asyncio.sleep(0.05)
+        return r._task is not None
+    assert asyncio.run(run())
+
+
+def test_build_reporter_from_config(tmp_path):
+    import json
+    from gateway_report import build_reporter
+    assert build_reporter(str(tmp_path / "missing.json")) is None
+    p = tmp_path / "c.json"
+    p.write_text(json.dumps({"server": "http://x", "agent_token": "t"}))
+    assert build_reporter(str(p)) is not None
+
+
+def test_pump_forwards_when_reporter_fails():
+    from gateway_ws import pump
+
+    class Msg:
+        type = __import__("aiohttp").WSMsgType.TEXT
+        data = "cw,hi"
+
+    class Src:
+        def __aiter__(self):
+            async def g():
+                yield Msg()
+            return g()
+
+    class Dst:
+        sent = []
+
+        async def send_str(self, s):
+            self.sent.append(s)
+
+        async def send_bytes(self, b):
+            self.sent.append(b)
+
+        async def close(self):
+            pass
+
+    class Rep:
+        calls = 0
+
+        def record(self, *a):
+            Rep.calls += 1
+            raise RuntimeError("boom")
+
+    dst = Dst()
+    asyncio.run(pump(Src(), dst, "in", None, Rep()))
+    assert Rep.calls == 1 and dst.sent == ["cw,hi"]

@@ -10,7 +10,7 @@ import aiohttp
 import yarl
 from aiohttp import web
 
-from gateway_dlp import allow_message
+from gateway_dlp import allow_message, safe_record
 
 
 def same_origin(request) -> bool:
@@ -32,8 +32,7 @@ async def pump(src, dst, direction=None, policy=None, reporter=None):
     async for msg in src:
         if direction and msg.type in (aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY):
             ok = allow_message(msg.data, direction, policy)
-            if reporter:
-                reporter.record(msg.data, direction, ok)
+            safe_record(reporter, msg.data, direction, ok)
             if not ok:
                 continue
         if msg.type == aiohttp.WSMsgType.TEXT:

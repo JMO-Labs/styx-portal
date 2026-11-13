@@ -31,7 +31,8 @@ import yarl
 from aiohttp import web
 from multidict import CIMultiDict
 from gateway_webrtc import KILL_SUFFIX, WebRTCGateway
-from gateway_dlp import allow_message
+from gateway_dlp import allow_message, safe_record
+from gateway_report import build_reporter
 from gateway_ws import same_origin
 from viewers import StallClock, Viewers, split_vid  # noqa: F401
 from gateway_html import (  # noqa: F401  (re-exported for tests)
@@ -379,8 +380,7 @@ def create_app(user: str, password: str,
                     async for msg in src:
                         if msg.type in (aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY):
                             ok = allow_message(msg.data, direction, dlp_policy)
-                            if dlp_reporter:
-                                dlp_reporter.record(msg.data, direction, ok)
+                            safe_record(dlp_reporter, msg.data, direction, ok)
                             if not ok:
                                 continue    # DLP (gateway_dlp)
                         if msg.type == aiohttp.WSMsgType.TEXT:
@@ -664,12 +664,13 @@ def main() -> None:
     transport = os.environ.get("STYX_GW_TRANSPORT", "")
     max_session_s = int(os.environ.get("STYX_GW_MAX_SESSION_S", "0") or "0")
     webrtc_off = os.environ.get("STYX_GW_WEBRTC_OFF", "") == "1"
+    dlp_reporter = build_reporter()
     web.run_app(create_app(user, password, upstream_port, files_dir,
                            state_file=state_file, idle_timeout_s=idle_timeout_s,
                            idle_lead_s=idle_lead_s, idle_enabled=idle_enabled,
                            seat_dir=seat_dir, icon_dir=icon_dir,
                            transport=transport, max_session_s=max_session_s,
-                           webrtc_off=webrtc_off),
+                           webrtc_off=webrtc_off, dlp_reporter=dlp_reporter),
                 host="0.0.0.0", port=listen_port)
 
 
