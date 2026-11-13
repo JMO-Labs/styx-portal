@@ -8,7 +8,7 @@ from importlib.metadata import PackageNotFoundError, version as _pkg_version
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -389,7 +389,7 @@ async def system_metrics(
     docker = instance_runtime()
 
     result = await session.exec(
-        select(Instance).where(Instance.status.in_(["running", "idle"]))
+        select(Instance).where(col(Instance.status).in_(["running", "idle"]))
     )
     running = result.all()
 
@@ -409,14 +409,14 @@ async def system_metrics(
     gpu_info = detect_gpu()
 
     events_result = await session.exec(
-        select(SessionEvent).order_by(SessionEvent.id.desc()).limit(20)
+        select(SessionEvent).order_by(col(SessionEvent.id).desc()).limit(20)
     )
     events = events_result.all()
 
     instances_map = {}
     if events:
         inst_ids = list({e.instance_id for e in events})
-        insts_result = await session.exec(select(Instance).where(Instance.id.in_(inst_ids)))
+        insts_result = await session.exec(select(Instance).where(col(Instance.id).in_(inst_ids)))
         instances_map = {i.id: i.name for i in insts_result.all()}
 
     recent_events = []

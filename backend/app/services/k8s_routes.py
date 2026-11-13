@@ -55,7 +55,7 @@ def _resolves_safely(host: str) -> bool:
         return False
     for info in infos:
         try:
-            ip = ipaddress.ip_address(info[4][0].split("%")[0])
+            ip = ipaddress.ip_address(str(info[4][0]).split("%")[0])
         except ValueError:
             return False
         if (ip.is_loopback or ip.is_link_local or ip.is_unspecified
