@@ -125,6 +125,14 @@ class K8sClient:
         _check(r)
         return [i["metadata"]["name"] for i in r.json().get("items", [])]
 
+    def list_items(self, api_version: str, kind: str, namespace: str,
+                   label_selector: str) -> list[dict]:
+        r = self._http.get(_path(api_version, kind, namespace),
+                           params={"labelSelector": label_selector},
+                           headers=self._auth())
+        _check(r)
+        return r.json().get("items", [])
+
     def delete(self, api_version: str, kind: str, namespace: str,
                name: str) -> None:
         r = self._http.delete(f"{_path(api_version, kind, namespace)}/{name}",

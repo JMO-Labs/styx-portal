@@ -340,6 +340,31 @@ def test_reserved_hook_fields_mapped():
     assert p["@timestamp"]["type"] == "date"
 
 
+def test_session_event_fields_mapped():
+    p = _props()
+    sess = p["styx"]["properties"]["session"]["properties"]
+    assert set(sess) == {"id", "kind", "reason", "viewer_id", "groups"}
+    assert all(f["type"] == "keyword" for f in sess.values())
+    assert p["container"]["properties"]["image"]["properties"]["hash"]["properties"][
+        "all"]["type"] == "keyword"
+    assert p["host"]["properties"]["name"]["type"] == "keyword"
+    for f in ("id", "name"):
+        assert p["user"]["properties"][f]["type"] == "keyword"
+    ev = p["event"]["properties"]
+    assert all(ev[f]["type"] == "keyword" for f in ("action", "category", "type"))
+
+
+def test_styx_audit_ilm_covers_90d_hot_plus_1y_archive():
+    plan = _plan()
+    tpl = plan["_index_template/logs-styx.audit"]
+    assert tpl["composed_of"][0] == "styx@settings"
+    settings = plan["_component_template/styx@settings"]["template"]["settings"]
+    assert settings["index.lifecycle.name"] == "styx-logs"
+    phases = plan["_ilm/policy/styx-logs"]["policy"]["phases"]
+    assert phases["cold"]["min_age"] == "90d"
+    assert phases["delete"]["min_age"] == "455d"
+
+
 def test_bootstrap_dry_run_needs_no_key(capsys):
     rc = _bootstrap().main(["--dry-run"], env={})
     assert rc == 0
