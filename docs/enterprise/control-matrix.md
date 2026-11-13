@@ -52,7 +52,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | CA-3 | Information Exchange | Agreements for GCC High, upstream GitLab, cloud backup (ADR-0019, 0037) | Hybrid | Planned |
 | CA-5 | Plan of Action and Milestones | Exceptions tracked in eMASS (ADR-0010, 0011) | Inherited-Org | Planned |
 | CA-6 | Authorization | RMF ATO (ADR-0010) | Inherited-Org | Planned |
-| CA-7 | Continuous Monitoring | SLO dashboards, scans, load gate (ADR-0044, 0047) | Hybrid | Planned |
+| CA-7 | Continuous Monitoring | SLO dashboards, scans, load gate (ADR-0044, 0047); ADR-0077: gate harness `e2e/stream-ab/soak.py`, [runbooks/load-test-gate.md](runbooks/load-test-gate.md) | Hybrid | Planned |
 
 ## CM - Configuration Management
 
@@ -149,7 +149,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | SA-4 | Acquisition Process | Component and license rule; accepted costs listed (ADR-0005); [component register](component-register.md) with cost class and [license policy](license-policy.yaml), blocking CI gate (#17) | Hybrid | Planned |
 | SA-9 | External System Services | GCC High, upstream GitLab, cloud bucket (ADR-0019, 0037) | Hybrid | Planned |
 | SA-10 | Developer Configuration Management | Git, signed builds (ADR-0003, 0029); federal GitLab is source of truth with approvals: `protect_bootstrap.py` (protected branches/tags, pipeline must pass), `approval-gate` job (non-author approval after the latest push, job log as evidence), `gitlab-protect-drift` schedule, GitHub push-lock `github_lock.py` (#16); `deploy/enterprise/gitlab-mirror` mirrors protected branches only, keeps divergent refs (ADR-0048). Patch set and image sources: `docs/upstream/`, `images/enterprise-base` (ADR-0058, ADR-0067). | System | Planned |
-| SA-11 | Developer Testing and Evaluation | Load test and security testing (ADR-0047) | System | Planned |
+| SA-11 | Developer Testing and Evaluation | Load test and security testing (ADR-0047); ADR-0077: D47 load-test gate harness `e2e/stream-ab/soak.py`, kind smoke `scripts/kind/30-loadtest-smoke.sh`, [runbooks/load-test-gate.md](runbooks/load-test-gate.md) | System | Planned |
 
 ## SC - System and Communications Protection
 
