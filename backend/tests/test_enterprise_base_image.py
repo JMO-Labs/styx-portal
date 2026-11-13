@@ -157,3 +157,17 @@ def test_series_patches_touch_only_installed_package_paths():
         assert targets, f"{name} has no targets"
         bad = [t for t in targets if t.endswith(".rs") or t.startswith("pixelflux/src/")]
         assert not bad, f"{name} edits source not in the installed wheel: {bad}"
+
+
+def test_allowlist_dir_traversable_by_uid_1000():
+    # COPY --chmod=0644 can apply the mode to the parent dir it creates, so
+    # /etc/styx would lose +x and the relay (uid 1000) cannot open the allowlist.
+    copy = DOCKERFILE.index("/etc/styx/apdu-allowlist.yaml")
+    mkdir = re.search(r"install -d -m 0755[^\n]*/etc/styx\b", DOCKERFILE)
+    assert mkdir and mkdir.start() < copy
+
+
+def test_smartcard_smoke_relay_check_ignores_zombies():
+    smoke = (BASE.parents[1] / "scripts" / "kind" / "20-smartcard-smoke.sh").read_text()
+    assert "grep -qx styx-card-relay /proc/[0-9]*/comm" not in smoke
+    assert "State:" in smoke and "Z" in smoke

@@ -68,7 +68,9 @@ RUN userdel -r ubuntu 2>/dev/null || true \
     && useradd -u 1000 -g 1000 -m -d /home/styx -s /bin/bash styx
 
 # pcscd runs as 1000:1000; it needs a writable socket dir.
-RUN install -d -o 1000 -g 1000 /run/pcscd
+# /etc/styx is created 0755 up front: COPY --chmod would otherwise give the
+# auto-created dir 0644 and the relay (uid 1000) could not open the allowlist.
+RUN install -d -o 1000 -g 1000 /run/pcscd && install -d -m 0755 /etc/styx
 
 COPY --from=vpcd /out/ /
 COPY --from=relay /out/styx-card-relay /usr/local/bin/styx-card-relay
