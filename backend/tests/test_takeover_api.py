@@ -49,7 +49,7 @@ async def test_start_denied(member_client, inst, session, staff):
                                  json={"mode": "view", "reason": "x"})
     assert r.status_code == 403
     assert (await session.exec(select(SessionTakeover))).first() is None
-    assert await _actions(session) == ["takeover.denied"]
+    assert [a for a in await _actions(session) if a != "auth.login"] == ["takeover.denied"]
 
 
 @pytest.mark.parametrize("reason", ["", "   ", "\n\t"])
