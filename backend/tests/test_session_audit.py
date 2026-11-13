@@ -5,7 +5,9 @@ from sqlmodel import select
 from app.models import Group, Instance, ServiceTemplate, SessionEvent, User, UserGroup
 from app.services.session_audit import record_session_event
 from tests.test_instances_api import (  # noqa: F401  fixtures
-    _make_owned_instance, shared_docker, template_id,
+    _make_owned_instance,
+    shared_docker,
+    template_id,
 )
 
 
@@ -101,7 +103,6 @@ async def test_router_emits_session_line(admin_client, session, lines,
 async def test_background_launch_emits_session_launch(session, lines):
     from unittest.mock import patch
 
-    from app.models import ServiceTemplate
     from app.routers.instances import _launch_instance_background
     from tests.test_instance_image_digest import runtime
 
