@@ -15,10 +15,12 @@ from app.models import Instance, SessionTakeover, User
 from app.security.deps import can_takeover, get_current_user, require_staff_role
 from app.services import takeover_alert
 from app.services.audit import audit_request
+from app.services.takeover_report import build_report, month_bounds
 
 router = APIRouter()
 admin_router = APIRouter()
 log = logging.getLogger("styx.takeover")
+report_router = APIRouter()
 
 
 class TakeoverIn(BaseModel):
@@ -120,3 +122,19 @@ async def list_takeovers(since: datetime | None = None,
     if since is not None:
         q = q.where(SessionTakeover.started_at >= (since.astimezone(timezone.utc) if since.tzinfo else since).replace(tzinfo=None))
     return (await session.exec(q)).all()
+
+
+@report_router.get("/report")
+async def takeover_report(month: str, request: Request,
+                          user: User = Depends(require_staff_role("platform-admin", "auditor")),
+                          session: AsyncSession = Depends(get_session)):
+    try:
+        month_bounds(month)
+    except ValueError:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "month must be YYYY-MM")
+    body = await build_report(session, month)
+    await audit_request(session, request, "takeover.report", user_id=user.id,
+                        detail={"month": month})
+    await session.commit()
+    return Response(body, media_type="text/csv", headers={
+        "Content-Disposition": f'attachment; filename="takeovers-{month}.csv"'})
