@@ -29,7 +29,10 @@ function renderAt(list: unknown[] | undefined, pending = false) {
 }
 
 describe("DesktopPage", () => {
-  beforeEach(() => { useInstances.mockReset(); mutate.mockReset(); });
+  beforeEach(() => {
+    useInstances.mockReset(); mutate.mockReset();
+    profile.mockReturnValue({ disabled: [], isDisabled: () => false, profile: "homelab", smartcard: false });
+  });
 
   it("mounts the iframe when running", () => {
     renderAt([inst("running")]);
@@ -77,13 +80,14 @@ describe("DesktopPage", () => {
     expect(screen.queryByText(/Pausing soon/)).toBeNull();
   });
 
-  it("shows Connect smart card only for enterprise with smartcard enabled", () => {
-    const { unmount } = renderAt([inst("running")]);
-    expect(screen.queryByText("Connect smart card")).toBeNull();
-    unmount();
-    profile.mockReturnValue({ disabled: [], isDisabled: () => false, profile: "enterprise", smartcard: true });
+  it.each([
+    ["homelab", false, false],
+    ["homelab", true, false],
+    ["enterprise", false, false],
+    ["enterprise", true, true],
+  ])("Connect smart card for %s/smartcard:%s shown=%s", (prof, smartcard, shown) => {
+    profile.mockReturnValue({ disabled: [], isDisabled: () => false, profile: prof, smartcard });
     renderAt([inst("running")]);
-    expect(screen.getByText("Connect smart card")).toBeTruthy();
-    profile.mockReturnValue({ disabled: [], isDisabled: () => false, profile: "enterprise", smartcard: false });
+    expect(screen.queryByText("Connect smart card") !== null).toBe(shown);
   });
 });
