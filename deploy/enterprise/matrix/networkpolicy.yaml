@@ -1,0 +1,126 @@
+# Default deny (Cilium idiom: empty rule selects the pods for enforcement without
+# allowing anything), then only the flows Synapse needs.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: synapse-default-deny
+  namespace: matrix
+spec:
+  endpointSelector: {}
+  ingress:
+    - {}
+  egress:
+    - {}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: synapse-ingress
+  namespace: matrix
+spec:
+  endpointSelector:
+    matchLabels: {app.kubernetes.io/name: synapse}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: traefik
+      toPorts:
+        - ports:
+            - {port: "8008", protocol: TCP}
+    # styx backend notifications
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: styx
+      toPorts:
+        - ports:
+            - {port: "8008", protocol: TCP}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: synapse-egress
+  namespace: matrix
+spec:
+  endpointSelector:
+    matchLabels: {app.kubernetes.io/name: synapse}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: synapse-db
+      toPorts:
+        - ports:
+            - {port: "5432", protocol: TCP}
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchPattern: "*"
+    # Keycloak OIDC (discovery, token, userinfo), in-cluster.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: keycloak
+            app.kubernetes.io/name: keycloak
+      toPorts:
+        - ports:
+            - {port: "8080", protocol: TCP}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: synapse-db-from-cnpg-operator
+  namespace: matrix
+spec:
+  endpointSelector:
+    matchLabels:
+      cnpg.io/cluster: synapse-db
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cnpg-system
+      toPorts:
+        - ports:
+            - {port: "8000", protocol: TCP}
+    - fromEndpoints:
+        - matchLabels: {app.kubernetes.io/name: synapse}
+      toPorts:
+        - ports:
+            - {port: "5432", protocol: TCP}
+    # Standby streams WAL from the primary (DB pod to DB pod).
+    - fromEndpoints:
+        - matchLabels: {cnpg.io/cluster: synapse-db}
+      toPorts:
+        - ports:
+            - {port: "5432", protocol: TCP}
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - {port: "9187", protocol: TCP}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: synapse-db-egress-offsite
+  namespace: matrix
+spec:
+  endpointSelector:
+    matchLabels:
+      cnpg.io/cluster: synapse-db
+  egress:
+    - toEndpoints:
+        - matchLabels: {cnpg.io/cluster: synapse-db}
+      toPorts:
+        - ports:
+            - {port: "5432", protocol: TCP}
+    - toCIDRSet:
+        - cidr: 192.0.2.10/32           # PLACEHOLDER(#24): offsite object store address
+      toPorts:
+        - ports:
+            - {port: "443", protocol: TCP}
