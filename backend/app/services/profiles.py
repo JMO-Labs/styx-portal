@@ -4,7 +4,7 @@ import hashlib
 import logging
 
 from fastapi import HTTPException
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -39,7 +39,7 @@ async def ensure_profile(session: AsyncSession, user_id: str, template) -> str:
 async def profile_in_use(session: AsyncSession, volume: str,
                          exclude_instance_id: str | None = None) -> Instance | None:
     stmt = select(Instance).where(Instance.profile_volume == volume,
-                                  Instance.status.in_(ACTIVE))
+                                  col(Instance.status).in_(ACTIVE))
     if exclude_instance_id:
         stmt = stmt.where(Instance.id != exclude_instance_id)
     return (await session.exec(stmt)).first()

@@ -13,8 +13,8 @@ keepalive settings below) so a partitioned leader stops before another wins.
 import asyncio
 import inspect
 import logging
-from typing import Any
 import time
+from typing import Any
 
 from app.config import Settings
 

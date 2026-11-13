@@ -2,10 +2,11 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
+from typing import cast
 
 from docker.errors import DockerException
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -101,7 +102,7 @@ async def _attach_docker(s: ProxiedService, docker: DockerManager) -> None:
     net = _settings.SERVICES_NETWORK
     try:
         await asyncio.to_thread(docker.ensure_traefik_network, net)
-        ok = await asyncio.to_thread(docker.connect_to_network, s.container, net)
+        ok = await asyncio.to_thread(docker.connect_to_network, cast(str, s.container), net)
     except DockerException:
         log.warning("cannot attach %s to %s", s.container, net, exc_info=True)
         ok = False
@@ -111,7 +112,7 @@ async def _attach_docker(s: ProxiedService, docker: DockerManager) -> None:
 
 
 async def _check_groups(session: AsyncSession, names: list[str]) -> None:
-    known = set((await session.exec(select(Group.name).where(Group.name.in_(names)))).all())
+    known = set((await session.exec(select(Group.name).where(col(Group.name).in_(names)))).all())
     missing = sorted(set(names) - known)
     if missing:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -275,7 +276,7 @@ async def delete_service(sid: str, request: Request, admin: User = Depends(requi
     s = await _get_or_404(session, sid)
     await service_thumbs.delete(session, s.id)
     if s.kind == "docker-local" and not s.upstream_fallback:
-        await _release_container(session, docker, s.container, s.id)
+        await _release_container(session, docker, cast(str, s.container), s.id)
     slug = s.slug
     await session.delete(s)
     await audit_request(session, request, "service.delete", user_id=admin.id,

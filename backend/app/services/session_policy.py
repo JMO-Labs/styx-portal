@@ -1,6 +1,6 @@
 """Idle-lock policy: per-group timeout, capped in the enterprise profile."""
 from fastapi import HTTPException
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -21,7 +21,7 @@ def validate_idle_lock(minutes: int | None) -> None:
 async def effective_idle_lock_s(user: User, session: AsyncSession) -> int:
     """Smallest idle_lock_minutes across the user's groups, in seconds; 900 if none."""
     rows = (await session.exec(
-        select(Group.idle_lock_minutes).join(UserGroup, UserGroup.group_id == Group.id)
+        select(Group.idle_lock_minutes).join(UserGroup, col(UserGroup.group_id) == Group.id)
         .where(UserGroup.user_id == user.id))).all()
     vals = [m for m in rows if m]
     return min(vals) * 60 if vals else DEFAULT_IDLE_LOCK_S

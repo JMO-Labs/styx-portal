@@ -8,7 +8,7 @@ from typing import Annotated
 
 from pydantic import Field
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from sqlmodel import select, delete
+from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -187,12 +187,12 @@ async def icon(request: Request, ws: Workstation = Depends(get_agent_workstation
 async def thumbnail(request: Request, ws: Workstation = Depends(get_agent_workstation)):
     if int(request.headers.get("content-length") or 0) > ws_thumb.MAX_BYTES:
         raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "Thumbnail too large")
-    data = bytearray()   # streamed + capped: chunked bodies carry no Content-Length
+    buf = bytearray()   # streamed + capped: chunked bodies carry no Content-Length
     async for chunk in request.stream():
-        data += chunk
-        if len(data) > ws_thumb.MAX_BYTES:
+        buf += chunk
+        if len(buf) > ws_thumb.MAX_BYTES:
             raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "Thumbnail too large")
-    data = bytes(data)
+    data = bytes(buf)
     if data[:3] != b"\xff\xd8\xff":
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not a JPEG")
     ws_thumb.write(ws.id, data)
@@ -205,7 +205,7 @@ async def deregister(request: Request,
                      session: AsyncSession = Depends(get_session)):
     await stream_sessions.close_session(session, "workstation", ws.id)
     await session.exec(delete(WorkstationAccess).where(
-        WorkstationAccess.workstation_id == ws.id))
+        col(WorkstationAccess.workstation_id) == ws.id))
     await audit_request(session, request, "workstation.deregister",
                         resource=ws.id, detail={"hostname": ws.hostname,
                                                "agent_version": ws.agent_version,
