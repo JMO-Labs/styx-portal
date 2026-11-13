@@ -25,6 +25,7 @@ export default defineConfig({
     { name: "shell", testMatch: "shell.spec.ts", dependencies: ["mounts"] },
     { name: "shots", testMatch: "shots.spec.ts", dependencies: ["shell"] },
     { name: "shots-home", testMatch: "shots-home.spec.ts", dependencies: ["shots"] },
+    { name: "a11y", testMatch: "a11y.spec.ts", dependencies: ["services"] },
     { name: "workspaces", testMatch: "workspaces.spec.ts", dependencies: ["shots-home"] },
   ],
 });

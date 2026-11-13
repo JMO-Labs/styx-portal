@@ -12,7 +12,7 @@ spec:
   template:
     metadata:
       annotations:
-        secret.reloader.stakater.com/reload: "styx-db-app,styx-secrets"
+        secret.reloader.stakater.com/reload: "styx-db-app,styx-secrets,styx-matrix-notify,styx-archive-s3"
     spec:
       topologySpreadConstraints:
         - maxSkew: 1
@@ -28,17 +28,37 @@ spec:
             - {name: DATABASE_URL, value: "postgresql+asyncpg://styx@styx-db-rw:5432/styx?ssl=verify-full"}
             # Leader loops go straight to the primary service, never a pooler.
             - {name: LEADER_DATABASE_URL, value: "postgresql+asyncpg://styx@styx-db-rw:5432/styx?ssl=verify-full"}
+            - name: MATRIX_NOTIFY_HOMESERVER
+              valueFrom: {secretKeyRef: {name: styx-matrix-notify, key: MATRIX_NOTIFY_HOMESERVER, optional: true}}
+            - name: MATRIX_NOTIFY_ROOM_ID
+              valueFrom: {secretKeyRef: {name: styx-matrix-notify, key: MATRIX_NOTIFY_ROOM_ID, optional: true}}
+            - name: MATRIX_NOTIFY_TOKEN
+              valueFrom: {secretKeyRef: {name: styx-matrix-notify, key: MATRIX_NOTIFY_TOKEN, optional: true}}
+            # Seeded once into "My services" (placeholders: replace <domain>).
+            - {name: WIKI_URL, value: "https://wiki.<domain>"}
+            - {name: ELEMENT_URL, value: "https://chat.<domain>"}
+            # Home cold-storage archive (ADR-0035); creds from Secret, never literals.
+            - {name: ARCHIVE_S3_ENDPOINT, value: "http://rook-ceph-rgw-styx-store.rook-ceph.svc:80"}
+            - {name: ARCHIVE_S3_BUCKET, value: styx-home-archive}
+            - name: ARCHIVE_S3_ACCESS_KEY
+              valueFrom: {secretKeyRef: {name: styx-archive-s3, key: AccessKey}}
+            - name: ARCHIVE_S3_SECRET_KEY
+              valueFrom: {secretKeyRef: {name: styx-archive-s3, key: SecretKey}}
+            - {name: HOMES_ROOT, value: /homes}
           startupProbe:
             failureThreshold: 60
           volumeMounts:
             # No subPath: subPath mounts never receive Secret updates (rotation).
             - {name: db-app, mountPath: /etc/styx/db, readOnly: true}
             - {name: db-ca, mountPath: /etc/styx/db-ca, readOnly: true}
+            - {name: homes, mountPath: /homes}
       volumes:
         - name: data
           persistentVolumeClaim: null
           emptyDir: {}
+        - name: homes
+          persistentVolumeClaim: {claimName: styx-homes}
         - name: db-app
-          secret: {secretName: styx-db-app, defaultMode: 0440}
+          secret: {secretName: styx-db-app, defaultMode: 288}  # 0o440
         - name: db-ca
-          secret: {secretName: styx-db-ca, defaultMode: 0440}
+          secret: {secretName: styx-db-ca, defaultMode: 288}  # 0o440

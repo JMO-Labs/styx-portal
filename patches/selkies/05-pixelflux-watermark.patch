@@ -1,0 +1,256 @@
+From: wq-agent <wq-agent@dev.local>
+Subject: [PATCH] feat(watermark): burn user + UTC time into frames before encode
+
+Adds pixelflux::watermark. Text is read from STYX_WATERMARK_USER at
+startup; no client setting can change or disable it. The CPU capture path
+stamps both BGRA frame buffers (stride aware) ahead of the encoder, outside
+any client-controlled setting.
+
+---
+diff --git a/pixelflux/src/lib.rs b/pixelflux/src/lib.rs
+index 55d95b2..9422d6e 100644
+--- a/pixelflux/src/lib.rs
++++ b/pixelflux/src/lib.rs
+@@ -176,6 +176,8 @@ mod cleanup_bench;
+ pub mod nvgpufilter;
+ /// Frame-processing policy shared by the X11 and Wayland backends.
+ pub mod pipeline;
++/// Server-side watermark burned into every captured frame before encode.
++pub mod watermark;
+ /// Run-time libpipewire binding and SPA pod encoding shared by the webcam sink and host capture.
+ pub mod pipewire;
+ /// X11/XShm capture loop, stripe dispatch, and per-stripe change detection.
+@@ -5087,6 +5089,9 @@ fn render_node_tick(
+                 }
+                 if let Some((_, ref mut buf)) = pool_slot {
+                     cpu.write_bgra(f.width, f.height, buf);
++                    if let Some(w) = watermark::global() {
++                        w.stamp_bgra(buf, (f.width as usize) * 4, f.width as usize, f.height as usize, watermark::now_secs());
++                    }
+                     if wm_active {
+                         node.overlay_state.blend_bgra(
+                             buf,
+@@ -5098,6 +5103,9 @@ fn render_node_tick(
+                     }
+                 }
+                 cpu.write_bgra(f.width, f.height, &mut node.frame_buffer);
++                if let Some(w) = watermark::global() {
++                    w.stamp_bgra(&mut node.frame_buffer, (f.width as usize) * 4, f.width as usize, f.height as usize, watermark::now_secs());
++                }
+                 if wm_active {
+                     node.overlay_state.blend_bgra(
+                         &mut node.frame_buffer,
+diff --git a/pixelflux/src/watermark.rs b/pixelflux/src/watermark.rs
+new file mode 100644
+index 0000000..6841d9b
+--- /dev/null
++++ b/pixelflux/src/watermark.rs
+@@ -0,0 +1,208 @@
++//! Server-side watermark: burns "<user> <UTC time>" into each frame before encode.
++//! Text comes only from the STYX_WATERMARK_USER env var; no client message can
++//! change or disable it. Mirrors agent/watermark.py (the snapshot-tested spec).
++
++const SCALE: usize = 3;
++const PAD: usize = 6;
++const ORIGIN: (usize, usize) = (16, 16);
++const GLYPH_W: usize = 5;
++const GLYPH_H: usize = 7;
++
++/// 7 rows of 5 columns, rows joined by '/', '#' = set.
++const FONT: &[(char, &str)] = &[
++    (' ', "...../...../...../...../...../...../....."),
++    ('-', "...../...../...../#####/...../...../....."),
++    (':', "...../..#../..#../...../..#../..#../....."),
++    ('.', "...../...../...../...../...../.##../.##.."),
++    ('_', "...../...../...../...../...../...../#####"),
++    ('@', ".###./#...#/#.###/#.###/#.##./#..../.###."),
++    ('/', "....#/....#/...#./..#../.#.../#..../#...."),
++    ('0', ".###./#...#/#..##/#.#.#/##..#/#...#/.###."),
++    ('1', "..#../.##../..#../..#../..#../..#../.###."),
++    ('2', ".###./#...#/....#/...#./..#../.#.../#####"),
++    ('3', "####./....#/....#/.###./....#/....#/####."),
++    ('4', "...#./..##./.#.#./#..#./#####/...#./...#."),
++    ('5', "#####/#..../####./....#/....#/#...#/.###."),
++    ('6', "..##./.#.../#..../####./#...#/#...#/.###."),
++    ('7', "#####/....#/...#./..#../.#.../.#.../.#..."),
++    ('8', ".###./#...#/#...#/.###./#...#/#...#/.###."),
++    ('9', ".###./#...#/#...#/.####/....#/...#./.##.."),
++    ('A', ".###./#...#/#...#/#####/#...#/#...#/#...#"),
++    ('B', "####./#...#/#...#/####./#...#/#...#/####."),
++    ('C', ".###./#...#/#..../#..../#..../#...#/.###."),
++    ('D', "####./#...#/#...#/#...#/#...#/#...#/####."),
++    ('E', "#####/#..../#..../####./#..../#..../#####"),
++    ('F', "#####/#..../#..../####./#..../#..../#...."),
++    ('G', ".###./#...#/#..../#.###/#...#/#...#/.###."),
++    ('H', "#...#/#...#/#...#/#####/#...#/#...#/#...#"),
++    ('I', ".###./..#../..#../..#../..#../..#../.###."),
++    ('J', "..###/...#./...#./...#./...#./#..#./.##.."),
++    ('K', "#...#/#..#./#.#../##.../#.#../#..#./#...#"),
++    ('L', "#..../#..../#..../#..../#..../#..../#####"),
++    ('M', "#...#/##.##/#.#.#/#.#.#/#...#/#...#/#...#"),
++    ('N', "#...#/##..#/#.#.#/#..##/#...#/#...#/#...#"),
++    ('O', ".###./#...#/#...#/#...#/#...#/#...#/.###."),
++    ('P', "####./#...#/#...#/####./#..../#..../#...."),
++    ('Q', ".###./#...#/#...#/#...#/#.#.#/#..#./.##.#"),
++    ('R', "####./#...#/#...#/####./#.#../#..#./#...#"),
++    ('S', ".####/#..../#..../.###./....#/....#/####."),
++    ('T', "#####/..#../..#../..#../..#../..#../..#.."),
++    ('U', "#...#/#...#/#...#/#...#/#...#/#...#/.###."),
++    ('V', "#...#/#...#/#...#/#...#/#...#/.#.#./..#.."),
++    ('W', "#...#/#...#/#...#/#.#.#/#.#.#/##.##/#...#"),
++    ('X', "#...#/#...#/.#.#./..#../.#.#./#...#/#...#"),
++    ('Y', "#...#/#...#/.#.#./..#../..#../..#../..#.."),
++    ('Z', "#####/....#/...#./..#../.#.../#..../#####"),
++];
++
++pub struct Watermark {
++    user: String,
++}
++
++/// The process-wide watermark, read once from the environment. Nothing can replace it.
++pub fn global() -> Option<&'static Watermark> {
++    static WM: std::sync::OnceLock<Option<Watermark>> = std::sync::OnceLock::new();
++    WM.get_or_init(Watermark::from_env).as_ref()
++}
++
++/// Current UTC time, whole seconds since the epoch.
++pub fn now_secs() -> i64 {
++    std::time::SystemTime::now()
++        .duration_since(std::time::UNIX_EPOCH)
++        .map(|d| d.as_secs() as i64)
++        .unwrap_or(0)
++}
++
++impl Watermark {
++    /// None when STYX_WATERMARK_USER is unset or blank (watermark not configured).
++    fn from_env() -> Option<Self> {
++        let user = std::env::var("STYX_WATERMARK_USER").ok()?.trim().to_string();
++        if user.is_empty() { None } else { Some(Self { user }) }
++    }
++
++    pub fn text(&self, unix_secs: i64) -> String {
++        let days = unix_secs.div_euclid(86400);
++        let rem = unix_secs.rem_euclid(86400);
++        let (y, m, d) = civil(days);
++        format!("{} {:04}-{:02}-{:02} {:02}:{:02}:{:02}Z", self.user, y, m, d, rem / 3600, rem % 3600 / 60, rem % 60)
++            .to_uppercase()
++    }
++
++    /// Stamp an RGB (3 bytes/pixel, tightly packed) frame in place.
++    pub fn stamp_rgb(&self, frame: &mut [u8], width: usize, height: usize, unix_secs: i64) {
++        self.stamp(frame, width * 3, 3, width, height, unix_secs);
++    }
++
++    /// Stamp a BGRA/BGRX (4 bytes/pixel) frame in place; `stride` is bytes per row.
++    /// Capture buffers are this layout. Alpha is set opaque on stamped pixels.
++    pub fn stamp_bgra(&self, frame: &mut [u8], stride: usize, width: usize, height: usize, unix_secs: i64) {
++        self.stamp(frame, stride, 4, width, height, unix_secs);
++    }
++
++    fn stamp(&self, frame: &mut [u8], stride: usize, bpp: usize, width: usize, height: usize, unix_secs: i64) {
++        let height = height.min(frame.len() / stride.max(1));
++        let put = |frame: &mut [u8], x: usize, y: usize, v: u8| {
++            let a = y * stride + x * bpp;
++            frame[a..a + bpp].fill(v);
++        };
++        let text = self.text(unix_secs);
++        let adv = (GLYPH_W + 1) * SCALE;
++        let (x0, y0) = ORIGIN;
++        let bw = text.chars().count() * adv - SCALE + 2 * PAD;
++        let bh = GLYPH_H * SCALE + 2 * PAD;
++        for y in y0..(y0 + bh).min(height) {
++            for x in x0..(x0 + bw).min(width) {
++                put(frame, x, y, 0);
++                if bpp == 4 { frame[y * stride + x * 4 + 3] = 255; }
++            }
++        }
++        for (i, ch) in text.chars().enumerate() {
++            let glyph = FONT.iter().find(|(c, _)| *c == ch).or_else(|| FONT.iter().find(|(c, _)| *c == '_')).unwrap().1;
++            for (r, row) in glyph.split('/').enumerate() {
++                for (c, bit) in row.chars().enumerate() {
++                    if bit != '#' { continue; }
++                    for dy in 0..SCALE {
++                        let y = y0 + PAD + r * SCALE + dy;
++                        let x = x0 + PAD + i * adv + c * SCALE;
++                        if y < height && x + SCALE <= width {
++                            for dx in 0..SCALE { put(frame, x + dx, y, 255); }
++                        }
++                    }
++                }
++            }
++        }
++    }
++}
++
++/// Days since 1970-01-01 to (year, month, day), proleptic Gregorian.
++fn civil(z: i64) -> (i64, i64, i64) {
++    let z = z + 719468;
++    let era = z.div_euclid(146097);
++    let doe = z.rem_euclid(146097);
++    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
++    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
++    let mp = (5 * doy + 2) / 153;
++    let d = doy - (153 * mp + 2) / 5 + 1;
++    let m = if mp < 10 { mp + 3 } else { mp - 9 };
++    (yoe + era * 400 + (m <= 2) as i64, m, d)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    const NOW: i64 = 1794560707; // 2026-11-13 09:05:07Z
++    // Pinned from agent/tests/test_watermark.py (the Python spec): keep in lock step.
++    const W: usize = 520;
++    const H: usize = 60;
++    const SPEC_FNV: u64 = 0xAB44D549D35AA840;
++    const SPEC_PIXELS: &[(usize, usize, u8)] =
++        &[(15, 16, 64), (16, 16, 0), (25, 22, 255), (24, 22, 0), (492, 48, 0), (493, 48, 64), (16, 49, 64)];
++
++    fn wm() -> Watermark {
++        Watermark { user: "alice".into() }
++    }
++
++    fn fnv1a64(data: &[u8]) -> u64 {
++        data.iter().fold(0xcbf29ce484222325u64, |h, &b| (h ^ b as u64).wrapping_mul(0x100000001b3))
++    }
++
++    #[test]
++    fn text_is_user_and_utc_time() {
++        assert_eq!(wm().text(NOW), "ALICE 2026-11-13 09:05:07Z");
++    }
++
++    #[test]
++    fn matches_python_spec_rgb() {
++        let mut f = vec![0x40u8; W * H * 3];
++        wm().stamp_rgb(&mut f, W, H, NOW);
++        assert_eq!(fnv1a64(&f), SPEC_FNV);
++        for &(x, y, v) in SPEC_PIXELS {
++            assert_eq!(f[(y * W + x) * 3], v, "pixel {x},{y}");
++        }
++    }
++
++    #[test]
++    fn bgra_with_padded_stride_matches_spec() {
++        let stride = W * 4 + 64;
++        let mut f = vec![0x40u8; stride * H];
++        wm().stamp_bgra(&mut f, stride, W, H, NOW);
++        let mut rgb = Vec::new();
++        for y in 0..H {
++            for x in 0..W {
++                let a = y * stride + x * 4;
++                assert!(f[a + 3] == 255 || f[a] == 0x40, "alpha only set where stamped");
++                rgb.extend_from_slice(&f[a..a + 3]);
++            }
++            assert!(f[y * stride + W * 4..(y + 1) * stride].iter().all(|&b| b == 0x40), "padding untouched");
++        }
++        assert_eq!(fnv1a64(&rgb), SPEC_FNV);
++    }
++
++    #[test]
++    fn small_frames_are_clipped_not_overrun() {
++        let mut f = vec![0x40u8; 10 * 10 * 4];
++        wm().stamp_bgra(&mut f, 40, 10, 10, NOW);
++        assert!(f.iter().all(|&b| b == 0x40));
++    }
++}

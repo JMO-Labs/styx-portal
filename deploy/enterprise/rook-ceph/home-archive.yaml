@@ -1,0 +1,58 @@
+# Home cold-storage archive (ADR-0035): on-prem RGW bucket with object lock + lifecycle.
+apiVersion: ceph.rook.io/v1
+kind: CephObjectStoreUser
+metadata:
+  name: styx-archive
+  namespace: rook-ceph
+spec:
+  store: styx-store
+  displayName: styx-home-archive
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: home-archive-bucket-bootstrap
+  namespace: rook-ceph
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: bootstrap
+          # PLACEHOLDER(digest): pin aws-cli by digest when mirrored into Harbor.
+          image: harbor.example.internal/docker.io/amazon/aws-cli:2.17.0
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              EP=http://rook-ceph-rgw-styx-store.rook-ceph.svc:80
+              B=styx-home-archive
+              if ! aws --endpoint-url "$EP" s3api head-bucket --bucket "$B"; then
+                aws --endpoint-url "$EP" s3api create-bucket --bucket "$B" --object-lock-enabled-for-bucket
+              fi
+              aws --endpoint-url "$EP" s3api put-object-lock-configuration --bucket "$B" \
+                --object-lock-configuration \
+                '{"ObjectLockEnabled":"Enabled","Rule":{"DefaultRetention":{"Mode":"GOVERNANCE","Days":30}}}'
+              aws --endpoint-url "$EP" s3api put-bucket-lifecycle-configuration --bucket "$B" \
+                --lifecycle-configuration \
+                '{"Rules":[{"ID":"expire-noncurrent","Status":"Enabled","Filter":{"Prefix":""},
+                "NoncurrentVersionExpiration":{"NoncurrentDays":35}}]}'
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom: {secretKeyRef: {name: rook-ceph-object-user-styx-store-styx-archive, key: AccessKey}}
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom: {secretKeyRef: {name: rook-ceph-object-user-styx-store-styx-archive, key: SecretKey}}
+            - {name: AWS_DEFAULT_REGION, value: us-east-1}
+            # Non-root with no writable HOME: keep aws-cli state in /tmp.
+            - {name: HOME, value: /tmp}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile: {type: RuntimeDefault}
+            capabilities: {drop: [ALL]}

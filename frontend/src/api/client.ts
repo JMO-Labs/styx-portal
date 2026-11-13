@@ -44,6 +44,10 @@ export type ServiceTile = {
 /** `icon` is only for create (a preset emoji); omit it on update, icons change via setServiceIcon. */
 export type ProxiedServiceInput = Omit<ProxiedService,
   "icon_kind" | "icon_etag" | "id" | "upstream_fallback" | "health_status" | "health_checked_at" | "created_at" | "updated_at" | "mount_managed" | "needs_setup"> & { icon?: string | null };
+export type AccessReviewRow = {
+  quarter: string; group_id: string; group: string; user_id: string; username: string;
+  email: string | null; decision: "certify" | "revoke" | null; actor: string | null; decided_at: string | null;
+};
 export type SizePreset = { id: string; label: string; cpus: number; memory_gb: number; gpu: boolean };
 export type ServicePreset = {
   id: string; name: string; icon: string | null; default_port: number | null;
@@ -57,7 +61,7 @@ export type DiscoveredContainer = {
 };
 export type OpenMode = "new_tab" | "same_tab";
 export type Me = { id: string; username: string; email: string | null; role: string;
-  open_workspaces: OpenMode | null; open_apps: OpenMode | null; must_change_pw?: boolean; can_use_gpu?: boolean };
+  open_workspaces: OpenMode | null; open_apps: OpenMode | null; must_change_pw?: boolean; can_use_gpu?: boolean; can_takeover?: boolean };
 export type EgressMode = "category" | "allowlist";
 export type Group = { id: string; name: string; description: string | null; member_count: number; allow_gpu: boolean; egress_mode?: EgressMode };
 export type Profile = { template_id: string; template_name: string; display_name: string; volume_name: string; in_use: boolean };
@@ -292,6 +296,9 @@ export const api = {
     request<{ job_id: string }>(`/services/${id}/mount/apply`, { method: "POST", body: JSON.stringify({ consent, changes }) }),
   mountLatest: (id: string) => request<MountJob>(`/services/${id}/mount/jobs/latest`),
   serviceFocus: () => request<{ slug: string | null }>("/services/focus"),
+  accessReview: (quarter: string) => request<AccessReviewRow[]>(`/access-review?quarter=${encodeURIComponent(quarter)}`),
+  decideAccessReview: (d: { group_id: string; user_id: string; quarter: string; decision: "certify" | "revoke" }) =>
+    request<unknown>("/access-review/decisions", { method: "POST", body: JSON.stringify(d) }),
   listGroups: () => request<Group[]>("/groups"),
   createGroup: (data: { name: string; description?: string | null; egress_mode?: EgressMode }) =>
     request<Group>("/groups", { method: "POST", body: JSON.stringify(data) }),
@@ -319,6 +326,9 @@ export const api = {
     request<Instance>("/instances", { method: "POST", body: JSON.stringify(data) }),
   startInstance: (id: string) =>
     request<Instance>(`/instances/${id}/start`, { method: "POST" }),
+  startTakeover: (id: string, body: { mode: "view" | "control"; reason: string }) =>
+    request<unknown>(`/instances/${id}/takeover`, { method: "POST", body: JSON.stringify(body) }),
+  endTakeover: (id: string) => request<void>(`/instances/${id}/takeover`, { method: "DELETE" }),
   stopInstance: (id: string) =>
     request<Instance>(`/instances/${id}/stop`, { method: "POST" }),
   restartInstance: (id: string) =>
@@ -405,7 +415,9 @@ export const api = {
   getInstanceLogs: (instanceId: string) =>
     request<string[]>(`/instances/${instanceId}/logs`),
 
-  systemProfile: () => request<{ profile: string; disabled: string[] }>("/system/profile"),
+  systemProfile: () => request<{ profile: string; disabled: string[]; smartcard?: boolean }>("/system/profile"),
+  smartcardToken: (instanceId: string) =>
+    request<{ token: string; host: string }>(`/instances/${instanceId}/smartcard-token`, { method: "POST" }),
   setupRequired: () => request<{ setup_required: boolean; banner_url?: string }>("/auth/setup-required"),
   setupPreflight: () => request<SetupPreflight>("/auth/setup-preflight"),
   setup: (data: { username: string; email?: string; password: string; setup_token: string }) =>
