@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
@@ -122,3 +123,19 @@ async def test_boot_reconcile_rewaits_starting_on_k8s(session, monkeypatch):
     with patch.object(ir, "start_waiting") as sw:
         await _reconcile_instances_at_boot(session, rt)
     sw.assert_called_once_with(i.id)
+
+
+@pytest.mark.asyncio
+async def test_start_waiting_tracks_task_until_done():
+    ran = []
+
+    async def fake_wait(instance_id, requested_at=None, kind="start"):
+        ran.append((instance_id, requested_at, kind))
+
+    with patch.object(ir, "wait_until_ready", fake_wait):
+        ir.start_waiting("abc", requested_at=1.5, kind="restart")
+        assert len(ir._tasks) == 1
+        await asyncio.gather(*list(ir._tasks))
+        await asyncio.sleep(0)
+    assert ran == [("abc", 1.5, "restart")]
+    assert not ir._tasks
