@@ -78,6 +78,13 @@ async def test_valid_token_in_redirect(member_client, session):
                            hashlib.sha256).hexdigest()
 
 
+@pytest.mark.asyncio
+async def test_404_unknown_instance(member_client):
+    r = await member_client.get("/api/instances/nope/unlock", headers=CARD,
+                                follow_redirects=False)
+    assert r.status_code == 404
+
+
 def test_haproxy_keeps_resumption_off():
     cfg = dmz.strip_comments(dmz.render("haproxy.cfg.j2"))
     assert "tune.ssl.cachesize 0" in dmz.directives(dmz.section(cfg, "global"), "tune.ssl")
