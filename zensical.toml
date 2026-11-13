@@ -60,6 +60,7 @@ nav = [
     { "Enterprise: Offboarding" = "enterprise/runbooks/offboarding.md" },
     { "Enterprise: Home age-off" = "enterprise/runbooks/home-age-off.md" },
     { "Enterprise: Session takeover" = "enterprise/runbooks/session-takeover.md" },
+    { "Enterprise: Load-test gate" = "enterprise/runbooks/load-test-gate.md" },
   ] },
   { "Build" = [
     "build/index.md",
