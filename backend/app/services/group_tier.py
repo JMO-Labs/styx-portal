@@ -63,17 +63,33 @@ def tier_env(tier: dict) -> dict[str, str]:
     return env
 
 
+# Idle-lock policy keys: set by the portal, never by templates or owners.
+POLICY_ENV_KEYS = frozenset({"STYX_LOCK_IDLE_S", "STYX_INSTANCE_ID", "STYX_UNLOCK_URL"})
+
+
+def merge_launch_env(defaults: dict, template_env: dict | None, overrides: dict | None) -> dict:
+    """Group defaults < template env < owner overrides; policy keys are stripped
+    from template/owner env and taken from ``defaults`` only."""
+    def clean(d):
+        return {k: v for k, v in (d or {}).items() if k not in POLICY_ENV_KEYS}
+    return {**defaults, **clean(template_env), **clean(overrides),
+            **{k: v for k, v in defaults.items() if k in POLICY_ENV_KEYS}}
+
+
 async def launch_overrides(session: AsyncSession, runtime, instance, template):
-    """(env defaults, memory_limit, cpu_limit) for a launch. Template values win over
-    group overrides, which win over the global CPU-tier defaults. Kubernetes only
-    (the CPU tier is not applied on the Docker path)."""
+    """(env, memory_limit, cpu_limit) for a launch. env merges group defaults,
+    template env and the instance's env_overrides (policy keys authoritative).
+    Template limits win over group overrides, which win over the global CPU-tier
+    defaults. Kubernetes only (the CPU tier is not applied on the Docker path)."""
     from app.services.k8s_instances import K8sInstanceRuntime
 
+    tpl_env = getattr(template, "env_vars", None)
+    user_env = getattr(instance, "env_overrides", None)
     if not isinstance(runtime, K8sInstanceRuntime):
-        return {}, template.memory_limit, template.cpu_limit
+        return merge_launch_env({}, tpl_env, user_env), template.memory_limit, template.cpu_limit
     tier = await user_group_tier(session, instance.owner_id)
     owner = await session.get(User, instance.owner_id) if instance.owner_id else None
     lock_s = await effective_idle_lock_s(owner, session) if owner else DEFAULT_IDLE_LOCK_S
-    return ({**tier_env(tier), "STYX_INSTANCE_ID": instance.id,
-             "STYX_LOCK_IDLE_S": str(lock_s)}, template.memory_limit or tier.get("memory"),
-            template.cpu_limit or tier.get("cpu"))
+    defaults = {**tier_env(tier), "STYX_INSTANCE_ID": instance.id, "STYX_LOCK_IDLE_S": str(lock_s)}
+    return (merge_launch_env(defaults, tpl_env, user_env),
+            template.memory_limit or tier.get("memory"), template.cpu_limit or tier.get("cpu"))

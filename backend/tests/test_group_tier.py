@@ -107,3 +107,34 @@ async def test_launch_overrides_template_wins_and_k8s_only(session):
     assert (mem, cpu) == ("2g", "1")
     env, mem, cpu = await launch_overrides(session, MagicMock(), inst, NS(memory_limit=None, cpu_limit=None))
     assert (env, mem, cpu) == ({}, None, None)
+
+
+@pytest.mark.asyncio
+async def test_launch_env_policy_keys_beat_user_overrides(session):
+    """Owners cannot defeat the idle-lock policy via env_overrides (#244 review)."""
+    from types import SimpleNamespace as NS
+    from unittest.mock import MagicMock
+
+    from app.services.group_tier import launch_overrides
+    from app.services.k8s_instance_objects import build_objects
+    from app.services.k8s_instances import K8sInstanceRuntime
+
+    u = User(email="p@x.io", username="p", password_hash="x")
+    session.add(u)
+    await session.commit()
+    evil = {"STYX_LOCK_IDLE_S": "999999", "STYX_INSTANCE_ID": "other",
+            "STYX_UNLOCK_URL": "https://evil.example/unlock", "FOO": "bar"}
+    inst = NS(owner_id=u.id, id="i1", env_overrides=evil)
+    tpl = NS(memory_limit=None, cpu_limit=None,
+             env_vars={"STYX_LOCK_IDLE_S": "1", "BAZ": "t"})
+
+    env, _, _ = await launch_overrides(session, MagicMock(spec=K8sInstanceRuntime), inst, tpl)
+    assert env["STYX_INSTANCE_ID"] == "i1"
+    assert env["STYX_LOCK_IDLE_S"] not in ("999999", "1")
+    assert "STYX_UNLOCK_URL" not in env
+    assert (env["FOO"], env["BAZ"]) == ("bar", "t")
+    dep, _ = build_objects("n", "img", env, {}, 8080, "ns", "o")
+    c = dep["spec"]["template"]["spec"]["containers"][0]
+    pod_env = {e["name"]: e.get("value") for e in c["env"]}
+    assert pod_env["STYX_UNLOCK_URL"].endswith("/api/instances/i1/unlock")
+    assert pod_env["STYX_LOCK_IDLE_S"] == env["STYX_LOCK_IDLE_S"]
