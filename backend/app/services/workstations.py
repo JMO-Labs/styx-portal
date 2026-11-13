@@ -146,6 +146,8 @@ AGENT_UPDATE_FILES = [
     ("gateway_html.py", "gateway_html.py"),
     ("gamemode.py", "gamemode.py"),
     ("gateway_ws.py", "gateway_ws.py"),
+    ("gateway_dlp.py", "gateway_dlp.py"),
+    ("gateway_report.py", "gateway_report.py"),
     ("gateway_webrtc.py", "gateway_webrtc.py"),
     ("agent_procs.py", "agent_procs.py"),
     ("seat_systemd.py", "seat_systemd.py"),

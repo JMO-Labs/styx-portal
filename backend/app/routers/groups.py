@@ -9,6 +9,7 @@ from app.models import Group, ProxiedService, User, UserGroup
 from app.schemas import GroupCreate, GroupOut, GroupUpdate, UserGroupsUpdate
 from app.security.deps import require_admin
 from app.services.audit import audit_request
+from app.services.session_policy import validate_idle_lock
 
 router = APIRouter()
 users_router = APIRouter()
@@ -37,6 +38,7 @@ async def create_group(body: GroupCreate, request: Request,
                        session: AsyncSession = Depends(get_session)):
     if (await session.exec(select(Group).where(Group.name == body.name))).first():
         raise HTTPException(status.HTTP_409_CONFLICT, "Group exists")
+    validate_idle_lock(body.idle_lock_minutes)
     g = Group(**body.model_dump())
     session.add(g)
     await audit_request(session, request, "group.create", user_id=admin.id,
@@ -55,6 +57,7 @@ async def update_group(group_id: str, body: GroupUpdate, request: Request,
     changes = body.model_dump(exclude_unset=True)
     if changes.get("egress_mode") is None:
         changes.pop("egress_mode", None)
+    validate_idle_lock(changes.get("idle_lock_minutes"))
     for k, v in changes.items():
         setattr(g, k, v)
     session.add(g)
