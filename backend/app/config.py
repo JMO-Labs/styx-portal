@@ -186,6 +186,8 @@ class Settings(BaseSettings):
     archive_s3_access_key: str = ""
     archive_s3_secret_key: str = ""
     homes_root: str = "/homes"
+    ageoff_dry_run: bool = True  # plan + log only; no notices, uploads or deletes
+    ageoff_interval_s: int = 86400
 
     LIFECYCLE_INACTIVITY_DAYS: int = 35   # auto-disable after this many idle days (ADR-0022)
 
