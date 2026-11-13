@@ -147,7 +147,7 @@ def test_adr_0066_cephfs_homes():
 
 def test_adr_index_matches_files():
     index = (ADR / "README.md").read_text()
-    new = ("0062", "0063", "0065", "0066", "0067", "0068", "0069", "0070", "0071", "0072", "0073", "0074", "0075", "0076", "0077")
+    new = ("0062", "0063", "0065", "0066", "0067", "0068", "0069", "0070", "0071", "0072", "0073", "0074", "0075", "0076", "0077", "0078")
     older = [ln for ln in index.splitlines() if not any(f"({n}-" in ln for n in new)]
     assert "| Proposed |" not in "\n".join(older)
     assert f"accepted {DATE}" in index.lower()
@@ -158,6 +158,7 @@ def test_adr_index_matches_files():
     assert index.count("(0075-") == 1
     assert index.count("(0076-") == 1
     assert index.count("(0077-") == 1
+    assert index.count("(0078-") == 1
     table = [ln for ln in index.splitlines() if re.match(r"\| \[D\d+\]", ln)]
     ids = [int(re.match(r"\| \[D(\d+)\]", ln).group(1)) for ln in table]
     assert ids == sorted(ids)
@@ -384,3 +385,22 @@ def test_adr_0076_fast_launch():
         assert "ADR-0076" in row(cm, ctl), ctl
     assert "k8s_prepull.py" in row(cm, "CM-3")
     assert "slo-rules.yaml" in row(cm, "SC-5")
+
+
+def test_adr_0078_selkies_patch_set():
+    text = adr("0078")
+    assert status(text) == "Proposed"
+    assert "Decision ID: D77" in text
+    for phrase in ("build time", "apply_selkies_patches.sh", "D38", "filename_hash", "STYX_LOCK",
+                   "watermark", "STYX_WATERMARK_USER", "series", "check_patch_notes.py"):
+        assert phrase in text, phrase
+    cm = (DOCS / "control-matrix.md").read_text()
+    for ctl in ("AU-2", "AC-11", "SI-7", "SA-10"):
+        assert "ADR-0078" in row(cm, ctl), ctl
+    assert "test_selkies_audit_hook.py" in row(cm, "AU-2")
+    assert "test_gateway_lock.py" in row(cm, "AC-11")
+    assert "test_watermark.py" in row(cm, "SI-7")
+    up = (DOCS.parent / "upstream" / "README.md").read_text()
+    series = (DOCS.parent.parent / "patches/selkies/series").read_text()
+    for name in re.findall(r"^\d\w*-\S+\.patch$", series, re.M):
+        assert name in up, name
