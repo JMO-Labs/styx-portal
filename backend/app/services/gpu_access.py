@@ -1,7 +1,7 @@
 """Who may use a GPU, and the launch-time GPU-or-CPU decision."""
 import asyncio
 
-from sqlmodel import select
+from sqlmodel import col, select
 
 from app.models import Group, User, UserGroup
 
@@ -12,7 +12,7 @@ async def user_may_use_gpu(session, user) -> bool:
     if user.role == "admin":
         return True
     r = await session.exec(
-        select(Group.id).join(UserGroup, UserGroup.group_id == Group.id)
+        select(Group.id).join(UserGroup, col(UserGroup.group_id) == Group.id)
         .where(UserGroup.user_id == user.id, Group.allow_gpu == True))  # noqa: E712
     return r.first() is not None
 

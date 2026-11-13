@@ -1,4 +1,5 @@
 import { ChevronDown, UserRound } from "lucide-react";
+import { useTheme, type Theme } from "@/theme/ThemeProvider";
 import { toast } from "sonner";
 import { useOpenPrefs, useSavePrefs } from "@/components/open-prompt";
 import {
@@ -9,9 +10,10 @@ import {
 const ROWS = [["open_workspaces", "Workspaces"], ["open_apps", "Apps"]] as const;
 
 /** Username dropdown: where Workspaces and Apps open (New tab / This tab / Ask). Saves on change. */
-export function OpeningMenu({ username, onLogout, onToggleTheme }: { username: string; onLogout?: () => void; onToggleTheme?: () => void }) {
+export function OpeningMenu({ username, onLogout, onToggleTheme, staffRole }: { username: string; staffRole?: string; onLogout?: () => void; onToggleTheme?: () => void }) {
   const { data: me, isPending } = useOpenPrefs();
   const save = useSavePrefs();
+  const { theme, setTheme } = useTheme();
   const set = (key: (typeof ROWS)[number][0], v: string) =>
     save.mutate({ [key]: v === "ask" ? null : v } as Parameters<typeof save.mutate>[0], {
       onSuccess: () => toast.success("Opening preference saved"),
@@ -29,6 +31,7 @@ export function OpeningMenu({ username, onLogout, onToggleTheme }: { username: s
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuItem asChild className="min-h-9"><a href="/account">My account</a></DropdownMenuItem>
+        {staffRole && <DropdownMenuItem asChild className="min-h-9"><a href="/admin">Admin console</a></DropdownMenuItem>}
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Opening</DropdownMenuLabel>
         {ROWS.map(([key, label], i) => (
@@ -42,6 +45,13 @@ export function OpeningMenu({ username, onLogout, onToggleTheme }: { username: s
             </DropdownMenuRadioGroup>
           </div>
         ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Theme</DropdownMenuLabel>
+        <DropdownMenuRadioGroup aria-label="Theme" value={theme} onValueChange={(v) => setTheme(v as Theme)}>
+          <DropdownMenuRadioItem value="system">System</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
         {(onLogout || onToggleTheme) && (
           <div className="md:hidden">
             <DropdownMenuSeparator />

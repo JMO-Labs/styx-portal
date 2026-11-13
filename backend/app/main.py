@@ -8,7 +8,7 @@ from importlib.metadata import PackageNotFoundError, version as _pkg_version
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -36,14 +36,20 @@ from app.routers import branding as branding_router
 from app.routers import turn_usage as turn_usage_router
 from app.routers import provisioned as provisioned_router
 from app.routers import stats as stats_router
+from app.routers import admin_console as admin_console_router
 from app.routers import group_dlp as group_dlp_router
 from app.routers import groups as groups_router
+from app.routers import announcements as announcements_router
 from app.routers import access_review as access_review_router
+from app.routers import takeover as takeover_router
 from app.routers import provision as provision_router
 from app.routers import profiles as profiles_router
+from app.routers import notices as notices_router
 from app.routers import me_storage as me_storage_router
+from app.routers import archive as archive_router
 from app.routers import services as services_router
 from app.routers import service_mounts as service_mounts_router
+from app.routers import smartcard as smartcard_router
 from app.routers import service_icons as service_icons_router
 from app.routers import services_auth as services_auth_router
 from app.security.deps import get_current_user, require_admin
@@ -59,6 +65,7 @@ from app.services.janitor import janitor_loop
 from app.services.settings_sync import settings_sync_loop
 from app.services.leader import LeaderTasks, get_elector
 from app.services.mount_jobs import sweep_interrupted
+from app.services.prom_metrics import PrometheusMiddleware, start_metrics_server
 from app.security.csrf import csrf_valid, CSRF_COOKIE, CSRF_HEADER, UNSAFE_METHODS
 
 logger = logging.getLogger("styx-portal")
@@ -66,7 +73,7 @@ _settings = Settings()
 
 _CSRF_EXEMPT = {"/api/auth/login", "/api/auth/login/matrix", "/api/auth/setup"}
 # /api/provision/: machine caller (mTLS + bearer), no cookies, so CSRF does not apply.
-_CSRF_EXEMPT_PREFIXES = ("/api/enroll/", "/api/agent/", "/api/provision/")
+_CSRF_EXEMPT_PREFIXES = ("/api/enroll/", "/api/agent/", "/api/provision/", "/api/smartcard/")
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):
@@ -116,6 +123,8 @@ async def lifespan(app: FastAPI):
     from app.middleware.rate_limit import _tunnel_pod_ips, snapshot_own_networks
     snapshot_own_networks()
     _tunnel_pod_ips()   # k8s: start the first cloudflared pod lookup (no-op in compose)
+
+    start_metrics_server(_settings.METRICS_PORT)
 
     await init_db()
 
@@ -169,13 +178,17 @@ async def lifespan(app: FastAPI):
 
     # Leader-only: boot steps run on every promotion, loops start after them.
     from app.services.account_deletion import account_deletion_loop
+    from app.services.profile_reclaim import profile_reclaim_loop
     from app.services.new_account_review import new_account_review_loop
     from app.services.new_account_digest import digest_loop
+    from app.services.scratch_reclaim import scratch_reclaim_loop
     leader_loops = [_session_monitor_loop, _service_health_loop, _metrics_db_loop, janitor_loop,
                     _lifecycle_loop,
                     partial(new_account_review_loop, async_session),
                     partial(digest_loop, async_session),
                     partial(account_deletion_loop, async_session),
+                    partial(scratch_reclaim_loop, async_session, instance_runtime()),
+                    partial(profile_reclaim_loop, async_session, instance_runtime),
                     # Thumbnails live in the shared DB: one capturer avoids PK races (#99).
                     partial(service_thumbnail_loop, async_session, _settings.SCREENSHOT_CACHE_DIR)]
     if _settings.ROUTE_BACKEND == "k8s":
@@ -185,6 +198,9 @@ async def lifespan(app: FastAPI):
     if _settings.HARBOR_URL:
         from app.services.cve_recycle import cve_recycle_loop
         leader_loops.append(cve_recycle_loop)
+    if _settings.archive_s3_endpoint:
+        from app.services.ageoff_job import ageoff_loop
+        leader_loops.append(ageoff_loop)
     leader = LeaderTasks(boot=[_probe_cleanup, _reconcile, _close_dangling, _refresh_routes],
                          loops=leader_loops)
     elector = get_elector()
@@ -243,16 +259,23 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "X-CSRF-Token", "X-Styx-Client"],
 )
+app.add_middleware(PrometheusMiddleware)  # outermost: also records 403/429 from inner middleware
 
 app.include_router(templates.router, prefix="/api/templates", tags=["templates"])
+app.include_router(smartcard_router.mint_router, prefix="/api/instances", tags=["smartcard"])
+app.include_router(smartcard_router.router, prefix="/api/smartcard", tags=["smartcard"])
 app.include_router(instance_thumbs.router, prefix="/api/instances", tags=["instances"])
 app.include_router(instances.router, prefix="/api/instances", tags=["instances"])
+app.include_router(takeover_router.router, prefix="/api/instances", tags=["takeover"])
+app.include_router(takeover_router.admin_router, prefix="/api/admin", tags=["takeover"])
+app.include_router(takeover_router.report_router, prefix="/api/admin/takeovers", tags=["takeover"])
 app.include_router(registry.router, prefix="/api/registry/images", tags=["registry"])
 app.include_router(images.router, prefix="/api/images", tags=["images"])
 app.include_router(auth_router.router, prefix="/api/auth", tags=["auth"])
 app.include_router(matrix_router.router, prefix="/api/auth", tags=["auth"])
 app.include_router(users_router.router, prefix="/api/users", tags=["users"])
 app.include_router(me_storage_router.router, prefix="/api/me", tags=["me"])
+app.include_router(archive_router.router, prefix="/api/archive", tags=["archive"])
 app.include_router(oauth_router.router, prefix="/api/auth/oauth", tags=["oauth"])
 app.include_router(oauth_admin_router.router, prefix="/api/oauth-providers", tags=["oauth-admin"])
 app.include_router(audit_router.router, prefix="/api/audit", tags=["audit"])
@@ -269,12 +292,16 @@ app.include_router(provisioned_router.router, prefix="/api/admin/provisioned", t
 app.include_router(turn_usage_router.router, prefix="/api/admin/turn-usage", tags=["turn-usage"])
 app.include_router(turn_usage_router.check_router, prefix="/api/admin/turn-check", tags=["turn-usage"])
 app.include_router(stats_router.router, prefix="/api/admin/stats", tags=["stats"])
+app.include_router(admin_console_router.router, prefix="/api/admin/console", tags=["admin-console"])
 app.include_router(provision_router.router, prefix="/api/provision", tags=["provision"])
 app.include_router(groups_router.router, prefix="/api/groups", tags=["groups"])
+app.include_router(announcements_router.admin_router, prefix="/api/admin/announcements", tags=["announcements"])
+app.include_router(announcements_router.router, prefix="/api/announcements", tags=["announcements"])
 app.include_router(group_dlp_router.router, prefix="/api/groups", tags=["groups"])
 app.include_router(access_review_router.router, prefix="/api/access-review", tags=["access-review"])
 app.include_router(groups_router.users_router, prefix="/api/users", tags=["groups"])
 app.include_router(profiles_router.router, prefix="/api/profiles", tags=["profiles"])
+app.include_router(notices_router.router, prefix="/api/notices", tags=["notices"])
 app.include_router(profiles_router.users_router, prefix="/api/users", tags=["profiles"])
 app.include_router(service_mounts_router.router, prefix="/api/services", tags=["services"])
 app.include_router(service_icons_router.router, prefix="/api/services", tags=["services"])
@@ -366,7 +393,7 @@ async def system_metrics(
     docker = instance_runtime()
 
     result = await session.exec(
-        select(Instance).where(Instance.status.in_(["running", "idle"]))
+        select(Instance).where(col(Instance.status).in_(["running", "idle"]))
     )
     running = result.all()
 
@@ -386,14 +413,14 @@ async def system_metrics(
     gpu_info = detect_gpu()
 
     events_result = await session.exec(
-        select(SessionEvent).order_by(SessionEvent.id.desc()).limit(20)
+        select(SessionEvent).order_by(col(SessionEvent.id).desc()).limit(20)
     )
     events = events_result.all()
 
     instances_map = {}
     if events:
         inst_ids = list({e.instance_id for e in events})
-        insts_result = await session.exec(select(Instance).where(Instance.id.in_(inst_ids)))
+        insts_result = await session.exec(select(Instance).where(col(Instance.id).in_(inst_ids)))
         instances_map = {i.id: i.name for i in insts_result.all()}
 
     recent_events = []

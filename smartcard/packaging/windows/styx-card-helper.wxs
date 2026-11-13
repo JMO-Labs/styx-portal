@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- WiX v4 package for the Styx smartcard helper. Per-machine install; registers styx-card://.
+     Build: wix build -d Version=<x.y.z> -d HelperExe=<path\to\signed styx-card-helper.exe> -arch x64 -o styx-card-helper.msi
+     See docs/enterprise/runbooks/smartcard-helper-signing.md. No certificates live in this repo. -->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Styx Card Helper" Manufacturer="JMO Labs" Version="$(Version)"
+           UpgradeCode="6B1D2F0E-5A47-4C8B-9E3D-7C2A91F4B0D5" Scope="perMachine"
+           InstallerVersion="500" Compressed="yes">
+    <MajorUpgrade DowngradeErrorMessage="A newer Styx Card Helper is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Styx Card Helper" />
+    </StandardDirectory>
+
+    <ComponentGroup Id="HelperComponents" Directory="INSTALLFOLDER">
+      <Component Id="HelperExe" Bitness="always64">
+        <File Id="StyxCardHelperExe" Source="$(HelperExe)" Name="styx-card-helper.exe" KeyPath="yes" />
+        <!-- HKLM\Software\Classes = per-machine URL handler, applies to every user. -->
+        <RegistryKey Root="HKLM" Key="Software\Classes\styx-card">
+          <RegistryValue Type="string" Value="URL:Styx Card Helper" />
+          <RegistryValue Name="URL Protocol" Type="string" Value="" />
+          <RegistryKey Key="shell\open\command">
+            <RegistryValue Type="string" Value="&quot;[INSTALLFOLDER]styx-card-helper.exe&quot; &quot;%1&quot;" />
+          </RegistryKey>
+        </RegistryKey>
+      </Component>
+    </ComponentGroup>
+
+    <Feature Id="Main" Title="Styx Card Helper" Level="1">
+      <ComponentGroupRef Id="HelperComponents" />
+    </Feature>
+  </Package>
+</Wix>

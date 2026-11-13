@@ -158,10 +158,16 @@ the pytest checks catch a bad value there.
 - Nothing here has been applied to a real node. The CI job only lints and
   syntax-checks; Molecule against real RKE2 is out of scope.
 
+## Air-gap
+
+`rke2_airgap_mode: true`. Phase 1 images (Harbor, Rook/Ceph, CNPG + PG 17, OpenBao, ESO, Traefik)
+come from one OCI archive built from `deploy/enterprise/images/phase1.lock`:
+`scripts/build_seed_bundle.sh` (CI, needs registry access). Run the playbook with
+`-e seed_bundle_src=out/phase1-seed.tar`; it lands in `/var/lib/rancher/rke2/agent/images/`.
+Once Harbor is up, `deploy/enterprise/harbor/seed-push-job.yaml` pushes the same digests into it.
+
 ## Open placeholders (TODO)
 
-- Air-gap: Cilium images come from the RKE2 image tarball or Harbor (with the item below).
-
-- Air-gap mode (`rke2_airgap_mode: false` for now) and pulling images through Harbor.
+- Cilium images still come from the RKE2 image tarball (`rke2_airgap_mode: true`).
 - The real VIP address and API DNS name (placeholders use RFC 5737 / `example.internal`).
 - Node OS: Ubuntu 24.04 assumed.

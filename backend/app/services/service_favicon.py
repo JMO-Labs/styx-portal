@@ -7,7 +7,7 @@ from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
 
 import httpx
-from sqlmodel import update
+from sqlmodel import col, update
 
 from app.config import Settings
 from app.models import ProxiedService, proxy_hostname, upstream_base
@@ -130,11 +130,11 @@ def _getter(svc: ProxiedService, docker, transport):
         hosts = {"host.docker.internal": "host-gateway"} if svc.upstream_fallback else None
         origin = page_url(svc)
 
-        async def get(url: str, cap: int) -> tuple[bytes, str] | None:
+        async def get_local(url: str, cap: int) -> tuple[bytes, str] | None:
             return await asyncio.to_thread(
                 docker.probe_fetch, url, Settings().SERVICES_NETWORK, cap, extra_hosts=hosts,
                 allow_redirect_to=lambda u: same_origin(u, origin), with_url=True)
-        return get
+        return get_local
 
     async def get(url: str, cap: int) -> tuple[bytes, str] | None:
         return await _get_httpx(url, cap, svc.verify_tls, page_url(svc), transport,
@@ -208,7 +208,7 @@ async def fetch_and_store(session_factory, svc_id: str, docker) -> None:
             return
         async with session_factory() as s:
             await s.exec(update(ProxiedService).where(
-                ProxiedService.id == svc_id, ProxiedService.icon_custom == False  # noqa: E712
+                col(ProxiedService.id) == svc_id, col(ProxiedService.icon_custom) == False  # noqa: E712
             ).values(icon=icon))
             await s.commit()
     except Exception:  # noqa: BLE001

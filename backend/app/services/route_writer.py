@@ -351,12 +351,12 @@ def _service_dict(s) -> dict:
 
 async def refresh_routes_from_db(session, strict: bool = False):
     """Query running/idle instances and (re)write the Traefik routes file."""
-    from sqlmodel import select
+    from sqlmodel import col, select
     from app.models import (
         Instance, ProxiedService, ServiceTemplate, Workstation)
 
     result = await session.exec(
-        select(Instance).where(Instance.status.in_(["running", "idle"]))
+        select(Instance).where(col(Instance.status).in_(["running", "idle"]))
     )
     running = result.all()
     data = []

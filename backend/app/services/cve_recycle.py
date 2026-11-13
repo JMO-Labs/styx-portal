@@ -11,11 +11,12 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import quote, urlsplit
 
 import httpx
-from sqlmodel import select
+from sqlmodel import col, select
 
 from app.config import Settings
 from app.models import Instance, ServiceTemplate, SessionEvent
 from app.services.image_digest import _split
+from app.services.session_audit import record_session_event
 
 log = logging.getLogger("styx.cve_recycle")
 
@@ -62,8 +63,8 @@ async def recycle_pass(session, stop, cfg: Settings, client: httpx.Client, *,
     now = _naive_utc(now)
     rows = (await session.exec(
         select(Instance, ServiceTemplate.image)
-        .join(ServiceTemplate, ServiceTemplate.id == Instance.template_id)
-        .where(Instance.status.in_(["running", "idle"]), Instance.image_digest.is_not(None))
+        .join(ServiceTemplate, col(ServiceTemplate.id) == Instance.template_id)
+        .where(col(Instance.status).in_(["running", "idle"]), col(Instance.image_digest).is_not(None))
     )).all()
     stopped = 0
     for inst, image in rows:
@@ -73,8 +74,9 @@ async def recycle_pass(session, stop, cfg: Settings, client: httpx.Client, *,
                 inst.status = "stopped"
                 inst.stopped_at = now
                 session.add(inst)
-                session.add(SessionEvent(instance_id=inst.id, event_type="cve_recycled",
-                                         details={"digest": inst.image_digest}))
+                await record_session_event(session, inst, "cve_recycled",
+                                           action="session.stop", reason="cve_recycle",
+                                           details={"digest": inst.image_digest})
                 stopped += 1
             continue
         crit = await asyncio.to_thread(has_critical, image, inst.image_digest, cfg, client)

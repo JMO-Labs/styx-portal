@@ -3,10 +3,11 @@ import hashlib
 import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
-from sqlmodel import select, update
+from sqlmodel import col, select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -18,7 +19,7 @@ from app.security.passwords import hash_password, verify_password, validate_pass
 from app.security.cookies import (DEVICE_COOKIE, TX_PATH, clear_auth_cookies, set_auth_cookies,
                                   set_device_cookie)
 from app.security.csrf import new_csrf_token, CSRF_COOKIE
-from app.security.deps import get_current_user
+from app.security.deps import can_takeover, get_current_user
 from app.security.setup_gate import users_exist
 from app.services import federation, login_flow, single_use, stream_sessions
 from app.services.audit import audit_request
@@ -153,8 +154,8 @@ async def setup(body: SetupRequest, request: Request, response: Response,
                     password_hash=hash_password(body.password), role="admin")
         session.add(user)
         await session.flush()
-        await session.exec(update(Instance).where(Instance.owner_id == None).values(owner_id=user.id))  # noqa: E711
-        await session.exec(update(ServiceTemplate).where(ServiceTemplate.owner_id == None).values(owner_id=user.id))  # noqa: E711
+        await session.exec(update(Instance).where(col(Instance.owner_id) == None).values(owner_id=user.id))  # noqa: E711
+        await session.exec(update(ServiceTemplate).where(col(ServiceTemplate.owner_id) == None).values(owner_id=user.id))  # noqa: E711
         await _issue_session(response, session, user, request)
         await audit_request(session, request, "auth.signup", user_id=user.id,
                             detail={"role": user.role, "via": "setup"})
@@ -187,8 +188,8 @@ async def login(body: LoginRequest, request: Request, response: Response,
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials")
 
     ok = bool(user and user.is_active)
-    pw_ok = verify_password(body.password, user.password_hash if ok else _dummy_hash())
-    if not (ok and pw_ok):
+    pw_ok = verify_password(body.password, user.password_hash if user and ok else _dummy_hash())
+    if not (user and ok and pw_ok):
         # The response path is identical whether or not the account exists.
         await login_flow.record_failure(
             session, request, username=body.username, ip=ip, resolved=resolved, rnd=rnd,
@@ -239,14 +240,14 @@ async def refresh(request: Request, response: Response,
     claimed = 0
     if not stored.revoked:
         res = await session.exec(update(RefreshToken).where(
-            RefreshToken.jti == stored.jti, RefreshToken.revoked == False)  # noqa: E712
+            col(RefreshToken.jti) == stored.jti, col(RefreshToken.revoked) == False)  # noqa: E712
             .values(revoked=True))
         claimed = res.rowcount
     if not claimed:
         # RFC 9700: replay of a rotated token — assume theft, kill the family
         await session.exec(
             update(RefreshToken)
-            .where(RefreshToken.family_id == stored.family_id)
+            .where(col(RefreshToken.family_id) == stored.family_id)
             .values(revoked=True)
         )
         await audit_request(session, request, "auth.refresh_reuse",
@@ -261,7 +262,7 @@ async def refresh(request: Request, response: Response,
     if (age > timedelta(seconds=_settings.SESSION_MAX_AGE)
             or login_flow.session_only_expired(stored.session_only, age)):
         await session.exec(update(RefreshToken).where(
-            RefreshToken.family_id == stored.family_id).values(revoked=True))
+            col(RefreshToken.family_id) == stored.family_id).values(revoked=True))
         await session.commit()
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Session expired")
     await _issue_session(response, session, user, request, family_id=stored.family_id,
@@ -291,7 +292,7 @@ async def logout(request: Request, response: Response,
         result = await session.exec(select(Workstation).where(
             Workstation.occupied_by == user_id,
             Workstation.active_connections > 0))
-        active = result.all()
+        active = list(result.all())
     if active and not end_session:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -309,7 +310,7 @@ async def logout(request: Request, response: Response,
     if stored:
         # Whole family: a forked/rotated sibling must not keep the proxy cookie alive.
         await session.exec(update(RefreshToken).where(
-            RefreshToken.family_id == (stored.family_id or stored.jti)).values(revoked=True))
+            col(RefreshToken.family_id) == (stored.family_id or stored.jti)).values(revoked=True))
         stored.revoked = True
         session.add(stored)
     # Hard kill-on-logout: revoke the current access-token jti so the stateless
@@ -340,6 +341,8 @@ def _me_out(user: User) -> UserOut:
 async def _me_full(session: AsyncSession, user: User) -> UserOut:
     out = _me_out(user)
     out.can_use_gpu = await user_may_use_gpu(session, user)
+    out.can_takeover = can_takeover(user)
+    out.staff_role = "platform-admin" if user.role == "admin" else user.staff_role
     return out
 
 
@@ -352,7 +355,7 @@ async def me(session: AsyncSession = Depends(get_session), user: User = Depends(
 async def set_preferences(body: OpenPreferences, session: AsyncSession = Depends(get_session),
                           user: User = Depends(get_current_user)):
     """Personal UI preference: no admin override, no audit entry."""
-    row = await session.get(User, user.id)
+    row = cast(User, await session.get(User, user.id))
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(row, k, v)
     session.add(row)
@@ -392,7 +395,7 @@ async def change_password(body: ChangePasswordRequest, request: Request, respons
         cur = None
     session_only = cur.session_only if cur else bool(user.matrix_card)
     await session.exec(update(RefreshToken)
-                       .where(RefreshToken.user_id == user.id)
+                       .where(col(RefreshToken.user_id) == user.id)
                        .values(revoked=True))
     # A card session keeps its family so MATRIX_SESSION_MAX_HOURS counts from the card login.
     family = (cur.family_id or cur.jti) if cur and session_only else None

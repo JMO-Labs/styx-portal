@@ -50,6 +50,21 @@ async def require_admin(request: Request, user: User = Depends(get_current_user)
     return user
 
 
+def require_staff_role(*roles: str):
+    """ADR-0026 gate: 403 unless the user's staff role is in `roles`.
+
+    A portal admin (`role == "admin"`) counts as `platform-admin`.
+    """
+    allowed = frozenset(roles)
+
+    async def dep(user: User = Depends(get_current_user)) -> User:
+        effective = "platform-admin" if user.role == "admin" else user.staff_role
+        if effective not in allowed:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Staff role required")
+        return user
+    return dep
+
+
 def can_takeover(user: User) -> bool:
     """ADR-0026: only platform-admin or help-desk (admin role counts as platform-admin)."""
     return user.role == "admin" or user.staff_role in ("platform-admin", "help-desk")

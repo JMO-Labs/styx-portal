@@ -10,6 +10,8 @@ import {
   useUnpauseInstance,
   useDeleteInstance,
 } from "@/hooks/use-instances";
+import { useAuth } from "@/hooks/use-auth";
+import { TakeoverDialog, endTakeoverFor } from "@/components/system/takeover-dialog";
 import { useSessionEvents } from "@/hooks/use-system";
 import { openPending } from "@/lib/connect-wipe";
 import { useOpenChoice } from "@/components/open-prompt";
@@ -25,6 +27,8 @@ import {
   ChevronDown,
   Filter,
   ExternalLink,
+  UserCog,
+  UserX,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -37,6 +41,11 @@ export function MetricsSessions() {
   const [filter, setFilter] = useState<string>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [destroyTarget, setDestroyTarget] = useState<Instance | null>(null);
+  const [takeTarget, setTakeTarget] = useState<Instance | null>(null);
+  const [taken, setTaken] = useState<Set<string>>(new Set());
+  const canTakeover = !!useAuth().user?.can_takeover;
+  const setTakenId = (id: string, on: boolean) =>
+    setTaken((p) => { const n = new Set(p); if (on) n.add(id); else n.delete(id); return n; });
 
   const filtered = instances?.filter((inst) => {
     if (filter === "all") return true;
@@ -62,7 +71,7 @@ export function MetricsSessions() {
           >
             {f.charAt(0).toUpperCase() + f.slice(1)}
             {f !== "all" && instances && (
-              <span className="ml-1 text-muted-foreground/60">
+              <span className="ml-1 text-muted-foreground">
                 {instances.filter((i) =>
                   f === "running" ? i.status === "running" || i.status === "idle" : i.status === f
                 ).length}
@@ -75,7 +84,7 @@ export function MetricsSessions() {
       {/* Session Table */}
       <div className="styx-card rounded-lg overflow-hidden">
         {/* Header */}
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] sm:grid-cols-[1fr_100px_80px_80px_140px] gap-2 px-4 py-2.5 border-b border-border/40 text-[10px] uppercase tracking-wider text-muted-foreground/60 font-medium">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] sm:grid-cols-[1fr_100px_80px_80px_140px] gap-2 px-4 py-2.5 border-b border-border/40 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
           <span>Instance</span>
           <span>Status</span>
           <span className="max-sm:hidden">Uptime</span>
@@ -86,7 +95,7 @@ export function MetricsSessions() {
         {/* Rows */}
         <div className="divide-y divide-border/40">
           {filtered.length === 0 ? (
-            <div className="py-8 text-center text-xs text-muted-foreground/60">
+            <div className="py-8 text-center text-xs text-muted-foreground">
               No instances match filter
             </div>
           ) : (
@@ -97,11 +106,22 @@ export function MetricsSessions() {
                 expanded={expandedId === inst.id}
                 onToggle={() => setExpandedId(expandedId === inst.id ? null : inst.id)}
                 onDestroyClick={(inst) => setDestroyTarget(inst)}
+                canTakeover={canTakeover}
+                takenOver={taken.has(inst.id)}
+                onTakeover={() => setTakeTarget(inst)}
+                onEndTakeover={() => endTakeoverFor(inst.id).then(
+                  () => { setTakenId(inst.id, false); toast.success(`Ended takeover of "${inst.name}"`); },
+                  (e: Error) => toast.error(e.message))}
               />
             ))
           )}
         </div>
       </div>
+
+      {takeTarget && (
+        <TakeoverDialog open instance={takeTarget} onOpenChange={(o) => !o && setTakeTarget(null)}
+          onStarted={() => setTakenId(takeTarget.id, true)} />
+      )}
 
       {/* Destroy confirmation dialog */}
       {destroyTarget && (
@@ -155,11 +175,19 @@ function SessionRow({
   expanded,
   onToggle,
   onDestroyClick,
+  canTakeover,
+  takenOver,
+  onTakeover,
+  onEndTakeover,
 }: {
   instance: Instance;
   expanded: boolean;
   onToggle: () => void;
   onDestroyClick: (inst: Instance) => void;
+  canTakeover: boolean;
+  takenOver: boolean;
+  onTakeover: () => void;
+  onEndTakeover: () => void;
 }) {
   const start = useStartInstance();
   const stop = useStopInstance();
@@ -196,12 +224,12 @@ function SessionRow({
         <div className="flex items-center gap-2.5 min-w-0">
           <ChevronDown
             className={cn(
-              "h-3 w-3 text-muted-foreground/60 transition-transform shrink-0",
+              "h-3 w-3 text-muted-foreground transition-transform shrink-0",
               expanded && "rotate-180"
             )}
           />
           <span className="text-sm text-foreground truncate">{instance.name}</span>
-          <span className="text-[10px] text-muted-foreground/60 font-mono truncate">{instance.subdomain}</span>
+          <span className="text-[10px] text-muted-foreground font-mono truncate">{instance.subdomain}</span>
         </div>
         <StatusBadge status={instance.status} />
         <span className="text-xs text-muted-foreground tabular-nums max-sm:hidden">
@@ -214,6 +242,9 @@ function SessionRow({
           {isRunning && (
             <>
               <ActionBtn icon={ExternalLink} color="success" title="Connect" onClick={connect} />
+              {canTakeover && (takenOver
+                ? <ActionBtn icon={UserX} color="warning" title="End takeover" onClick={onEndTakeover} />
+                : <ActionBtn icon={UserCog} color="blue" title="Take over" onClick={onTakeover} />)}
               <ActionBtn icon={RotateCcw} color="blue" title="Restart" onClick={() => restart.mutate(instance.id, { onError: (e) => toast.error(e.message) })} />
               <ActionBtn icon={Pause} color="warning" title="Pause" onClick={() => pause.mutate(instance.id, { onError: (e) => toast.error(e.message) })} />
               <ActionBtn icon={Square} color="destructive" title="Stop" onClick={() => stop.mutate(instance.id, { onError: (e) => toast.error(e.message) })} />
@@ -252,11 +283,11 @@ function SessionRow({
               )}
               <div className="border-l-2 border-border pl-3 space-y-1.5">
                 {(!events || events.length === 0) ? (
-                  <span className="text-[11px] text-muted-foreground/60">No events recorded</span>
+                  <span className="text-[11px] text-muted-foreground">No events recorded</span>
                 ) : (
                   events.slice(0, 10).map((ev, i) => (
                     <div key={i} className="flex items-center gap-2 text-[11px]">
-                      <span className="text-muted-foreground/60 tabular-nums w-20">{ev.time}</span>
+                      <span className="text-muted-foreground tabular-nums w-20">{ev.time}</span>
                       <span className={cn(
                         "font-medium",
                         ev.type === "error" ? "text-destructive" :
@@ -266,7 +297,7 @@ function SessionRow({
                       )}>
                         {ev.type}
                       </span>
-                      {ev.details && <span className="text-muted-foreground/60 truncate">{ev.details}</span>}
+                      {ev.details && <span className="text-muted-foreground truncate">{ev.details}</span>}
                     </div>
                   ))
                 )}

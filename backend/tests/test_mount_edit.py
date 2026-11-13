@@ -85,3 +85,10 @@ def test_xml_keeps_xsi_prefix():
     new, _ = edit_config(text, "xml", "/Config/UrlBase", "/x")
     assert 'xsi:nil="true"' in new
     assert "ns0:" not in new and "ns1:" not in new
+
+
+def test_ini_parser_preserves_key_case():
+    from app.services import mount_edit
+
+    cp = mount_edit._ini("[S]\nMixedKey = 1\n")
+    assert cp.options("S") == ["MixedKey"]

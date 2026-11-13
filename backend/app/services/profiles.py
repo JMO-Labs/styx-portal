@@ -2,9 +2,10 @@
 import asyncio
 import hashlib
 import logging
+from datetime import datetime, timezone
 
 from fastapi import HTTPException
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -36,10 +37,19 @@ async def ensure_profile(session: AsyncSession, user_id: str, template) -> str:
     return vol
 
 
+async def touch_profile(session: AsyncSession, user_id: str, template_id: str) -> None:
+    """Stamp last_used_at (age-off input). Caller's session commits."""
+    row = await session.get(UserProfile, (user_id, template_id))
+    if row is not None:
+        row.last_used_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        session.add(row)
+        await session.commit()
+
+
 async def profile_in_use(session: AsyncSession, volume: str,
                          exclude_instance_id: str | None = None) -> Instance | None:
     stmt = select(Instance).where(Instance.profile_volume == volume,
-                                  Instance.status.in_(ACTIVE))
+                                  col(Instance.status).in_(ACTIVE))
     if exclude_instance_id:
         stmt = stmt.where(Instance.id != exclude_instance_id)
     return (await session.exec(stmt)).first()
@@ -137,6 +147,7 @@ async def claim_profile(session, user_id: str, template) -> str:
         raise HTTPException(422, "Template does not offer persistent profiles")
     vol = await ensure_profile(session, user_id, template)
     await _ensure_free(session, vol, template)
+    await touch_profile(session, user_id, template.id)
     return vol
 
 
@@ -145,6 +156,7 @@ async def check_instance_profile(session, instance) -> None:
     if instance.profile_volume:
         template = await session.get(ServiceTemplate, instance.template_id)
         await _ensure_free(session, instance.profile_volume, template, instance.id)
+        await touch_profile(session, instance.owner_id, instance.template_id)
 
 
 async def prepare_volumes(docker, template, instance) -> dict:

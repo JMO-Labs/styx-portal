@@ -3,9 +3,12 @@ import { useCanvasEffect } from "@/hooks/use-canvas-effect";
 import { createWaves } from "@/lib/effects/waves";
 import { Link, useParams } from "react-router";
 import { Home, Loader2, Maximize, Unplug } from "lucide-react";
-import { useInstances, useKeepalive } from "@/hooks/use-instances";
+import { useInstances, useKeepalive, useTakeover } from "@/hooks/use-instances";
 import { useTemplates } from "@/hooks/use-templates";
 import { startActivityHeartbeat } from "@/lib/activity";
+import { useProfile } from "@/hooks/use-profile";
+import { TakeoverBanner } from "@/components/common/takeover-banner";
+import { SmartcardConnect } from "@/components/launch/smartcard-connect";
 import { startThumbUploader } from "@/lib/stream-thumb";
 
 const ALLOW = "fullscreen; clipboard-read; clipboard-write; autoplay; gamepad; microphone; camera; display-capture; pointer-lock";
@@ -63,9 +66,11 @@ export function DesktopPage() {
   const { data, isPending } = useInstances();
   const instance = data?.find((i) => i.subdomain === sub);
   const keepalive = useKeepalive();
+  const { profile, smartcard } = useProfile();
   const frameRef = useRef<HTMLIFrameElement>(null);
   const live = instance?.status === "running" || instance?.status === "idle";
   const id = instance?.id;
+  const { data: takeover } = useTakeover(id, live);
 
   const { data: templates } = useTemplates();
   const icon = faviconHref(templates?.find((t) => t.id === instance?.template_id)?.icon);
@@ -112,6 +117,7 @@ export function DesktopPage() {
   return (
     <div className="flex h-dvh w-screen flex-col bg-black">
       <Toolbar name={instance.name} />
+      <TakeoverBanner takeover={takeover} />
       {instance.status === "idle" && (
         <div role="alert" className="fixed inset-x-0 top-10 z-10 flex items-center justify-center gap-3 bg-amber-500 px-3 py-2 text-sm font-medium text-black">
           Pausing soon due to inactivity
@@ -124,6 +130,7 @@ export function DesktopPage() {
           </button>
         </div>
       )}
+      {profile === "enterprise" && smartcard && <SmartcardConnect instanceId={instance.id} />}
     <iframe
       ref={frameRef}
       src={`/i/${sub}/`}

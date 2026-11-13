@@ -1,5 +1,7 @@
 import pytest
 
+from sqlmodel import select
+
 from app.models import User
 from app.security.deps import can_takeover
 from app.services import federation
@@ -84,3 +86,34 @@ async def test_oidc_callback_syncs_staff_role(client, session):
     session.expire_all()
     u = (await session.exec(select(User).where(User.email == "kc@x.com"))).one()
     assert u.staff_role == "help-desk"
+
+
+@pytest.mark.asyncio
+async def test_me_exposes_can_takeover(member_client, session):
+    # member_client shares one client; check member first, then promote via staff_role.
+    assert (await member_client.get("/api/auth/me")).json()["can_takeover"] is False
+    member = (await session.exec(select(User).where(User.username == "member"))).first()
+    member.staff_role = "help-desk"
+    session.add(member)
+    await session.commit()
+    assert (await member_client.get("/api/auth/me")).json()["can_takeover"] is True
+
+
+@pytest.mark.asyncio
+async def test_me_admin_can_takeover(admin_client):
+    assert (await admin_client.get("/api/auth/me")).json()["can_takeover"] is True
+
+
+@pytest.mark.asyncio
+async def test_me_exposes_effective_staff_role(member_client, session):
+    assert (await member_client.get("/api/auth/me")).json()["staff_role"] == ""
+    member = (await session.exec(select(User).where(User.username == "member"))).first()
+    member.staff_role = "auditor"
+    session.add(member)
+    await session.commit()
+    assert (await member_client.get("/api/auth/me")).json()["staff_role"] == "auditor"
+
+
+@pytest.mark.asyncio
+async def test_me_admin_effective_staff_role(admin_client):
+    assert (await admin_client.get("/api/auth/me")).json()["staff_role"] == "platform-admin"

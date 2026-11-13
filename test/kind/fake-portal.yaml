@@ -1,0 +1,40 @@
+# Fake portal for scripts/kind/30-loadtest-smoke.sh. The ConfigMap `fake-portal-src`
+# (holding fake-portal.py) is created by the script before applying this file.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fake-portal
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: fake-portal}
+  template:
+    metadata:
+      labels: {app: fake-portal}
+    spec:
+      containers:
+        - name: portal
+          image: python:3.12-alpine
+          command: ["python3", "/app/fake-portal.py"]
+          env:
+            - {name: READY_AFTER, value: "2"}
+          ports:
+            - containerPort: 8000
+          readinessProbe:
+            httpGet: {path: /, port: 8000}
+            periodSeconds: 1
+          volumeMounts:
+            - {name: src, mountPath: /app}
+      volumes:
+        - name: src
+          configMap: {name: fake-portal-src}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-portal
+spec:
+  selector: {app: fake-portal}
+  ports:
+    - port: 8000
+      targetPort: 8000

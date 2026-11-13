@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import delete as sa_delete
+from sqlmodel import col
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -41,4 +42,4 @@ async def get(session: AsyncSession, service_id: str) -> bytes | None:
 
 async def delete(session: AsyncSession, service_id: str) -> None:
     # Bulk DELETE (not ORM): avoids a stale-row warning when the FK cascade wins the race on PG.
-    await session.exec(sa_delete(ServiceThumbnail).where(ServiceThumbnail.service_id == service_id))
+    await session.exec(sa_delete(ServiceThumbnail).where(col(ServiceThumbnail.service_id) == service_id))

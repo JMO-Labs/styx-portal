@@ -8,7 +8,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
-from sqlmodel import select, delete
+from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -388,7 +388,7 @@ async def set_access(ws_id: str, body: WorkstationAccessUpdate,
                      session: AsyncSession = Depends(get_session)):
     ws = await _get_or_404(session, ws_id)
     await session.exec(delete(WorkstationAccess).where(
-        WorkstationAccess.workstation_id == ws.id))
+        col(WorkstationAccess.workstation_id) == ws.id))
     for uid in set(body.user_ids):
         session.add(WorkstationAccess(workstation_id=ws.id, user_id=uid))
     await session.flush()
@@ -407,7 +407,7 @@ async def delete_workstation(ws_id: str, request: Request, purge: bool = False,
     ws = await _get_or_404(session, ws_id)
     if purge:
         await session.exec(delete(WorkstationAccess).where(
-            WorkstationAccess.workstation_id == ws.id))
+            col(WorkstationAccess.workstation_id) == ws.id))
         await audit_request(session, request, "workstation.purge",
                             user_id=admin.id, resource=ws.id)
         await session.delete(ws)
