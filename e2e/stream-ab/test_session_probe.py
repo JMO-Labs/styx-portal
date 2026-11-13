@@ -17,23 +17,27 @@ class Clock:
         self.t += s
 
 
-def run_ok(samples, sent=None):
-    out = json.dumps({"samples": samples, "sent": sent or {k: len(v) for k, v in samples.items()}})
-    return lambda cmd: (0, out)
+GOOD = {"t0": 100, "dec": 120, "pres": 130, "presCb": 131, "hit": True, "settled": True}
+MISS = {"t0": 100, "dec": 120, "pres": None, "presCb": None, "hit": False, "settled": True}
 
 
-def test_parse_round_flattens_and_counts_misses():
-    out = json.dumps({"samples": {"key": [10.0, None], "mouse": [20.0], "motion": []},
-                      "sent": {"key": 2, "mouse": 3, "motion": 0}})
+def test_parse_round_real_schema_counts_misses():
+    out = json.dumps({"samples": {"key": [GOOD, MISS], "mouse": [GOOD], "motion": []},
+                      "sent": {"key": 3, "mouse": 2, "motion": 1}})
     rtt, drops = P.parse_round(out)
-    assert rtt == [10.0, 20.0]
-    assert drops == 1 + 2  # one null + two mouse samples never reported
+    assert rtt == [30.0, 30.0]
+    assert drops == 1  # only the pres-null sample; `sent` overhead is ignored
+
+
+def test_parse_round_null_t0_is_drop():
+    rtt, drops = P.parse_round(json.dumps({"samples": {"key": [{"t0": None, "pres": 5}]}}))
+    assert rtt == [] and drops == 1
 
 
 def test_stream_mode_rounds_and_failures():
     c = Clock()
     calls = []
-    results = [(0, json.dumps({"samples": {"key": [5.0, 6.0]}, "sent": {"key": 2}})),
+    results = [(0, json.dumps({"samples": {"key": [GOOD, MISS]}, "sent": {"key": 3}})),
                (1, ""), (0, "not json")]
 
     def run(cmd):
@@ -43,7 +47,7 @@ def test_stream_mode_rounds_and_failures():
     res = P.probe("http://s/", 3, "stream", run=run, now=c.now, sleep=c.sleep, round_s=60)
     assert len(calls) == 3
     assert any(a == "--url=http://s/" for a in calls[0])
-    assert res == {"rtt_ms": [5.0, 6.0], "drops": 2}
+    assert res == {"rtt_ms": [30.0], "drops": 3}
 
 
 def test_stream_mode_exception_is_drop():

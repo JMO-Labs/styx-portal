@@ -9,6 +9,8 @@ import time
 import urllib.request
 from pathlib import Path
 
+import latstats
+
 HERE = Path(__file__).resolve().parent
 ROUND_S = 60            # nominal duration of one latency.mjs round
 ROUND_N = 20            # samples per input kind per round
@@ -16,14 +18,17 @@ HTTP_TIMEOUT = 5.0
 
 
 def parse_round(out: str) -> tuple[list, int]:
-    """latency.mjs JSON -> (rtt samples, drops). Null samples and sent-but-unreported count as drops."""
+    """latency.mjs JSON -> (rtt samples, drops). Each sample is {t0, dec, pres, ...}; RTT is the
+    presented latency. A sample with no presented value is a drop (same as latstats "missed")."""
     d = json.loads(out)
-    sent = d.get("sent") or {}
     rtt, drops = [], 0
-    for kind, vals in (d.get("samples") or {}).items():
-        good = [float(v) for v in vals if v is not None]
-        rtt += good
-        drops += (len(vals) - len(good)) + max(0, int(sent.get(kind, len(vals))) - len(vals))
+    for vals in (d.get("samples") or {}).values():
+        for s in vals:
+            v = latstats.sample_ms(s, "pres")
+            if v is None:
+                drops += 1
+            else:
+                rtt.append(v)
     return rtt, drops
 
 
