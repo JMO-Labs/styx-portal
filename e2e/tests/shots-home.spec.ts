@@ -17,7 +17,7 @@ test("home has no vertical overflow at 1440 and 390", async ({ page }) => {
   for (const sz of SIZES) {
     await page.setViewportSize({ width: sz.w, height: sz.h });
     await page.goto("/");
-    await expect(page.getByRole("region", { name: "Apps" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "My services" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight), `${sz.w}px`).toBe(true);
     expect(await overflow(page)).toBeLessThanOrEqual(0);
   }
