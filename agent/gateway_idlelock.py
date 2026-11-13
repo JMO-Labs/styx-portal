@@ -13,6 +13,7 @@ from aiohttp import web
 
 LOCK_CODE = 4003
 TOKEN_MAX_S = 60
+EXEMPT = frozenset({"/styx/unlock", "/styx/state"})   # reachable while locked
 
 
 def verify_token(token: str, key: str, instance_id: str, now: float | None = None) -> bool:
@@ -93,7 +94,7 @@ class IdleLock:
 
     @web.middleware
     async def middleware(self, request, handler):
-        if not self.locked or request.path.startswith("/styx/"):
+        if not self.locked or request.path in EXEMPT:
             return await handler(request)
         if (request.headers.get("Upgrade", "").lower() != "websocket"
                 and request.method == "GET"

@@ -182,3 +182,32 @@ async def test_webrtc_close_stamps_last_disconnect(tmp_path):
 async def _pair_rtc_off(tmp_path):
     from .test_gateway_webrtc import _pair as rtc_pair
     return await rtc_pair(tmp_path)
+
+
+@pytest.mark.asyncio
+async def test_passive_viewer_does_not_lock_active_controller():
+    up, client = await _pair(**LOCK)
+    try:
+        ctl = await _vid_ws(client, "A", HDR)
+        viewer = await _vid_ws(client, "B", HDR, role="viewer")
+        for _i in range(5):
+            await asyncio.sleep(0.4)
+            await ctl.send_str("kd,65")
+        assert not ctl.closed and not viewer.closed
+        st = await (await client.get("/styx/state", headers=HDR)).json()
+        assert st["locked"] is False
+    finally:
+        await client.close(); await up.close()
+
+
+@pytest.mark.asyncio
+async def test_only_unlock_and_state_exempt_while_locked():
+    up, client = await _pair(**LOCK)
+    try:
+        await _locked(client)
+        for path in ("/styx/refit", "/styx/activity", "/styx/gamemode"):
+            r = await client.post(path, headers=HDR)
+            assert r.status == 423, path
+        assert (await client.get("/styx/state", headers=HDR)).status == 200
+    finally:
+        await client.close(); await up.close()

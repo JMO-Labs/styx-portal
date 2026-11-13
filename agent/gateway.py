@@ -463,10 +463,11 @@ def create_app(user: str, password: str,
                 log(f"ws open vid={vid[:8]} role={'viewer' if shared else 'controller'} "
                     f"from={peer} (n={conns['n']})")
 
+                # Viewers never send input: only controllers arm the global lock.
+                watch = [] if shared else [lock.watch(ws_server, opened, rec)]
                 await asyncio.gather(pump(ws_server, ws_client, on_activity=on_client),
                                      pump(ws_client, ws_server, on_binary=mark_frame),
-                                     idle_closer(), lock.watch(ws_server, opened, rec),
-                                     return_exceptions=True)
+                                     idle_closer(), *watch, return_exceptions=True)
             finally:
                 conns["n"] -= 1
                 if rec:
