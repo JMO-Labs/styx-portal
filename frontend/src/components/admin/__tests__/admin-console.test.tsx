@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
-import { beforeEach, expect, test, vi } from "vitest";
+import { MemoryRouter, Route, Routes } from "react-router";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 const sessions = vi.fn();
 const capacity = vi.fn();
@@ -18,7 +18,9 @@ import { AdminConsole } from "../admin-console";
 
 const view = (path: string) => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <MemoryRouter initialEntries={[path]}><AdminConsole /></MemoryRouter>
+    <MemoryRouter initialEntries={[path]}>
+      <Routes><Route path="/admin/*" element={<AdminConsole />} /></Routes>
+    </MemoryRouter>
   </QueryClientProvider>);
 
 beforeEach(() => {
@@ -26,6 +28,13 @@ beforeEach(() => {
   user = { role: "user", staff_role: "help-desk" };
   sessions.mockResolvedValue({ sessions: [{ id: "i1", owner: "alice", template: "Firefox", image: "img:1", started_at: "2026-11-13T10:00:00", node: "local" }] });
   capacity.mockResolvedValue({ running: 3, max_per_user: 2, limit: null, live_streams: 1, per_node: { local: 3 } });
+});
+
+afterEach(() => { vi.useRealTimers(); });
+
+test("index redirects to sessions", async () => {
+  view("/admin");
+  expect(await screen.findByText("alice")).toBeInTheDocument();
 });
 
 test("sessions page lists running sessions", async () => {
@@ -74,5 +83,4 @@ test("sessions refetch every 15 s", async () => {
   await screen.findByText("alice");
   await vi.advanceTimersByTimeAsync(15_100);
   expect(sessions.mock.calls.length).toBeGreaterThanOrEqual(2);
-  vi.useRealTimers();
 });
