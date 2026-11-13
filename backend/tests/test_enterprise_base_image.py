@@ -58,10 +58,39 @@ def test_start_script_has_display_source_and_port():
 
 
 def test_apt_run_does_not_swallow_install_failure():
-    run = next(i for i in DOCKERFILE.split("\n\n") if "apt-get install" in i)
+    # Runtime stage only: builder stages (relay, vpcd) may install freely.
+    runtime = DOCKERFILE.split("\nFROM ")[-1]
+    run = next(i for i in runtime.split("\n\n") if "apt-get install" in i)
     assert "apt-get install" in run
     assert "{ find" in run and "|| true; }" in run
     assert "-exec chmod a-s {} + 2>/dev/null || true \\" not in run
+
+
+def test_vsmartcard_tarball_checksum_verified():
+    assert re.search(r"^ARG VSMARTCARD_SHA256=[0-9a-f]{64}$", DOCKERFILE, re.M)
+    assert 'echo "${VSMARTCARD_SHA256}  ' in DOCKERFILE and "sha256sum -c -" in DOCKERFILE
+    assert not re.search(r"curl[^\n]*vsmartcard[^\n]*\n[^\n]*\|\s*tar", DOCKERFILE)
+
+
+def test_vpcd_stage_installs_python_for_configure():
+    # virtualsmartcard's configure aborts without a Python interpreter (>= 3.2).
+    stage = DOCKERFILE.split(" AS vpcd")[1].split("\nFROM ")[0]
+    assert re.search(r"\bpython3\b", stage.split("./configure")[0])
+
+
+def test_vpcd_installs_where_pcscd_looks():
+    # vsmartcard prepends --prefix to pkg-config dirs (/usr/etc, /usr/usr/lib); pin them.
+    stage = DOCKERFILE.split(" AS vpcd")[1].split("\nFROM ")[0]
+    assert "--enable-serialconfdir=/etc/reader.conf.d" in stage
+    assert "--enable-serialdropdir=/usr/lib/pcsc/drivers/serial" in stage
+
+
+def test_smartcard_smoke_avoids_procps_and_uses_ulong():
+    smoke = (BASE.parents[1] / "scripts/kind/20-smartcard-smoke.sh").read_text()
+    assert "pgrep" not in smoke
+    assert "/proc/[0-9]*/comm" in smoke
+    assert "c_uint32" not in smoke and "ctypes.c_ulong(0)" in smoke
+    assert "SCardListReaders.argtypes" in smoke and "SCardEstablishContext.argtypes" in smoke
 
 
 def test_dockerfile_applies_selkies_patches_after_pip_install():
@@ -71,7 +100,7 @@ def test_dockerfile_applies_selkies_patches_after_pip_install():
 
 
 def test_patch_tool_installed_for_selkies_series():
-    apt = re.search(r"apt-get install[^&]*", DOCKERFILE).group(0)
+    apt = re.search(r"apt-get install[^&]*", DOCKERFILE.split("\nFROM ")[-1]).group(0)
     assert re.search(r"\bpatch\b", apt)
 
 
