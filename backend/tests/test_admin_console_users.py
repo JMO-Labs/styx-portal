@@ -1,5 +1,5 @@
 """Admin console user detail API (styx-portal#302)."""
-from datetime import datetime, timezone
+from datetime import datetime
 
 import pytest
 from sqlmodel import select
