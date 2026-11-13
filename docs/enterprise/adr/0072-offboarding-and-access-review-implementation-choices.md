@@ -1,14 +1,14 @@
-# ADR-0071: Offboarding and access-review implementation choices
+# ADR-0072: Offboarding and access-review implementation choices
 
 - Status: Proposed
 - Date: 2026-11-13
-- Decision ID: D70
+- Decision ID: D71
 - Related controls: AC-2, AC-2(3), AC-2(4), PS-4
 - Refines: ADR-0022, ADR-0023, ADR-0024
 
 ## Context
 
-The offboarding, new-account review and quarterly access-review issues left choices that no earlier ADR fixes. This records them for owner acceptance. (The ticket proposed number 0062; that is taken by the SCIM ADR, so this is the next free number.)
+The offboarding, new-account review and quarterly access-review issues left choices that no earlier ADR fixes. This records them for owner acceptance. (The ticket proposed number 0062; taken by SCIM; 0071 by Wiki.js/Matrix, so this is 0072.)
 
 ## Decision
 
