@@ -158,6 +158,7 @@ AGENT_UPDATE_FILES = [
     ("refit.py", "refit.py"),
     ("seat_scale.py", "seat_scale.py"),
     ("shallow_pipe.py", "shallow_pipe.py"),
+    ("stream_override.py", "stream_override.py"),
     ("viewers.py", "viewers.py"),
     ("seat_portal.py", "seat_portal.py"),
     ("seat_clipboard.py", "seat_clipboard.py"),
