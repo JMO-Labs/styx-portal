@@ -4,7 +4,6 @@ import json
 import logging
 
 import pytest
-from sqlmodel import select
 
 from app.models import User
 from tests.test_workstation_agent_api import _auth, _make_ws
