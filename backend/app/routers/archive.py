@@ -58,7 +58,7 @@ def _walk(homes_root: str, uid: int, relpath: str, create: bool) -> tuple[int, s
             except FileNotFoundError:
                 if not create:
                     raise HTTPException(404, "file not found") from None
-                os.mkdir(part, 0o755, dir_fd=fd)
+                os.mkdir(part, 0o700, dir_fd=fd)
                 _chown(part, uid, dir_fd=fd, follow_symlinks=False)
                 nfd = os.open(part, _DIR, dir_fd=fd)
             except OSError as e:
@@ -101,7 +101,8 @@ def _send(store, key: str, homes_root: str, uid: int, relpath: str) -> None:
     dfd, leaf = _walk(homes_root, uid, relpath, create=False)
     try:
         try:
-            fd = os.open(leaf, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dfd)
+            fd = os.open(leaf, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                         dir_fd=dfd)
         except OSError:
             raise HTTPException(404, "file not found") from None
         with os.fdopen(fd, "rb") as fh:

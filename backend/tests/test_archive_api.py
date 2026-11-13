@@ -179,6 +179,27 @@ async def test_send_refuses_symlink_target(env, session, tmp_path_factory):
     assert r.status_code == 404 and not store.objs
 
 
+
+async def test_send_fifo_404_without_blocking(env, session):
+    c, store, home, _ = env
+    uid = await _uid(session)
+    h = home / str(uid)
+    h.mkdir()
+    os.mkfifo(h / "p")
+    r = await c.post("/api/archive/send", json={"relpath": "p"})
+    assert r.status_code == 404 and not store.objs
+    assert (h / "p").exists()
+
+
+async def test_restore_creates_private_parent_dirs(env, session):
+    c, store, home, _ = env
+    uid = await _uid(session)
+    store.objs[(str(uid), "a/b/f.txt")] = (b"x", 1.0)
+    r = await c.post("/api/archive/restore", json={"relpath": "a/b/f.txt"})
+    assert r.status_code == 200, r.text
+    assert (home / str(uid) / "a").stat().st_mode & 0o777 == 0o700
+
+
 def _nested_link(home, uid, outside):
     h = home / str(uid) / "a"
     h.mkdir(parents=True)
