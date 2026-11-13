@@ -555,3 +555,16 @@ class SetupToken(SQLModel, table=True):
     id: int = Field(default=1, primary_key=True)
     token: str
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+
+
+class SmartcardToken(SQLModel, table=True):
+    """One-time relay token for a desktop session (ADR-0041). Only the hash is stored."""
+    __tablename__ = "smartcard_tokens"
+
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    token_hash: str = Field(unique=True, index=True)
+    user_id: str = Field(foreign_key="users.id", index=True)
+    instance_id: str = Field(foreign_key="instances.id", index=True)
+    expires_at: NaiveDatetime = Field(sa_type=UTCDateTime)
+    used_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)

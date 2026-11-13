@@ -41,6 +41,7 @@ from app.routers import profiles as profiles_router
 from app.routers import me_storage as me_storage_router
 from app.routers import services as services_router
 from app.routers import service_mounts as service_mounts_router
+from app.routers import smartcard as smartcard_router
 from app.routers import service_icons as service_icons_router
 from app.routers import services_auth as services_auth_router
 from app.security.deps import get_current_user, require_admin
@@ -63,7 +64,7 @@ _settings = Settings()
 
 _CSRF_EXEMPT = {"/api/auth/login", "/api/auth/login/matrix", "/api/auth/setup"}
 # /api/provision/: machine caller (mTLS + bearer), no cookies, so CSRF does not apply.
-_CSRF_EXEMPT_PREFIXES = ("/api/enroll/", "/api/agent/", "/api/provision/")
+_CSRF_EXEMPT_PREFIXES = ("/api/enroll/", "/api/agent/", "/api/provision/", "/api/smartcard/")
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):
@@ -240,6 +241,8 @@ app.add_middleware(
 )
 
 app.include_router(templates.router, prefix="/api/templates", tags=["templates"])
+app.include_router(smartcard_router.mint_router, prefix="/api/instances", tags=["smartcard"])
+app.include_router(smartcard_router.router, prefix="/api/smartcard", tags=["smartcard"])
 app.include_router(instance_thumbs.router, prefix="/api/instances", tags=["instances"])
 app.include_router(instances.router, prefix="/api/instances", tags=["instances"])
 app.include_router(registry.router, prefix="/api/registry/images", tags=["registry"])
