@@ -20,7 +20,7 @@ def verify_token(token: str, key: str, instance_id: str, now: float | None = Non
         return False
     iid, _, rest = token.partition(".")
     exp_s, _, sig = rest.partition(".")
-    if not exp_s.isdigit() or not sig or iid != instance_id:
+    if not (exp_s.isascii() and exp_s.isdigit()) or not sig or iid != instance_id:
         return False
     now = time.time() if now is None else now
     exp = int(exp_s)

@@ -99,6 +99,7 @@ async def test_valid_token_unlocks_and_redirects():
     lambda: _tok(key="wrong"),                         # forged
     lambda: _tok(iid="other"),                         # wrong instance
     lambda: "garbage",
+    lambda: f"{IID}.\u00b2.ab",                        # non-ASCII digit
 ])
 async def test_bad_token_403_stays_locked(make):
     up, client = await _pair(**LOCK)
