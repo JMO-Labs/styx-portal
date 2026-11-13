@@ -14,6 +14,11 @@ export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/runtime-$(id -u)}"
 # Selkies serves only the gateway: loopback, no basic auth of its own.
 export SELKIES_ENABLE_BASIC_AUTH=false
 mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
+if [ "${SMARTCARD_ENABLED:-false}" = "true" ]; then
+    # pcscd (vpcd reader) and the relay come up before Selkies.
+    pcscd --foreground --disable-polkit &
+    STYX_RELAY_ADDR="0.0.0.0:${SMARTCARD_RELAY_PORT:-8090}" /usr/local/bin/styx-card-relay &
+fi
 
 export STYX_GW_USER="${STYX_GW_USER:-styx}"
 export STYX_GW_PASSWORD="${STYX_GW_PASSWORD:-$STYX_UNLOCK_KEY}"

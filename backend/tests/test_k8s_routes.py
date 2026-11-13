@@ -266,3 +266,22 @@ def test_same_namespace_ref_keeps_bare_servers_transport():
                             "serversTransport": "selkies-transport"}}
     ref, _ = _service_objects("ws-x", svc, "styx")
     assert ref["serversTransport"] == "selkies-transport"
+
+
+def test_smartcard_route_added_when_enabled(monkeypatch):
+    from app.services import route_writer
+    monkeypatch.setattr(route_writer._settings, "SMARTCARD_ENABLED", True)
+    monkeypatch.setattr(route_writer._settings, "SMARTCARD_RELAY_PORT", 8090)
+    cfg, objs = _objs()
+    ir = _get(objs, "IngressRoute", "ws-ws1-smartcard")
+    (route,) = ir["spec"]["routes"]
+    assert "/w/desk/smartcard" in route["match"]
+    assert route["services"] == [{"name": "ws-ws1-smartcard", "port": 8090}]
+    assert "ws-auth-ws1" in [m["name"] for m in route["middlewares"]]
+    svc = _get(objs, "EndpointSlice", "ws-ws1-smartcard-ep")
+    assert svc["endpoints"][0]["addresses"] == ["192.168.1.50"]
+
+
+def test_no_smartcard_route_by_default():
+    _, objs = _objs()
+    assert not [o for o in objs if "smartcard" in o["metadata"]["name"]]

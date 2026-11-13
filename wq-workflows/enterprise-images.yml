@@ -11,6 +11,7 @@ on:
       - "patches/selkies/**"
       - "scripts/apply_selkies_patches.sh"
       - "images/golden/**"
+      - "smartcard/**"
       - ".github/workflows/enterprise-images.yml"
   pull_request:
     branches: [enterprise]
@@ -20,6 +21,7 @@ on:
       - "patches/selkies/**"
       - "scripts/apply_selkies_patches.sh"
       - "images/golden/**"
+      - "smartcard/**"
       - ".github/workflows/enterprise-images.yml"
 
 permissions:
