@@ -135,3 +135,13 @@ export function useKeepalive() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["instances"] }),
   });
 }
+
+/** Active staff takeover of an instance (polled every 5 s while `enabled`); null when none or not permitted. */
+export function useTakeover(id: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ["takeover", id],
+    queryFn: () => api.takeover(id!).catch(() => null),
+    enabled: enabled && !!id,
+    refetchInterval: 5000,
+  });
+}

@@ -351,6 +351,8 @@ export const api = {
     ),
   getInstanceStatus: (id: string) =>
     request<InstanceStatus>(`/instances/${id}/status`),
+  takeover: (id: string) =>
+    request<{ actor_name: string; mode: string; started_at: string } | null>(`/instances/${id}/takeover`),
   keepalive: (id: string) =>
     request<Instance>(`/instances/${id}/keepalive`, { method: "POST" }),
   getInstanceStats: (id: string) =>

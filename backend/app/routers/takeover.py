@@ -37,6 +37,12 @@ class TakeoverOut(BaseModel):
     started_at: datetime
 
 
+class ActiveTakeoverOut(BaseModel):
+    actor_name: str
+    mode: str
+    started_at: datetime
+
+
 async def _gate(session: AsyncSession, request: Request, user: User, iid: str,
                 action: str) -> Instance:
     inst = await session.get(Instance, iid)
@@ -95,3 +101,20 @@ async def end_takeover(iid: str, request: Request, user: User = Depends(get_curr
                         resource=iid, detail=_detail(t))
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/{iid}/takeover", response_model=ActiveTakeoverOut | None)
+async def get_takeover(iid: str, user: User = Depends(get_current_user),
+                       session: AsyncSession = Depends(get_session)):
+    """Active takeover for the session owner's banner; readable by owner and actor only."""
+    inst = await session.get(Instance, iid)
+    if inst is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Instance not found")
+    t = await _active(session, iid)
+    if user.id != inst.owner_id and not (t and t.actor_id == user.id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not permitted")
+    if t is None:
+        return None
+    actor = await session.get(User, t.actor_id)
+    name = (actor.display_name or actor.username) if actor else "Support staff"
+    return ActiveTakeoverOut(actor_name=name, mode=t.mode, started_at=t.started_at)
