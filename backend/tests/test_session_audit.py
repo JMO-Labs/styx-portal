@@ -24,6 +24,11 @@ def lines():
     log.removeHandler(h)
 
 
+def _session_only(evs):
+    """Drop non-session audit lines (e.g. instance.create/delete)."""
+    return [e for e in evs if e["event"]["action"].startswith("session.")]
+
+
 async def _inst(session, digest="sha256:abc"):
     user = User(username="ann", email="ann@example.com", password_hash="x")
     session.add(user)
@@ -98,27 +103,42 @@ async def test_router_emits_session_line(admin_client, session, shared_docker, l
     else:
         resp = await admin_client.post(f"{url}/{verb}")
         assert resp.status_code == 200, resp.text
-    (ev,) = lines()
+    (ev,) = _session_only(lines())
     assert ev["event"]["action"] == action
     assert ev["styx"]["session"]["id"] == iid
     assert ev["styx"]["session"].get("reason") == reason
 
 
 @pytest.mark.asyncio
-async def test_router_launch_emits_session_launch(admin_client, template_id, lines):
-    import asyncio
+async def test_background_launch_emits_session_launch(session, lines):
+    from unittest.mock import patch
 
-    resp = await admin_client.post(
-        "/api/instances", json={"template_id": template_id, "name": "l", "subdomain": "l"})
-    assert resp.status_code == 201
-    iid = resp.json()["id"]
-    for _ in range(100):
-        if lines():
-            break
-        await asyncio.sleep(0.05)
-    (ev,) = lines()
+    from app.models import ServiceTemplate
+    from app.routers.instances import _launch_instance_background
+    from tests.test_instance_image_digest import runtime
+
+    tmpl = ServiceTemplate(name="sl", display_name="sl", image="x:latest")
+    user = User(username="sl", password_hash="x", role="admin", is_active=True)
+    session.add_all([tmpl, user])
+    await session.commit()
+    inst = Instance(template_id=tmpl.id, owner_id=user.id, name="sl", subdomain="sl",
+                    status="starting", volume_names=[])
+    session.add(inst)
+    await session.commit()
+
+    class Ctx:
+        async def __aenter__(self):
+            return session
+
+        async def __aexit__(self, *a):
+            return False
+
+    with patch("app.routers.instances.instance_runtime", return_value=runtime(None)), \
+         patch("app.routers.instances.async_session", lambda: Ctx()):
+        await _launch_instance_background(inst.id, tmpl.id)
+    (ev,) = _session_only(lines())
     assert ev["event"]["action"] == "session.launch"
-    assert ev["styx"]["session"]["id"] == iid
+    assert ev["styx"]["session"]["id"] == inst.id
 
 
 @pytest.mark.asyncio
