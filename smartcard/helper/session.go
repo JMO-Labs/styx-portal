@@ -22,11 +22,19 @@ type Conn interface {
 }
 
 // Serve answers relay frames until the connection ends. A clean close
-// (io.EOF) returns nil.
+// (io.EOF) returns nil. If c is an io.Closer, it is closed when ctx is done
+// so a blocked ReadFrame returns and Serve yields ctx.Err().
 func Serve(ctx context.Context, c Conn, h *Handler) error {
+	if cl, ok := c.(io.Closer); ok {
+		stop := context.AfterFunc(ctx, func() { _ = cl.Close() })
+		defer stop()
+	}
 	for {
 		f, err := c.ReadFrame()
 		if err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			if err == io.EOF {
 				return nil
 			}

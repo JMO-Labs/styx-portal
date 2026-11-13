@@ -25,6 +25,8 @@ func (w wsConn) ReadFrame() (Frame, error) {
 
 func (w wsConn) WriteFrame(f Frame) error { return w.c.WriteJSON(f) }
 
+func (w wsConn) Close() error { return w.c.Close() }
+
 // Dial opens the mTLS WebSocket to the relay, presenting the cert from store.
 // The caller must have validated host with HostAllowed.
 func Dial(ctx context.Context, host, token string, store CertStore) (Conn, func() error, error) {

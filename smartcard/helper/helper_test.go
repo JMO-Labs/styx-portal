@@ -164,3 +164,14 @@ func TestDefaultConfirmTimeout(t *testing.T) {
 		t.Fatal("default must be 30s")
 	}
 }
+
+func TestIsSmartCardImpl(t *testing.T) {
+	// software KSP, TPM (hardware only), removable only, smart card, smart card + extra bit
+	ins := []uint32{0, implHardware, implRemovable, implHardware | implRemovable, implHardware | implRemovable | 0x20}
+	wants := []bool{false, false, false, true, true}
+	for i, in := range ins {
+		if got := isSmartCardImpl(in); got != wants[i] {
+			t.Errorf("isSmartCardImpl(%#x)=%v want %v", in, got, wants[i])
+		}
+	}
+}

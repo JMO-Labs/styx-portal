@@ -4,11 +4,11 @@ package helper
 
 import (
 	"crypto"
-	"encoding/asn1"
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/asn1"
 	"errors"
 	"io"
 	"math/big"
@@ -24,7 +24,11 @@ var (
 	pEnumCerts      = crypt32.NewProc("CertEnumCertificatesInStore")
 	pAcquireKey     = crypt32.NewProc("CryptAcquireCertificatePrivateKey")
 	pNCryptSignHash = ncrypt.NewProc("NCryptSignHash")
+	pNCryptGetProp  = ncrypt.NewProc("NCryptGetProperty")
+	pNCryptFree     = ncrypt.NewProc("NCryptFreeObject")
 	acquireOnlyNCNG = uintptr(0x00040000)
+	acquireSilent   = uintptr(0x00000040) // CRYPT_ACQUIRE_SILENT_FLAG
+	ncryptSilent    = uintptr(0x00000040) // NCRYPT_SILENT_FLAG
 	bcryptPadPKCS1  = uintptr(0x2)
 	bcryptPadPSS    = uintptr(0x8)
 )
@@ -40,7 +44,8 @@ type certContext struct {
 type winCertStore struct{}
 
 // ClientCert picks the first valid client-auth cert in the user's MY store
-// whose private key is reachable through CNG (smart-card minidriver).
+// whose CNG key lives on a removable hardware token (smart card). Keys are
+// probed silently so non-matching certs never trigger a PIN prompt.
 func (winCertStore) ClientCert() (tls.Certificate, error) {
 	name, _ := syscall.UTF16PtrFromString("MY")
 	store, _, _ := pOpenStore.Call(0, uintptr(unsafe.Pointer(name)))
@@ -54,23 +59,53 @@ func (winCertStore) ClientCert() (tls.Certificate, error) {
 			return tls.Certificate{}, errors.New("no usable smart-card certificate found")
 		}
 		prev = ctx
+		// ctx is a PCCERT_CONTEXT owned by crypt32 (not Go heap); see test.sh vet note.
 		cc := (*certContext)(unsafe.Pointer(ctx))
 		der := append([]byte(nil), unsafe.Slice(cc.Encoded, cc.Length)...)
 		crt, err := x509.ParseCertificate(der)
 		if err != nil || !clientAuthOK(crt) {
 			continue
 		}
-		var key uintptr
-		var spec uint32
-		var free int32
-		r, _, _ := pAcquireKey.Call(ctx, acquireOnlyNCNG, 0,
-			uintptr(unsafe.Pointer(&key)), uintptr(unsafe.Pointer(&spec)), uintptr(unsafe.Pointer(&free)))
-		if r == 0 {
+		key, ok := acquireKey(ctx, acquireSilent)
+		if !ok {
+			continue
+		}
+		smart := isSmartCardImpl(keyImplType(key))
+		freeKey(key)
+		if !smart {
+			continue
+		}
+		// Re-open without the silent flag so signing may prompt for the PIN.
+		if key, ok = acquireKey(ctx, 0); !ok {
 			continue
 		}
 		return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: &ncryptSigner{key: key, pub: crt.PublicKey}, Leaf: crt}, nil
 	}
 }
+
+// acquireKey opens the cert's CNG key handle (caller frees with freeKey).
+func acquireKey(ctx, flags uintptr) (uintptr, bool) {
+	var key uintptr
+	var spec uint32
+	var free int32
+	r, _, _ := pAcquireKey.Call(ctx, acquireOnlyNCNG|flags, 0,
+		uintptr(unsafe.Pointer(&key)), uintptr(unsafe.Pointer(&spec)), uintptr(unsafe.Pointer(&free)))
+	return key, r != 0 && key != 0
+}
+
+// keyImplType reads NCRYPT_IMPL_TYPE_PROPERTY; 0 on error.
+func keyImplType(key uintptr) uint32 {
+	prop, _ := syscall.UTF16PtrFromString("Impl Type")
+	var impl, n uint32
+	r, _, _ := pNCryptGetProp.Call(key, uintptr(unsafe.Pointer(prop)), uintptr(unsafe.Pointer(&impl)),
+		unsafe.Sizeof(impl), uintptr(unsafe.Pointer(&n)), ncryptSilent)
+	if r != 0 {
+		return 0
+	}
+	return impl
+}
+
+func freeKey(key uintptr) { _, _, _ = pNCryptFree.Call(key) }
 
 func clientAuthOK(c *x509.Certificate) bool {
 	now := time.Now()
