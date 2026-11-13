@@ -1,7 +1,7 @@
 """smartcard_tokens: one-time relay tokens (styx-portal#219)
 
-Revision ID: 0015_smartcard_tokens
-Revises: 0014_access_review
+Revision ID: 0016_smartcard_tokens
+Revises: 0015_group_idle_lock_minutes
 Create Date: 2026-11-13
 
 """
@@ -10,8 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = '0015_smartcard_tokens'
-down_revision: Union[str, Sequence[str], None] = '0014_access_review'
+revision: str = '0016_smartcard_tokens'
+down_revision: Union[str, Sequence[str], None] = '0015_group_idle_lock_minutes'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

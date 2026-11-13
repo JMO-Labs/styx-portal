@@ -400,6 +400,7 @@ class Group(SQLModel, table=True):
     tier_hidpi: bool | None = None
     tier_cpu: str | None = None
     tier_memory: str | None = None
+    idle_lock_minutes: int | None = None  # None = default 15
     manager_user_id: str | None = Field(default=None, foreign_key="users.id")
     kc_group_id: str | None = None
     # Per-group DLP overrides (ADR-0038); None = default. Only honoured with an approval ref.

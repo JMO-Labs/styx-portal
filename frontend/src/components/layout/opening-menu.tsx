@@ -28,6 +28,8 @@ export function OpeningMenu({ username, onLogout, onToggleTheme }: { username: s
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuItem asChild className="min-h-9"><a href="/account">My account</a></DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuLabel>Opening</DropdownMenuLabel>
         {ROWS.map(([key, label], i) => (
           <div key={key}>
