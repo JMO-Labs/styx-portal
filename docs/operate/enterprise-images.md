@@ -18,7 +18,7 @@ Needs Docker. Resolve the real Ubuntu digest first (the Dockerfile default is a 
 
 ```bash
 DIGEST=$(docker buildx imagetools inspect ubuntu:24.04 --format '{{json .Manifest.Digest}}' | tr -d '"')
-docker build --build-arg "UBUNTU_DIGEST=$DIGEST" -t styx-enterprise-base:latest images/enterprise-base
+docker build --build-arg "UBUNTU_DIGEST=$DIGEST" -f images/enterprise-base/Dockerfile -t styx-enterprise-base:latest .
 ```
 
 Then a golden image on top of it:
@@ -35,7 +35,7 @@ Swap `developer` for `browser-only` or `base-office`. Pin versions with the
 
 `scripts/kind/10-enterprise-base-smoke.sh` builds the base, loads it into the `spike` kind
 cluster, runs it under Pod Security `baseline`, and checks that the container UID is 1000 and
-Selkies answers HTTP 200 on port 8082. CI runs it as the `kind-spike` check. Locally,
+the gateway answers HTTP 401 on port 8080. CI runs it as the `kind-spike` check. Locally,
 create the cluster as described in `scripts/kind/README.md`, then run the script from the
 repo root.
 
