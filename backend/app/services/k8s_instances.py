@@ -13,6 +13,17 @@ from app.services.k8s_instance_objects import build_objects, parse_qty, pvc
 
 logger = logging.getLogger("styx-portal")
 _APPS = "apps/v1"
+# Launch timings shared across runtimes: instance_runtime() builds a new
+# K8sInstanceRuntime per call, so the readiness poller sees a fresh object.
+_LAUNCHES: dict[str, dict] = {}
+_LAUNCH_TTL_S = 3600.0
+
+
+def _prune_launches() -> None:
+    """Drop launches that never became ready (failed, timed out)."""
+    cutoff = time.monotonic() - _LAUNCH_TTL_S
+    for k in [k for k, v in _LAUNCHES.items() if v["t0"] < cutoff]:
+        _LAUNCHES.pop(k, None)
 
 
 class K8sUnsupported(HTTPException, NotImplementedError):
@@ -27,7 +38,6 @@ class K8sInstanceRuntime:
         self._c = client or incluster_client()
         self._ns = Settings().K8S_INSTANCE_NAMESPACE
         self._digests: dict[str, str | None] = {}
-        self._launches: dict[str, dict] = {}
 
     # images: the kubelet pulls
     def image_exists(self, image: str) -> bool:
@@ -100,8 +110,9 @@ class K8sInstanceRuntime:
             if obj["kind"] == "Deployment":
                 img = obj["spec"]["template"]["spec"]["containers"][0]["image"]
                 self._digests[name] = image_digest.digest_of(img)
-        self._launches[name] = {"t0": t_start, "digest_s": timings.get("digest_s", 0.0),
-                                "apply_s": time.monotonic() - t_apply}
+        _prune_launches()
+        _LAUNCHES[name] = {"t0": t_start, "digest_s": timings.get("digest_s", 0.0),
+                           "apply_s": time.monotonic() - t_apply}
         return name
 
     def pinned_digest(self, name: str) -> str | None:
@@ -112,15 +123,15 @@ class K8sInstanceRuntime:
 
     def start_container(self, name: str) -> None:
         self._patch(name, {"spec": {"replicas": 1}})
-        if name in self._launches:
-            self._launches[name]["t_started"] = time.monotonic()
+        if name in _LAUNCHES:
+            _LAUNCHES[name]["t_started"] = time.monotonic()
 
     def _log_launch(self, name: str) -> None:
         """One `launch_phases` line when a fresh launch first reports running."""
-        ph = self._launches.get(name)
+        ph = _LAUNCHES.get(name)
         if not ph or "t_started" not in ph:
             return
-        del self._launches[name]
+        _LAUNCHES.pop(name, None)
         now = time.monotonic()
         logger.info("launch_phases digest_s=%.3f apply_s=%.3f ready_s=%.3f total_s=%.3f",
                     ph["digest_s"], ph["apply_s"], now - ph["t_started"], now - ph["t0"])
@@ -139,6 +150,7 @@ class K8sInstanceRuntime:
     unpause_container = pause_container
 
     def remove_container(self, name: str) -> None:
+        _LAUNCHES.pop(name, None)
         self._c.delete(_APPS, "Deployment", self._ns, name)
         self._c.delete("v1", "Service", self._ns, name)
 
