@@ -98,11 +98,14 @@ def build_objects(name, image, env, volumes, port, ns, owner, *, gpu_enabled=Fal
                   cap_add=None, read_only_rootfs=False, tmpfs=None, extra_hosts=None,
                   entrypoint=None, command=None, posix_uid: int | None = None,
                   egress_mode=None, home_read_only: bool = False,
-                  timings: dict | None = None) -> list[dict]:
+                  timings: dict | None = None, client=None) -> list[dict]:
     if "/" not in image:
         image = Settings().K8S_DESKTOP_IMAGE
     t0 = time.monotonic()
     image = image_digest.resolve_digest(image)
+    if client is not None:  # launch only on a digest every node has pulled
+        from app.services.k8s_prepull import ready_digest
+        image = ready_digest(client, ns, image)
     if timings is not None:
         timings["digest_s"] = time.monotonic() - t0
     cfg = Settings()

@@ -103,7 +103,8 @@ class K8sInstanceRuntime:
                 cpu_limit=cpu_limit, shm_size=shm_size, cap_add=cap_add,
                 read_only_rootfs=read_only_rootfs, tmpfs=tmpfs, extra_hosts=extra_hosts,
                 entrypoint=entrypoint, command=command, posix_uid=posix_uid,
-                egress_mode=egress_mode, home_read_only=home_read_only, timings=timings)
+                egress_mode=egress_mode, home_read_only=home_read_only,
+                timings=timings, client=self._c)
         t_apply = time.monotonic()
         for obj in objs:
             self._c.apply(obj)

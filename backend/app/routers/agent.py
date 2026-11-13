@@ -4,7 +4,9 @@ CSRF-exempt by path prefix (see main.py) — agents are header-authenticated,
 no cookies, so cross-site request forgery does not apply.
 """
 from datetime import datetime, timezone
+from typing import Annotated
 
+from pydantic import Field
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -12,9 +14,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.config import Settings
 from app.database import get_session
 from app.models import Workstation, WorkstationAccess
-from app.schemas import WorkstationHeartbeatRequest, WorkstationHeartbeatResponse
+from app.models import User
+from app.schemas import DlpEventIn, WorkstationHeartbeatRequest, WorkstationHeartbeatResponse
 from app.services import stream_sessions, ws_icon, ws_thumb
 from app.services.audit import audit_request
+from app.services.audit_ecs import dlp_event, emit
 from app.services.workstations import (
     build_update_manifest, can_self_update, get_latest_agent_version, request_agent_update, sha256_hex,
 )
@@ -186,3 +190,16 @@ async def deregister(request: Request,
     from app.services.route_writer import refresh_routes_from_db
     await refresh_routes_from_db(session)
     return {"ok": True}
+
+
+@router.post("/dlp-events", status_code=status.HTTP_200_OK)
+async def dlp_events(events: Annotated[list[DlpEventIn], Field(max_length=500)],
+                     ws: Workstation = Depends(get_agent_workstation),
+                     session: AsyncSession = Depends(get_session)):
+    """Ship gateway DLP metadata as ECS lines. user_name is the workstation owner."""
+    owner = await session.get(User, ws.created_by)
+    user_name = owner.username if owner else None
+    for e in events:
+        emit(dlp_event(direction=e.direction, channel=e.channel, filename=e.filename,
+                       size=e.size, mime_type=e.mime_type, user_name=user_name, ts=e.ts))
+    return {"accepted": len(events)}
