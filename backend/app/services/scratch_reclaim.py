@@ -6,7 +6,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models import Instance
@@ -28,7 +28,7 @@ async def scratch_reclaim_tick(session: AsyncSession, runtime, now: datetime,
         return 0
     now = now.astimezone(timezone.utc).replace(tzinfo=None) if now.tzinfo else now
     rows = (await session.exec(select(Instance).where(
-        Instance.status == "stopped", Instance.stopped_at < now - RETENTION))).all()
+        Instance.status == "stopped", col(Instance.stopped_at) < now - RETENTION))).all()
     done = 0
     for inst in rows:
         if not inst.volume_names:

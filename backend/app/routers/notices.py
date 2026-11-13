@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.database import get_session
@@ -20,8 +20,8 @@ def _out(n: Notice) -> dict:
 async def list_notices(session: AsyncSession = Depends(get_session),
                        user: User = Depends(get_current_user)):
     rows = (await session.exec(select(Notice).where(
-        Notice.user_id == user.id, Notice.dismissed_at.is_(None))
-        .order_by(Notice.created_at))).all()
+        Notice.user_id == user.id, col(Notice.dismissed_at).is_(None))
+        .order_by(col(Notice.created_at)))).all()
     return [_out(n) for n in rows]
 
 

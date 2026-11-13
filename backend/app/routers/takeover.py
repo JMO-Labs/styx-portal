@@ -6,7 +6,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, field_validator
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -71,7 +71,7 @@ async def _gate(session: AsyncSession, request: Request, user: User, iid: str,
 
 async def _active(session: AsyncSession, iid: str) -> SessionTakeover | None:
     return (await session.exec(select(SessionTakeover).where(
-        SessionTakeover.instance_id == iid, SessionTakeover.ended_at.is_(None)))).first()
+        SessionTakeover.instance_id == iid, col(SessionTakeover.ended_at).is_(None)))).first()
 
 
 def _detail(t: SessionTakeover) -> dict:
@@ -141,7 +141,7 @@ async def get_takeover(iid: str, user: User = Depends(get_current_user),
 async def list_takeovers(since: datetime | None = None,
                          _: User = Depends(require_staff_role("platform-admin", "auditor")),
                          session: AsyncSession = Depends(get_session)):
-    q = select(SessionTakeover).order_by(SessionTakeover.started_at.desc())
+    q = select(SessionTakeover).order_by(col(SessionTakeover.started_at).desc())
     if since is not None:
         q = q.where(SessionTakeover.started_at >= (since.astimezone(timezone.utc) if since.tzinfo else since).replace(tzinfo=None))
     return (await session.exec(q)).all()
