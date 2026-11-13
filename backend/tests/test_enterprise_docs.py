@@ -154,6 +154,12 @@ def test_adr_index_matches_files():
     rows = dict(re.findall(r"^\| \[D\w+\]\(([^)]+)\) \|[^|]+\| ([^|]+) \|", index, re.M))
     names = {p.name for p in adr_files()}
     assert set(rows) == names
+    assert index.count("(0074-") == 1
+    table = [ln for ln in index.splitlines() if re.match(r"\| \[D\d+\]", ln)]
+    ids = [int(re.match(r"\| \[D(\d+)\]", ln).group(1)) for ln in table]
+    assert ids == sorted(ids)
+    first, last = index.index(table[0]), index.index(table[-1])
+    assert "\n\n" not in index[first:last]
     for name, idx_status in rows.items():
         assert idx_status.strip() == status((ADR / name).read_text()), name
 

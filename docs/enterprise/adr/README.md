@@ -25,7 +25,6 @@ All ADRs were accepted 2026-11-09 (owner approval, Rounds 1-5; issue #1). One AD
 | [D19](0019-provisioning-via-m365-form-power-automate-approval-https-web.md) | Provisioning via M365 Form, Power Automate approval, HTTPS webhook | Accepted | AC-2, AC-2(1), IA-4 |
 | [D20](0020-webhook-hardening.md) | Webhook hardening | Accepted | AC-3, AC-17, IA-3, IA-5, SC-7, SC-8, SI-10, AU-2 |
 | [D21](0021-request-form-fields.md) | Request form fields | Accepted | AC-2, IA-4, PS-4 |
-| [D73](0074-home-age-off-implementation.md) | Home age-off implementation choices | Proposed | MP-6, SI-12, CM-12, SC-28 |
 | [D22](0022-offboarding-three-independent-off-switches.md) | Offboarding: three independent off-switches | Accepted | AC-2, AC-2(3), PS-4, PS-5 |
 | [D23](0023-visibility-of-new-accounts-recently-provisioned-view-and-dai.md) | Visibility of new accounts: Recently provisioned view and daily digest | Accepted | AC-2(4), AU-6, AU-12 |
 | [D24](0024-quarterly-access-review-report-per-group-manager.md) | Quarterly access-review report per group manager | Accepted | AC-2, AC-2(3), AC-6 |
@@ -78,5 +77,4 @@ All ADRs were accepted 2026-11-09 (owner approval, Rounds 1-5; issue #1). One AD
 | [D70](0071-wikijs-and-matrix-implementation.md) | Wiki.js and Matrix implementation choices | Proposed | IA-2, AC-2, AU-6, IR-4, CP-9, SC-7 |
 | [D71](0072-session-lifecycle-audit-events.md) | Session lifecycle audit events | Proposed | AU-2, AU-3, AU-12 |
 | [D72](0073-offboarding-and-access-review-implementation-choices.md) | Offboarding and access-review implementation choices | Proposed | AC-2, AC-2(3), AC-2(4), PS-4 |
-
 | [D73](0074-home-age-off-implementation.md) | Home age-off implementation choices | Proposed | MP-6, SI-12, CM-12, SC-28 |
