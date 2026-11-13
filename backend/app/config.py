@@ -172,6 +172,13 @@ class Settings(BaseSettings):
     # Days after disable before the account and its homes are deleted (ADR-0022).
     ACCOUNT_DELETION_RETENTION_DAYS: int = 90
 
+    # Home archive on S3/RGW; disabled when archive_s3_endpoint is empty.
+    archive_s3_endpoint: str = ""
+    archive_s3_bucket: str = ""
+    archive_s3_access_key: str = ""
+    archive_s3_secret_key: str = ""
+    homes_root: str = "/homes"
+
     LIFECYCLE_INACTIVITY_DAYS: int = 35   # auto-disable after this many idle days (ADR-0022)
 
     # extra="ignore": the repo-root .env is shared with docker-compose,
