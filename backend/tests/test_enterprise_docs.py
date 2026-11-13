@@ -147,7 +147,7 @@ def test_adr_0066_cephfs_homes():
 
 def test_adr_index_matches_files():
     index = (ADR / "README.md").read_text()
-    new = ("0062", "0063", "0065", "0066", "0067", "0068", "0069", "0070", "0071", "0072", "0073", "0074", "0075")
+    new = ("0062", "0063", "0065", "0066", "0067", "0068", "0069", "0070", "0071", "0072", "0073", "0074", "0075", "0076")
     older = [ln for ln in index.splitlines() if not any(f"({n}-" in ln for n in new)]
     assert "| Proposed |" not in "\n".join(older)
     assert f"accepted {DATE}" in index.lower()
@@ -156,6 +156,7 @@ def test_adr_index_matches_files():
     assert set(rows) == names
     assert index.count("(0074-") == 1
     assert index.count("(0075-") == 1
+    assert index.count("(0076-") == 1
     table = [ln for ln in index.splitlines() if re.match(r"\| \[D\d+\]", ln)]
     ids = [int(re.match(r"\| \[D(\d+)\]", ln).group(1)) for ln in table]
     assert ids == sorted(ids)
@@ -368,3 +369,17 @@ def test_adr_0075_takeover_implementation():
     for phrase in ("Take over", "End", "Monthly review", "/api/admin/takeovers/report"):
         assert phrase in rb, phrase
     assert "runbooks/session-takeover.md" in (DOCS.parent.parent / "zensical.toml").read_text()
+
+
+def test_adr_0076_fast_launch():
+    text = adr("0076")
+    assert status(text) == "Proposed"
+    assert "Decision ID: D75" in text
+    for phrase in ("pre-pull", "signed digest", "pre-pull ready", "pod start", "warm pool",
+                   "p95", "10 s", "kind", "launch-profile.md", "ready_s", "digest_s", "apply_s"):
+        assert phrase in text, phrase
+    cm = (DOCS / "control-matrix.md").read_text()
+    for ctl in ("CM-2", "CM-3", "SC-5", "CP-2"):
+        assert "ADR-0076" in row(cm, ctl), ctl
+    assert "k8s_prepull.py" in row(cm, "CM-3")
+    assert "slo-rules.yaml" in row(cm, "SC-5")
