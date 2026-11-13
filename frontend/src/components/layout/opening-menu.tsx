@@ -9,7 +9,7 @@ import {
 const ROWS = [["open_workspaces", "Workspaces"], ["open_apps", "Apps"]] as const;
 
 /** Username dropdown: where Workspaces and Apps open (New tab / This tab / Ask). Saves on change. */
-export function OpeningMenu({ username, onLogout, onToggleTheme }: { username: string; onLogout?: () => void; onToggleTheme?: () => void }) {
+export function OpeningMenu({ username, onLogout, onToggleTheme, staffRole }: { username: string; staffRole?: string; onLogout?: () => void; onToggleTheme?: () => void }) {
   const { data: me, isPending } = useOpenPrefs();
   const save = useSavePrefs();
   const set = (key: (typeof ROWS)[number][0], v: string) =>
@@ -29,6 +29,7 @@ export function OpeningMenu({ username, onLogout, onToggleTheme }: { username: s
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuItem asChild className="min-h-9"><a href="/account">My account</a></DropdownMenuItem>
+        {staffRole && <DropdownMenuItem asChild className="min-h-9"><a href="/admin">Admin console</a></DropdownMenuItem>}
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Opening</DropdownMenuLabel>
         {ROWS.map(([key, label], i) => (

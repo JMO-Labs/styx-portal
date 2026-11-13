@@ -102,3 +102,14 @@ async def test_me_exposes_can_takeover(member_client, session):
 @pytest.mark.asyncio
 async def test_me_admin_can_takeover(admin_client):
     assert (await admin_client.get("/api/auth/me")).json()["can_takeover"] is True
+
+
+@pytest.mark.asyncio
+async def test_me_exposes_effective_staff_role(member_client, admin_client, session):
+    assert (await member_client.get("/api/auth/me")).json()["staff_role"] == ""
+    member = (await session.exec(select(User).where(User.username == "member"))).first()
+    member.staff_role = "auditor"
+    session.add(member)
+    await session.commit()
+    assert (await member_client.get("/api/auth/me")).json()["staff_role"] == "auditor"
+    assert (await admin_client.get("/api/auth/me")).json()["staff_role"] == "platform-admin"

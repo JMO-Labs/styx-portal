@@ -50,3 +50,18 @@ test("menu links to the My account page", async () => {
   fireEvent.keyDown(trigger, { key: "Enter" });
   expect(await screen.findByRole("menuitem", { name: "My account" })).toHaveAttribute("href", "/account");
 });
+
+test("Admin console link only when staffRole is set", async () => {
+  const open = async (role?: string) => {
+    const { unmount } = render(<QueryClientProvider client={new QueryClient()}><OpeningMenu username="alice" staffRole={role} /></QueryClientProvider>);
+    const trigger = screen.getByRole("button", { name: /account menu/i });
+    await waitFor(() => expect(trigger).toBeEnabled());
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    await screen.findByRole("menuitem", { name: "My account" });
+    const link = screen.queryByRole("menuitem", { name: "Admin console" });
+    unmount();
+    return link;
+  };
+  expect(await open("")).toBeNull();
+  expect((await open("auditor"))?.getAttribute("href")).toBe("/admin");
+});
