@@ -5,6 +5,11 @@ WORKDIR /app
 COPY backend/pyproject.toml .
 RUN pip install --no-cache-dir .
 
+# playwright 1.65 driver needs libatomic.so.1 (absent from -slim)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libatomic1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # System deps for chromium need root
 RUN playwright install-deps chromium
 
