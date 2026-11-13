@@ -1,5 +1,5 @@
 # Default deny (Cilium idiom: empty rule selects the pods for enforcement without
-# allowing anything), then only the flows Keycloak needs.
+# allowing anything), then only the flows Wiki.js needs.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:

@@ -6,8 +6,11 @@
 #   1. Complete the setup wizard with a throwaway admin.
 #   2. Administration > Authentication: enable "Generic OpenID Connect / OAuth2"
 #      with Client ID = $OIDC_CLIENT_ID, Client Secret = $OIDC_CLIENT_SECRET
-#      (secret wikijs-oidc, key client-secret), Issuer/Authorization/Token/
-#      UserInfo URLs under $OIDC_ISSUER, "Email Claim" = email, and
+#      (secret wikijs-oidc, key client-secret), Issuer = $OIDC_ISSUER,
+#      Authorization URL = $OIDC_ISSUER/protocol/openid-connect/auth (browser-
+#      facing), Token URL = $OIDC_TOKEN_URL and UserInfo URL = $OIDC_USERINFO_URL
+#      (in-cluster http://keycloak.keycloak.svc:8080; the public login host is
+#      blocked by egress policy), "Email Claim" = email, and
 #      "Map Groups" on; set it as the only strategy.
 #   3. Disable the "Local" strategy and remove the throwaway admin. Local login
 #      stays disabled: LOCAL_LOGIN_DISABLED=true marks the intended state and any
@@ -78,6 +81,8 @@ spec:
             - name: DB_PASS
               valueFrom: {secretKeyRef: {name: wikijs-db-app, key: password}}
             - {name: OIDC_ISSUER, value: "https://login.example.internal/realms/styx"}   # PLACEHOLDER(ADR-0049)
+            - {name: OIDC_TOKEN_URL, value: "http://keycloak.keycloak.svc:8080/realms/styx/protocol/openid-connect/token"}
+            - {name: OIDC_USERINFO_URL, value: "http://keycloak.keycloak.svc:8080/realms/styx/protocol/openid-connect/userinfo"}
             - {name: OIDC_CLIENT_ID, value: wikijs}
             - name: OIDC_CLIENT_SECRET
               valueFrom: {secretKeyRef: {name: wikijs-oidc, key: client-secret}}

@@ -114,9 +114,31 @@ def test_deployment_oidc_only():
     assert env["OIDC_CLIENT_ID"]["value"] == "wikijs"
     assert re.fullmatch(r"https://login\.[^/]+/realms/styx", env["OIDC_ISSUER"]["value"])
     assert env["LOCAL_LOGIN_DISABLED"]["value"] == "true"
+    base = "http://keycloak.keycloak.svc:8080/realms/styx/protocol/openid-connect"
+    assert env["OIDC_TOKEN_URL"]["value"] == f"{base}/token"
+    assert env["OIDC_USERINFO_URL"]["value"] == f"{base}/userinfo"
     sc = ctr["securityContext"]
     assert sc["runAsNonRoot"] and sc["allowPrivilegeEscalation"] is False
     assert "OIDC" in (ROOT / "deployment.yaml").read_text().split("apiVersion")[0]
+
+
+def test_keycloak_accepts_wikijs_on_8080():
+    kc = ROOT.parent / "keycloak/networkpolicy.yaml"
+    found = False
+    for d in yaml.safe_load_all(kc.read_text()):
+        if not d or d["metadata"]["name"] != "keycloak-ingress-from-traefik":
+            continue
+        for r in d["spec"]["ingress"]:
+            for fe in r.get("fromEndpoints", []):
+                ml = fe["matchLabels"]
+                if (
+                    ml.get("k8s:io.kubernetes.pod.namespace") == "wikijs"
+                    and ml.get("app.kubernetes.io/name") == "wikijs"
+                ):
+                    ports = [p for t in r["toPorts"] for p in t["ports"]]
+                    assert {"port": "8080", "protocol": "TCP"} in ports
+                    found = True
+    assert found
 
 
 def test_pdb_matches_pods():
