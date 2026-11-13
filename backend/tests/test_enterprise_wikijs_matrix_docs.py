@@ -39,7 +39,7 @@ def test_matrix_rows_point_to_artifacts():
     for ctl in ("IA-2", "AC-2", "AU-6", "IR-4", "CP-9", "SC-7"):
         row = re.search(rf"^\| {ctl} \|.*$", text, re.M).group(0)
         assert "runbooks/wikijs-matrix.md" in row, ctl
-        assert "ADR-0071" in row or "0071" in row, ctl
+        assert "ADR-0071" in row, ctl
 
 
 def test_velero_does_not_exclude_namespaces():
