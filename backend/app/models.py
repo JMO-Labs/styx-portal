@@ -28,6 +28,8 @@ class User(SQLModel, table=True):
     email: str | None = Field(default=None, index=True)
     password_hash: str
     role: str = "user"  # admin | user
+    # ADR-0026 support role synced from the IdP: "" | platform-admin | help-desk | auditor | group-manager
+    staff_role: str = Field(default="", sa_column_kwargs={"server_default": ""})
     is_active: bool = True
     must_change_pw: bool = False
     token_version: int = 0   # bumped on password/role/disable; access JWTs carry it ("tv")
