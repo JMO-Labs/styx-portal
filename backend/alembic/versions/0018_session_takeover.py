@@ -1,7 +1,7 @@
 """session_takeovers: ADR-0060 staff takeover records (styx-portal#242)
 
-Revision ID: 0017_session_takeover
-Revises: 0016_user_staff_role
+Revision ID: 0018_session_takeover
+Revises: 0017_announcements
 Create Date: 2026-11-13
 
 """
@@ -10,8 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = '0017_session_takeover'
-down_revision: Union[str, Sequence[str], None] = '0016_user_staff_role'
+revision: str = '0018_session_takeover'
+down_revision: Union[str, Sequence[str], None] = '0017_announcements'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
