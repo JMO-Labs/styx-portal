@@ -497,7 +497,7 @@
   {"cost": "free", "ecosystem": "npm", "license": "MIT", "name": "array-ify", "origin": "sbom", "scope": "enterprise", "source_url": "pkg:npm/array-ify@1.0.0", "version": "1.0.0"},
   {"cost": "free", "ecosystem": "npm", "license": "MIT", "name": "assertion-error", "origin": "sbom", "scope": "enterprise", "source_url": "pkg:npm/assertion-error@2.0.1", "version": "2.0.1"},
   {"cost": "free", "ecosystem": "npm", "license": "MIT", "name": "asynckit", "origin": "sbom", "scope": "enterprise", "source_url": "pkg:npm/asynckit@0.4.0", "version": "0.4.0"},
-  {"cost": "free", "ecosystem": "npm", "license": "MPL-2.0", "name": "axe-core", "origin": "sbom", "scope": "homelab", "source_url": "pkg:npm/axe-core@4.11.4", "version": "4.11.4"},
+  {"cost": "free", "ecosystem": "npm", "license": "MPL-2.0", "name": "axe-core", "origin": "sbom", "scope": "enterprise", "source_url": "pkg:npm/axe-core@4.11.4", "version": "4.11.4"},
   {"cost": "free", "ecosystem": "npm", "license": "MIT", "name": "balanced-match", "origin": "sbom", "scope": "enterprise", "source_url": "pkg:npm/balanced-match@1.0.2", "version": "1.0.2"},
   {"cost": "free", "ecosystem": "npm", "license": "MIT", "name": "balanced-match", "origin": "sbom", "scope": "enterprise", "source_url": "pkg:npm/balanced-match@4.0.4", "version": "4.0.4"},
   {"cost": "free", "ecosystem": "npm", "license": "Apache-2.0", "name": "baseline-browser-mapping", "origin": "sbom", "scope": "enterprise", "source_url": "pkg:npm/baseline-browser-mapping@2.10.32", "version": "2.10.32"},
