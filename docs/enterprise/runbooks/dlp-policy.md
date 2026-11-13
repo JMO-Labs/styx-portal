@@ -28,7 +28,7 @@ A written approval from the security officer is required first. Record its refer
 
 If a user is in several groups, the most restrictive value wins: a permission needs every overriding group to allow it; the watermark is on if any group wants it. Groups without an approval reference are ignored.
 
-Overrides apply when a desktop is launched. Restart running desktops to pick up a change.
+Overrides apply when a desktop is launched, on the Kubernetes runtime only. The Docker launch path does not set the DLP env and does not lock the DLP keys (ADR-0070 follow-up). Restart running desktops to pick up a change.
 
 ## Remove an override
 
@@ -41,7 +41,7 @@ All fields return to the defaults and the approval reference is cleared. Audited
 ## Verify enforcement
 
 1. Check the effective policy: `GET /api/groups/$GROUP_ID/dlp`, field `effective`.
-2. Check the desktop container env after launch: `SELKIES_ENABLE_CLIPBOARD`, `SELKIES_FILE_TRANSFERS`, `SELKIES_PRINTING_ENABLED`, `STYX_WATERMARK_USER` (absent when the watermark is off).
+2. On Kubernetes, check the desktop container env after launch (Docker desktops do not get these): `SELKIES_ENABLE_CLIPBOARD`, `SELKIES_FILE_TRANSFERS`, `SELKIES_PRINTING_ENABLED`, `STYX_WATERMARK_USER` (absent when the watermark is off).
 3. In a session, try a download and a print job (blocked by default). The watermark must show user and time.
 4. The agent gateway also drops forbidden clipboard and file messages. It currently enforces the defaults only (ADR-0070).
 

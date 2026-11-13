@@ -17,7 +17,7 @@ ADR-0038 fixed the DLP defaults and the per-group override rule. This ADR record
 
 **Multi-group rule: most restrictive wins.** Only groups with an approval reference take part, and only their non-null fields. For allow-type fields (clipboard, upload, download, printing) the user gets the permission only if every overriding group allows it. For `watermark` it is on if any overriding group wants it.
 
-**Selkies env.** The launch path (`group_tier.py`, `dlp_env`) sets the policy as env on the desktop container, verified against selkies 2.2.0:
+**Selkies env.** On the Kubernetes launch path only (`group_tier.py`, `launch_overrides` applies `dlp_env`), the policy is set as env on the desktop container, verified against selkies 2.2.0:
 
 | Policy | Env |
 |---|---|
@@ -49,11 +49,13 @@ Positive:
 
 Negative:
 
+- Per-group DLP env is enforced on the Kubernetes launch path only. The Docker path gets no DLP env and its DLP keys are not locked.
 - Gateway enforces defaults only until the policy is passed to it.
 - Dropped batches mean lost events (accepted, availability of the desktop wins).
 - Allowed clipboard text remains an exfiltration path, as in ADR-0038.
 
 Follow-up work:
 
+- Apply `dlp_env` (and lock DLP keys) on the Docker launch path.
 - Pass the resolved per-user policy to the gateway.
 - Check that gateway event payload (`allowed` field, `{"events": [...]}` wrapper) matches the ingest endpoint (bare list, no extra fields); see the runbook verification step.
