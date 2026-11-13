@@ -1,5 +1,5 @@
 """Effective per-user DLP policy from group overrides (ADR-0038)."""
-from sqlmodel import select
+from sqlmodel import col, select
 
 from app.models import Group, UserGroup
 
@@ -59,6 +59,6 @@ def resolve_group_dlp(groups) -> dict[str, bool]:
 
 async def user_group_dlp(session, user_id: str) -> dict[str, bool]:
     r = await session.exec(
-        select(Group).join(UserGroup, UserGroup.group_id == Group.id)
+        select(Group).join(UserGroup, col(UserGroup.group_id) == Group.id)
         .where(UserGroup.user_id == user_id))
     return resolve_group_dlp(list(r.all()))

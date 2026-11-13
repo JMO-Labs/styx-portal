@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -38,7 +38,7 @@ async def delete_image(
         raise HTTPException(404, "Image not found")
 
     # Check if any instances still use this image
-    result = await session.exec(select(Instance).join(ServiceTemplate, Instance.template_id == ServiceTemplate.id).where(ServiceTemplate.image == pulled.image))
+    result = await session.exec(select(Instance).join(ServiceTemplate, col(Instance.template_id) == ServiceTemplate.id).where(col(ServiceTemplate.image) == pulled.image))
     instances = result.all()
     if instances:
         raise HTTPException(409, f"Image still used by {len(instances)} instance(s)")
@@ -66,7 +66,7 @@ async def purge_images(
     for pulled in all_images:
         inst_result = await session.exec(
             select(Instance).join(
-                ServiceTemplate, Instance.template_id == ServiceTemplate.id
+                ServiceTemplate, col(Instance.template_id) == ServiceTemplate.id
             ).where(ServiceTemplate.image == pulled.image)
         )
         if inst_result.first():

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Request, Response
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.database import get_session
@@ -16,7 +16,7 @@ users_router = APIRouter()
 async def _list(session: AsyncSession, user_id: str) -> list[dict]:
     rows = (await session.exec(
         select(UserProfile, ServiceTemplate)
-        .join(ServiceTemplate, ServiceTemplate.id == UserProfile.template_id)
+        .join(ServiceTemplate, col(ServiceTemplate.id) == UserProfile.template_id)
         .where(UserProfile.user_id == user_id))).all()
     return [{"template_id": t.id, "template_name": t.name, "display_name": t.display_name,
              "volume_name": p.volume_name,

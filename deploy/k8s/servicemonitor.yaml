@@ -1,0 +1,15 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: styx-backend
+  namespace: styx
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: [styx]
+  selector:
+    matchLabels: {app: styx-backend}
+  endpoints:
+    - port: metrics
+      interval: 30s

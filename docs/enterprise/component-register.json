@@ -1240,6 +1240,7 @@
   {"cost": "free", "ecosystem": "pypi", "license": "MPL-2.0", "name": "pathspec", "origin": "sbom", "scope": "enterprise", "source_url": "pkg:pypi/pathspec@1.1.1", "version": "1.1.1"},
   {"cost": "free", "ecosystem": "pypi", "license": "Apache-2.0", "name": "playwright", "origin": "sbom", "scope": "enterprise", "source_url": "pkg:pypi/playwright@1.65.0", "version": "1.65.0"},
   {"cost": "free", "ecosystem": "pypi", "license": "MIT", "name": "pluggy", "origin": "sbom", "scope": "enterprise", "source_url": "pkg:pypi/pluggy@1.7.0", "version": "1.7.0"},
+  {"cost": "free", "ecosystem": "pypi", "license": "Apache-2.0 AND BSD-2-Clause", "name": "prometheus-client", "origin": "sbom", "scope": "enterprise", "source_url": "pkg:pypi/prometheus-client@0.26.0", "version": "0.26.0"},
   {"cost": "free", "ecosystem": "pypi", "license": "Apache-2.0", "name": "propcache", "origin": "sbom", "scope": "enterprise", "source_url": "pkg:pypi/propcache@0.5.4", "version": "0.5.4"},
   {"cost": "free", "ecosystem": "pypi", "license": "BSD-3-Clause", "name": "pycparser", "origin": "sbom", "scope": "enterprise", "source_url": "pkg:pypi/pycparser@3.12", "version": "3.12"},
   {"cost": "free", "ecosystem": "pypi", "license": "MIT", "name": "pydantic", "origin": "sbom", "scope": "enterprise", "source_url": "pkg:pypi/pydantic@2.14.2", "version": "2.14.2"},

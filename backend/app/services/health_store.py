@@ -33,10 +33,10 @@ def record(ts: float, status: dict[str, bool], latency: dict[str, int]) -> None:
                 series.append(series[-1] if series else False)
             series.append(status.get(key, series[-1] if series else False))
         for key in set(_latency) | set(latency):
-            series = _latency.setdefault(key, deque(maxlen=_MAXLEN))
-            while len(series) < n - 1:
-                series.append(0)
-            series.append(latency.get(key, 0))
+            lat_series = _latency.setdefault(key, deque(maxlen=_MAXLEN))
+            while len(lat_series) < n - 1:
+                lat_series.append(0)
+            lat_series.append(latency.get(key, 0))
 
 
 def get_history(range_str: str = "1h") -> dict:
