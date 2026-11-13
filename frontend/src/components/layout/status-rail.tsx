@@ -113,7 +113,7 @@ function AdminRail({ forceCollapsed = false, onOpenAdmin, onWidthChange }: Props
           <List rows={active} empty="Nothing running" ready={activeReady} error={activeError} retry={retry} />
           <h3 className="mb-3 mt-1 text-sm font-semibold">Needs a look</h3>
           <List rows={check} empty="All clear" ready={checkReady} error={checkError} retry={retry} />
-          <button type="button" onClick={onOpenAdmin} className="text-[13.5px] text-[var(--s1)] hover:underline">Open admin</button>
+          <button type="button" onClick={onOpenAdmin} className="text-[13.5px] text-foreground underline underline-offset-2 hover:no-underline">Open admin</button>
         </div>
       )}
     </aside>

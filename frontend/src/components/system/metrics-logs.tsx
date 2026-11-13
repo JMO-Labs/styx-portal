@@ -55,6 +55,7 @@ export function MetricsLogs() {
       <div className="flex items-center gap-3 flex-wrap">
         {/* Instance selector */}
         <select
+          aria-label="Instance"
           value={selectedId ?? ""}
           onChange={(e) => { setSelectedId(e.target.value); setLiveTail(false); }}
           className="rounded-md border border-border bg-background px-3 py-1.5 pointer-coarse:py-2.5 text-xs text-foreground outline-none focus:border-border min-w-[180px]"
