@@ -74,7 +74,7 @@ export function ChangePasswordPage() {
         </div>
         <div className="relative text-center space-y-4 px-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20">
-            <RefreshCw className="h-8 w-8 text-white/80" />
+            <RefreshCw className="h-8 w-8 text-white/80" aria-hidden />
           </div>
           <h2 className="text-3xl font-bold text-white">Refresh Access</h2>
           <p className="text-sm text-white/60 max-w-xs">
@@ -112,8 +112,8 @@ export function ChangePasswordPage() {
                 disabled={submitting}
               />
               {errors.oldPassword && (
-                <p id="old-password-error" className="flex items-center gap-1.5 text-xs text-destructive">
-                  <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                <p id="old-password-error" role="alert" className="flex items-center gap-1.5 text-xs text-destructive">
+                  <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
                   {errors.oldPassword}
                 </p>
               )}
@@ -147,8 +147,8 @@ export function ChangePasswordPage() {
                 disabled={submitting}
               />
               {errors.newPassword && (
-                <p id="new-password-error" className="flex items-center gap-1.5 text-xs text-destructive">
-                  <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                <p id="new-password-error" role="alert" className="flex items-center gap-1.5 text-xs text-destructive">
+                  <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
                   {errors.newPassword}
                 </p>
               )}
@@ -175,8 +175,8 @@ export function ChangePasswordPage() {
                 disabled={submitting}
               />
               {errors.confirmPassword && (
-                <p id="confirm-password-error" className="flex items-center gap-1.5 text-xs text-destructive">
-                  <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                <p id="confirm-password-error" role="alert" className="flex items-center gap-1.5 text-xs text-destructive">
+                  <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
                   {errors.confirmPassword}
                 </p>
               )}
@@ -184,9 +184,9 @@ export function ChangePasswordPage() {
 
             {/* Form-level error */}
             {errors.form && (
-              <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3">
+              <div role="alert" className="rounded-md border border-destructive/50 bg-destructive/10 p-3">
                 <p className="text-xs text-destructive flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" aria-hidden />
                   {errors.form}
                 </p>
               </div>
@@ -201,7 +201,7 @@ export function ChangePasswordPage() {
             >
               {submitting ? (
                 <>
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" aria-hidden />
                   Updating…
                 </>
               ) : (

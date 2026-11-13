@@ -244,9 +244,11 @@ class GroupCreate(_TierFields):
     name: str = Field(min_length=1, max_length=64, pattern=r"^[^,]+$")  # X-Styx-Groups is comma-joined
     description: str | None = Field(default=None, max_length=255)
     egress_mode: EgressMode = "category"
+    idle_lock_minutes: int | None = Field(default=None, ge=0, le=1440)
 
 
 class GroupUpdate(_TierFields):
+    idle_lock_minutes: int | None = Field(default=None, ge=0, le=1440)
     allow_gpu: bool | None = None
     egress_mode: EgressMode | None = None
     description: str | None = Field(default=None, max_length=255)
@@ -265,6 +267,7 @@ class GroupOut(BaseModel):
     tier_hidpi: bool | None = None
     tier_cpu: str | None = None
     tier_memory: str | None = None
+    idle_lock_minutes: int | None = None
 
 
 class UserGroupsUpdate(BaseModel):

@@ -216,6 +216,24 @@ async def link_identity(session: AsyncSession, user: User, provider_name: str,
         await session.commit()
 
 
+STAFF_ROLES = ("platform-admin", "help-desk", "auditor", "group-manager")  # high -> low
+
+
+async def sync_staff_role(session: AsyncSession, user: User, claims: dict,
+                          role_map: dict | None = None) -> None:
+    """Set user.staff_role from the realm-role claim; highest match wins, none -> ''."""
+    claim = (role_map or {}).get("staff_role_claim") or "realm_roles"
+    present = claims.get(claim) or []
+    if isinstance(present, str):
+        present = [present]
+    have = {str(r).strip() for r in present}
+    new = next((r for r in STAFF_ROLES if r in have), "")
+    if new != user.staff_role:
+        user.staff_role = new
+        session.add(user)
+        await session.commit()
+
+
 def _norm_group(raw) -> str | None:
     """Keycloak paths ('/eng/ops') -> 'eng/ops'; names with ',' are unusable."""
     name = str(raw).strip().strip("/")

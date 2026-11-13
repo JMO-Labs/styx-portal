@@ -18,10 +18,9 @@ function PasswordInput({ className, ...props }: Omit<React.ComponentProps<"input
         onClick={() => setShow((s) => !s)}
         aria-label={show ? "Hide password" : "Show password"}
         aria-pressed={show}
-        tabIndex={-1}
-        className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground hover:text-foreground rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        {show ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
       </button>
     </div>
   );

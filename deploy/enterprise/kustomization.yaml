@@ -6,6 +6,8 @@ resources:
   - external-secrets.yaml
   - cluster.yaml
   - objectstore.yaml
+  - archive-s3-credentials.yaml
+  - homes-pv.yaml
   - scheduledbackup.yaml
   - networkpolicy.yaml
   - pdb.yaml
