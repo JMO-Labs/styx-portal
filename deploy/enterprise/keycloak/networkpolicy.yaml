@@ -27,6 +27,14 @@ spec:
       toPorts:
         - ports:
             - {port: "8080", protocol: TCP}
+    # Wiki.js server-side OIDC token/userinfo calls (in-cluster, not via the public host).
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: wikijs
+            app.kubernetes.io/name: wikijs
+      toPorts:
+        - ports:
+            - {port: "8080", protocol: TCP}
     # Keycloak replicas talk to each other for JDBC_PING clustering (jgroups 7800).
     - fromEndpoints:
         - matchLabels: {app.kubernetes.io/name: keycloak}
