@@ -1,3 +1,5 @@
+import asyncio
+import hashlib
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -76,3 +78,52 @@ def test_schedule_noop_on_docker(monkeypatch):
     with patch("asyncio.create_task") as ct:
         pp.schedule_sync()
     ct.assert_not_called()
+
+
+DIG = "sha256:" + "a" * 64
+
+
+def test_images_resolved_to_signed_digest(monkeypatch):
+    monkeypatch.setenv("HARBOR_URL", "https://harbor.x")
+    T = SimpleNamespace(image="harbor.x/lib/desk:1", dind=False, privileged=False, cap_add=[])
+    with patch("app.services.k8s_prepull.resolve_digest",
+               side_effect=lambda r: r.rsplit(":", 1)[0] + "@" + DIG) as m:
+        assert pp.prepull_images([T]) == [f"harbor.x/lib/desk@{DIG}"]
+    m.assert_called_once_with("harbor.x/lib/desk:1")
+
+
+def test_images_unchanged_without_harbor(monkeypatch):
+    monkeypatch.setenv("HARBOR_URL", "")
+    T = SimpleNamespace(image="ghcr.io/a/x:1", dind=False, privileged=False, cap_add=[])
+    assert pp.prepull_images([T]) == ["ghcr.io/a/x:1"]
+
+
+def test_daemonset_digest_label_and_annotation():
+    ref = f"harbor.x/lib/desk@{DIG}"
+    ds = pp.build_prepull_daemonset(ref, "ns", stamp="T")
+    want = hashlib.sha1(b"harbor.x/lib/desk", usedforsecurity=False).hexdigest()[:10]
+    assert ds["metadata"]["labels"]["styx/prepull-repo"] == want
+    assert ds["metadata"]["annotations"]["styx/prepull-digest"] == DIG
+    plain = pp.build_prepull_daemonset("a/x:1", "ns", stamp="T")
+    assert "annotations" not in plain["metadata"]
+    assert "styx/prepull-repo" not in plain["metadata"]["labels"]
+
+
+@pytest.mark.asyncio
+async def test_loop_syncs_every_interval(monkeypatch):
+    monkeypatch.setenv("PREPULL_INTERVAL_S", "3600")
+    calls, sleeps = [], []
+
+    async def fake_sync():
+        calls.append(1)
+
+    async def fake_sleep(s):
+        sleeps.append(s)
+        if len(sleeps) == 3:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(pp, "_sync_own_session", fake_sync)
+    monkeypatch.setattr(pp.asyncio, "sleep", fake_sleep)
+    with pytest.raises(asyncio.CancelledError):
+        await pp.prepull_loop()
+    assert sleeps == [3600] * 3 and len(calls) == 3

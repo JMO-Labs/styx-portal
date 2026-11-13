@@ -2,3 +2,4 @@
 01-selkies-owner-lag-gate.patch
 02a-pixelflux-av1-render-size.patch
 02b-selkies-av1-crop-client.patch
+05-pixelflux-watermark.patch

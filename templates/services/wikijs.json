@@ -1,0 +1,15 @@
+{
+  "id": "wikijs",
+  "name": "Wiki.js",
+  "icon": "📚",
+  "default_port": 3000,
+  "mount_mode": "path",
+  "auth_mode": "app-native",
+  "bypass_rules": [],
+  "health_path": null,
+  "verify_tls": true,
+  "base_url_hint": null,
+  "warnings": [
+    "Wiki.js signs in through Keycloak directly; Styx only links to it."
+  ]
+}
