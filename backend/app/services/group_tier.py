@@ -4,7 +4,8 @@ import re
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models import Group, UserGroup
+from app.models import Group, User, UserGroup
+from app.services.group_dlp import DLP_ENV_KEYS, dlp_env, user_group_dlp
 
 _MULT = {"k": 1024, "m": 1024**2, "g": 1024**3, "t": 1024**4}
 
@@ -62,14 +63,31 @@ def tier_env(tier: dict) -> dict[str, str]:
     return env
 
 
+def merge_launch_env(launch_env: dict, *layers: dict) -> dict:
+    """launch_env under later layers (template, overrides), except DLP keys: those
+    always come from launch_env (a template cannot re-enable a channel)."""
+    env = {k: v for layer in (launch_env, *layers) for k, v in layer.items()}
+    if not DLP_ENV_KEYS & launch_env.keys():
+        return env  # DLP not enforced on this path (non-k8s)
+    for k in DLP_ENV_KEYS:
+        if k in launch_env:
+            env[k] = launch_env[k]
+        else:
+            env.pop(k, None)
+    return env
+
+
 async def launch_overrides(session: AsyncSession, runtime, instance, template):
-    """(env defaults, memory_limit, cpu_limit) for a launch. Template values win over
-    group overrides, which win over the global CPU-tier defaults. Kubernetes only
+    """(env defaults, memory_limit, cpu_limit) for a launch. DLP env always wins; template values win over
+    tier overrides, which win over the global CPU-tier defaults. Kubernetes only
     (the CPU tier is not applied on the Docker path)."""
     from app.services.k8s_instances import K8sInstanceRuntime
 
     if not isinstance(runtime, K8sInstanceRuntime):
         return {}, template.memory_limit, template.cpu_limit
     tier = await user_group_tier(session, instance.owner_id)
-    return (tier_env(tier), template.memory_limit or tier.get("memory"),
+    owner = await session.get(User, instance.owner_id) if instance.owner_id else None
+    dlp = dlp_env(await user_group_dlp(session, instance.owner_id),
+                  owner.username if owner else None)
+    return ({**tier_env(tier), **dlp}, template.memory_limit or tier.get("memory"),
             template.cpu_limit or tier.get("cpu"))

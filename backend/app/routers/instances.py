@@ -19,7 +19,7 @@ from app.services.posix_uid import allocate_uid
 from app.services.k8s_runtime import ensure_instance_supported, instance_runtime
 from app.services.screenshot import ScreenshotService
 from app.services import gpu_access, instance_readiness, profiles
-from app.services.group_tier import launch_overrides
+from app.services.group_tier import launch_overrides, merge_launch_env
 from app.services.traefik_labels import generate_traefik_labels
 from app.services.audit import audit
 from app.services.offboarding import is_disabled
@@ -126,7 +126,7 @@ async def _build_and_start_container(instance, template, docker, session):
         volumes[store] = {"bind": "/var/lib/docker", "mode": "rw"}
 
     tier_env, mem_limit, cpu_limit = await launch_overrides(session, docker, instance, template)
-    env = {**tier_env, **template.env_vars, **(instance.env_overrides or {})}
+    env = merge_launch_env(tier_env, template.env_vars, instance.env_overrides or {})
     labels = generate_traefik_labels(
         instance_id=instance.id,
         subdomain=instance.subdomain,
@@ -228,7 +228,7 @@ async def _launch_instance_background(instance_id: str, template_id: str):
                 volumes[store] = {"bind": "/var/lib/docker", "mode": "rw"}
 
             tier_env, mem_limit, cpu_limit = await launch_overrides(session, docker, instance, template)
-            env = {**tier_env, **template.env_vars, **(instance.env_overrides or {})}
+            env = merge_launch_env(tier_env, template.env_vars, instance.env_overrides or {})
 
             labels = generate_traefik_labels(
                 instance_id=instance.id,
