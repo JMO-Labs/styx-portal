@@ -54,7 +54,7 @@ async def ageoff_tick(session, store, now: datetime, is_leader, dry_run: bool,
                 session, uid, "ageoff", f"{now:%Y-%m-%d}",
                 f"{len(p.files)} unused file(s) in your home will be archived after "
                 f"{NOTICE_DAYS} days unless you open or modify them.",
-                now + timedelta(days=NOTICE_DAYS))
+                now + timedelta(days=NOTICE_DAYS), created_at=now)
         else:
             moved = _move(store, uid, home, p.files)
             if moved:

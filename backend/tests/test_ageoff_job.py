@@ -13,9 +13,10 @@ NOW = datetime(2026, 11, 13, 3, 0)
 
 class FakeStore:
     def __init__(self, fail=False):
-        self.puts, self.fail = [], fail
+        self.puts, self.fail, self.attempts = [], fail, []
 
     def put(self, uid, rel, fileobj, mtime):
+        self.attempts.append((uid, rel))
         if self.fail:
             raise OSError("boom")
         self.puts.append((uid, rel, fileobj.read()))
@@ -62,6 +63,7 @@ async def test_notice_once_per_day_no_upload(session, tmp_path):
     await _run(session, st, tmp_path, NOW)
     ns = (await session.exec(select(Notice))).all()
     assert len(ns) == 1 and ns[0].kind == "ageoff" and ns[0].user_id == u.id
+    assert ns[0].created_at == NOW  # job and notice share one clock
     assert st.puts == [] and f.exists()
 
 
@@ -84,8 +86,11 @@ async def test_upload_error_keeps_file(session, tmp_path):
     u, f = await _setup(session, tmp_path)
     await _run(session, FakeStore(), tmp_path, NOW)
     await _age_notice(session, 15)
-    await _run(session, FakeStore(fail=True), tmp_path, NOW)
-    assert f.exists()
+    st = FakeStore(fail=True)
+    await _run(session, st, tmp_path, NOW)
+    assert st.attempts == [(u.id, "old.txt")] and f.exists()
+    audits = (await session.exec(select(AuditLog).where(AuditLog.action == "ageoff.move"))).all()
+    assert audits == []
 
 
 @pytest.mark.asyncio
