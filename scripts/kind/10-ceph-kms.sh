@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 # Spike (#64): Rook-Ceph OSD dm-crypt KEK in OpenBao (kubernetes auth), outage and rotation.
 # Rook is not tested upstream against OpenBao. Uses deploy/enterprise/openbao/policies/rook-ceph.hcl
-# and the rook-ceph role from auth-roles.json. Single node, one loop-device block PV.
+# and the rook-ceph role from auth-roles.json. One node, one loop-device block PV.
 set -euo pipefail
 
 ROOK_CHART_VERSION="${ROOK_CHART_VERSION:-1.21.2}"
 CEPH_IMAGE="${CEPH_IMAGE:-quay.io/ceph/ceph:v20.2.5}"
 BAO_IMAGE="${BAO_IMAGE:-ghcr.io/openbao/openbao:2.7.2}"
-NODE="spike-control-plane"
+# Loop device / PV / OpenBao node: first worker (Rook pods don't tolerate the control-plane
+# taint, so a PV pinned there leaves osd-prepare Pending); control plane on single-node clusters.
+NODE=$(kubectl get nodes -l '!node-role.kubernetes.io/control-plane' -o name | head -1)
+NODE=${NODE#node/}; NODE=${NODE:-spike-control-plane}
+echo "spike node: $NODE"
 LOOP_N=200
 RK=rook-ceph
 BAO_NS=openbao
@@ -20,6 +24,8 @@ diag() {
   kubectl get ns "$RK" >/dev/null 2>&1 || echo "ns $RK not created yet"
   kubectl -n "$RK" get pods -o wide || true
   kubectl -n "$RK" describe pods -l app=rook-ceph-osd | tail -60 || true
+  kubectl -n "$RK" describe pods -l app=rook-ceph-osd-prepare | tail -30 || true
+  kubectl get pv,pvc -A -o wide || true
   kubectl -n "$BAO_NS" get pods -o wide || true
   kubectl -n "$BAO_NS" describe pod openbao-0 | tail -40 || true
   kubectl -n "$BAO_NS" logs openbao-0 -c openbao --tail=40 || true
