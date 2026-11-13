@@ -191,6 +191,6 @@ def test_build_objects_launches_ready_digest(monkeypatch):
     from app.services.k8s_instance_objects import build_objects
     monkeypatch.setenv("HARBOR_URL", "")
     c = _client(_ds("a", 2, ts="1"), _ds("b", 0, ts="2"))
-    objs = build_objects("n", _resolved("b"), {}, [], 3000, "styx-instances", "o", client=c)
+    objs = build_objects("n", _resolved("b"), {}, {}, 3000, "styx-instances", "o", client=c)
     dep = next(o for o in objs if o["kind"] == "Deployment")
     assert dep["spec"]["template"]["spec"]["containers"][0]["image"] == _resolved("a")
