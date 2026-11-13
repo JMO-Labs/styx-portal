@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 import httpx
@@ -48,3 +49,11 @@ async def test_disabled_makes_no_call(field):
     assert nm.configured(cfg) is False
     assert await nm.send("x", cfg, transport=t) is False
     assert calls == []
+
+
+async def test_send_propagates_cancellation():
+    def cancel(req):
+        raise asyncio.CancelledError
+
+    with pytest.raises(asyncio.CancelledError):
+        await nm.send("x", CFG, transport=httpx.MockTransport(cancel))

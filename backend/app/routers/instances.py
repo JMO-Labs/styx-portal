@@ -2,8 +2,8 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -21,7 +21,8 @@ from app.services.screenshot import ScreenshotService
 from app.services import gpu_access, instance_readiness, profiles
 from app.services.group_tier import launch_overrides
 from app.services.traefik_labels import generate_traefik_labels
-from app.services.audit import audit
+from app.services.audit import audit, audit_request
+from app.services.unlock_token import mint_token
 from app.services.offboarding import is_disabled
 from app.services.settings_store import settings as sys_settings
 from app.services.abuse_store import get_abuse_store
@@ -125,8 +126,7 @@ async def _build_and_start_container(instance, template, docker, session):
         await asyncio.to_thread(docker.create_volume, store)
         volumes[store] = {"bind": "/var/lib/docker", "mode": "rw"}
 
-    tier_env, mem_limit, cpu_limit = await launch_overrides(session, docker, instance, template)
-    env = {**tier_env, **template.env_vars, **(instance.env_overrides or {})}
+    env, mem_limit, cpu_limit = await launch_overrides(session, docker, instance, template)
     labels = generate_traefik_labels(
         instance_id=instance.id,
         subdomain=instance.subdomain,
@@ -227,8 +227,7 @@ async def _launch_instance_background(instance_id: str, template_id: str):
                 await asyncio.to_thread(docker.create_volume, store)
                 volumes[store] = {"bind": "/var/lib/docker", "mode": "rw"}
 
-            tier_env, mem_limit, cpu_limit = await launch_overrides(session, docker, instance, template)
-            env = {**tier_env, **template.env_vars, **(instance.env_overrides or {})}
+            env, mem_limit, cpu_limit = await launch_overrides(session, docker, instance, template)
 
             labels = generate_traefik_labels(
                 instance_id=instance.id,
@@ -399,6 +398,35 @@ async def get_instance(
         raise HTTPException(404, "Instance not found")
     require_owner_or_admin(instance.owner_id, user)
     return instance
+
+
+@router.get("/{instance_id}/unlock")
+async def unlock_instance(
+    instance_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """Mint a 60 s gateway unlock token; needs the HAProxy verified-card header."""
+    instance = await session.get(Instance, instance_id)
+    if not instance:
+        raise HTTPException(404, "Instance not found")
+    reason = None
+    if instance.owner_id != user.id and user.role != "admin":
+        reason = "not_owner"
+    elif not request.headers.get("Client-Cert"):
+        reason = "no_card"
+    if reason:
+        await audit_request(session, request, "session.unlock_denied", user_id=user.id,
+                            resource=instance_id, detail={"reason": reason})
+        await session.commit()
+        raise HTTPException(403, "Card required" if reason == "no_card" else "Not the owner")
+    await audit_request(session, request, "session.unlock", user_id=user.id,
+                        resource=instance_id)
+    await session.commit()
+    host = f"{instance.subdomain}.{_settings.DOMAIN}"
+    return RedirectResponse(
+        f"https://{host}/styx/unlock?token={mint_token(instance_id)}", status_code=302)
 
 
 @router.post("/{instance_id}/start", response_model=Instance)
