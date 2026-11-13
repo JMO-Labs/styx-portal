@@ -72,3 +72,27 @@ async def test_member_forbidden_admin_but_reads_active(member_client):
 @pytest.mark.asyncio
 async def test_active_requires_login(client):
     assert (await client.get("/api/announcements/active")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_naive_datetimes_pass_through(admin_client):
+    start = (datetime.now(timezone.utc) - timedelta(hours=1)).replace(tzinfo=None)
+    r = await admin_client.post(A, json=_body(starts_at=start.isoformat()))
+    assert r.status_code == 201, r.text
+
+
+@pytest.mark.asyncio
+async def test_patch_null_field_is_ignored(admin_client):
+    r = await admin_client.post(A, json=_body())
+    aid = r.json()["id"]
+    r = await admin_client.patch(f"{A}/{aid}", json={"title": None})
+    assert r.status_code == 200
+    assert r.json()["title"] == "Hello"
+
+
+@pytest.mark.asyncio
+async def test_patch_ends_before_starts_rejected(admin_client):
+    r = await admin_client.post(A, json=_body())
+    aid = r.json()["id"]
+    r = await admin_client.patch(f"{A}/{aid}", json={"ends_at": _iso(-2)})
+    assert r.status_code == 422
