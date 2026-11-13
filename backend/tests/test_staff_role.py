@@ -89,11 +89,16 @@ async def test_oidc_callback_syncs_staff_role(client, session):
 
 
 @pytest.mark.asyncio
-async def test_me_exposes_can_takeover(admin_client, member_client, session):
-    assert (await admin_client.get("/api/auth/me")).json()["can_takeover"] is True
+async def test_me_exposes_can_takeover(member_client, session):
+    # member_client shares one client; check member first, then promote via staff_role.
     assert (await member_client.get("/api/auth/me")).json()["can_takeover"] is False
     member = (await session.exec(select(User).where(User.username == "member"))).first()
     member.staff_role = "help-desk"
     session.add(member)
     await session.commit()
     assert (await member_client.get("/api/auth/me")).json()["can_takeover"] is True
+
+
+@pytest.mark.asyncio
+async def test_me_admin_can_takeover(admin_client):
+    assert (await admin_client.get("/api/auth/me")).json()["can_takeover"] is True
