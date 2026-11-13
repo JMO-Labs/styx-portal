@@ -5,9 +5,19 @@ set -euo pipefail
 
 NS=node-loss
 shellcheck scripts/node-out-of-service.sh scripts/kind/node-loss.sh
+retry() { # transient kyverno webhook errors (broken pipe, closed connection)
+  local a
+  for a in 1 2 3 4 5; do
+    "$@" && return 0
+    echo "retry $a: $*" >&2
+    sleep 5
+  done
+  return 1
+}
 victim=""
+MANIFEST=$(mktemp)
 cleanup() {
-  kubectl delete ns "$NS" --wait=false >/dev/null 2>&1 || true
+  retry kubectl delete ns "$NS" --wait=false >/dev/null 2>&1 || true
   if [ -n "$victim" ]; then
     docker start "$victim" >/dev/null 2>&1 || true
     kubectl wait --for=condition=Ready "node/$victim" --timeout=180s || true
@@ -16,8 +26,9 @@ cleanup() {
 trap cleanup EXIT
 
 kubectl wait --for=condition=Ready nodes --all --timeout=180s
-kubectl create ns "$NS"
-kubectl -n "$NS" apply -f - <<'Y'
+kubectl create ns "$NS" --dry-run=client -o yaml >"$MANIFEST"
+retry kubectl apply -f "$MANIFEST"
+cat >"$MANIFEST" <<'Y'
 apiVersion: apps/v1
 kind: Deployment
 metadata: {name: home}
@@ -40,6 +51,7 @@ spec:
         - name: home
           emptyDir: {}
 Y
+retry kubectl -n "$NS" apply -f "$MANIFEST"
 kubectl -n "$NS" rollout status deploy/home --timeout=180s
 
 victim=$(kubectl -n "$NS" get pod -l app=home -o jsonpath='{.items[0].spec.nodeName}')
@@ -66,9 +78,12 @@ eff=$(kubectl get node "$victim" -o jsonpath='{.spec.taints[?(@.key=="node.kuber
 [ "$eff" = "NoExecute" ] || { echo "FAIL: out-of-service taint missing (got '$eff')"; exit 1; }
 
 echo "waiting for pod on another node"
-for _ in $(seq 24); do
+for i in $(seq 48); do
+  # the taint alone must evict the pod (ADR-0054); no manual delete fallback.
+  # diagnostic only, so a failure is easy to read
+  [ "$i" = 12 ] && kubectl -n "$NS" get pod -l app=home -o wide
   new=$(kubectl -n "$NS" get pod -l app=home --field-selector=status.phase=Running \
-    -o jsonpath='{range .items[?(@.metadata.deletionTimestamp==null)]}{.spec.nodeName}{"\n"}{end}' | head -1)
+    -o json | jq -r '.items[] | select(.metadata.deletionTimestamp==null) | .spec.nodeName' | head -1)
   [ -n "$new" ] && [ "$new" != "$victim" ] && break
   new=""
   sleep 5

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Query
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.database import get_session
@@ -23,5 +23,5 @@ async def list_audit(
         stmt = stmt.where(AuditLog.action == action)
     if user_id:
         stmt = stmt.where(AuditLog.user_id == user_id)
-    stmt = stmt.order_by(AuditLog.id.desc()).limit(limit).offset(offset)
+    stmt = stmt.order_by(col(AuditLog.id).desc()).limit(limit).offset(offset)
     return (await session.exec(stmt)).all()

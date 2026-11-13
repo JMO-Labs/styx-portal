@@ -121,8 +121,8 @@ async def login_matrix(body: MatrixLoginBody, request: Request, response: Respon
         await audit_request(session, request, "auth.login_locked", user_id=user.id)
         await session.commit()
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid code")
-    challenge = json.loads(user.matrix_challenge)
-    if not matrix_card.verify(matrix_card.unseal(user.matrix_card), challenge, body.answers):
+    challenge = json.loads(user.matrix_challenge or "")
+    if not matrix_card.verify(matrix_card.unseal(user.matrix_card or ""), challenge, body.answers):
         await login_flow.record_failure(
             session, request, username=user.username, ip=ip, resolved=resolved, rnd=rnd,
             track_user=True, action="auth.matrix_failed", user_id=user.id)

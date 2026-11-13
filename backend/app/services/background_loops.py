@@ -3,7 +3,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from sqlmodel import select
+from sqlmodel import col, select
 
 from app.config import Settings
 from app.database import async_session
@@ -20,7 +20,7 @@ async def _run_monitor_pass(session, monitor, docker) -> bool:
     """One reconcile pass over running/idle instances. Marks crashed containers
     stopped and applies idle auto-stop. Returns True if any instance stopped."""
     result = await session.exec(
-        select(Instance).where(Instance.status.in_(["running", "idle"]))
+        select(Instance).where(col(Instance.status).in_(["running", "idle"]))
     )
     instances = result.all()
     changed = False
@@ -35,6 +35,7 @@ async def _run_monitor_pass(session, monitor, docker) -> bool:
                 continue
         actions = monitor.check_instance(inst, session)
         if "auto_stopped" in actions:
+            await monitor.record_auto_stop(session, inst)
             changed = True
     return changed
 
@@ -85,7 +86,7 @@ async def _reconcile_instances_at_boot(session, docker) -> None:
     unreachable (k8s), nothing can be running: stop them all, warn once."""
     result = await session.exec(
         select(Instance).where(
-            Instance.status.in_(["running", "idle", "paused", "pulling", "starting"])
+            col(Instance.status).in_(["running", "idle", "paused", "pulling", "starting"])
         )
     )
     docker_down = False

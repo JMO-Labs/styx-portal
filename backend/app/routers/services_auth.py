@@ -2,6 +2,7 @@
 import html
 import posixpath
 import re
+from typing import cast
 from urllib.parse import parse_qs, quote, unquote
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -128,11 +129,11 @@ def login_redirect(request: Request, uri: str | None, cookie_root: bool = False,
     framed = shell_slug is not None and request.headers.get("sec-fetch-dest") in ("iframe", "frame")
     login = "/login"
     if framed:
-        nxt = _shell_path(shell_slug, uri, cookie_root)
+        nxt = _shell_path(cast(str, shell_slug), uri, cookie_root)
         if nxt and safe_next(nxt):
             login += f"?next={quote(nxt, safe='')}"
     elif safe_next(uri):
-        login += f"?next={quote(uri, safe='/?=&')}"
+        login += f"?next={quote(uri or '', safe='/?=&')}"
     if cookie_root:
         # While styx_svc is set, /login itself routes to the service: clear the
         # cookie first or the browser loops between the app and auth-check.
@@ -213,7 +214,7 @@ def _focus_response(svc: ProxiedService, inner: str | None = None) -> RedirectRe
     # inner: the app page to land on; it loads at the origin root, so it passes the shell's rule.
     ok = inner and inner.startswith("/") and safe_next(f"/_styx/app/{svc.slug}{inner}")
     inner = inner if ok else "/"
-    resp = RedirectResponse(f"/_styx/app/{svc.slug}{inner}" if svc.frame_ok else inner, status_code=302)
+    resp = RedirectResponse(f"/_styx/app/{svc.slug}{inner}" if svc.frame_ok else (inner or "/"), status_code=302)
     resp.set_cookie(COOKIE_NAME, focus_value(svc.slug, svc.id), path="/", httponly=True,
                     secure=_settings.COOKIE_SECURE, samesite="lax")
     resp.headers["Clear-Site-Data"] = '"cache"'

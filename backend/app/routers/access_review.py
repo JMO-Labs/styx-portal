@@ -6,7 +6,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -49,22 +49,22 @@ async def _rows(session: AsyncSession, user: User, quarter: str) -> list[dict]:
     out: list[dict] = []
     for g in groups:
         members = (await session.exec(
-            select(User).join(UserGroup, UserGroup.user_id == User.id)
+            select(User).join(UserGroup, col(UserGroup.user_id) == User.id)
             .where(UserGroup.group_id == g.id).order_by(User.username))).all()
         decided = {d.user_id: d for d in (await session.exec(
             select(AccessReviewDecision).where(
                 AccessReviewDecision.group_id == g.id,
                 AccessReviewDecision.quarter == quarter)
-            .order_by(AccessReviewDecision.decided_at))).all()}
-        actors = {}
+            .order_by(col(AccessReviewDecision.decided_at)))).all()}
+        actors: dict = {}
         for u in members:
             d = decided.pop(u.id, None)
             out.append(await _row(session, actors, quarter, g, u.id, u.username, u.email, d))
         # Revoked members are no longer in the group: keep them in the report.
         for uid, d in decided.items():
-            u = await session.get(User, uid)
+            gone = await session.get(User, uid)
             out.append(await _row(session, actors, quarter, g, uid,
-                                  u.username if u else uid, u.email if u else None, d))
+                                  gone.username if gone else uid, gone.email if gone else None, d))
     return out
 
 
@@ -115,7 +115,7 @@ async def decide(body: DecisionIn, request: Request, user: User = Depends(get_cu
     await audit_request(session, request, f"access_review.{body.decision}", user_id=user.id,
                         resource=g.id, detail=detail)
     await session.commit()
-    if kc_sub:
+    if kc_sub and g.kc_group_id:
         await kc_admin.remove_from_group(kc_sub, g.kc_group_id)
     return {"group_id": g.id, "user_id": body.user_id, "quarter": body.quarter,
             "decision": body.decision}

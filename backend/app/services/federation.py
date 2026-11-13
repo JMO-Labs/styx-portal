@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlmodel import func, select
+from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sqlmodel import delete
@@ -85,7 +85,7 @@ def _signup_role(claims: dict, role_map: dict | None, auto_promote_admins: bool 
 
 async def _provision(session: AsyncSession, provider_name: str,
                      identity: OAuthIdentity, role: str) -> User:
-    username = identity.email.split("@")[0]
+    username = (identity.email or "").split("@")[0]
     if (await session.exec(select(User).where(User.username == username))).first():
         username = f"{username}-{identity.sub[:6]}"
     user = User(username=username, email=identity.email,
@@ -171,8 +171,8 @@ async def resolve_identity(session: AsyncSession, provider_name: str,
 
     # 4. provider allows self-service signup → provision if the group gate permits
     if allow_signup:
-        role = _signup_role(identity.claims, role_map, auto_promote_admins)
-        if role is not None:
+        signup_role = _signup_role(identity.claims, role_map, auto_promote_admins)
+        if signup_role is not None:
             # Check if admin group matched
             admin_group = (role_map or {}).get("admin_group")
             admin_group_matched = admin_group and admin_group in _groups(identity.claims, role_map)
@@ -183,10 +183,10 @@ async def resolve_identity(session: AsyncSession, provider_name: str,
                 await audit(session, "admin_claim_pending", resource=identity.email,
                            detail={"provider": provider_name})
 
-            user = await _provision(session, provider_name, identity, role)
+            user = await _provision(session, provider_name, identity, signup_role)
 
             # Audit role elevation via group claim (signup path)
-            if auto_promote_admins and admin_group_matched and role == "admin":
+            if auto_promote_admins and admin_group_matched and signup_role == "admin":
                 await audit(session, "user.role_change", user_id=user.id, resource=user.id,
                            detail={"via": "idp_group", "provider": provider_name, "new_role": "admin"})
                 await session.commit()
@@ -267,7 +267,7 @@ async def sync_idp_groups(session: AsyncSession, user: User, claims: dict,
     stale = current - target
     if stale:
         await session.exec(delete(UserGroup).where(
-            UserGroup.user_id == user.id, UserGroup.group_id.in_(stale)))
+            col(UserGroup.user_id) == user.id, col(UserGroup.group_id).in_(stale)))
     for gid in target - current:
         session.add(UserGroup(user_id=user.id, group_id=gid))
     await session.commit()

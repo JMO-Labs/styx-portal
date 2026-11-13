@@ -8,10 +8,10 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
-| AC-2 | Account Management | Keycloak directory; webhook provisioning, offboarding, review (ADR-0014, 0018, 0019, 0022, 0024). Evidence: ADR-0068; IaC `deploy/enterprise/keycloak/`, tests `backend/tests/test_federation_groups.py`, `test_kc_admin.py`; [runbook](runbooks/keycloak.md); Wiki.js/Synapse accounts only via OIDC; registration off (ADR-0071); runbook [wikijs-matrix.md](runbooks/wikijs-matrix.md) | System | Planned |
+| AC-2 | Account Management | Keycloak directory; webhook provisioning, offboarding, review (ADR-0014, 0018, 0019, 0022, 0024). Evidence: ADR-0068; IaC `deploy/enterprise/keycloak/`, tests `backend/tests/test_federation_groups.py`, `test_kc_admin.py`; [runbook](runbooks/keycloak.md); Wiki.js/Synapse accounts only via OIDC; registration off (ADR-0071); runbook [wikijs-matrix.md](runbooks/wikijs-matrix.md); Offboarding: [runbook](runbooks/offboarding.md), ADR-0073. | System | Implemented |
 | AC-2(1) | Automated System Account Management | Webhook/SCIM-shaped provisioning (ADR-0019) | System | Planned |
-| AC-2(3) | Disable Accounts | End-date, 35-day inactivity, remove-access flows (ADR-0022, 0024) | System | Planned |
-| AC-2(4) | Automated Audit Actions | Account events to Elastic; Recently provisioned view (ADR-0023); security officer owns the daily review; new accounts unreviewed for 2 business days are auto-suspended (R04) | System | Planned |
+| AC-2(3) | Disable Accounts | End-date, 35-day inactivity, remove-access flows (ADR-0022, 0024). Evidence: `backend/app/services/lifecycle_jobs.py`, `offboarding.py`, `account_deletion.py`; [runbook](runbooks/offboarding.md); ADR-0073. | System | Implemented |
+| AC-2(4) | Automated Audit Actions | Account events to Elastic; Recently provisioned view (ADR-0023); security officer owns the daily review; new accounts unreviewed for 2 business days are auto-suspended (R04). Evidence: `backend/app/services/new_account_review.py`, `new_account_digest.py`, `backend/app/routers/access_review.py`; [runbook](runbooks/offboarding.md); ADR-0073. | System | Implemented |
 | AC-3 | Access Enforcement | Keycloak roles, Styx authorization, Kyverno (ADR-0001, 0026); CephFS homes: [ADR-0066](adr/0066-cephfs-homes-uid-ownership-and-freeze.md), [runbook](runbooks/node-loss-reattach.md) | System | Planned |
 | AC-4 | Information Flow Enforcement | DLP policy, Cilium deny-all non-proxy egress, Squid category filtering (ADR-0038, 0040); Cilium baseline (CCNPs, default-deny, desktop egress patch `patch-desktop-egress.yaml`) in `deploy/k8s/components/cilium-baseline/` (README), implemented in code, not deployed; Squid egress (two ports 3128 category / 3129 allowlist, label-selected, UT1 category CronJob, hostname-only JSON logs; ADR-0064, `deploy/enterprise/squid/`, runbook `runbooks/squid-egress.md`) implemented in code, not deployed; HAProxy part not done. DLP implementation and evidence: ADR-0070; [runbook](runbooks/dlp-policy.md). | System | Planned |
 | AC-5 | Separation of Duties | Admin role split (ADR-0026) | System | Planned |
@@ -20,7 +20,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | AC-8 | System Use Notification | USG banner before login (ADR-0027). Evidence: IaC `deploy/enterprise/banner/`, tests `backend/tests/test_enterprise_banner.py`; [runbook](runbooks/keycloak.md) | System | Planned |
 | AC-11 | Device Lock | 15 min idle lock in Styx gateway; unlock by fresh TLS handshake proves card presence, not PIN entry; risk acceptance R02 (ADR-0039, 0058); card removal locks the session through managed-endpoint policy (GPO / macOS equivalent) (R02) | System | Planned |
 | AC-12 | Session Termination | 2 h disconnect stop, 12 h max (ADR-0039) | System | Planned |
-| AC-17 | Remote Access | DMZ proxy, CAC mTLS, monitored sessions; consent-free view/take-control by platform admin and help desk only, with persistent banner naming who is viewing/controlling, required ticket number or reason, logged to Elastic, security officer alerted, monthly review by security officer or auditor (ADR-0012, 0060) | System | Planned |
+| AC-17 | Remote Access | DMZ proxy, CAC mTLS, monitored sessions; consent-free view/take-control by platform admin and help desk only, with persistent banner naming who is viewing/controlling, required ticket number or reason, logged to Elastic, security officer alerted, monthly review by security officer or auditor (ADR-0012, 0060) Implementation and evidence: ADR-0075; `backend/app/routers/takeover.py`, `routers/instance_auth.py`, `security/deps.py`, `services/takeover_alert.py`; tests `test_takeover_api.py`, `test_instance_auth_takeover.py`, `test_staff_role.py`; [runbook](runbooks/session-takeover.md). | System | Planned |
 | AC-20 | Use of External Systems | Managed clients, GCC High and upstream GitLab linkage (ADR-0019, 0043) | Hybrid | Planned |
 
 ## AT - Awareness and Training
@@ -34,15 +34,15 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
-| AU-2 | Event Logging | Event catalog incl. webhook, DLP (clipboard/file events as metadata only, never content), egress hostnames (ADR-0020, 0038, 0044); takeover events (actor, user, start/end, mode view/control, reason) (ADR-0060); Styx audit events as ECS JSON (`event.dataset=styx.audit`) and kube-apiserver audit policy in deploy/logging, IaC done, not deployed; DLP implementation and evidence: ADR-0070; [runbook](runbooks/dlp-policy.md). | System | Planned |
-| AU-3 | Content of Audit Records | Readable identity first.last plus EDIPI/card-UUID correlation; DLP records are metadata only (ADR-0016, 0038, 0044); takeover events (actor, user, start/end, mode view/control, reason) (ADR-0060); ECS fields `@timestamp`, `event.id`, `event.action/category/type/outcome`, `user.id/name`, `source.ip`, redacted `styx.audit.detail`; reserved `styx.identity.card_*`, egress and DLP fields (filename sha256 only, no `file.hash`) in deploy/logging, IaC done, not deployed | System | Planned |
+| AU-2 | Event Logging | Event catalog incl. webhook, DLP (clipboard/file events as metadata only, never content), egress hostnames (ADR-0020, 0038, 0044); takeover events (actor, user, start/end, mode view/control, reason) (ADR-0060); Styx audit events as ECS JSON (`event.dataset=styx.audit`) and kube-apiserver audit policy in deploy/logging, IaC done, not deployed; DLP implementation and evidence: ADR-0070; [runbook](runbooks/dlp-policy.md).; session events launch/connect/disconnect/lock/unlock/stop with `styx.session.*` fields ([catalogue](session-events.md), ADR-0072) Takeover implementation: ADR-0075 (`takeover.start/end/denied/report`; `test_takeover_api.py`). | System | Planned |
+| AU-3 | Content of Audit Records | Readable identity first.last plus EDIPI/card-UUID correlation; DLP records are metadata only (ADR-0016, 0038, 0044); takeover events (actor, user, start/end, mode view/control, reason) (ADR-0060); ECS fields `@timestamp`, `event.id`, `event.action/category/type/outcome`, `user.id/name`, `source.ip`, redacted `styx.audit.detail`; reserved `styx.identity.card_*`, egress and DLP fields (filename sha256 only, no `file.hash`) in deploy/logging, IaC done, not deployed; session events launch/connect/disconnect/lock/unlock/stop with `styx.session.*` fields ([catalogue](session-events.md), ADR-0072) | System | Planned |
 | AU-4 | Audit Log Storage Capacity | Elastic 90 d hot / 1 y archive sizing (ADR-0044) | System | Planned |
 | AU-5 | Response to Audit Logging Process Failures | Alerting on log shipping failure (ADR-0044); Fluent Bit filesystem buffer and alerts FluentBitOutputFailing, FluentBitRetriesHigh, FluentBitDown in deploy/logging, IaC done, not deployed | System | Planned |
-| AU-6 | Audit Record Review, Analysis, and Reporting | Daily digest, access reviews, Elastic (ADR-0023, 0024, 0044); monthly review of takeover events by security officer or auditor (ADR-0060); monthly review of the uncategorised hostnames report (R01); Wiki.js/Synapse account activity reviewed through the normal review (ADR-0071); runbook [wikijs-matrix.md](runbooks/wikijs-matrix.md) | Hybrid | Planned |
+| AU-6 | Audit Record Review, Analysis, and Reporting | Daily digest, access reviews, Elastic (ADR-0023, 0024, 0044); monthly review of takeover events by security officer or auditor (ADR-0060); monthly review of the uncategorised hostnames report (R01); Wiki.js/Synapse account activity reviewed through the normal review (ADR-0071); runbook [wikijs-matrix.md](runbooks/wikijs-matrix.md) Monthly CSV report: ADR-0075; `backend/app/services/takeover_report.py`, `test_takeover_report.py`; [runbook](runbooks/session-takeover.md). | Hybrid | Planned |
 | AU-8 | Time Stamps | Cluster NTP; time source from org (ADR-0044) | Hybrid | Planned |
 | AU-9 | Protection of Audit Information | Auditor read-only role; Elastic access controls (ADR-0026, 0044) | Hybrid | Planned |
 | AU-11 | Audit Record Retention | 1 y archive (ADR-0044); ILM `styx-logs`: hot rollover 50gb/30d, cold at 90 d, delete at `RETENTION_DELETE_DAYS` (default 455 d, open item) in deploy/logging/elastic, IaC done, not deployed | System | Planned |
-| AU-12 | Audit Record Generation | Styx, Keycloak, Squid hostnames (JSON access log, host only, shipped to `logs-squid.access-*`; ADR-0064, implemented in code, not deployed), DLP metadata-only events; Selkies audit patch (ADR-0038, 0040, 0058); gateway takeover events (ADR-0060); Fluent Bit ships Styx audit, container logs and kube-apiserver audit to Elastic data streams (docs/operate/logging.md), IaC done, not deployed | System | Planned |
+| AU-12 | Audit Record Generation | Styx, Keycloak, Squid hostnames (JSON access log, host only, shipped to `logs-squid.access-*`; ADR-0064, implemented in code, not deployed), DLP metadata-only events; Selkies audit patch (ADR-0038, 0040, 0058); gateway takeover events (ADR-0060); Fluent Bit ships Styx audit, container logs and kube-apiserver audit to Elastic data streams (docs/operate/logging.md), IaC done, not deployed; session events launch/connect/disconnect/lock/unlock/stop with `styx.session.*` fields ([catalogue](session-events.md), ADR-0072) Takeover audit events: ADR-0075; `backend/app/routers/takeover.py`, `test_takeover_api.py`. | System | Planned |
 
 ## CA - Assessment, Authorization, and Monitoring
 
@@ -109,7 +109,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
-| MP-6 | Media Sanitization | Scratch volume reclaim after 7 days stopped, object-lock cold tier, disk disposal (ADR-0035) | Hybrid | Planned |
+| MP-6 | Media Sanitization | Scratch volume reclaim after 7 days stopped, object-lock cold tier, disk disposal (ADR-0035). Evidence: ADR-0074; `backend/app/services/ageoff_job.py`, `archive_store.py`, `profile_reclaim.py`, `scratch_reclaim.py`, `backend/app/routers/archive.py`; IaC `deploy/enterprise/rook-ceph/home-archive.yaml`; [runbook](runbooks/home-age-off.md). | Hybrid | Planned |
 | MP-7 | Media Use | Download-out off, print off (ADR-0038) | System | Planned |
 
 ## PE - Physical and Environmental Protection
@@ -131,7 +131,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
 | PS-3 | Personnel Screening | Organizational | Inherited-Org | Planned |
-| PS-4 | Personnel Termination | Offboarding flows (ADR-0022) | Hybrid | Planned |
+| PS-4 | Personnel Termination | Offboarding flows (ADR-0022). Evidence: `backend/app/services/offboarding.py`, `backend/app/routers/users.py`; [runbook](runbooks/offboarding.md). | Hybrid | Implemented |
 | PS-5 | Personnel Transfer | Group changes and access review (ADR-0024) | Hybrid | Planned |
 
 ## RA - Risk Assessment
@@ -175,7 +175,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | SI-4 | System Monitoring | Elastic, Prometheus (ADR-0044) | System | Planned |
 | SI-7 | Software, Firmware, and Information Integrity | cosign and Kyverno (ADR-0029); cosign key in OpenBao transit, non-exportable, signed only by protected-branch CI role, rotation and revocation (ADR-0063). Evidence: ADR-0069; `.github/workflows/images-nightly.yml`, `deploy/enterprise/kyverno/`, `backend/app/services/image_digest.py`, `cve_recycle.py`; [runbook](runbooks/image-supply-chain.md) | System | Planned |
 | SI-10 | Information Input Validation | Webhook strict schema (ADR-0020) | System | Planned |
-| SI-12 | Information Management and Retention | Age-off to Ceph RGW cold storage with self-restore (ADR-0035) | Hybrid | Planned |
+| SI-12 | Information Management and Retention | Age-off to Ceph RGW cold storage with self-restore (ADR-0035). Evidence: ADR-0074; `backend/app/services/ageoff_job.py`, `archive_store.py`, `profile_reclaim.py`, `scratch_reclaim.py`, `backend/app/routers/archive.py`; IaC `deploy/enterprise/rook-ceph/home-archive.yaml`; [runbook](runbooks/home-age-off.md). | Hybrid | Planned |
 
 ## SR - Supply Chain Risk Management
 

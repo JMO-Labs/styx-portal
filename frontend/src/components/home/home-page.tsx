@@ -13,6 +13,7 @@ import { ContainerRows } from "./container-rows";
 import { DesktopTiles } from "./desktop-tiles";
 import { DetailsSheet, type Detail } from "./details-sheet";
 import { HomeQuotaBanner } from "./home-quota-banner";
+import { NoticesBanner } from "./notices-banner";
 import { RecentStrip } from "./recent-strip";
 
 export function HomePage({ onNewContainer, onOpenSettings }: { onNewContainer: () => void; onOpenSettings?: () => void }) {
@@ -51,6 +52,7 @@ export function HomePage({ onNewContainer, onOpenSettings }: { onNewContainer: (
   return (
     <div data-glyph-keepout className="mx-auto max-w-[1200px] space-y-6 pb-16 md:space-y-9">
       <HomeQuotaBanner data={storage} />
+      <NoticesBanner />
       <section aria-label="Recent">
         <SectionHead title="Recent" />
         <RecentStrip items={recents} onAct={actOnRecent} />

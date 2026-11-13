@@ -3,7 +3,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -38,7 +38,7 @@ async def run_lifecycle_pass(session: AsyncSession, now: datetime,
     days = inactivity_days if inactivity_days is not None else Settings().LIFECYCLE_INACTIVITY_DAYS
     cutoff = now - timedelta(days=days)
     users = (await session.exec(select(User).where(
-        User.is_active.is_(True), User.disabled_at.is_(None)))).all()
+        col(User.is_active).is_(True), col(User.disabled_at).is_(None)))).all()
     count = 0
     for u in users:
         reason = _reason(u, now, cutoff)

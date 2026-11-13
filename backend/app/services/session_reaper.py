@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 import httpx
-from sqlmodel import select
+from sqlmodel import col, select
 
 from app.config import Settings
 from app.models import Instance, SessionEvent
@@ -29,8 +29,8 @@ async def _was_locked(session, inst_id: str) -> bool:
     last = (await session.exec(
         select(SessionEvent.event_type)
         .where(SessionEvent.instance_id == inst_id,
-               SessionEvent.event_type.in_(["locked", "unlocked"]))
-        .order_by(SessionEvent.id.desc()).limit(1))).first()
+               col(SessionEvent.event_type).in_(["locked", "unlocked"]))
+        .order_by(col(SessionEvent.id).desc()).limit(1))).first()
     return last == "locked"
 
 
@@ -47,7 +47,7 @@ async def reaper_pass(session, stop, fetch_state, *, cfg: Settings | None = None
     cfg = cfg or Settings()
     now = _naive_utc(now)
     rows = (await session.exec(
-        select(Instance).where(Instance.status.in_(["running", "idle"])))).all()
+        select(Instance).where(col(Instance.status).in_(["running", "idle"])))).all()
     stopped = 0
     for inst in rows:
         try:

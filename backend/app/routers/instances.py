@@ -2,10 +2,11 @@ import asyncio
 import logging
 import time
 from datetime import datetime, timezone
+from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -456,7 +457,7 @@ async def start_instance(
         # membership is only established on the create/build path, so a Traefik
         # restart leaves it off the net and routing 502s until reattached.
         await _isolate_or_409(docker, instance, instance.container_id)
-        await asyncio.to_thread(docker.start_container, instance.container_id)
+        await asyncio.to_thread(docker.start_container, cast(str, instance.container_id))
     else:
         template = await session.get(ServiceTemplate, instance.template_id)
         if not template:
@@ -610,7 +611,7 @@ async def pause_instance(
     if instance.status != "running" and instance.status != "idle":
         raise HTTPException(409, "Instance not running")
 
-    await asyncio.to_thread(docker.pause_container, instance.container_id)
+    await asyncio.to_thread(docker.pause_container, cast(str, instance.container_id))
     instance.status = "paused"
     session.add(instance)
 
@@ -636,7 +637,7 @@ async def unpause_instance(
     if instance.status != "paused":
         raise HTTPException(409, "Instance not paused")
 
-    await asyncio.to_thread(docker.unpause_container, instance.container_id)
+    await asyncio.to_thread(docker.unpause_container, cast(str, instance.container_id))
     instance.status = "running"
     instance.last_activity = datetime.now(timezone.utc)
     session.add(instance)
@@ -703,14 +704,14 @@ async def delete_instance(
 
     if delete_profile and profile_vol:
         await profiles.delete_after_instance(
-            session, docker, Instance(owner_id=profile_owner, template_id=profile_tmpl,
-                                      profile_volume=profile_vol), user.id)
+            session, docker, Instance(owner_id=profile_owner, template_id=profile_tmpl, name="",
+                                      subdomain="", profile_volume=profile_vol), user.id)
 
     # Opt-in image prune — only when requested AND no other instance uses the image.
     if remove_image and image_tag:
         remaining = await session.exec(
             select(Instance).join(
-                ServiceTemplate, Instance.template_id == ServiceTemplate.id
+                ServiceTemplate, col(Instance.template_id) == ServiceTemplate.id
             ).where(ServiceTemplate.image == image_tag)
         )
         if not remaining.first():
