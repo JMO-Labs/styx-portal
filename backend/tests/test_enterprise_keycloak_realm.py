@@ -123,5 +123,57 @@ def test_styx_client():
 
 
 def test_no_secrets_in_realm():
-    text = REALM_FILE.read_text().lower()
-    assert '"secret"' not in text and '"credentials"' not in text
+    """Client secrets are only ${ENV} placeholders (filled from ExternalSecrets)."""
+    r = realm()
+    for c in r["clients"]:
+        sec = c.get("secret")
+        assert sec is None or re.fullmatch(r"\$\{[A-Z0-9_]+\}", sec), c["clientId"]
+    assert '"credentials"' not in REALM_FILE.read_text().lower()
+
+
+APPS = {
+    "wikijs": ("https://wiki.<domain>/login/*", "WIKIJS_OIDC_SECRET", "kv/styx/wikijs/oidc"),
+    "synapse": ("https://matrix.<domain>/_synapse/client/oidc/callback",
+                "SYNAPSE_OIDC_SECRET", "kv/styx/synapse/oidc"),
+}
+
+
+def _client(cid):
+    return next(c for c in realm()["clients"] if c["clientId"] == cid)
+
+
+def test_app_clients_confidential_standard_flow_only():
+    for cid, (redirect, env, _) in APPS.items():
+        c = _client(cid)
+        assert c["publicClient"] is False
+        assert c["standardFlowEnabled"] is True
+        assert c["implicitFlowEnabled"] is False
+        assert c["directAccessGrantsEnabled"] is False
+        assert c["serviceAccountsEnabled"] is False
+        assert c["redirectUris"] == [redirect]
+        assert c["secret"] == "${" + env + "}"
+
+
+def test_app_clients_map_username_and_email():
+    for cid in APPS:
+        mappers = {m["config"]["claim.name"]: m for m in _client(cid)["protocolMappers"]}
+        assert mappers["preferred_username"]["config"]["user.attribute"] == "username"
+        assert mappers["email"]["config"]["user.attribute"] == "email"
+        for m in mappers.values():
+            assert m["protocolMapper"] == "oidc-usermodel-property-mapper"
+            assert m["config"]["userinfo.token.claim"] == "true"
+            assert m["config"]["id.token.claim"] == "true"
+
+
+def test_app_client_secrets_from_external_secrets():
+    docs = [d for d in yaml.safe_load_all((KC / "external-secrets.yaml").read_text()) if d]
+    dep = next(d for d in yaml.safe_load_all((KC / "deployment.yaml").read_text())
+               if d and d["kind"] == "Deployment")
+    env = {e["name"]: e for e in dep["spec"]["template"]["spec"]["containers"][0]["env"]}
+    for cid, (_, var, key) in APPS.items():
+        es = next(d for d in docs if d["metadata"]["name"] == f"keycloak-{cid}-oidc")
+        assert es["spec"]["data"][0]["remoteRef"]["key"] == key
+        ref = env[var]["valueFrom"]["secretKeyRef"]
+        assert ref["name"] == es["spec"]["target"]["name"]
+        assert ref["key"] == es["spec"]["data"][0]["secretKey"]
+

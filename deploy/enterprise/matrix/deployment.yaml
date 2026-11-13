@@ -1,0 +1,106 @@
+# Matrix Synapse: Keycloak OIDC only, federation off, DB on CNPG synapse-db.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: synapse
+  namespace: matrix
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: synapse
+  namespace: matrix
+  labels: {app.kubernetes.io/name: synapse}
+spec:
+  selector: {app.kubernetes.io/name: synapse}
+  ports:
+    - {name: http, port: 8008, targetPort: http}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: synapse-media
+  namespace: matrix
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: ceph-block          # PLACEHOLDER(#3)
+  resources:
+    requests: {storage: 20Gi}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synapse
+  namespace: matrix
+spec:
+  replicas: 1
+  strategy: {type: Recreate}            # RWO media volume
+  selector:
+    matchLabels: {app.kubernetes.io/name: synapse}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: synapse}
+    spec:
+      serviceAccountName: synapse
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 991
+        runAsGroup: 991
+        fsGroup: 991
+        seccompProfile: {type: RuntimeDefault}
+      volumes:
+        - name: config
+          configMap: {name: synapse-homeserver}
+        - name: secrets
+          secret: {secretName: synapse-secrets, defaultMode: 0440}
+        - name: oidc
+          secret: {secretName: synapse-oidc, defaultMode: 0440}
+        - name: db
+          secret:
+            secretName: synapse-db-app
+            defaultMode: 0400
+            items: [{key: pgpass, path: pgpass}]
+        - name: db-ca
+          secret: {secretName: synapse-db-ca}
+        - name: data
+          persistentVolumeClaim: {claimName: synapse-media}
+        - name: tmp
+          emptyDir: {}
+      containers:
+        - name: synapse
+          # PLACEHOLDER(digest): mirror ghcr.io/element-hq/synapse:v1.141.0 into Harbor and
+          # replace with the real digest (all-zero digest never pulls).
+          image: harbor.example.internal/element-hq/synapse:v1.141.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          env:
+            - {name: SYNAPSE_CONFIG_PATH, value: /config/homeserver.yaml}
+          ports:
+            - {name: http, containerPort: 8008}
+          volumeMounts:
+            - {name: config, mountPath: /config, readOnly: true}
+            - {name: secrets, mountPath: /secrets/synapse, readOnly: true}
+            - {name: oidc, mountPath: /secrets/oidc, readOnly: true}
+            - {name: db, mountPath: /secrets/db, readOnly: true}
+            - {name: db-ca, mountPath: /secrets/db-ca, readOnly: true}
+            - {name: data, mountPath: /data}
+            - {name: tmp, mountPath: /tmp}
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 15
+          startupProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 5
+            failureThreshold: 60
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {memory: 1Gi}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}

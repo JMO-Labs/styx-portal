@@ -58,3 +58,24 @@ def test_touched_after_notice_dropped(tmp_path):
     assert (p.action, p.files) == ("move", ["a"])
     _touch(tmp_path / "a", NOW - timedelta(days=2))
     assert plan(["a", "b"], sent, NOW, home=tmp_path).action == "none"
+
+
+def test_stale_files_skips_unstatable(tmp_path, monkeypatch):
+    _touch(tmp_path / "a", NOW - timedelta(days=100))
+    real = os.lstat
+
+    def boom(path, *a, **k):
+        if str(path).endswith("a"):
+            raise OSError("gone")
+        return real(path, *a, **k)
+
+    monkeypatch.setattr(os, "lstat", boom)
+    assert stale_files(tmp_path, NOW) == []
+
+
+def test_plan_move_skips_vanished_file(tmp_path):
+    sent = NOW - timedelta(days=15)
+    _touch(tmp_path / "a", NOW - timedelta(days=100))
+    p = plan(["a", "missing"], sent, NOW, home=tmp_path)
+    assert (p.action, p.files) == ("move", ["a"])
+    assert plan(["missing"], sent, NOW, home=tmp_path).action == "none"
