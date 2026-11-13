@@ -109,7 +109,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
-| MP-6 | Media Sanitization | Scratch volume reclaim after 7 days stopped, object-lock cold tier, disk disposal (ADR-0035) | Hybrid | Planned |
+| MP-6 | Media Sanitization | Scratch volume reclaim after 7 days stopped, object-lock cold tier, disk disposal (ADR-0035). Evidence: ADR-0074; `backend/app/services/ageoff_job.py`, `archive_store.py`, `profile_reclaim.py`, `scratch_reclaim.py`, `backend/app/routers/archive.py`; IaC `deploy/enterprise/rook-ceph/home-archive.yaml`; [runbook](runbooks/home-age-off.md). | Hybrid | Planned |
 | MP-7 | Media Use | Download-out off, print off (ADR-0038) | System | Planned |
 
 ## PE - Physical and Environmental Protection
@@ -175,7 +175,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | SI-4 | System Monitoring | Elastic, Prometheus (ADR-0044) | System | Planned |
 | SI-7 | Software, Firmware, and Information Integrity | cosign and Kyverno (ADR-0029); cosign key in OpenBao transit, non-exportable, signed only by protected-branch CI role, rotation and revocation (ADR-0063). Evidence: ADR-0069; `.github/workflows/images-nightly.yml`, `deploy/enterprise/kyverno/`, `backend/app/services/image_digest.py`, `cve_recycle.py`; [runbook](runbooks/image-supply-chain.md) | System | Planned |
 | SI-10 | Information Input Validation | Webhook strict schema (ADR-0020) | System | Planned |
-| SI-12 | Information Management and Retention | Age-off to Ceph RGW cold storage with self-restore (ADR-0035) | Hybrid | Planned |
+| SI-12 | Information Management and Retention | Age-off to Ceph RGW cold storage with self-restore (ADR-0035). Evidence: ADR-0074; `backend/app/services/ageoff_job.py`, `archive_store.py`, `profile_reclaim.py`, `scratch_reclaim.py`, `backend/app/routers/archive.py`; IaC `deploy/enterprise/rook-ceph/home-archive.yaml`; [runbook](runbooks/home-age-off.md). | Hybrid | Planned |
 
 ## SR - Supply Chain Risk Management
 
