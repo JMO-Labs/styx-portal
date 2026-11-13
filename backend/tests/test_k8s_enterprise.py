@@ -83,7 +83,9 @@ def _build(path):
 def test_kustomize_build():
     kinds = {(d["kind"], d["metadata"]["name"]) for d in _build(ENT)}
     assert not kinds & HOMELAB_ONLY
-    assert not {k for k, _ in kinds} & {"CronJob", "PersistentVolumeClaim"}
+    assert not {k for k, _ in kinds} & {"CronJob"}
+    # Only the static CephFS homes claim (#267); no homelab data/backup PVCs.
+    assert {n for k, n in kinds if k == "PersistentVolumeClaim"} == {"styx-homes"}
     be = [d for d in _build(ENT) if d["kind"] == "Deployment" and d["metadata"]["name"] == "backend"]
     assert be[0]["spec"]["replicas"] == 3
     assert ("CronJob", "styx-db-backup") in {(d["kind"], d["metadata"]["name"])
