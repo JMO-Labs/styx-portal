@@ -1,0 +1,61 @@
+--- a/selkies/audit.py
++++ b/selkies/audit.py
+@@ -23,6 +23,7 @@
+ 
+ import aiohttp
+ 
++from . import styx_audit
+ from .settings import settings
+ 
+ logger = logging.getLogger("audit")
+@@ -44,6 +45,7 @@
+ def emit(event: str, **fields: Any) -> None:
+     """Queue one event and return at once."""
+     global _queue, _sender, _overflowing, _dropped
++    styx_audit.on_event(event, fields)
+     if not settings.audit_webhook_url:
+         return
+     if _queue is None:
+--- /dev/null
++++ b/selkies/styx_audit.py
+@@ -0,0 +1,40 @@
++"""Styx D38 audit: one metadata-only JSON line on stdout per clipboard or file transfer.
++
++Fields (exactly): user, time, direction (in|out), size, type, filename_hash.
++Never the content or the plain filename; filename_hash is sha256(filename),
++null for the clipboard. The user comes from STYX_AUDIT_USER.
++"""
++import hashlib
++import json
++import logging
++import mimetypes
++import os
++import sys
++from datetime import datetime, timezone
++
++log = logging.getLogger("styx.audit")
++log.propagate = False
++log.setLevel(logging.INFO)
++if not log.handlers:
++    _h = logging.StreamHandler(sys.stdout)
++    _h.setFormatter(logging.Formatter("%(message)s"))
++    log.addHandler(_h)
++
++_DIRECTION = {"clipboard.receive": "in", "clipboard.send": "out", "file.upload.end": "in"}
++
++
++def on_event(event: str, fields: dict) -> None:
++    direction = _DIRECTION.get(event)
++    if direction is None:
++        return
++    name = fields.get("filename")
++    mime = fields.get("mime_type") or (mimetypes.guess_type(name)[0] if name else None)
++    ts = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
++    log.info(json.dumps({
++        "user": os.environ.get("STYX_AUDIT_USER") or None,
++        "time": ts,
++        "direction": direction,
++        "size": fields.get("size_bytes"),
++        "type": mime or ("application/octet-stream" if name else None),
++        "filename_hash": hashlib.sha256(name.encode()).hexdigest() if name else None,
++    }, separators=(",", ":")))
