@@ -26,6 +26,8 @@ test("keeps the active takeover when a poll fails transiently", async () => {
   takeover.mockResolvedValueOnce(active).mockRejectedValueOnce(new ApiError("boom", 503));
   const { result } = renderHook(() => useTakeover("i1", true), { wrapper });
   await waitFor(() => expect(result.current.data).toEqual(active));
+  // Read isError before refetching: react-query only re-renders on tracked props.
+  expect(result.current.isError).toBe(false);
   await qc.refetchQueries({ queryKey: ["takeover", "i1"] });
   await waitFor(() => expect(result.current.isError).toBe(true));
   expect(result.current.data).toEqual(active);
