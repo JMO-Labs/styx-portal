@@ -39,6 +39,7 @@ from app.routers import groups as groups_router
 from app.routers import provision as provision_router
 from app.routers import profiles as profiles_router
 from app.routers import me_storage as me_storage_router
+from app.routers import notifications as notifications_router
 from app.routers import services as services_router
 from app.routers import service_mounts as service_mounts_router
 from app.routers import service_icons as service_icons_router
@@ -248,6 +249,8 @@ app.include_router(auth_router.router, prefix="/api/auth", tags=["auth"])
 app.include_router(matrix_router.router, prefix="/api/auth", tags=["auth"])
 app.include_router(users_router.router, prefix="/api/users", tags=["users"])
 app.include_router(me_storage_router.router, prefix="/api/me", tags=["me"])
+app.include_router(notifications_router.router, prefix="/api/me/notifications", tags=["notifications"])
+app.include_router(notifications_router.admin_router, prefix="/api/admin/notifications", tags=["notifications"])
 app.include_router(oauth_router.router, prefix="/api/auth/oauth", tags=["oauth"])
 app.include_router(oauth_admin_router.router, prefix="/api/oauth-providers", tags=["oauth-admin"])
 app.include_router(audit_router.router, prefix="/api/audit", tags=["audit"])
