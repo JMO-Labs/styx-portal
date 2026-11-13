@@ -120,6 +120,16 @@ def test_dlp_event_never_hashes_content():
     assert ev["file"] == {"size": 42, "mime_type": "application/pdf"}
 
 
+@pytest.mark.parametrize("channel,direction", [("clipboard", "in"), ("file", "out")])
+def test_dlp_event_keys_are_allowlisted(channel, direction):
+    ev = dlp_event(direction=direction, channel=channel, filename="a.txt",
+                   size=1, mime_type="text/plain", user_name="jane")
+    assert set(ev) == {"@timestamp", "ecs", "event", "file", "user", "styx"}
+    assert set(ev["file"]) == {"size", "mime_type"}
+    assert set(ev["styx"]["dlp"]) == {"direction", "channel", "filename_sha256"}
+    assert set(ev["user"]) == {"name"}
+
+
 @pytest.mark.parametrize("action", ["allowed", "blocked"])
 def test_egress_event_fields(action):
     ev = egress_event(domain="example.org", action=action, method="GET",
