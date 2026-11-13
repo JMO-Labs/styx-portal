@@ -101,6 +101,21 @@ describe("DesktopPage", () => {
     it("is at most 40px high and the iframe fills the rest", () => {
       renderAt([inst("running")]);
       expect(screen.getByRole("toolbar").className).toContain("h-10");
+      expect(screen.getByTitle("My Desk").className).toContain("flex-1");
+    });
+
+    it("home link navigates to /", () => {
+      useInstances.mockReturnValue({ data: [inst("running")], isPending: false });
+      render(
+        <MemoryRouter initialEntries={["/desktop/desk"]}>
+          <Routes>
+            <Route path="/desktop/:sub" element={<DesktopPage />} />
+            <Route path="/" element={<p>home page</p>} />
+          </Routes>
+        </MemoryRouter>,
+      );
+      fireEvent.click(screen.getByRole("link", { name: /Home/ }));
+      expect(screen.getByText("home page")).toBeTruthy();
     });
   });
 });
