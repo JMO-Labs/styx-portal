@@ -34,10 +34,10 @@ test("dock switches between Apps and Workspaces", async ({ browser }) => {
   await p.goto("/_styx/app/sonarr/");
   await p.locator('[aria-label="Open the Styx menu (Alt+Shift+S)"]').click();
   const dock = p.getByRole("dialog");
-  await expect(dock.getByRole("tab", { name: "My services" })).toHaveAttribute("aria-selected", "true");
+  await expect(dock.getByRole("tab", { name: "Apps" })).toHaveAttribute("aria-selected", "true");
   await dock.getByRole("tab", { name: "Workspaces" }).click();
   await expect(dock.getByText("No workspaces yet")).toBeVisible(); // the e2e stack has no workstations or instances
-  await dock.getByRole("tab", { name: "My services" }).click();
+  await dock.getByRole("tab", { name: "Apps" }).click();
   await expect(dock.getByRole("link", { name: /Sonarr/ })).toBeVisible();
   await ctx.close();
 });
