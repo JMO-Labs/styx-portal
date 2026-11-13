@@ -1,3 +1,4 @@
+import re
 import struct
 import zlib
 from datetime import datetime, timezone
@@ -65,17 +66,59 @@ def test_user_comes_from_env_only():
     assert watermark.from_env({}) == ""
 
 
-def test_client_message_cannot_change_or_disable():
-    wm = watermark.Watermark.from_env({"STYX_WATERMARK_USER": "bob"})
-    before = wm.text(NOW)
-    for msg in ('SETTINGS,{"watermark":false,"STYX_WATERMARK_USER":"eve"}',
-                {"watermark": "off", "user": "eve"}, b"\x00", None):
-        wm.on_client_message(msg)
-    assert wm.text(NOW) == before == "BOB 2026-11-13 09:05:07Z"
-    f = make_frame()
-    g = make_frame()
-    watermark.render(f, W, H, before)
-    assert f != g
+PATCH = Path(__file__).parents[2] / "patches" / "selkies" / "05-pixelflux-watermark.patch"
+
+# Shared with the Rust test `matches_python_spec` in the patch: 520x60 frame
+# filled with 0x40, stamped for "alice" at NOW. Keep the two in lock step.
+SPEC_W, SPEC_H = 520, 60
+SPEC_FNV = 0xAB44D549D35AA840
+SPEC_PIXELS = {(15, 16): 64, (16, 16): 0, (25, 22): 255, (24, 22): 0,
+               (492, 48): 0, (493, 48): 64, (16, 49): 64}
+
+
+def fnv1a64(data):
+    h = 0xCBF29CE484222325
+    for b in data:
+        h = ((h ^ b) * 0x100000001B3) & (2**64 - 1)
+    return h
+
+
+def spec_frame():
+    f = bytearray(b"\x40" * (SPEC_W * SPEC_H * 3))
+    watermark.render(f, SPEC_W, SPEC_H, watermark.text_for("alice", NOW))
+    return f
+
+
+def test_spec_values_pinned_for_rust():
+    f = spec_frame()
+    assert fnv1a64(f) == SPEC_FNV
+    for (x, y), v in SPEC_PIXELS.items():
+        assert f[(y * SPEC_W + x) * 3] == v, (x, y)
+
+
+def added(patch_text, path):
+    """Added lines of one file's diff."""
+    sec = patch_text.split(f"diff --git a/{path} ")[1].split("\ndiff --git ")[0]
+    return [ln[1:] for ln in sec.splitlines() if ln.startswith("+") and not ln.startswith("+++")]
+
+
+def test_patch_input_is_only_the_env_var():
+    rs = "\n".join(added(PATCH.read_text(), "pixelflux/src/watermark.rs"))
+    assert re.findall(r"env::var\(([^)]*)\)", rs) == ['"STYX_WATERMARK_USER"']
+    assert "pyfunction" not in rs and "pymethods" not in rs
+    # No mutators: every method takes &self (or nothing), no setters or statics.
+    assert "&mut self" not in rs and "static mut" not in rs
+    assert not re.search(r"fn (set|disable|enable|update)\w*", rs)
+
+
+def test_patch_hooks_capture_loop_unconditionally():
+    text = PATCH.read_text()
+    lib = added(text, "pixelflux/src/lib.rs")
+    assert "pub mod watermark;" in lib
+    calls = [ln for ln in lib if "watermark::" in ln and "stamp" in ln or "stamp_bgra" in ln]
+    assert len(calls) >= 2  # pool buffer and frame buffer
+    # Not gated on a client-controlled setting (wm_active etc.).
+    assert not any("wm_active" in ln or "settings" in ln for ln in lib)
 
 
 def test_snapshot_matches_reference():

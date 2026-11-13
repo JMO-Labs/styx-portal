@@ -103,7 +103,7 @@ def render(frame: bytearray, width: int, height: int, text: str, origin=ORIGIN) 
 
 
 class Watermark:
-    """Server-owned watermark state. Immutable after construction."""
+    """Server-owned watermark state. Immutable after construction; there is no client hook."""
 
     def __init__(self, user: str):
         self._user = user
@@ -114,7 +114,3 @@ class Watermark:
 
     def text(self, now: datetime) -> str:
         return text_for(self._user, now)
-
-    def on_client_message(self, msg) -> None:
-        """Client settings never reach the watermark; always ignored."""
-        return None

@@ -8,3 +8,5 @@ Burns "user + UTC time" into every frame before encode, so it appears in recordi
 - **Offered:** not yet
 - **Status:** local-only
 - **Reason kept locally:** enterprise compliance feature (tamper-proof attribution); too product-specific to offer upstream as is.
+
+Scope: the patch stamps the CPU capture path (BGRA buffers, stride aware) ahead of every encoder fed from it. The zero-copy GPU dmabuf path has no CPU pixels and is not stamped; force the CPU path where attribution is required. The Rust tests pin the same values as the Python spec (`SPEC_FNV`, `SPEC_PIXELS`); `agent/tests/test_watermark.py` also parses the patch to check the env var is the only input and there are no mutators.
