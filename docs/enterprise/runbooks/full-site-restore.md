@@ -138,7 +138,7 @@ Estimate: 1:00, unproven until #15
 Evidence: IaC commit SHA applied, `kubectl get nodes` output, Cilium status
 
 1. Bring up the network and the DMZ HAProxy pair (#7, ADR-0050).
-2. Install RKE2 with Cilium on the control plane and workers from IaC (#2, ADR-0007), with a new token.
+2. Install RKE2 with Cilium on the control plane and workers from IaC (#2, ADR-0007), with a new token and the seed bundle (`-e seed_bundle_src=out/phase1-seed.tar`, see step 5).
 3. Apply the Cilium default-deny policies (#18, #19).
 4. Check `kubectl get nodes` (all Ready) and `cilium status` (OK).
 
@@ -194,12 +194,19 @@ Owner role: Platform admin
 Estimate: 1:00 (parallel with steps 6-7), unproven until #15
 Evidence: CI pipeline IDs, image digests, cosign verify output, Kyverno admission check
 
-1. Deploy Harbor (#5) from IaC: follow [Harbor (enterprise)](../../operate/harbor-enterprise.md)
+1. Load the Phase 1 seed bundle: rebuild it in CI with `scripts/build_seed_bundle.sh` from
+   `deploy/enterprise/images/phase1.lock` (or take the archive from the offsite copy). It is placed in
+   `/var/lib/rancher/rke2/agent/images/` by `site.yml -e seed_bundle_src=...` (step 2), so Harbor,
+   Rook/Ceph, CNPG, OpenBao, ESO and Traefik start without any registry. Check
+   `crictl images --digests` against the lock.
+2. Deploy Harbor (#5) from IaC: follow [Harbor (enterprise)](../../operate/harbor-enterprise.md)
    (bootstrap order, OpenBao paths, `harbor_bootstrap.py`).
-2. Re-run the federal GitLab CI pipelines for the 3-5 golden images (ADR-0028) and the
+3. Once Harbor is healthy, apply `deploy/enterprise/harbor/seed-push-job.yaml` to push the seed
+   bundle images into Harbor with their digests kept.
+4. Re-run the federal GitLab CI pipelines for the 3-5 golden images (ADR-0028) and the
    platform image mirror.
-3. Sign with the cosign key from OpenBao (ADR-0029) and check `cosign verify` per image.
-4. Check Kyverno admits a signed test pod and rejects an unsigned one.
+5. Sign with the cosign key from OpenBao (ADR-0029) and check `cosign verify` per image.
+6. Check Kyverno admits a signed test pod and rejects an unsigned one.
 
 Done when: all golden and platform images are in Harbor, signed and admitted by Kyverno.
 
