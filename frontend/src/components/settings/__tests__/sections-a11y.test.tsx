@@ -10,6 +10,9 @@ vi.mock("@/api/client", () => ({
   }),
   ApiError: class extends Error {},
 }));
+vi.mock("@/hooks/use-auth", () => ({
+  useAuth: () => ({ user: { id: 1, username: "admin", role: "admin" }, logout: vi.fn() }),
+}));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import { CATEGORIES } from "../nav-config";
