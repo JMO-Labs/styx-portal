@@ -78,6 +78,13 @@ def test_vpcd_stage_installs_python_for_configure():
     assert re.search(r"\bpython3\b", stage.split("./configure")[0])
 
 
+def test_vpcd_installs_where_pcscd_looks():
+    # vsmartcard prepends --prefix to pkg-config dirs (/usr/etc, /usr/usr/lib); pin them.
+    stage = DOCKERFILE.split(" AS vpcd")[1].split("\nFROM ")[0]
+    assert "--enable-serialconfdir=/etc/reader.conf.d" in stage
+    assert "--enable-serialdropdir=/usr/lib/pcsc/drivers/serial" in stage
+
+
 def test_smartcard_smoke_avoids_procps_and_uses_ulong():
     smoke = (BASE.parents[1] / "scripts/kind/20-smartcard-smoke.sh").read_text()
     assert "pgrep" not in smoke
@@ -93,7 +100,7 @@ def test_dockerfile_applies_selkies_patches_after_pip_install():
 
 
 def test_patch_tool_installed_for_selkies_series():
-    apt = re.search(r"apt-get install[^&]*", DOCKERFILE).group(0)
+    apt = re.search(r"apt-get install[^&]*", DOCKERFILE.split("\nFROM ")[-1]).group(0)
     assert re.search(r"\bpatch\b", apt)
 
 
