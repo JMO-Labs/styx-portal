@@ -143,6 +143,7 @@ class Settings(BaseSettings):
     OAUTH_REDIRECT_BASE: str = ""   # e.g. https://s.jmolabs.dev ; defaults to https://{DOMAIN}
     BANNER_URL: str = ""            # enterprise: unauthenticated login page redirects here when set
     SECRETS_FILE: str = "/app/data/secrets.json"
+    SMARTCARD_RELAY_SECRET: str = ""  # shared secret for POST /api/smartcard/redeem; empty = disabled
     # --- Workstation streaming (physical machines) ---
     SERVER_LAN_URL: str = ""        # e.g. https://192.168.1.10 — used in enrollment one-liner
     SERVER_CA_PIN: str = ""         # optional sha256:<hex fp> for self-signed LAN TLS

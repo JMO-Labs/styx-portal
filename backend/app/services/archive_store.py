@@ -1,6 +1,8 @@
 """S3 (RGW) client wrapper for the home archive. Keys: ``u/<uid>/<relpath>``."""
 from typing import BinaryIO
 
+from botocore.exceptions import ClientError
+
 MTIME_META = "mtime"
 
 
@@ -51,9 +53,9 @@ class ArchiveStore:
         meta = self._c.head_object(Bucket=self._bucket, Key=key).get("Metadata", {})
         return float(meta.get(MTIME_META, 0.0))
 
-    def list(self, uid: str) -> list[tuple[str, float]]:
+    def list_with_size(self, uid: str) -> list[tuple[str, int, float]]:
         prefix = f"u/{_check_uid(uid)}/"
-        out: list[tuple[str, float]] = []
+        out: list[tuple[str, int, float]] = []
         token = None
         while True:
             kw = {"Bucket": self._bucket, "Prefix": prefix}
@@ -61,10 +63,23 @@ class ArchiveStore:
                 kw["ContinuationToken"] = token
             resp = self._c.list_objects_v2(**kw)
             for o in resp.get("Contents", []):
-                out.append((o["Key"][len(prefix):], self._mtime(o["Key"])))
+                out.append((o["Key"][len(prefix):], int(o.get("Size", 0)),
+                            self._mtime(o["Key"])))
             if not resp.get("IsTruncated"):
                 return out
             token = resp.get("NextContinuationToken")
+
+    def list(self, uid: str) -> list[tuple[str, float]]:
+        return [(r, m) for r, _, m in self.list_with_size(uid)]
+
+    def exists(self, uid: str, relpath: str) -> bool:
+        try:
+            self._c.head_object(Bucket=self._bucket, Key=self._key(uid, relpath))
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") in ("404", "NoSuchKey", "NotFound"):
+                return False
+            raise
+        return True
 
     def get(self, uid: str, relpath: str, fileobj: BinaryIO) -> float:
         key = self._key(uid, relpath)
