@@ -4,11 +4,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const useInstances = vi.fn();
 const mutate = vi.fn();
-vi.mock("@/hooks/use-instances", () => ({ useInstances: () => useInstances(), useKeepalive: () => ({ mutate }) }));
+const useTakeover = vi.fn((..._a: unknown[]) => ({ data: null as unknown }));
+vi.mock("@/hooks/use-instances", () => ({ useInstances: () => useInstances(), useKeepalive: () => ({ mutate }), useTakeover: (...a: unknown[]) => useTakeover(...a) }));
 vi.mock("@/lib/activity", () => ({ startActivityHeartbeat: () => () => {} }));
 const useTemplates = vi.fn(() => ({ data: [{ id: "t1", icon: "🌐" }] }));
 vi.mock("@/hooks/use-templates", () => ({ useTemplates: () => useTemplates() }));
 vi.mock("@/lib/stream-thumb", () => ({ startThumbUploader: () => () => {} }));
+
+const profile = vi.fn(() => ({ disabled: [] as string[], isDisabled: () => false, profile: "homelab", smartcard: false }));
+vi.mock("@/hooks/use-profile", () => ({ useProfile: () => profile() }));
+vi.mock("@/components/launch/smartcard-connect", () => ({ SmartcardConnect: () => <button>Connect smart card</button> }));
 
 import { DesktopPage, faviconHref } from "../DesktopPage";
 
@@ -25,7 +30,10 @@ function renderAt(list: unknown[] | undefined, pending = false) {
 }
 
 describe("DesktopPage", () => {
-  beforeEach(() => { useInstances.mockReset(); mutate.mockReset(); });
+  beforeEach(() => {
+    useInstances.mockReset(); mutate.mockReset();
+    profile.mockReturnValue({ disabled: [], isDisabled: () => false, profile: "homelab", smartcard: false });
+  });
 
   it("mounts the iframe when running", () => {
     renderAt([inst("running")]);
@@ -68,8 +76,72 @@ describe("DesktopPage", () => {
     expect(mutate).toHaveBeenCalledWith("i1", expect.anything());
   });
 
+  it("shows the takeover banner while a takeover is active", () => {
+    useTakeover.mockReturnValue({ data: { actor_name: "Ada", mode: "control", started_at: "x" } });
+    renderAt([inst("running")]);
+    expect(screen.getByText("Ada is controlling your session")).toBeInTheDocument();
+    useTakeover.mockReturnValue({ data: null });
+  });
+
   it("no banner when running", () => {
     renderAt([inst("running")]);
     expect(screen.queryByText(/Pausing soon/)).toBeNull();
+  });
+
+  it.each([
+    ["homelab", false, false],
+    ["homelab", true, false],
+    ["enterprise", false, false],
+    ["enterprise", true, true],
+  ])("Connect smart card for %s/smartcard:%s shown=%s", (prof, smartcard, shown) => {
+    profile.mockReturnValue({ disabled: [], isDisabled: () => false, profile: prof, smartcard });
+    renderAt([inst("running")]);
+    expect(screen.queryByText("Connect smart card") !== null).toBe(shown);
+  });
+
+  describe("toolbar", () => {
+    it("shows name, fullscreen, disconnect and a back-to-home link", () => {
+      renderAt([inst("running")]);
+      const bar = screen.getByRole("toolbar", { name: "Desktop controls" });
+      expect(bar.textContent).toContain("My Desk");
+      expect(screen.getByRole("link", { name: /Home/ }).getAttribute("href")).toBe("/");
+      expect(screen.getByRole("button", { name: /Fullscreen/ })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /Disconnect/ })).toBeTruthy();
+    });
+
+    it("fullscreen button requests fullscreen on the document", () => {
+      renderAt([inst("running")]);
+      const req = vi.fn();
+      document.documentElement.requestFullscreen = req;
+      fireEvent.click(screen.getByRole("button", { name: /Fullscreen/ }));
+      expect(req).toHaveBeenCalled();
+    });
+
+    it("disconnect closes the tab", () => {
+      renderAt([inst("running")]);
+      const close = vi.spyOn(window, "close").mockImplementation(() => {});
+      fireEvent.click(screen.getByRole("button", { name: /Disconnect/ }));
+      expect(close).toHaveBeenCalled();
+    });
+
+    it("is at most 40px high and the iframe fills the rest", () => {
+      renderAt([inst("running")]);
+      expect(screen.getByRole("toolbar").className).toContain("h-10");
+      expect(screen.getByTitle("My Desk").className).toContain("flex-1");
+    });
+
+    it("home link navigates to /", () => {
+      useInstances.mockReturnValue({ data: [inst("running")], isPending: false });
+      render(
+        <MemoryRouter initialEntries={["/desktop/desk"]}>
+          <Routes>
+            <Route path="/desktop/:sub" element={<DesktopPage />} />
+            <Route path="/" element={<p>home page</p>} />
+          </Routes>
+        </MemoryRouter>,
+      );
+      fireEvent.click(screen.getByRole("link", { name: /Home/ }));
+      expect(screen.getByText("home page")).toBeTruthy();
+    });
   });
 });

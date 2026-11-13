@@ -1,0 +1,64 @@
+# Push the Phase 1 images (phase1.lock) into Harbor once it is up (issue #25).
+# Not part of kustomization.yaml: apply by hand after harbor_bootstrap.py has run.
+# Image digest matches quay.io/skopeo/stable in phase1.lock; update both together.
+# ConfigMap `phase1-lock` is made from the lock file:
+#   kubectl -n harbor create configmap phase1-lock --from-file=phase1.lock=deploy/enterprise/images/phase1.lock
+# PVC `phase1-seed` holds phase1-seed.tar (scripts/build_seed_bundle.sh); in-cluster pods cannot
+# reach upstream registries, so the source is the archive, not the internet.
+# Robot: `ci-push` (push on styx/golden/platform), Secret `harbor-bootstrap-robot` via ESO
+# (external-secrets.yaml). Robots cannot create projects (adminonly), so every image goes into
+# the existing `platform` project with its full upstream path: platform/docker.io/library/x@sha256:...
+# The archive is untarred once into the `tmp` emptyDir; skopeo then reads the OCI layout directly
+# (oci-archive: would re-extract the multi-GB tar into TMPDIR for every image).
+# skopeo copy --all keeps the manifest digest, so Harbor serves the same repo@sha256 refs.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: harbor-seed-push
+  namespace: harbor
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: push
+          image: quay.io/skopeo/stable@sha256:47853bb9fb24202af9110531ebd6e43c5f97701254ca290596640290d17942f4   # from phase1.lock; RKE2 imports it from agent/images/
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              mkdir -p /tmp/seed
+              tar -xf /seed/phase1-seed.tar -C /tmp/seed
+              grep -v '^#' /lock/phase1.lock | while read -r ref; do
+                [ -n "$ref" ] || continue
+                skopeo copy --all --dest-creds "$HARBOR_USER:$HARBOR_PASS" \
+                  "oci:/tmp/seed:$ref" "docker://$HARBOR_HOST/platform/$ref" || exit 1
+              done
+          env:
+            - {name: HARBOR_HOST, value: harbor.example.internal}
+            - {name: TMPDIR, value: /tmp}
+            - name: HARBOR_USER
+              valueFrom: {secretKeyRef: {name: harbor-bootstrap-robot, key: name}}
+            - name: HARBOR_PASS
+              valueFrom: {secretKeyRef: {name: harbor-bootstrap-robot, key: secret}}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: lock, mountPath: /lock, readOnly: true}
+            - {name: seed, mountPath: /seed, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: lock
+          configMap: {name: phase1-lock}
+        - name: seed
+          persistentVolumeClaim: {claimName: phase1-seed, readOnly: true}
+        - name: tmp
+          emptyDir: {sizeLimit: 20Gi}   # extracted archive (~7 GB) plus skopeo scratch

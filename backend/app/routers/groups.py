@@ -1,7 +1,7 @@
 # backend/app/routers/groups.py
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import func
-from sqlmodel import delete, select
+from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.database import get_session
@@ -9,6 +9,7 @@ from app.models import Group, ProxiedService, User, UserGroup
 from app.schemas import GroupCreate, GroupOut, GroupUpdate, UserGroupsUpdate
 from app.security.deps import require_admin
 from app.services.audit import audit_request
+from app.services.session_policy import validate_idle_lock
 
 router = APIRouter()
 users_router = APIRouter()
@@ -16,7 +17,7 @@ users_router = APIRouter()
 
 async def user_group_names(session: AsyncSession, user_id: str) -> list[str]:
     result = await session.exec(
-        select(Group.name).join(UserGroup, UserGroup.group_id == Group.id)
+        select(Group.name).join(UserGroup, col(UserGroup.group_id) == Group.id)
         .where(UserGroup.user_id == user_id))
     return sorted(result.all())
 
@@ -37,6 +38,7 @@ async def create_group(body: GroupCreate, request: Request,
                        session: AsyncSession = Depends(get_session)):
     if (await session.exec(select(Group).where(Group.name == body.name))).first():
         raise HTTPException(status.HTTP_409_CONFLICT, "Group exists")
+    validate_idle_lock(body.idle_lock_minutes)
     g = Group(**body.model_dump())
     session.add(g)
     await audit_request(session, request, "group.create", user_id=admin.id,
@@ -55,6 +57,7 @@ async def update_group(group_id: str, body: GroupUpdate, request: Request,
     changes = body.model_dump(exclude_unset=True)
     if changes.get("egress_mode") is None:
         changes.pop("egress_mode", None)
+    validate_idle_lock(changes.get("idle_lock_minutes"))
     for k, v in changes.items():
         setattr(g, k, v)
     session.add(g)
@@ -71,7 +74,7 @@ async def delete_group(group_id: str, request: Request,
     g = await session.get(Group, group_id)
     if g is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Group not found")
-    await session.exec(delete(UserGroup).where(UserGroup.group_id == group_id))
+    await session.exec(delete(UserGroup).where(col(UserGroup.group_id) == group_id))
     # ACLs reference group *names*: drop the name now, or a later group with the
     # same name would silently inherit access. [] means "any user", so a service
     # whose last group goes away is disabled instead (fail closed).
@@ -107,7 +110,7 @@ async def set_user_groups(user_id: str, body: UserGroupsUpdate, request: Request
                           session: AsyncSession = Depends(get_session)):
     if await session.get(User, user_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
-    existing = set((await session.exec(select(Group.id).where(Group.id.in_(body.group_ids)))).all())
+    existing = set((await session.exec(select(Group.id).where(col(Group.id).in_(body.group_ids)))).all())
     if existing != set(body.group_ids):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown group id")
     idp_ids = set((await session.exec(select(Group.id).where(Group.idp_managed == True))).all())  # noqa: E712
@@ -115,7 +118,7 @@ async def set_user_groups(user_id: str, body: UserGroupsUpdate, request: Request
         UserGroup.user_id == user_id))).all())
     if (existing & idp_ids) != (current & idp_ids):
         raise HTTPException(status.HTTP_409_CONFLICT, "IdP-managed group membership is read-only")
-    await session.exec(delete(UserGroup).where(UserGroup.user_id == user_id))
+    await session.exec(delete(UserGroup).where(col(UserGroup.user_id) == user_id))
     for gid in existing:
         session.add(UserGroup(user_id=user_id, group_id=gid))
     await audit_request(session, request, "user.groups_set", user_id=admin.id,

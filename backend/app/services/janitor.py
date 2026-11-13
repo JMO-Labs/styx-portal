@@ -2,9 +2,10 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import Any, cast
 
-from sqlalchemy import DateTime, bindparam, delete, inspect, text
-from sqlmodel import select
+from sqlalchemy import CursorResult, DateTime, bindparam, delete, inspect, text
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -19,7 +20,7 @@ BATCH = 1000
 _ABUSE_TABLES = {"auth_fail_events": "at", "auth_blocks": "until",
                  "rate_counters": "expires_at"}
 _TS = DateTime(timezone=True)  # TIMESTAMPTZ on Postgres; tz-dropping text on SQLite
-_MODELS = ((RevokedAccessToken, RevokedAccessToken.jti, RevokedAccessToken.expires_at),
+_MODELS: tuple[tuple[Any, Any, Any], ...] = ((RevokedAccessToken, RevokedAccessToken.jti, RevokedAccessToken.expires_at),
            (BannedIP, BannedIP.ip, BannedIP.expires_at))
 
 
@@ -41,23 +42,24 @@ async def purge_expired(session: AsyncSession, batch: int = BATCH,
             ids = (await session.exec(select(pk).where(exp < now).limit(batch))).all()
             if not ids:
                 break
-            await session.exec(delete(model).where(pk.in_(ids)))
+            await session.exec(delete(model).where(col(pk).in_(ids)))
             await session.commit()
             total += len(ids)
     existing = set(await session.run_sync(lambda s: inspect(s.connection()).get_table_names()))
     row = "ctid" if session.get_bind().dialect.name == "postgresql" else "rowid"
-    for table, col in _ABUSE_TABLES.items():
+    for table, tcol in _ABUSE_TABLES.items():
         if table not in existing:
             continue
-        cutoff = aware - timedelta(seconds=fail_window()) if col == "at" else aware
+        cutoff = aware - timedelta(seconds=fail_window()) if tcol == "at" else aware
         # table/col names are constants above, never user input
         stmt = text(f"DELETE FROM {table} WHERE {row} IN (SELECT {row} FROM {table} "
-                    f"WHERE {col} < :cutoff LIMIT :n)").bindparams(bindparam("cutoff", type_=_TS))
+                    f"WHERE {tcol} < :cutoff LIMIT :n)").bindparams(bindparam("cutoff", type_=_TS))
         while True:
-            res = await session.exec(stmt, params={"cutoff": cutoff, "n": batch})
+            res = await session.execute(stmt, {"cutoff": cutoff, "n": batch})
             await session.commit()
-            total += res.rowcount
-            if res.rowcount < batch:
+            rowcount = cast(CursorResult, res).rowcount
+            total += rowcount
+            if rowcount < batch:
                 break
     return total
 

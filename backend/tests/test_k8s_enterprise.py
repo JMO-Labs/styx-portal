@@ -83,7 +83,9 @@ def _build(path):
 def test_kustomize_build():
     kinds = {(d["kind"], d["metadata"]["name"]) for d in _build(ENT)}
     assert not kinds & HOMELAB_ONLY
-    assert not {k for k, _ in kinds} & {"CronJob", "PersistentVolumeClaim"}
+    assert not {k for k, _ in kinds} & {"CronJob"}
+    # Only the static CephFS homes claim (#267); no homelab data/backup PVCs.
+    assert {n for k, n in kinds if k == "PersistentVolumeClaim"} == {"styx-homes"}
     be = [d for d in _build(ENT) if d["kind"] == "Deployment" and d["metadata"]["name"] == "backend"]
     assert be[0]["spec"]["replicas"] == 3
     assert ("CronJob", "styx-db-backup") in {(d["kind"], d["metadata"]["name"])
@@ -227,9 +229,9 @@ def test_networkpolicy_db_operator_s3():
 @pytest.mark.skipif(not (shutil.which("kustomize") or shutil.which("kubectl")),
                     reason="kustomize/kubectl not installed")
 def test_kustomize_build_alerts():
-    (r,) = [d for d in _build(ENT) if d["kind"] == "PrometheusRule"]
+    (r,) = [d for d in _build(ENT) if d["kind"] == "PrometheusRule" and d["metadata"]["name"] == "styx"]
     assert "StyxBackupStale" not in _alerts(r)
-    (h,) = [d for d in _build(HOMELAB) if d["kind"] == "PrometheusRule"]
+    (h,) = [d for d in _build(HOMELAB) if d["kind"] == "PrometheusRule" and d["metadata"]["name"] == "styx"]
     assert "StyxBackupStale" in _alerts(h)
 
 
@@ -256,7 +258,8 @@ def test_backend_patch_multi_replica():
     assert spec["strategy"] == {"type": "RollingUpdate",
                                 "rollingUpdate": {"maxSurge": 1, "maxUnavailable": 0}}
     ann = _pod()["metadata"]["annotations"]
-    assert ann["secret.reloader.stakater.com/reload"] == "styx-db-app,styx-secrets"
+    assert ann["secret.reloader.stakater.com/reload"] == (
+        "styx-db-app,styx-secrets,styx-matrix-notify,styx-archive-s3")
     (tsc,) = _pod()["spec"]["topologySpreadConstraints"]
     assert tsc["topologyKey"] == "kubernetes.io/hostname"
     assert _container()["startupProbe"]["failureThreshold"] == 60
@@ -299,3 +302,16 @@ def test_pdb():
     pdb = _index()[("PodDisruptionBudget", "styx-backend")]
     assert pdb["spec"]["minAvailable"] == 1
     assert pdb["spec"]["selector"]["matchLabels"] == {"app": "styx-backend"}
+
+
+def test_matrix_notify_external_secret_and_env():
+    (es,) = [d for d in _of_kind("ExternalSecret")
+             if d["spec"]["target"]["name"] == "styx-matrix-notify"]
+    assert es["spec"]["secretStoreRef"] == {"kind": "ClusterSecretStore", "name": "openbao"}
+    keys = ["MATRIX_NOTIFY_HOMESERVER", "MATRIX_NOTIFY_ROOM_ID", "MATRIX_NOTIFY_TOKEN"]
+    assert [d["secretKey"] for d in es["spec"]["data"]] == keys
+    assert {d["remoteRef"]["key"] for d in es["spec"]["data"]} == {"styx/matrix/notify"}
+    env = {e["name"]: e for e in _container()["env"]}
+    for k in keys:
+        ref = env[k]["valueFrom"]["secretKeyRef"]
+        assert ref["name"] == "styx-matrix-notify" and ref["key"] == k

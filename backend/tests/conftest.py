@@ -1,3 +1,6 @@
+import io
+import json
+import logging
 import os
 import tempfile
 from unittest.mock import AsyncMock, MagicMock
@@ -251,3 +254,14 @@ def _no_host_interface_trust(monkeypatch):
     from app.middleware import rate_limit
     monkeypatch.setattr(rate_limit, "_startup_networks", ())
     monkeypatch.setattr(rate_limit, "_snapshot_taken", False)
+
+
+@pytest.fixture
+def lines():
+    buf = io.StringIO()
+    h = logging.StreamHandler(buf)
+    h.setFormatter(logging.Formatter("%(message)s"))
+    log = logging.getLogger("styx.audit")
+    log.addHandler(h)
+    yield lambda: [json.loads(ln) for ln in buf.getvalue().splitlines() if ln]
+    log.removeHandler(h)

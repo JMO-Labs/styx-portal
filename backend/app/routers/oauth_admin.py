@@ -9,7 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.config import Settings
 from app.database import get_session
 from app.models import OAuthProvider, User
-from app.schemas import ProviderCreate, ProviderUpdate, ProviderOut, ProviderTestResult
+from app.schemas import ProviderCreate, ProviderUpdate, ProviderOut, ProviderTestCheck, ProviderTestResult
 from app.security import oauth
 from app.security.crypto import encrypt_secret
 from app.security.deps import require_admin
@@ -125,7 +125,7 @@ async def test_config(provider_id: str, admin: User = Depends(require_admin),
     if not p:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     ok, checks = await oauth.discovery_checks(p)
-    return ProviderTestResult(ok=ok, checks=checks)
+    return ProviderTestResult(ok=ok, checks=[ProviderTestCheck(**c) for c in checks])
 
 
 @router.get("/{provider_id}/test/start")

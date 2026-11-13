@@ -73,6 +73,28 @@ def audit_event(action: str, *, ts: datetime | None = None, user_id: str | None 
     return _prune(ev)
 
 
+_SESSION_TYPES = {"session.launch": "start", "session.connect": "start",
+                  "session.stop": "end", "session.disconnect": "end",
+                  "session.lock": "change", "session.unlock": "change"}
+
+
+def session_event(action: str, *, session_id: str, kind: str, user_id: str | None = None,
+                  user_name: str | None = None, reason: str | None = None,
+                  viewer_id: str | None = None, image_digest: str | None = None,
+                  node: str | None = None, groups: list[str] | None = None,
+                  ts: datetime | None = None) -> dict:
+    """Session lifecycle -> ``styx.audit`` (instance or workstation stream)."""
+    if action not in _SESSION_TYPES:
+        raise ValueError(f"session action must be one of {sorted(_SESSION_TYPES)}, got {action!r}")
+    ev = _base("styx.audit", action, ts)
+    ev["event"].update(category=["session"], type=[_SESSION_TYPES[action]], outcome="success")
+    ev.update(user={"id": user_id, "name": user_name}, host={"name": node},
+              container={"image": {"hash": {"all": [image_digest] if image_digest else None}}},
+              styx={"session": {"id": session_id, "kind": kind, "reason": reason,
+                                "viewer_id": viewer_id, "groups": groups or None}})
+    return _prune(ev)
+
+
 def egress_event(*, domain: str, action: str, method: str | None = None,
                  user_name: str | None = None, rule_category: str | None = None,
                  ts: datetime | None = None) -> dict:

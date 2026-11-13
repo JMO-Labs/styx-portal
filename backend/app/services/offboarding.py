@@ -4,13 +4,14 @@ import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import update
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
-from app.models import Instance, PosixUid, RefreshToken, SessionEvent, User
+from app.models import Instance, PosixUid, RefreshToken, User
 from app.services.audit import audit
 from app.services.k8s_homes import freeze_home
+from app.services.session_audit import record_session_event
 
 log = logging.getLogger(__name__)
 LIVE = ("running", "idle")
@@ -54,10 +55,10 @@ async def disable_account(session: AsyncSession, user: User, reason: str,
     user.disabled_reason = reason
     user.token_version += 1
     session.add(user)
-    await session.exec(update(RefreshToken).where(RefreshToken.user_id == user.id)
+    await session.exec(update(RefreshToken).where(col(RefreshToken.user_id) == user.id)
                        .values(revoked=True))
     insts = (await session.exec(select(Instance).where(
-        Instance.owner_id == user.id, Instance.status.in_(LIVE)))).all()
+        col(Instance.owner_id) == user.id, col(Instance.status).in_(LIVE)))).all()
     if insts and runtime is None:
         from app.services.k8s_runtime import instance_runtime
         runtime = instance_runtime()
@@ -71,7 +72,8 @@ async def disable_account(session: AsyncSession, user: User, reason: str,
         inst.status = "stopped"
         inst.stopped_at = now
         session.add(inst)
-        session.add(SessionEvent(instance_id=inst.id, event_type="stopped"))
+        await record_session_event(session, inst, "stopped", action="session.stop",
+                                   reason="offboarded")
     await audit(session, "account.disabled", user_id=actor, resource=user.id,
                 detail={"reason": reason})
     await session.commit()

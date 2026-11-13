@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     SELKIES_DEFAULT_PORT: int = 3001
     TEMPLATES_DIR: str = "/app/templates"
     SERVICE_PRESETS_DIR: str = "/app/templates/services"
+    WIKI_URL: str = ""     # enterprise: seeds a "My services" link when set
+    ELEMENT_URL: str = ""  # enterprise: same, for Element
     SCREENSHOT_CACHE_DIR: str = "/app/data/screenshots"
     SCREENSHOT_INTERVAL_SECONDS: int = 30
     SERVICE_THUMBNAIL_MAX_BYTES: int = 1_048_576  # reject larger service thumbnails
@@ -59,8 +61,15 @@ class Settings(BaseSettings):
     HARBOR_URL: str = ""   # empty = no digest pinning (ADR-0030)
     HARBOR_USER: str = ""
     HARBOR_PASSWORD: str = ""
+    DIGEST_CACHE_S: int = 60  # per-ref cache of resolved Harbor digests (0 = off)
+    PREPULL_INTERVAL_S: int = 3600  # image prepull sync loop
     CVE_RECYCLE_INTERVAL_S: int = 3600  # critical-CVE scan loop (ADR-0030)
     CVE_RECYCLE_GRACE_H: int = 24
+    SESSION_REAPER_INTERVAL_S: int = 60  # leader-only session reaper (ADR-0039)
+    SESSION_DISCONNECT_MAX_H: float = 2
+    SESSION_MAX_H: float = 12
+    SESSION_WARN_MIN: int = 15
+    GATEWAY_PORT: int = 8080  # in-pod gateway serving /styx/state
     K8S_DESKTOP_IMAGE: str = "ghcr.io/jmo-labs/styx-desktop:latest"
     EGRESS_PROXY_HOST: str = "squid.egress-proxy.svc.cluster.local"
     EGRESS_PROXY_PORT_CATEGORY: int = 3128
@@ -104,6 +113,10 @@ class Settings(BaseSettings):
     SESSION_MAX_AGE: int = 2592000  # 30 days: absolute cap on a refresh family
     MATRIX_SESSION_MAX_HOURS: int = 12  # absolute cap on a session-only (card) family
     MATRIX_DIGEST_WEBHOOK_URL: str = ""  # daily new-account digest target; unset = skipped
+    MATRIX_SECURITY_WEBHOOK_URL: str = ""  # takeover-start alert target; unset = skipped
+    MATRIX_NOTIFY_HOMESERVER: str = ""  # Matrix notify adapter; any of the three empty = off
+    MATRIX_NOTIFY_ROOM_ID: str = ""
+    MATRIX_NOTIFY_TOKEN: str = ""
     COOKIE_SECURE: bool = True
     DEV_CORS: bool = False          # allow the Vite dev origin (http://localhost:5173) with credentials
     ENABLE_DOCS: bool = False       # expose /docs, /redoc, /openapi.json (dev only)
@@ -131,6 +144,7 @@ class Settings(BaseSettings):
     OAUTH_REDIRECT_BASE: str = ""   # e.g. https://s.jmolabs.dev ; defaults to https://{DOMAIN}
     BANNER_URL: str = ""            # enterprise: unauthenticated login page redirects here when set
     SECRETS_FILE: str = "/app/data/secrets.json"
+    SMARTCARD_RELAY_SECRET: str = ""  # shared secret for POST /api/smartcard/redeem; empty = disabled
     # --- Workstation streaming (physical machines) ---
     SERVER_LAN_URL: str = ""        # e.g. https://192.168.1.10 — used in enrollment one-liner
     SERVER_CA_PIN: str = ""         # optional sha256:<hex fp> for self-signed LAN TLS
@@ -159,14 +173,27 @@ class Settings(BaseSettings):
     KC_ADMIN_REALM: str = ""
     KC_ADMIN_CLIENT_ID: str = ""
     KC_ADMIN_CLIENT_SECRET: str = ""
-    # Comma-separated Keycloak group ids (not names) the admin client must never add users to.
-    KEYCLOAK_ADMIN_GROUPS: str = ""
     # FederatedIdentity.provider name whose subjects are Keycloak user ids.
     KC_PROVIDER_NAME: str = "keycloak"
     # Days after disable before the account and its homes are deleted (ADR-0022).
     ACCOUNT_DELETION_RETENTION_DAYS: int = 90
 
+    # Home archive on S3/RGW; disabled when archive_s3_endpoint is empty.
+    archive_s3_endpoint: str = ""
+    archive_s3_bucket: str = ""
+    archive_s3_access_key: str = ""
+    archive_s3_secret_key: str = ""
+    homes_root: str = "/homes"
+    ageoff_dry_run: bool = True  # plan + log only; no notices, uploads or deletes
+    ageoff_interval_s: int = 86400
+
     LIFECYCLE_INACTIVITY_DAYS: int = 35   # auto-disable after this many idle days (ADR-0022)
+    # SLO scope gauges (styx_slo_business_hours / styx_maintenance_active)
+    SLO_TIMEZONE: str = "America/New_York"
+    SLO_BUSINESS_DAYS: str = "Mon,Tue,Wed,Thu,Fri"
+    SLO_BUSINESS_HOURS: str = "07:00-18:00"   # HH:MM-HH:MM local, end exclusive
+    SLO_MAINTENANCE_START: str = ""           # ISO datetime (naive = UTC); empty = none
+    SLO_MAINTENANCE_END: str = ""
 
     # extra="ignore": the repo-root .env is shared with docker-compose,
     # cloudflared, and authentik, so it carries keys the backend does not
@@ -233,3 +260,6 @@ class Settings(BaseSettings):
 
     def server_lan_url(self) -> str:
         return (self.SERVER_LAN_URL or f"https://{self.DOMAIN}").rstrip("/")
+
+
+settings = Settings()

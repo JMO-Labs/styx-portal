@@ -9,7 +9,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, update
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -38,20 +38,20 @@ _REASSIGN = ((ServiceTemplate, "owner_id"), (Invite, "created_by"),
 
 async def _detach_references(session: AsyncSession, uid: str) -> None:
     """Remove or reassign every other row that references users.id."""
-    await session.exec(delete(UserGroup).where(UserGroup.user_id == uid))
-    await session.exec(delete(WorkstationAccess).where(WorkstationAccess.user_id == uid))
-    await session.exec(update(TurnUsage).where(TurnUsage.user_id == uid).values(user_id=None))
-    await session.exec(update(Workstation).where(Workstation.occupied_by == uid)
+    await session.exec(delete(UserGroup).where(col(UserGroup.user_id) == uid))
+    await session.exec(delete(WorkstationAccess).where(col(WorkstationAccess.user_id) == uid))
+    await session.exec(update(TurnUsage).where(col(TurnUsage.user_id) == uid).values(user_id=None))
+    await session.exec(update(Workstation).where(col(Workstation.occupied_by) == uid)
                        .values(occupied_by=None))
     admin_id = (await session.exec(select(User.id).where(
-        User.role == "admin", User.id != uid).order_by(User.created_at))).first()
-    for model, col in _REASSIGN:
-        c = getattr(model, col)
+        col(User.role) == "admin", col(User.id) != uid).order_by(col(User.created_at)))).first()
+    for model, attr in _REASSIGN:
+        c = getattr(model, attr)
         if admin_id is None:
             if (await session.exec(select(c).where(c == uid))).first() is not None:
-                raise RuntimeError(f"no admin to take over {model.__tablename__}.{col}")
+                raise RuntimeError(f"no admin to take over {model.__tablename__}.{attr}")
             continue
-        await session.exec(update(model).where(c == uid).values({col: admin_id}))
+        await session.exec(update(model).where(c == uid).values({attr: admin_id}))
 
 
 async def _delete_one(session: AsyncSession, user: User, runtime,
@@ -74,11 +74,11 @@ async def _delete_one(session: AsyncSession, user: User, runtime,
                 raise
     ids = (await session.exec(select(Instance.id).where(Instance.owner_id == user.id))).all()
     if ids:
-        await session.exec(delete(SessionEvent).where(SessionEvent.instance_id.in_(ids)))
-        await session.exec(delete(Instance).where(Instance.id.in_(ids)))
-    await session.exec(delete(UserProfile).where(UserProfile.user_id == user.id))
-    await session.exec(delete(FederatedIdentity).where(FederatedIdentity.user_id == user.id))
-    await session.exec(delete(RefreshToken).where(RefreshToken.user_id == user.id))
+        await session.exec(delete(SessionEvent).where(col(SessionEvent.instance_id).in_(ids)))
+        await session.exec(delete(Instance).where(col(Instance.id).in_(ids)))
+    await session.exec(delete(UserProfile).where(col(UserProfile.user_id) == user.id))
+    await session.exec(delete(FederatedIdentity).where(col(FederatedIdentity.user_id) == user.id))
+    await session.exec(delete(RefreshToken).where(col(RefreshToken.user_id) == user.id))
     await _detach_references(session, user.id)
     await audit(session, "account.deleted", resource=user.id,
                 detail={"username": user.username, "user_id": user.id})
@@ -92,7 +92,7 @@ async def run_deletion_pass(session: AsyncSession, now: datetime, *, runtime=Non
     """Delete users disabled >= ``retention_days`` ago; returns how many were deleted."""
     cutoff = now - timedelta(days=retention_days)
     users = (await session.exec(select(User).where(
-        User.disabled_at.is_not(None), User.disabled_at <= cutoff,
+        col(User.disabled_at).is_not(None), col(User.disabled_at) <= cutoff,
         User.is_active == False))).all()  # noqa: E712  re-enabled users are active
     if users and runtime is None:
         from app.services.k8s_runtime import instance_runtime

@@ -185,3 +185,16 @@ def test_jwt_secret_unset_on_sqlite_still_falls_back(tmp_path):
     s = _settings(tmp_path, JWT_SECRET="", DATABASE_URL="sqlite+aiosqlite:///./x.db")
     assert len(s.jwt_secret_or_raise()) >= 32
     assert (tmp_path / "secrets.json").exists()
+
+
+def test_settings_has_no_duplicate_field_annotations():
+    import ast
+    import inspect
+
+    from app import config
+
+    tree = ast.parse(inspect.getsource(config.Settings))
+    names = [n.target.id for n in tree.body[0].body
+             if isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name)]
+    dupes = {n for n in names if names.count(n) > 1}
+    assert not dupes, f"duplicate Settings fields: {dupes}"

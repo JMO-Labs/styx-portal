@@ -11,7 +11,9 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { LoginBrandPanel } from "@/components/auth/LoginBrandPanel";
 import { friendlyLoginError } from "@/lib/auth-errors";
 import { safeNext } from "@/lib/safe-next";
-import { KeyRound, Loader2, Waves } from "lucide-react";
+import { KeyRound, Loader2 } from "lucide-react";
+import { useBranding } from "@/theme/branding";
+import { BrandMark } from "@/components/layout/brand-mark";
 import { useProfile } from "@/hooks/use-profile";
 
 export function LoginPage() {
@@ -29,6 +31,7 @@ export function LoginPage() {
     calmRects: () => [cardRef.current, logoRef.current].filter((e): e is HTMLDivElement => !!e).map((e) => e.getBoundingClientRect()),
   }), []);
   const nav = useNavigate();
+  const brand = useBranding();
   const { refresh, setupRequired, loading, user } = useAuth();
 
   // SameSite=Strict: a cross-site link to /sonarr/ lands here with
@@ -159,7 +162,7 @@ export function LoginPage() {
       <LoginBrandPanel />
       <section className="styx-auth-form login-form" data-testid="login-form-panel">
         <canvas ref={formCv} aria-hidden="true" />
-        <div ref={logoRef} className="login-logo" data-testid="login-logo"><Waves className="h-6 w-6" aria-hidden />STYX PORTAL</div>
+        <div ref={logoRef} className="login-logo" data-testid="login-logo"><BrandMark b={brand} className="h-6 w-6 object-contain" />{brand.brand_name}</div>
         <div ref={cardRef} className="login-card space-y-6">
           <div className="space-y-1 text-center">
             <h1 className="text-2xl font-semibold">Sign in</h1>
@@ -176,7 +179,7 @@ export function LoginPage() {
                 >
                   {p.icon_url
                     ? <img src={p.icon_url} alt="" className="h-5 w-5 object-contain" />
-                    : <KeyRound className="h-4 w-4 text-muted-foreground" />}
+                    : <KeyRound className="h-4 w-4 text-muted-foreground" aria-hidden />}
                   Continue with {p.display_label}
                 </a>
               ))}
@@ -203,12 +206,14 @@ export function LoginPage() {
                       className="uppercase"
                       value={answers[i] ?? ""}
                       onChange={(e) => setAnswers((a) => a.map((v, j) => (j === i ? e.target.value : v)))}
+                      aria-invalid={err ? true : undefined}
+                      aria-describedby={err ? "login-error" : undefined}
                       required
                     />
                   </div>
                 ))}
                 <button type="button" onClick={() => backToPassword()}
-                        className="text-xs underline underline-offset-2 hover:no-underline">
+                        className="rounded-sm text-xs underline underline-offset-2 hover:no-underline outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   Back
                 </button>
               </>
@@ -224,6 +229,7 @@ export function LoginPage() {
                 value={username}
                 onChange={(e) => setU(e.target.value)}
                 aria-invalid={err ? true : undefined}
+                aria-describedby={err ? "login-error" : undefined}
                 required
               />
             </div>
@@ -247,13 +253,13 @@ export function LoginPage() {
               <div id="login-error" role="alert" className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
                 <div>{err}</div>
                 <button type="button" onClick={() => { setErr(""); window.history.replaceState({}, "", "/login"); }}
-                        className="mt-1 text-xs underline underline-offset-2 hover:no-underline">
+                        className="mt-1 rounded-sm text-xs underline underline-offset-2 hover:no-underline outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   Dismiss
                 </button>
               </div>
             )}
             <GlassButton type="submit" tone="teal" disabled={submitting}>
-              {submitting ? <><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />Signing in…</> : challenge ? "Verify" : "Sign in"}
+              {submitting ? <><Loader2 className="mr-2 inline h-4 w-4 animate-spin" aria-hidden />Signing in…</> : challenge ? "Verify" : "Sign in"}
             </GlassButton>
           </form>
         </div>

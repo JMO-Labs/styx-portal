@@ -2,7 +2,12 @@
 # Pinned from the RKE2 stable channel on 2026-11-10.
 rke2_version: v1.36.6+rke2r1
 rke2_allow_downgrade: false
-rke2_airgap_mode: false  # TODO: air-gap + Harbor images, see README
+# Air-gap: Phase 1 images come from the seed bundle (deploy/enterprise/images/phase1.lock),
+# dropped into agent/images/ by site.yml when seed_bundle_src is set (README "Air-gap").
+rke2_airgap_mode: true
+# Path on the Ansible controller of out/phase1-seed.tar (scripts/build_seed_bundle.sh).
+seed_bundle_src: ""
+
 
 # Never commit the token: env var (CI masked variable) or override in Vault.
 rke2_token: "{{ lookup('env', 'RKE2_TOKEN') }}"

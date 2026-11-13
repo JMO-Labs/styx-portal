@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.database import get_session
@@ -35,7 +35,7 @@ async def list_provisioned(days: int = Query(14, ge=1, le=365),
                            session: AsyncSession = Depends(get_session)):
     since = datetime.now(timezone.utc) - timedelta(days=days)
     rows = (await session.exec(select(User).where(User.created_at >= since)
-                               .order_by(User.created_at.desc()))).all()
+                               .order_by(col(User.created_at).desc()))).all()
     return [_row(u) for u in rows]
 
 

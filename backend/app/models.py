@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import NaiveDatetime
 from sqlmodel import Field, SQLModel, Column
-from sqlalchemy import JSON, BigInteger, LargeBinary, DateTime, Index, Integer, String, UniqueConstraint
+from sqlalchemy import text, JSON, BigInteger, LargeBinary, DateTime, Index, Integer, String, UniqueConstraint
 
 from app.db_types import NAMING_CONVENTION, UTCDateTime
 
@@ -28,6 +28,8 @@ class User(SQLModel, table=True):
     email: str | None = Field(default=None, index=True)
     password_hash: str
     role: str = "user"  # admin | user
+    # ADR-0026 support role synced from the IdP: "" | platform-admin | help-desk | auditor | group-manager
+    staff_role: str = Field(default="", sa_column_kwargs={"server_default": ""})
     is_active: bool = True
     must_change_pw: bool = False
     token_version: int = 0   # bumped on password/role/disable; access JWTs carry it ("tv")
@@ -400,8 +402,47 @@ class Group(SQLModel, table=True):
     tier_hidpi: bool | None = None
     tier_cpu: str | None = None
     tier_memory: str | None = None
+    idle_lock_minutes: int | None = None  # None = default 15
+    manager_user_id: str | None = Field(default=None, foreign_key="users.id")
+    kc_group_id: str | None = None
+    # Per-group DLP overrides (ADR-0038); None = default. Only honoured with an approval ref.
+    dlp_clipboard_in: bool | None = None
+    dlp_clipboard_out: bool | None = None
+    dlp_upload: bool | None = None
+    dlp_download: bool | None = None
+    dlp_printing: bool | None = None
+    dlp_watermark: bool | None = None
+    dlp_approval_ref: str | None = None
+    dlp_approved_at: NaiveDatetime | None = Field(sa_type=UTCDateTime, default=None)
     idp_managed: bool = False  # membership mirrored from the IdP groups claim; read-only in API
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+
+
+class AccessReviewDecision(SQLModel, table=True):
+    __tablename__ = "access_review_decisions"
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    group_id: str = Field(foreign_key="groups.id", index=True)
+    user_id: str = Field(index=True)  # no FK: record survives user deletion
+    quarter: str = Field(index=True)  # e.g. 2026-Q4
+    decision: str  # certify | revoke
+    actor_id: str
+    decided_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+
+
+class SessionTakeover(SQLModel, table=True):
+    """Staff takeover of a user's session (ADR-0060). One active row per instance."""
+    __tablename__ = "session_takeovers"
+    __table_args__ = (Index("uq_session_takeovers_active", "instance_id", unique=True,
+                            sqlite_where=text("ended_at IS NULL"),
+                            postgresql_where=text("ended_at IS NULL")),)
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    instance_id: str = Field(index=True)  # no FK: record survives instance deletion
+    actor_id: str  # no FK: record survives user deletion
+    user_id: str | None = None  # session owner
+    mode: str  # view | control
+    reason: str
+    started_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+    ended_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
 
 
 class UserGroup(SQLModel, table=True):
@@ -416,6 +457,22 @@ class UserProfile(SQLModel, table=True):
     template_id: str = Field(foreign_key="service_templates.id", primary_key=True)
     volume_name: str
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+    last_used_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+
+
+class Notice(SQLModel, table=True):
+    """Portal notification for a user (ADR-0059); unique per (user, kind, key)."""
+    __tablename__ = "notices"
+    __table_args__ = (UniqueConstraint("user_id", "kind", "key", name="uq_notice_user_kind_key"),)
+
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    user_id: str = Field(foreign_key="users.id", index=True)
+    kind: str
+    key: str
+    message: str
+    due_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+    dismissed_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
 
 
 class ServicePreset(SQLModel, table=True):
@@ -554,4 +611,29 @@ class SetupToken(SQLModel, table=True):
 
     id: int = Field(default=1, primary_key=True)
     token: str
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+
+
+class Announcement(SQLModel, table=True):
+    __tablename__ = "announcements"
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    title: str = Field(sa_column=Column(String(120), nullable=False))
+    body: str = Field(sa_column=Column(String(2000), nullable=False))
+    kind: str = Field(default="info", sa_column=Column(String(16), nullable=False))  # info|maintenance
+    starts_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+    ends_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+    created_by: str | None = Field(default=None, foreign_key="users.id")
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+
+
+class SmartcardToken(SQLModel, table=True):
+    """One-time relay token for a desktop session (ADR-0041). Only the hash is stored."""
+    __tablename__ = "smartcard_tokens"
+
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    token_hash: str = Field(unique=True, index=True)
+    user_id: str = Field(foreign_key="users.id", index=True)
+    instance_id: str = Field(foreign_key="instances.id", index=True)
+    expires_at: NaiveDatetime = Field(sa_type=UTCDateTime)
+    used_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)

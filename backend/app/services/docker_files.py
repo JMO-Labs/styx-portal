@@ -8,6 +8,7 @@ import re
 import tarfile
 import time
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 from urllib.parse import urljoin, urlsplit
 
 import docker
@@ -104,6 +105,10 @@ def _dechunk(body: bytes) -> bytes:
 class ContainerFilesMixin:
     """Needs `self._client` (a docker.DockerClient)."""
 
+    if TYPE_CHECKING:
+        @property
+        def _client(self) -> docker.DockerClient: ...
+
     def read_file(self, container: str, path: str) -> tuple[bytes, tarfile.TarInfo] | None:
         """(bytes, TarInfo) of one regular file inside a container, or None.
 
@@ -126,7 +131,10 @@ class ContainerFilesMixin:
         info = members[0]
         if info.size > _FILE_CAP:
             raise ValueError(f"{path} exceeds 1 MiB cap")
-        return tf.extractfile(info).read(), info
+        fh = tf.extractfile(info)
+        if fh is None:
+            return None
+        return fh.read(), info
 
     def write_file(self, container: str, path: str, data: bytes, like: tarfile.TarInfo) -> None:
         """Replace one file, keeping the original mode/uid/gid of `like`."""

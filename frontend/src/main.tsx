@@ -16,6 +16,9 @@ import { ChangePasswordPage } from "@/pages/ChangePasswordPage";
 import { SetupWizard } from "@/pages/SetupWizard";
 import { AcceptInvitePage } from "@/pages/AcceptInvitePage";
 import { ConnectingPage } from "@/pages/ConnectingPage";
+import { ArchivePage } from "@/pages/ArchivePage";
+import { AccountPage } from "@/pages/AccountPage";
+import { AdminConsole } from "@/components/admin/admin-console";
 import { DesktopPage } from "@/pages/DesktopPage";
 import "@fontsource-variable/commissioner/flar.css";
 import "@fontsource/ibm-plex-mono/400.css";
@@ -49,6 +52,9 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/accept-invite/:token" element={<AcceptInvitePage />} />
             <Route path="/connecting" element={<ConnectingPage />} />
             <Route path="/desktop/:sub" element={<ProtectedRoute><DesktopPage /></ProtectedRoute>} />
+            <Route path="/archive" element={<ProtectedRoute><ArchivePage /></ProtectedRoute>} />
+            <Route path="/account" element={<ProtectedRoute><OpenPrefProvider><AccountPage /></OpenPrefProvider></ProtectedRoute>} />
+            <Route path="/admin/*" element={<ProtectedRoute><AdminConsole /></ProtectedRoute>} />
             <Route path="/*" element={<ProtectedRoute><OpenPrefProvider><App /></OpenPrefProvider></ProtectedRoute>} />
           </Routes>
           </WaveTransitionProvider>
