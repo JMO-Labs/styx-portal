@@ -1,0 +1,11 @@
+# Wiki.js IaC (issue #275): OIDC-only login via Keycloak, DB on CNPG, secrets via ESO.
+# The Keycloak client "wikijs" is defined by a sibling ticket.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - external-secrets.yaml
+  - wikijs-db.yaml
+  - deployment.yaml
+  - networkpolicy.yaml
+  - pdb.yaml
