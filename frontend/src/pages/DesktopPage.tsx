@@ -6,6 +6,8 @@ import { Loader2 } from "lucide-react";
 import { useInstances, useKeepalive } from "@/hooks/use-instances";
 import { useTemplates } from "@/hooks/use-templates";
 import { startActivityHeartbeat } from "@/lib/activity";
+import { useProfile } from "@/hooks/use-profile";
+import { SmartcardConnect } from "@/components/launch/smartcard-connect";
 import { startThumbUploader } from "@/lib/stream-thumb";
 
 const ALLOW = "fullscreen; clipboard-read; clipboard-write; autoplay; gamepad; microphone; camera; display-capture; pointer-lock";
@@ -38,6 +40,7 @@ export function DesktopPage() {
   const { data, isPending } = useInstances();
   const instance = data?.find((i) => i.subdomain === sub);
   const keepalive = useKeepalive();
+  const { profile, smartcard } = useProfile();
   const frameRef = useRef<HTMLIFrameElement>(null);
   const live = instance?.status === "running" || instance?.status === "idle";
   const id = instance?.id;
@@ -98,6 +101,7 @@ export function DesktopPage() {
           </button>
         </div>
       )}
+      {profile === "enterprise" && smartcard && <SmartcardConnect instanceId={instance.id} />}
     <iframe
       ref={frameRef}
       src={`/i/${sub}/`}

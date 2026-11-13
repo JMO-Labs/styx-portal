@@ -10,6 +10,10 @@ const useTemplates = vi.fn(() => ({ data: [{ id: "t1", icon: "🌐" }] }));
 vi.mock("@/hooks/use-templates", () => ({ useTemplates: () => useTemplates() }));
 vi.mock("@/lib/stream-thumb", () => ({ startThumbUploader: () => () => {} }));
 
+const profile = vi.fn(() => ({ disabled: [] as string[], isDisabled: () => false, profile: "homelab", smartcard: false }));
+vi.mock("@/hooks/use-profile", () => ({ useProfile: () => profile() }));
+vi.mock("@/components/launch/smartcard-connect", () => ({ SmartcardConnect: () => <button>Connect smart card</button> }));
+
 import { DesktopPage, faviconHref } from "../DesktopPage";
 
 const inst = (status: string, extra = {}) =>
@@ -71,5 +75,15 @@ describe("DesktopPage", () => {
   it("no banner when running", () => {
     renderAt([inst("running")]);
     expect(screen.queryByText(/Pausing soon/)).toBeNull();
+  });
+
+  it("shows Connect smart card only for enterprise with smartcard enabled", () => {
+    const { unmount } = renderAt([inst("running")]);
+    expect(screen.queryByText("Connect smart card")).toBeNull();
+    unmount();
+    profile.mockReturnValue({ disabled: [], isDisabled: () => false, profile: "enterprise", smartcard: true });
+    renderAt([inst("running")]);
+    expect(screen.getByText("Connect smart card")).toBeTruthy();
+    profile.mockReturnValue({ disabled: [], isDisabled: () => false, profile: "enterprise", smartcard: false });
   });
 });
