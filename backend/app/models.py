@@ -130,6 +130,18 @@ class Invite(SQLModel, table=True):
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
+class Notification(SQLModel, table=True):
+    __tablename__ = "notifications"
+
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    user_id: str = Field(foreign_key="users.id", index=True)
+    title: str
+    body: str
+    link: str | None = None
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+    read_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+
+
 class RefreshToken(SQLModel, table=True):
     __tablename__ = "refresh_tokens"
 
