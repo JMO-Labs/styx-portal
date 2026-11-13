@@ -15,6 +15,9 @@ class FakeStore:
     def list_with_size(self, uid):
         return [(r, len(d), m) for (u, r), (d, m) in self.objs.items() if u == uid]
 
+    def exists(self, uid, rel):
+        return (uid, rel) in self.objs
+
     def get(self, uid, rel, fh):
         d, m = self.objs[(uid, rel)]
         fh.write(d)
@@ -72,9 +75,9 @@ async def test_restore(env, session):
     p = home / str(uid) / "d" / "f.txt"
     assert p.read_bytes() == b"data"
     assert int(p.stat().st_mtime) == 1000
-    # file is chowned via its open fd (symlink-safe); parents by path
-    assert any(isinstance(t, int) and u == uid for t, u in chowns)
-    assert (str(p.parent), uid) in chowns
+    # new dirs chowned by name relative to a dir fd; file via its open fd
+    assert ("d", uid) in chowns
+    assert isinstance(chowns[-1][0], int) and chowns[-1][1] == uid
     log = (await session.exec(select(AuditLog).where(AuditLog.action == "archive.restore"))).all()
     assert len(log) == 1
 
@@ -164,14 +167,6 @@ async def test_list_writes_audit(env, session):
     assert len(rows) == 1
 
 
-async def test_restore_chowns_open_fd(env, session):
-    c, store, _, chowns = env
-    uid = await _uid(session)
-    store.objs[(str(uid), "d/f")] = (b"x", 1.0)
-    assert (await c.post("/api/archive/restore", json={"relpath": "d/f"})).status_code == 200
-    assert (chowns[-1][0].__class__ is int) and chowns[-1][1] == uid
-
-
 async def test_send_refuses_symlink_target(env, session, tmp_path_factory):
     c, store, home, _ = env
     uid = await _uid(session)
@@ -182,3 +177,44 @@ async def test_send_refuses_symlink_target(env, session, tmp_path_factory):
     (h / "f").symlink_to(outside / "secret")
     r = await c.post("/api/archive/send", json={"relpath": "f"})
     assert r.status_code == 404 and not store.objs
+
+
+def _nested_link(home, uid, outside):
+    h = home / str(uid) / "a"
+    h.mkdir(parents=True)
+    (h / "link").symlink_to(outside)
+
+
+@pytest.mark.parametrize("op", ["restore", "send"])
+async def test_intermediate_symlink_400(env, session, tmp_path_factory, op):
+    c, store, home, _ = env
+    uid = await _uid(session)
+    outside = tmp_path_factory.mktemp("out")
+    (outside / "sub").mkdir()
+    (outside / "sub" / "f").write_text("s")
+    _nested_link(home, uid, outside)
+    store.objs[(str(uid), "a/link/sub/g")] = (b"x", 1.0)
+    rel = "a/link/sub/g" if op == "restore" else "a/link/sub/f"
+    r = await c.post(f"/api/archive/{op}", json={"relpath": rel})
+    assert r.status_code == 400
+    assert not (outside / "sub" / "g").exists() and (outside / "sub" / "f").exists()
+    assert not any(k[1] == "a/link/sub/f" for k in store.objs)
+
+
+@pytest.mark.parametrize("op", ["restore", "send"])
+async def test_symlink_rejected_without_realpath(env, session, tmp_path_factory,
+                                                 monkeypatch, op):
+    """Simulate the check/use race: realpath sees no symlink, the walk must."""
+    c, store, home, _ = env
+    monkeypatch.setattr(os.path, "realpath", lambda p, *a, **k: p)
+    uid = await _uid(session)
+    outside = tmp_path_factory.mktemp("out")
+    (outside / "f").write_text("s")
+    h = home / str(uid)
+    h.mkdir()
+    (h / "link").symlink_to(outside)
+    store.objs[(str(uid), "link/g")] = (b"x", 1.0)
+    rel = "link/g" if op == "restore" else "link/f"
+    r = await c.post(f"/api/archive/{op}", json={"relpath": rel})
+    assert r.status_code == 400
+    assert not (outside / "g").exists() and (outside / "f").exists()

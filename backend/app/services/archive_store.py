@@ -1,6 +1,8 @@
 """S3 (RGW) client wrapper for the home archive. Keys: ``u/<uid>/<relpath>``."""
 from typing import BinaryIO
 
+from botocore.exceptions import ClientError
+
 MTIME_META = "mtime"
 
 
@@ -69,6 +71,15 @@ class ArchiveStore:
 
     def list(self, uid: str) -> list[tuple[str, float]]:
         return [(r, m) for r, _, m in self.list_with_size(uid)]
+
+    def exists(self, uid: str, relpath: str) -> bool:
+        try:
+            self._c.head_object(Bucket=self._bucket, Key=self._key(uid, relpath))
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") in ("404", "NoSuchKey", "NotFound"):
+                return False
+            raise
+        return True
 
     def get(self, uid: str, relpath: str, fileobj: BinaryIO) -> float:
         key = self._key(uid, relpath)

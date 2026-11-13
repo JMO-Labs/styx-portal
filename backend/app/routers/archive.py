@@ -1,4 +1,5 @@
 """Home archive API: list, restore, send (ADR-0052 POSIX uid, S3 store)."""
+import errno
 import os
 import stat
 
@@ -32,59 +33,85 @@ def _chown(path_or_fd, uid: int, **kw) -> None:
     os.chown(path_or_fd, uid, -1, **kw)
 
 
-def _safe_target(homes_root: str, uid: int, relpath: str) -> tuple[str, str]:
-    """Return (home, target) with target confined to home, symlinks resolved."""
+_DIR = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+
+
+def _parts(uid: int, relpath: str) -> list[str]:
     parts = relpath.split("/")
     if relpath.startswith("/") or "\x00" in relpath or any(p in ("", ".", "..") for p in parts):
         raise HTTPException(400, "invalid path")
-    home = os.path.realpath(os.path.join(homes_root, str(uid)))
-    target = os.path.join(home, *parts)
-    parent = os.path.realpath(os.path.dirname(target))
-    if parent != home and not parent.startswith(home + os.sep):
-        raise HTTPException(400, "invalid path")
-    return home, target
+    return [str(uid), *parts]
+
+
+def _walk(homes_root: str, uid: int, relpath: str, create: bool) -> tuple[int, str]:
+    """Open the leaf's parent dir via dir fds, never following symlinks.
+
+    Returns (parent_fd, leaf); the caller closes parent_fd. Missing dirs are
+    created and chowned to uid only when ``create``.
+    """
+    *dirs, leaf = _parts(uid, relpath)
+    fd = os.open(homes_root, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for part in dirs:
+            try:
+                nfd = os.open(part, _DIR, dir_fd=fd)
+            except FileNotFoundError:
+                if not create:
+                    raise HTTPException(404, "file not found") from None
+                os.mkdir(part, 0o755, dir_fd=fd)
+                _chown(part, uid, dir_fd=fd, follow_symlinks=False)
+                nfd = os.open(part, _DIR, dir_fd=fd)
+            except OSError as e:
+                if e.errno in (errno.ELOOP, errno.ENOTDIR):
+                    raise HTTPException(400, "invalid path") from None
+                raise
+            os.close(fd)
+            fd = nfd
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd, leaf
 
 
 def _restore(store, key: str, homes_root: str, uid: int, relpath: str) -> None:
-    home, target = _safe_target(homes_root, uid, relpath)
-    if not any(r == relpath for r, _, _ in store.list_with_size(key)):
+    _parts(uid, relpath)
+    if not store.exists(key, relpath):
         raise HTTPException(404, "not in archive")
-    if os.path.lexists(target):
-        raise HTTPException(409, "file exists")
-    # create missing parent dirs, owned by the user
-    missing, d = [], os.path.dirname(target)
-    while not os.path.isdir(d):
-        missing.append(d)
-        d = os.path.dirname(d)
-    os.makedirs(os.path.dirname(target), exist_ok=True)
-    for m in reversed(missing):
-        _chown(m, uid, follow_symlinks=False)
+    dfd, leaf = _walk(homes_root, uid, relpath, create=True)
     try:
-        with open(target, "xb") as fh:
-            mtime = store.get(key, relpath, fh)
-            fh.flush()
-            os.utime(fh.fileno(), (mtime, mtime))
-            _chown(fh.fileno(), uid)
-    except FileExistsError:
-        raise HTTPException(409, "file exists") from None
-    except BaseException:
-        if os.path.exists(target):
-            os.unlink(target)
-        raise
+        try:
+            fd = os.open(leaf, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                         0o644, dir_fd=dfd)
+        except FileExistsError:
+            raise HTTPException(409, "file exists") from None
+        try:
+            with os.fdopen(fd, "wb") as fh:
+                mtime = store.get(key, relpath, fh)
+                fh.flush()
+                os.utime(fh.fileno(), (mtime, mtime))
+                _chown(fh.fileno(), uid)
+        except BaseException:
+            os.unlink(leaf, dir_fd=dfd)
+            raise
+    finally:
+        os.close(dfd)
 
 
 def _send(store, key: str, homes_root: str, uid: int, relpath: str) -> None:
-    _, target = _safe_target(homes_root, uid, relpath)
+    dfd, leaf = _walk(homes_root, uid, relpath, create=False)
     try:
-        fd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW)
-    except OSError:
-        raise HTTPException(404, "file not found") from None
-    with os.fdopen(fd, "rb") as fh:
-        st = os.fstat(fh.fileno())
-        if not stat.S_ISREG(st.st_mode):
-            raise HTTPException(404, "file not found")
-        store.put(key, relpath, fh, st.st_mtime)
-    os.unlink(target)
+        try:
+            fd = os.open(leaf, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dfd)
+        except OSError:
+            raise HTTPException(404, "file not found") from None
+        with os.fdopen(fd, "rb") as fh:
+            st = os.fstat(fh.fileno())
+            if not stat.S_ISREG(st.st_mode):
+                raise HTTPException(404, "file not found")
+            store.put(key, relpath, fh, st.st_mtime)
+        os.unlink(leaf, dir_fd=dfd)
+    finally:
+        os.close(dfd)
 
 
 @router.get("", response_model=list[ArchiveEntry])
