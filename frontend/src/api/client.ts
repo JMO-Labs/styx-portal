@@ -57,7 +57,7 @@ export type DiscoveredContainer = {
 };
 export type OpenMode = "new_tab" | "same_tab";
 export type Me = { id: string; username: string; email: string | null; role: string;
-  open_workspaces: OpenMode | null; open_apps: OpenMode | null; must_change_pw?: boolean; can_use_gpu?: boolean };
+  open_workspaces: OpenMode | null; open_apps: OpenMode | null; must_change_pw?: boolean; can_use_gpu?: boolean; can_takeover?: boolean };
 export type EgressMode = "category" | "allowlist";
 export type Group = { id: string; name: string; description: string | null; member_count: number; allow_gpu: boolean; egress_mode?: EgressMode };
 export type Profile = { template_id: string; template_name: string; display_name: string; volume_name: string; in_use: boolean };
@@ -317,6 +317,9 @@ export const api = {
     request<Instance>("/instances", { method: "POST", body: JSON.stringify(data) }),
   startInstance: (id: string) =>
     request<Instance>(`/instances/${id}/start`, { method: "POST" }),
+  startTakeover: (id: string, body: { mode: "view" | "control"; reason: string }) =>
+    request<unknown>(`/instances/${id}/takeover`, { method: "POST", body: JSON.stringify(body) }),
+  endTakeover: (id: string) => request<void>(`/instances/${id}/takeover`, { method: "DELETE" }),
   stopInstance: (id: string) =>
     request<Instance>(`/instances/${id}/stop`, { method: "POST" }),
   restartInstance: (id: string) =>
