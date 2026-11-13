@@ -8,6 +8,7 @@
   {"cost": "free", "ecosystem": "binary", "license": "MIT OR Apache-2.0", "name": "uv", "origin": "manifest", "scope": "build-only", "source_url": "https://github.com/astral-sh/uv", "version": "0.13.7"},
   {"cost": "free", "ecosystem": "external", "license": "Elastic-2.0 OR SSPL-1.0 OR AGPL-3.0-only", "name": "elastic-stack", "origin": "manifest", "scope": "external", "source_url": "https://www.elastic.co/licensing", "version": "org-managed"},
   {"cost": "free", "ecosystem": "golang", "license": "GPL-2.0", "name": "github.com/styx-portal/styxlocation", "origin": "manifest", "scope": "homelab", "source_url": "https://github.com/JMO-Labs/styx-portal", "version": "local"},
+  {"cost": "free", "ecosystem": "golang", "license": "MIT AND Apache-2.0", "name": "gopkg.in/yaml.v3", "origin": "override", "scope": "enterprise", "source_url": "https://github.com/go-yaml/yaml/blob/v3.0.1/LICENSE", "version": "v3.0.1"},
   {"cost": "free", "ecosystem": "helm", "license": "Apache-2.0", "name": "external-secrets", "origin": "manifest", "scope": "enterprise", "source_url": "https://github.com/external-secrets/external-secrets", "version": "2.14.0"},
   {"cost": "free", "ecosystem": "helm", "license": "Apache-2.0", "name": "harbor", "origin": "manifest", "scope": "enterprise", "source_url": "https://github.com/goharbor/harbor-helm", "version": "1.19.4"},
   {"cost": "free", "ecosystem": "helm", "license": "MPL-2.0", "name": "openbao", "origin": "manifest", "scope": "enterprise", "source_url": "https://github.com/openbao/openbao-helm", "version": "0.30.7"},

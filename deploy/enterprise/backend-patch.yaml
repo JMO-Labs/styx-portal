@@ -28,6 +28,9 @@ spec:
             - {name: DATABASE_URL, value: "postgresql+asyncpg://styx@styx-db-rw:5432/styx?ssl=verify-full"}
             # Leader loops go straight to the primary service, never a pooler.
             - {name: LEADER_DATABASE_URL, value: "postgresql+asyncpg://styx@styx-db-rw:5432/styx?ssl=verify-full"}
+            # Seeded once into "My services" (placeholders: replace <domain>).
+            - {name: WIKI_URL, value: "https://wiki.<domain>"}
+            - {name: ELEMENT_URL, value: "https://chat.<domain>"}
           startupProbe:
             failureThreshold: 60
           volumeMounts:
