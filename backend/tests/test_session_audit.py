@@ -1,8 +1,4 @@
 """record_session_event: SessionEvent row + one ECS styx.audit line (#235)."""
-import io
-import json
-import logging
-
 import pytest
 from sqlmodel import select
 
@@ -13,17 +9,6 @@ from tests.test_instances_api import (  # noqa: F401  fixtures
     shared_docker,
     template_id,
 )
-
-
-@pytest.fixture
-def lines():
-    buf = io.StringIO()
-    h = logging.StreamHandler(buf)
-    h.setFormatter(logging.Formatter("%(message)s"))
-    log = logging.getLogger("styx.audit")
-    log.addHandler(h)
-    yield lambda: [json.loads(ln) for ln in buf.getvalue().splitlines() if ln]
-    log.removeHandler(h)
 
 
 def _session_only(evs):

@@ -45,6 +45,7 @@ nav = [
     { "Leader election" = "operate/leader-election.md" },
     { "Upgrade" = "operate/upgrade.md" },
     { "SQLite to PostgreSQL" = "operate/sqlite-to-postgres.md" },
+    { "Enterprise: Session events" = "enterprise/session-events.md" },
     { "Enterprise: OpenBao" = "enterprise/runbooks/openbao.md" },
     { "Enterprise: DMZ HAProxy" = "enterprise/runbooks/dmz-haproxy.md" },
     { "Enterprise: Rook-Ceph" = "enterprise/runbooks/rook-ceph.md" },
@@ -54,6 +55,7 @@ nav = [
     { "Enterprise: Image supply chain" = "enterprise/runbooks/image-supply-chain.md" },
     { "Enterprise: DLP policy" = "enterprise/runbooks/dlp-policy.md" },
     { "Enterprise: Wiki.js and Matrix" = "enterprise/runbooks/wikijs-matrix.md" },
+    { "Enterprise: Offboarding" = "enterprise/runbooks/offboarding.md" },
   ] },
   { "Build" = [
     "build/index.md",
