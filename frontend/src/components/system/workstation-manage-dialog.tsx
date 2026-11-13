@@ -33,7 +33,7 @@ export function WorkstationManageDialog({ ws, users, onClose, onSaved, onRevoke,
               <WorkstationSpecs ws={ws} />
               <WorkstationIconSettings ws={ws} onSaved={onSaved} />
               <WorkstationStreamSettings ws={ws} onSaved={onSaved} />
-              {ws.last_error && <p className="text-xs text-rose-400">Agent error: {ws.last_error}</p>}
+              {ws.last_error && <p className="text-xs text-destructive">Agent error: {ws.last_error}</p>}
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <label className="flex items-center gap-1.5">
                   <input type="checkbox" checked={ws.all_users} onChange={() => onToggleAll(ws)} />
