@@ -46,7 +46,8 @@ test("sessions page lists running sessions", async () => {
 test("capacity page shows tiles", async () => {
   view("/admin/capacity");
   expect(await screen.findByText("Running")).toBeInTheDocument();
-  expect(screen.getByText("3")).toBeInTheDocument();
+  expect(screen.getByText("Node local")).toBeInTheDocument();
+  expect(screen.getAllByText("3")).toHaveLength(2); // Running + Node local
 });
 
 test("nav hides items the role may not use", async () => {
