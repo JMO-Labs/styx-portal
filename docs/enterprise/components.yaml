@@ -127,6 +127,8 @@ components:
 
 # Packages whose scanned license is missing or wrong. PyPI names in PEP 503 form.
 overrides:
+  - {name: github.com/gorilla/websocket, version: v1.5.3, license: BSD-2-Clause,
+     source_url: https://github.com/gorilla/websocket/blob/v1.5.3/LICENSE}
   - {name: gopkg.in/yaml.v3, version: v3.0.1, license: MIT AND Apache-2.0,
      source_url: https://github.com/go-yaml/yaml/blob/v3.0.1/LICENSE}
   - {name: qrcode-terminal, version: 0.12.0, license: Apache-2.0,
