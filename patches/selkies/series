@@ -1,4 +1,3 @@
-# Apply order
+# Apply order. Patches merged upstream (note: "not kept") stay in this dir for
+# history but are not listed: the pinned wheels already ship them.
 01-selkies-owner-lag-gate.patch
-02a-pixelflux-av1-render-size.patch
-02b-selkies-av1-crop-client.patch

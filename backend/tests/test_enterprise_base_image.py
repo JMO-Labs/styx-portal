@@ -73,3 +73,13 @@ def test_dockerfile_applies_selkies_patches_after_pip_install():
 def test_patch_tool_installed_for_selkies_series():
     apt = re.search(r"apt-get install[^&]*", DOCKERFILE).group(0)
     assert re.search(r"\bpatch\b", apt)
+
+
+def test_series_skips_patches_merged_upstream():
+    """Patches whose note says 'not kept' ship in the pinned wheels; applying them fails the build."""
+    root = BASE.parents[1]
+    series = (root / "patches/selkies/series").read_text().splitlines()
+    names = [n.strip() for n in series if n.strip() and not n.strip().startswith("#")]
+    for name in names:
+        note = (root / "docs/upstream" / name.replace(".patch", ".md")).read_text()
+        assert "not kept" not in note, f"{name} is merged upstream; drop it from series"
