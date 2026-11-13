@@ -147,7 +147,7 @@ def test_adr_0066_cephfs_homes():
 
 def test_adr_index_matches_files():
     index = (ADR / "README.md").read_text()
-    new = ("0062", "0063", "0065", "0066", "0067", "0068", "0069", "0070", "0071", "0072", "0073", "0074")
+    new = ("0062", "0063", "0065", "0066", "0067", "0068", "0069", "0070", "0071", "0072", "0073", "0074", "0075")
     older = [ln for ln in index.splitlines() if not any(f"({n}-" in ln for n in new)]
     assert "| Proposed |" not in "\n".join(older)
     assert f"accepted {DATE}" in index.lower()
@@ -155,6 +155,7 @@ def test_adr_index_matches_files():
     names = {p.name for p in adr_files()}
     assert set(rows) == names
     assert index.count("(0074-") == 1
+    assert index.count("(0075-") == 1
     table = [ln for ln in index.splitlines() if re.match(r"\| \[D\d+\]", ln)]
     ids = [int(re.match(r"\| \[D(\d+)\]", ln).group(1)) for ln in table]
     assert ids == sorted(ids)
@@ -351,3 +352,19 @@ def test_home_age_off_docs():
         r = row(cm, ctl)
         for ref in ("0074", "ageoff_job.py", "runbooks/home-age-off.md"):
             assert ref in r, (ctl, ref)
+
+
+def test_adr_0075_takeover_implementation():
+    text = adr("0075")
+    assert status(text) == "Proposed"
+    for phrase in ("staff_role", "realm role", "forwardAuth", "#shared", "security officer",
+                   "auditor", "Matrix", "CSV", "monthly"):
+        assert phrase in text, phrase
+    cm = (DOCS / "control-matrix.md").read_text()
+    for ctl in ("AC-17", "AU-2", "AU-6", "AU-12"):
+        assert "ADR-0075" in row(cm, ctl), ctl
+    assert "takeover_report.py" in row(cm, "AU-6")
+    rb = (DOCS / "runbooks/session-takeover.md").read_text()
+    for phrase in ("Take over", "End", "Monthly review", "/api/admin/takeovers/report"):
+        assert phrase in rb, phrase
+    assert "runbooks/session-takeover.md" in (DOCS.parent.parent / "zensical.toml").read_text()

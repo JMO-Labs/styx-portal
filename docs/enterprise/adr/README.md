@@ -78,3 +78,4 @@ All ADRs were accepted 2026-11-09 (owner approval, Rounds 1-5; issue #1). One AD
 | [D71](0072-session-lifecycle-audit-events.md) | Session lifecycle audit events | Proposed | AU-2, AU-3, AU-12 |
 | [D72](0073-offboarding-and-access-review-implementation-choices.md) | Offboarding and access-review implementation choices | Proposed | AC-2, AC-2(3), AC-2(4), PS-4 |
 | [D73](0074-home-age-off-implementation.md) | Home age-off implementation choices | Proposed | MP-6, SI-12, CM-12, SC-28 |
+| [D74](0075-session-takeover-implementation-choices.md) | Session takeover implementation choices | Proposed | AC-17, AU-2, AU-6, AU-12 |
