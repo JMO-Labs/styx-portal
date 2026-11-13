@@ -5,9 +5,10 @@ import ipaddress
 import logging
 import socket
 from datetime import datetime, timezone
+from typing import cast
 
 import httpx
-from sqlmodel import select, update
+from sqlmodel import col, select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models import ProxiedService, proxy_hostname, upstream_base
@@ -30,7 +31,7 @@ async def _resolve(host: str) -> set:
         infos = await asyncio.get_running_loop().getaddrinfo(host, None)
     except OSError:
         return set()
-    return {ipaddress.ip_address(i[4][0].split("%")[0]) for i in infos}
+    return {ipaddress.ip_address(str(i[4][0]).split("%")[0]) for i in infos}
 
 
 async def _internal_addrs() -> set:
@@ -137,19 +138,19 @@ async def run_health_pass(session: AsyncSession, checker=check_url, docker=None)
     remote = [s for s in rows if s.kind != "docker-local" and s.health_path]
     ids = [s.id for s in local] + [s.id for s in remote]
     containers = [s.container for s in local]
-    probes = [(upstream_base(s) + s.health_path, s.verify_tls, proxy_hostname(s)) for s in remote]
+    probes = [(upstream_base(s) + (s.health_path or ""), s.verify_tls, proxy_hostname(s)) for s in remote]
     await session.commit()          # end the read txn; don't hold ORM rows across awaits
     if containers and docker is None:
         docker = _default_docker()
     # Concurrent, so N slow services cost one timeout, not N.
     results = await asyncio.gather(
-        *(_docker_check(docker, c) for c in containers),
+        *(_docker_check(docker, cast(str, c)) for c in containers),
         *(_safe_check(checker, u, v, h) for u, v, h in probes))
     now = datetime.now(timezone.utc)
     # Column-level UPDATE by id: a row deleted (or edited) by an admin while the
     # checks ran is skipped (0 rows) instead of failing the pass or clobbering edits.
     for sid, status in zip(ids, results):
-        await session.exec(update(ProxiedService).where(ProxiedService.id == sid)
+        await session.exec(update(ProxiedService).where(col(ProxiedService.id) == sid)
                            .values(health_status=status, health_checked_at=now))
     await session.commit()
     return len(ids)

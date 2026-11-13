@@ -2,6 +2,7 @@ import asyncio
 import logging
 import socket
 from pathlib import Path
+from typing import Any, cast
 from urllib.parse import urlsplit
 
 from playwright.async_api import async_playwright
@@ -59,10 +60,10 @@ def _origin_allowed(url: str, ip: str, port: int, protocol: str) -> bool:
 
 
 class ScreenshotService:
-    def __init__(self, cache_dir: str, docker_manager: DockerManager):
+    def __init__(self, cache_dir: str, docker_manager: DockerManager | None):
         self._cache_dir = Path(cache_dir)
         self._cache_dir.mkdir(parents=True, exist_ok=True)
-        self._docker = docker_manager
+        self._docker: Any = docker_manager
         self._pw = None
         self._browser = None
         self._sem = asyncio.Semaphore(2)
@@ -188,7 +189,7 @@ class ScreenshotService:
 
             base = f"{protocol}://{ip}:{port}/"
             async with self._sem:
-                context = await self._browser.new_context(
+                context = await cast(Any, self._browser).new_context(
                     ignore_https_errors=True, viewport=_VIEWPORT, service_workers="block",
                     # Network fence: all but the instance's own ip:port goes to a dead proxy.
                     proxy={"server": "http://127.0.0.1:9", "bypass": f"{ip}:{port}"},
@@ -252,7 +253,7 @@ class ScreenshotService:
         async with self._sem:
             context = None
             try:
-                context = await self._browser.new_context(
+                context = await cast(Any, self._browser).new_context(
                     ignore_https_errors=True, viewport=_URL_VIEWPORT, service_workers="block",
                     proxy={"server": "http://127.0.0.1:9", "bypass": f"{host}:{port}"},
                 )

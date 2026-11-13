@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const useInstances = vi.fn();
 const mutate = vi.fn();
-vi.mock("@/hooks/use-instances", () => ({ useInstances: () => useInstances(), useKeepalive: () => ({ mutate }) }));
+const useTakeover = vi.fn((..._a: unknown[]) => ({ data: null as unknown }));
+vi.mock("@/hooks/use-instances", () => ({ useInstances: () => useInstances(), useKeepalive: () => ({ mutate }), useTakeover: (...a: unknown[]) => useTakeover(...a) }));
 vi.mock("@/lib/activity", () => ({ startActivityHeartbeat: () => () => {} }));
 const useTemplates = vi.fn(() => ({ data: [{ id: "t1", icon: "🌐" }] }));
 vi.mock("@/hooks/use-templates", () => ({ useTemplates: () => useTemplates() }));
@@ -73,6 +74,13 @@ describe("DesktopPage", () => {
     expect(screen.getByText(/Pausing soon/)).toBeTruthy();
     fireEvent.click(screen.getByText("I'm here"));
     expect(mutate).toHaveBeenCalledWith("i1", expect.anything());
+  });
+
+  it("shows the takeover banner while a takeover is active", () => {
+    useTakeover.mockReturnValue({ data: { actor_name: "Ada", mode: "control", started_at: "x" } });
+    renderAt([inst("running")]);
+    expect(screen.getByText("Ada is controlling your session")).toBeInTheDocument();
+    useTakeover.mockReturnValue({ data: null });
   });
 
   it("no banner when running", () => {

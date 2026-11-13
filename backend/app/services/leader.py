@@ -14,6 +14,7 @@ import asyncio
 import inspect
 import logging
 import time
+from typing import Any
 
 from app.config import Settings
 
@@ -47,7 +48,7 @@ class LeaderElector:
         self._s = settings or Settings()
         self._url = self._s.leader_url()
         self._pg = not self._url.startswith("sqlite")
-        self._conn = None
+        self._conn: Any = None
         self._leader = False
         self._stop = asyncio.Event()
         self._running = False

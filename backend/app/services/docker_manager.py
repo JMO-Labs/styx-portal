@@ -1,6 +1,7 @@
 import logging
 import os
 from pathlib import Path
+from typing import Any
 
 import docker
 import docker.errors
@@ -24,7 +25,7 @@ _EXTRA_DOCKER_ARGS_DENYLIST = {
 
 def detect_gpu() -> dict:
     """Detect available GPU on host."""
-    result = {"available": False, "type": None, "devices": []}
+    result: dict[str, Any] = {"available": False, "type": None, "devices": []}
 
     dri_path = Path("/dev/dri")
     if dri_path.exists():

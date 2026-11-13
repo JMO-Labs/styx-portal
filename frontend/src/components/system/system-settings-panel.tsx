@@ -7,7 +7,7 @@ import { saveSettings } from "@/lib/save-settings";
 import { SavePill } from "@/components/settings/save-pill";
 import { useUnsaved } from "@/components/settings/unsaved-context";
 
-export function SystemSettingsPanel({ groups: only }: { groups?: string[] } = {}) {
+export function SystemSettingsPanel({ groups: only, readOnly = false }: { groups?: string[]; readOnly?: boolean } = {}) {
   const qc = useQueryClient();
   const { data: all = [], isLoading } = useQuery({
     queryKey: ["system-settings"],
@@ -97,7 +97,7 @@ export function SystemSettingsPanel({ groups: only }: { groups?: string[] } = {}
                 setting={setting}
                 value={edits[setting.key]}
                 error={errors[setting.key]}
-                disabled={busy}
+                disabled={busy || readOnly}
                 onChange={(v) => handleChange(setting.key, v, setting)}
                 onRestore={() => drop(setting.key)}
                 onClear={() => setEdits((p) => ({ ...p, [setting.key]: null }))}
@@ -108,12 +108,12 @@ export function SystemSettingsPanel({ groups: only }: { groups?: string[] } = {}
           </fieldset>
         ))}
       </div>
-      <SavePill
+      {!readOnly && <SavePill
         count={dirty}
         saving={updateMutation.isPending}
         onSave={handleSave}
         onDiscard={() => { setEdits({}); setErrors({}); }}
-      />
+      />}
     </>
   );
 }

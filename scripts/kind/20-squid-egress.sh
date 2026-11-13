@@ -48,9 +48,11 @@ helm upgrade --install cilium cilium/cilium --version "$CILIUM_VERSION" -n kube-
   --set kubeProxyReplacement=false --set image.pullPolicy=IfNotPresent \
   --wait --timeout 10m
 kubectl -n kube-system rollout status ds/cilium --timeout=300s
+kubectl -n kube-system rollout status deploy/cilium-operator --timeout=300s
+kubectl wait --for=condition=Ready nodes --all --timeout=300s
 # Pods created under kindnet must be re-created to join Cilium.
 kubectl -n kube-system rollout restart deploy/coredns
-kubectl -n kube-system rollout status deploy/coredns --timeout=180s
+kubectl -n kube-system rollout status deploy/coredns --timeout=420s
 
 echo "== apply baseline + squid"
 kubectl kustomize "$OVERLAY" > /tmp/squid-egress.yaml

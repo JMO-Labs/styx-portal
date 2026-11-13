@@ -71,7 +71,7 @@ async function homeWhileFocused(p: Page) {
     await route.fulfill({ response: await route.fetch({ headers: { ...h, cookie } }) });
   });
   await p.goto("/");
-  await expect(p.getByRole("region", { name: "Apps" })).toBeVisible();
+  await expect(p.getByRole("region", { name: "My services" })).toBeVisible();
 }
 
 const FERRY = "styx.ferry";

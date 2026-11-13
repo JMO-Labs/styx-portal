@@ -2,7 +2,10 @@
 # Run the smartcard Go tests (needs network or a warm module cache for deps).
 set -euo pipefail
 cd "$(dirname "$0")"
-go mod tidy
+# go.sum is committed: verify it, never rewrite it (drift fails CI).
+export GOFLAGS=-mod=readonly
+go mod download
+go mod verify
 go vet ./...
 go test ./... "$@"
 # The helper must also cross-compile for Windows.

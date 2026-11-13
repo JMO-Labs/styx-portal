@@ -2,6 +2,7 @@
 import io
 
 import pytest
+from botocore.exceptions import ClientError
 
 from app.config import Settings
 from app.services.archive_store import ArchiveStore
@@ -29,6 +30,8 @@ class FakeS3:
         return {"Contents": out, "IsTruncated": False}
 
     def head_object(self, Bucket, Key):
+        if (Bucket, Key) not in self.objs:
+            raise ClientError({"Error": {"Code": "404"}}, "HeadObject")
         return {"Metadata": self.objs[(Bucket, Key)][1]}
 
 
@@ -60,6 +63,12 @@ def test_list_only_that_uid(store):
     store.put("alice", "a", io.BytesIO(b"1"), 1.0)
     store.put("alice2", "b", io.BytesIO(b"2"), 2.0)
     assert [r for r, _ in store.list("alice")] == ["a"]
+
+
+def test_exists(store):
+    store.put("alice", "a/b", io.BytesIO(b"1"), 1.0)
+    assert store.exists("alice", "a/b")
+    assert not store.exists("alice", "a/c")
 
 
 def test_delete(store):

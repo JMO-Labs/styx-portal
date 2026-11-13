@@ -1,10 +1,12 @@
 import asyncio
 import logging
+import time
 from datetime import datetime, timezone
+from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -18,7 +20,7 @@ from app.services.k8s_instances import K8sInstanceRuntime
 from app.services.posix_uid import allocate_uid
 from app.services.k8s_runtime import ensure_instance_supported, instance_runtime
 from app.services.screenshot import ScreenshotService
-from app.services import gpu_access, instance_readiness, profiles
+from app.services import gpu_access, instance_readiness, profiles, slo_metrics
 from app.services.group_tier import launch_overrides
 from app.services.traefik_labels import generate_traefik_labels
 from app.services.audit import audit, audit_request
@@ -192,7 +194,7 @@ async def list_instances(
     return result.all()
 
 
-async def _launch_instance_background(instance_id: str, template_id: str):
+async def _launch_instance_background(instance_id: str, template_id: str, t0: float | None = None):
     """Background task: pull image, create container, start it."""
     docker = instance_runtime()
     async with async_session() as session:
@@ -302,10 +304,12 @@ async def _launch_instance_background(instance_id: str, template_id: str):
 
             await record_session_event(session, instance, "started", action="session.launch")
             await session.commit()
-            instance_readiness.kick(instance)
+            instance_readiness.kick(instance, t0, "create")
             await _refresh_routes(session)
 
         except Exception as e:
+            slo_metrics.observe_since("create", "error", t0)
+            slo_metrics.record_launch_failure("other")
             logger.error(f"Instance {instance_id} launch failed: {e}")
             instance.status = "error"
             instance.error_message = str(e)
@@ -353,6 +357,7 @@ async def create_instance(
         raise HTTPException(409, f"Subdomain '{body.subdomain}' already in use")
 
     profile_volume = await profiles.claim_profile(session, user.id, template) if body.use_profile else None
+    t0 = time.monotonic()
     instance = Instance(
         template_id=template.id,
         owner_id=user.id,
@@ -378,7 +383,7 @@ async def create_instance(
     )
     await session.commit()
 
-    asyncio.create_task(_launch_instance_background(instance.id, template.id))
+    asyncio.create_task(_launch_instance_background(instance.id, template.id, t0))
     return instance
 
 
@@ -431,6 +436,7 @@ async def start_instance(
     docker: DockerManager = Depends(get_docker_manager),
     user: User = Depends(get_current_user),
 ):
+    t0 = time.monotonic()
     if is_disabled(user):
         raise HTTPException(403, "Account disabled")
     instance = await session.get(Instance, instance_id)
@@ -451,7 +457,7 @@ async def start_instance(
         # membership is only established on the create/build path, so a Traefik
         # restart leaves it off the net and routing 502s until reattached.
         await _isolate_or_409(docker, instance, instance.container_id)
-        await asyncio.to_thread(docker.start_container, instance.container_id)
+        await asyncio.to_thread(docker.start_container, cast(str, instance.container_id))
     else:
         template = await session.get(ServiceTemplate, instance.template_id)
         if not template:
@@ -473,7 +479,7 @@ async def start_instance(
                                details={"recreated": not container_exists})
     await session.commit()
     await session.refresh(instance)
-    instance_readiness.kick(instance)
+    instance_readiness.kick(instance, t0, "start")
     await _refresh_routes(session)
     return instance
 
@@ -513,6 +519,7 @@ async def restart_instance(
     docker: DockerManager = Depends(get_docker_manager),
     user: User = Depends(get_current_user),
 ):
+    t0 = time.monotonic()
     instance = await session.get(Instance, instance_id)
     if not instance:
         raise HTTPException(404, "Instance not found")
@@ -536,7 +543,7 @@ async def restart_instance(
     await record_session_event(session, instance, "restarted")
     await session.commit()
     await session.refresh(instance)
-    instance_readiness.kick(instance)
+    instance_readiness.kick(instance, t0, "start")
     return instance
 
 
@@ -549,6 +556,7 @@ async def recreate_instance(
 ):
     """Rebuild the instance's container from its (updated) template, reusing the
     instance's named volumes so persistent data is preserved. Same instance id/subdomain."""
+    t0 = time.monotonic()
     instance = await session.get(Instance, instance_id)
     if not instance:
         raise HTTPException(404, "Instance not found")
@@ -584,7 +592,7 @@ async def recreate_instance(
     await record_session_event(session, instance, "recreated")
     await session.commit()
     await session.refresh(instance)
-    instance_readiness.kick(instance)
+    instance_readiness.kick(instance, t0, "start")
     await _refresh_routes(session)
     return instance
 
@@ -603,7 +611,7 @@ async def pause_instance(
     if instance.status != "running" and instance.status != "idle":
         raise HTTPException(409, "Instance not running")
 
-    await asyncio.to_thread(docker.pause_container, instance.container_id)
+    await asyncio.to_thread(docker.pause_container, cast(str, instance.container_id))
     instance.status = "paused"
     session.add(instance)
 
@@ -621,6 +629,7 @@ async def unpause_instance(
     docker: DockerManager = Depends(get_docker_manager),
     user: User = Depends(get_current_user),
 ):
+    t0 = time.monotonic()
     instance = await session.get(Instance, instance_id)
     if not instance:
         raise HTTPException(404, "Instance not found")
@@ -628,13 +637,14 @@ async def unpause_instance(
     if instance.status != "paused":
         raise HTTPException(409, "Instance not paused")
 
-    await asyncio.to_thread(docker.unpause_container, instance.container_id)
+    await asyncio.to_thread(docker.unpause_container, cast(str, instance.container_id))
     instance.status = "running"
     instance.last_activity = datetime.now(timezone.utc)
     session.add(instance)
 
     await record_session_event(session, instance, "unpaused", action="session.unlock")
     await session.commit()
+    slo_metrics.observe_since("resume", "ok", t0)
     await session.refresh(instance)
     await _refresh_routes(session)
     return instance
@@ -694,14 +704,14 @@ async def delete_instance(
 
     if delete_profile and profile_vol:
         await profiles.delete_after_instance(
-            session, docker, Instance(owner_id=profile_owner, template_id=profile_tmpl,
-                                      profile_volume=profile_vol), user.id)
+            session, docker, Instance(owner_id=profile_owner, template_id=profile_tmpl, name="",
+                                      subdomain="", profile_volume=profile_vol), user.id)
 
     # Opt-in image prune — only when requested AND no other instance uses the image.
     if remove_image and image_tag:
         remaining = await session.exec(
             select(Instance).join(
-                ServiceTemplate, Instance.template_id == ServiceTemplate.id
+                ServiceTemplate, col(Instance.template_id) == ServiceTemplate.id
             ).where(ServiceTemplate.image == image_tag)
         )
         if not remaining.first():

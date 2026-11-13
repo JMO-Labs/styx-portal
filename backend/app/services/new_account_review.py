@@ -3,7 +3,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models import User
@@ -33,7 +33,7 @@ async def review_pass(session: AsyncSession, now: datetime | None = None) -> int
     """Suspend unreviewed users older than 2 business days; returns how many. Idempotent."""
     now = now or datetime.now(timezone.utc)
     users = (await session.exec(select(User).where(
-        User.reviewed_at.is_(None), User.disabled_at.is_(None)))).all()
+        col(User.reviewed_at).is_(None), col(User.disabled_at).is_(None)))).all()
     n = 0
     for u in users:
         if business_days_between(u.created_at, now) > MAX_BUSINESS_DAYS:

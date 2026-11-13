@@ -13,5 +13,14 @@
         fail_msg: Set RKE2_TOKEN in the environment or rke2_token in Ansible Vault.
         quiet: true
       tags: [always]
+    - name: Drop the Phase 1 seed bundle into the RKE2 image dir
+      ansible.builtin.copy:
+        src: "{{ seed_bundle_src }}"
+        dest: /var/lib/rancher/rke2/agent/images/phase1-seed.tar
+        owner: root
+        group: root
+        mode: "0644"
+      when: seed_bundle_src | default('') | length > 0
+      tags: [seed-bundle]
   roles:
     - role: lablabs.rke2

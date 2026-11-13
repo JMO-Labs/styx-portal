@@ -3,21 +3,23 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.database import get_session
 from app.models import User
-from app.security.deps import require_admin
+from app.security.deps import require_staff_role
 from app.services.audit import audit_request
 from app.services.settings_store import settings, SCHEMA, JsonValueError
 
 router = APIRouter()
+reader = require_staff_role("platform-admin", "auditor")
+writer = require_staff_role("platform-admin")
 
 
 @router.get("")
-async def get_settings(admin: User = Depends(require_admin)):
+async def get_settings(admin: User = Depends(reader)):
     return settings.effective()
 
 
 @router.patch("")
 async def patch_settings(body: dict, request: Request,
-                         admin: User = Depends(require_admin),
+                         admin: User = Depends(writer),
                          session: AsyncSession = Depends(get_session)):
     if not body:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "No settings provided")
@@ -39,7 +41,7 @@ async def patch_settings(body: dict, request: Request,
 
 @router.post("/{key}/reset")
 async def reset_setting(key: str, request: Request,
-                        admin: User = Depends(require_admin),
+                        admin: User = Depends(writer),
                         session: AsyncSession = Depends(get_session)):
     if key not in SCHEMA:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown setting: {key}")
