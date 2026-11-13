@@ -65,6 +65,7 @@ from app.services.janitor import janitor_loop
 from app.services.settings_sync import settings_sync_loop
 from app.services.leader import LeaderTasks, get_elector
 from app.services.mount_jobs import sweep_interrupted
+from app.services.prom_metrics import PrometheusMiddleware, start_metrics_server
 from app.security.csrf import csrf_valid, CSRF_COOKIE, CSRF_HEADER, UNSAFE_METHODS
 
 logger = logging.getLogger("styx-portal")
@@ -122,6 +123,8 @@ async def lifespan(app: FastAPI):
     from app.middleware.rate_limit import _tunnel_pod_ips, snapshot_own_networks
     snapshot_own_networks()
     _tunnel_pod_ips()   # k8s: start the first cloudflared pod lookup (no-op in compose)
+
+    start_metrics_server(_settings.METRICS_PORT)
 
     await init_db()
 
@@ -256,6 +259,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "X-CSRF-Token", "X-Styx-Client"],
 )
+app.add_middleware(PrometheusMiddleware)  # outermost: also records 403/429 from inner middleware
 
 app.include_router(templates.router, prefix="/api/templates", tags=["templates"])
 app.include_router(smartcard_router.mint_router, prefix="/api/instances", tags=["smartcard"])
