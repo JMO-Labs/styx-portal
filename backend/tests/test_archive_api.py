@@ -72,7 +72,9 @@ async def test_restore(env, session):
     p = home / str(uid) / "d" / "f.txt"
     assert p.read_bytes() == b"data"
     assert int(p.stat().st_mtime) == 1000
-    assert (str(p), uid) in chowns
+    # file is chowned via its open fd (symlink-safe); parents by path
+    assert any(isinstance(t, int) and u == uid for t, u in chowns)
+    assert (str(p.parent), uid) in chowns
     log = (await session.exec(select(AuditLog).where(AuditLog.action == "archive.restore"))).all()
     assert len(log) == 1
 
