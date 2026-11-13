@@ -174,6 +174,7 @@ async def _run_migrations(conn):
         ("instances", "profile_volume", "TEXT"),
         ("instances", "gpu", "BOOLEAN"),
         ("instances", "notice", "TEXT"),
+        ("user_profiles", "last_used_at", "TIMESTAMP"),
         ("groups", "allow_gpu", "BOOLEAN DEFAULT 0"),
         ("groups", "egress_mode", "TEXT NOT NULL DEFAULT 'category'"),
     ]
