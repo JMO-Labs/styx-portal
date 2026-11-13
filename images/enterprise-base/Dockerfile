@@ -8,17 +8,21 @@ ARG UBUNTU_DIGEST=sha256:0000000000000000000000000000000000000000000000000000000
 FROM golang:1.22-bookworm AS relay
 WORKDIR /src
 COPY --from=smartcard . .
-# go.sum is not committed yet: resolve it at build time (TODO: commit go.sum, then drop tidy).
+# go.sum is not committed yet: resolve it at build time (TODO styx-portal#325: commit go.sum, build -mod=readonly).
 RUN go mod tidy && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/styx-card-relay ./cmd/styx-card-relay
 
 # virtualsmartcard vpcd (pcscd IFD driver), pinned upstream release.
 FROM ubuntu:24.04@${UBUNTU_DIGEST} AS vpcd
+# 0.10 is the latest release that ships a source tarball (0.11 only has zips).
 ARG VSMARTCARD_VERSION=0.10
+ARG VSMARTCARD_SHA256=1401a441250f3da0b71fa440a252b37907487a0326abec71a33b6cf05f247623
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl build-essential autoconf automake libtool pkg-config \
         help2man gengetopt libpcsclite-dev \
-    && curl -fsSL "https://github.com/frankmorgner/vsmartcard/releases/download/virtualsmartcard-${VSMARTCARD_VERSION}/virtualsmartcard-${VSMARTCARD_VERSION}.tar.gz" \
-        | tar -xz -C /tmp \
+    && curl -fsSL -o /tmp/vsmartcard.tar.gz \
+        "https://github.com/frankmorgner/vsmartcard/releases/download/virtualsmartcard-${VSMARTCARD_VERSION}/virtualsmartcard-${VSMARTCARD_VERSION}.tar.gz" \
+    && echo "${VSMARTCARD_SHA256}  /tmp/vsmartcard.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/vsmartcard.tar.gz -C /tmp \
     && cd "/tmp/virtualsmartcard-${VSMARTCARD_VERSION}" \
     && ./configure --prefix=/usr --sysconfdir=/etc && make -j"$(nproc)" \
     && make install DESTDIR=/out

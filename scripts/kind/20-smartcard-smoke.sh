@@ -34,16 +34,20 @@ Y
 kubectl -n "$NS" wait --for=condition=Ready "pod/$POD" --timeout=300s
 
 [ "$(kubectl -n "$NS" exec "$POD" -- id -u)" = "1000" ] || { echo "FAIL: not uid 1000"; exit 1; }
-kubectl -n "$NS" exec "$POD" -- pgrep -x styx-card-relay >/dev/null || { echo "FAIL: relay not running"; exit 1; }
+kubectl -n "$NS" exec "$POD" -- sh -c 'grep -qx styx-card-relay /proc/[0-9]*/comm'  || { echo "FAIL: relay not running"; exit 1; }
 
 out=""
 for _ in $(seq 1 15); do
   out=$(kubectl -n "$NS" exec "$POD" -- sh -c 'python3 - <<P
 import ctypes
 l=ctypes.CDLL("libpcsclite.so.1")
-ctx=ctypes.c_void_p()
+# pcsclite on 64-bit Linux: DWORD and SCARDCONTEXT are unsigned long (8 bytes).
+D=ctypes.c_ulong
+l.SCardEstablishContext.argtypes=[D,ctypes.c_void_p,ctypes.c_void_p,ctypes.POINTER(D)]
+l.SCardListReaders.argtypes=[D,ctypes.c_char_p,ctypes.c_char_p,ctypes.POINTER(D)]
+ctx=D(0)
 assert l.SCardEstablishContext(2,None,None,ctypes.byref(ctx))==0
-n=ctypes.c_uint32(0)
+n=ctypes.c_ulong(0)
 l.SCardListReaders(ctx,None,None,ctypes.byref(n))
 b=ctypes.create_string_buffer(n.value)
 l.SCardListReaders(ctx,None,b,ctypes.byref(n))

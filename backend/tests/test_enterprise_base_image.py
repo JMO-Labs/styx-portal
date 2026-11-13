@@ -64,3 +64,17 @@ def test_apt_run_does_not_swallow_install_failure():
     assert "apt-get install" in run
     assert "{ find" in run and "|| true; }" in run
     assert "-exec chmod a-s {} + 2>/dev/null || true \\" not in run
+
+
+def test_vsmartcard_tarball_checksum_verified():
+    assert re.search(r"^ARG VSMARTCARD_SHA256=[0-9a-f]{64}$", DOCKERFILE, re.M)
+    assert 'echo "${VSMARTCARD_SHA256}  ' in DOCKERFILE and "sha256sum -c -" in DOCKERFILE
+    assert not re.search(r"curl[^\n]*vsmartcard[^\n]*\n[^\n]*\|\s*tar", DOCKERFILE)
+
+
+def test_smartcard_smoke_avoids_procps_and_uses_ulong():
+    smoke = (BASE.parents[1] / "scripts/kind/20-smartcard-smoke.sh").read_text()
+    assert "pgrep" not in smoke
+    assert "/proc/[0-9]*/comm" in smoke
+    assert "c_uint32" not in smoke and "ctypes.c_ulong(0)" in smoke
+    assert "SCardListReaders.argtypes" in smoke and "SCardEstablishContext.argtypes" in smoke

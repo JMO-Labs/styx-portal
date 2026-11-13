@@ -32,7 +32,7 @@ def test_triggers_on_enterprise_image_paths(wf):
     on = doc.get("on", doc.get(True))
     for ev in ("push", "pull_request"):
         assert on[ev]["branches"] == ["enterprise"]
-        assert set(on[ev]["paths"]) >= {"images/enterprise-base/**", "images/golden/**"}
+        assert set(on[ev]["paths"]) >= {"images/enterprise-base/**", "images/golden/**", "smartcard/**"}
 
 
 def test_read_only_permissions_and_no_push(wf):
