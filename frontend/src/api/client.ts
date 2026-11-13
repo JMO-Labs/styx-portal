@@ -220,7 +220,7 @@ const silentRefresh = singleFlight(async (): Promise<boolean> => {
   return res.ok;
 });
 
-export interface ArchiveFile { path: string; name: string; size: number; archived_at: string }
+export interface ArchiveFile { relpath: string; size: number; mtime: number }
 export interface Notice { id: string; message: string; dismissed?: boolean }
 export interface HomeStorage { used_bytes: number | null; quota_bytes: number | null; percent: number | null; warn: boolean }
 
@@ -377,8 +377,8 @@ export const api = {
 
   getRuntime: () => request<{ runtime: "docker" | "kubernetes" }>("/system/runtime"),
   listArchive: () => request<ArchiveFile[]>("/archive"),
-  restoreArchive: (path: string) => request<unknown>("/archive/restore", { method: "POST", body: JSON.stringify({ path }) }),
-  sendToArchive: (path: string) => request<unknown>("/archive/send", { method: "POST", body: JSON.stringify({ path }) }),
+  restoreArchive: (path: string) => request<unknown>("/archive/restore", { method: "POST", body: JSON.stringify({ relpath: path }) }),
+  sendToArchive: (path: string) => request<unknown>("/archive/send", { method: "POST", body: JSON.stringify({ relpath: path }) }),
   listNotices: () => request<Notice[]>("/notices"),
   dismissNotice: (id: string) => request<void>(`/notices/${id}/dismiss`, { method: "POST" }),
   getHomeStorage: () => request<HomeStorage>("/me/storage"),

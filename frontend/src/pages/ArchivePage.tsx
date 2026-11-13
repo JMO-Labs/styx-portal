@@ -42,12 +42,12 @@ export function ArchivePage() {
         <thead><tr><th>Name</th><th>Size</th><th>Archived</th><th /></tr></thead>
         <tbody>
           {(list.data ?? []).map((f) => (
-            <tr key={f.path} className="border-t border-border">
-              <td className="py-2">{f.name}</td>
+            <tr key={f.relpath} className="border-t border-border">
+              <td className="py-2">{f.relpath}</td>
               <td>{fmtSize(f.size)}</td>
-              <td>{f.archived_at.slice(0, 10)}</td>
+              <td>{new Date(f.mtime * 1000).toISOString().slice(0, 10)}</td>
               <td className="text-right">
-                <button type="button" disabled={restore.isPending} onClick={() => restore.mutate(f.path)}
+                <button type="button" disabled={restore.isPending} onClick={() => restore.mutate(f.relpath)}
                   className="rounded-md border border-border px-2.5 py-1 text-xs">Restore</button>
               </td>
             </tr>

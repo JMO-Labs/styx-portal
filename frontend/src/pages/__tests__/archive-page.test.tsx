@@ -17,13 +17,13 @@ function view() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(<QueryClientProvider client={qc}><ArchivePage /></QueryClientProvider>);
 }
-const files = [{ path: "docs/a.txt", name: "a.txt", size: 2048, archived_at: "2026-10-01T12:00:00Z" }];
+const files = [{ relpath: "docs/a.txt", size: 2048, mtime: Date.UTC(2026, 9, 1, 12) / 1000 }];
 beforeEach(() => { vi.clearAllMocks(); m.listArchive!.mockResolvedValue(files); });
 
 describe("ArchivePage", () => {
   test("lists files with name, size, date", async () => {
     view();
-    expect(await screen.findByText("a.txt")).toBeInTheDocument();
+    expect(await screen.findByText("docs/a.txt")).toBeInTheDocument();
     expect(screen.getByText("2 KB")).toBeInTheDocument();
     expect(screen.getByText(/2026-10-01/)).toBeInTheDocument();
   });
@@ -38,7 +38,7 @@ describe("ArchivePage", () => {
     m.restoreArchive!.mockRejectedValue(new ApiError("exists", 409));
     view();
     await userEvent.click(await screen.findByRole("button", { name: /restore/i }));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("exists")));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/Conflict/)));
   });
   test("send form calls API with path", async () => {
     m.sendToArchive!.mockResolvedValue({});
