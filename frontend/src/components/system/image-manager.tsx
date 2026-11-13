@@ -90,7 +90,7 @@ function Images() {
         <div className="rounded-lg border border-border py-12 text-center bg-card/50">
           <HardDrive className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
           <p className="text-sm text-muted-foreground">No pulled images tracked yet</p>
-          <p className="text-xs text-muted-foreground/60">Images appear here when you launch instances</p>
+          <p className="text-xs text-muted-foreground">Images appear here when you launch instances</p>
         </div>
       ) : (
         <div className="space-y-1.5">
@@ -114,7 +114,7 @@ function Images() {
                 <button
                   onClick={() => handleDelete(img.id, img.image)}
                   disabled={deleteMut.isPending}
-                  className="rounded-md p-1.5 pointer-coarse:p-3 text-muted-foreground opacity-0 pointer-coarse:opacity-100 group-hover:opacity-100 hover:text-destructive hover:bg-destructive/10 transition-all"
+                  className="rounded-md p-1.5 pointer-coarse:p-3 text-muted-foreground opacity-0 pointer-coarse:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 outline-none focus-visible:ring-2 focus-visible:ring-ring hover:text-destructive hover:bg-destructive/10 transition-all"
                   title="Remove image"
                   aria-label={`Remove ${img.image}`}
                 >

@@ -175,7 +175,7 @@ export function IconSettings({ iconUrl, kind, id, onSave, onStage, extra }: Prop
         )}
         {extra}
       </div>
-      {(emojiErr || fileError) && <p id={`icon-error-${id}`} role="alert" className="text-xs text-rose-400">{emojiErr ?? fileError}</p>}
+      {(emojiErr || fileError) && <p id={`icon-error-${id}`} role="alert" className="text-xs text-destructive">{emojiErr ?? fileError}</p>}
     </div>
   );
 }

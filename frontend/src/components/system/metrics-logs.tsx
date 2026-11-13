@@ -85,7 +85,7 @@ export function MetricsLogs() {
 
         {/* Search */}
         <div className="relative flex-1 min-w-[150px] max-w-[300px]">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/60" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
           <input
             type="text"
             aria-label="Filter logs"
@@ -114,7 +114,7 @@ export function MetricsLogs() {
         {/* Log header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-border/40">
           <div className="flex items-center gap-2">
-            <Terminal className="h-3 w-3 text-muted-foreground/60" />
+            <Terminal className="h-3 w-3 text-muted-foreground" />
             <span className="text-[11px] text-muted-foreground font-mono">
               {selectedInstance ? `${selectedInstance.name}` : "No instance selected"}
             </span>
@@ -126,7 +126,7 @@ export function MetricsLogs() {
                 LIVE
               </span>
             )}
-            <span className="text-[10px] text-muted-foreground/60 tabular-nums">
+            <span className="text-[10px] text-muted-foreground tabular-nums">
               {filteredLogs?.length ?? 0} lines
             </span>
           </div>
@@ -139,11 +139,11 @@ export function MetricsLogs() {
           className="h-[400px] overflow-y-auto overflow-x-auto p-3 font-mono text-[11px] leading-[1.6] select-text"
         >
           {!selectedId ? (
-            <div className="flex items-center justify-center h-full text-muted-foreground/60 text-xs">
+            <div className="flex items-center justify-center h-full text-muted-foreground text-xs">
               Select an instance to view logs
             </div>
           ) : !filteredLogs || filteredLogs.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-muted-foreground/60 text-xs">
+            <div className="flex items-center justify-center h-full text-muted-foreground text-xs">
               {searchQuery ? "No matching lines" : "No logs available"}
             </div>
           ) : (

@@ -94,7 +94,7 @@ export function WorkstationsPanel() {
         </>
       } />
       <div className="space-y-4">
-        {error && <p className="text-sm text-rose-400">{error}</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
         {enroll && (
         <div className="rounded-lg border border-border bg-surface p-4 space-y-3">
           <p className="text-sm">Run this on the workstation (token valid until{" "}
