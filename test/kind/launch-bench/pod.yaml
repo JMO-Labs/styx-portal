@@ -1,0 +1,31 @@
+# Desktop-like pod: small image + PVC at /home. __NAME__ is substituted per run.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: __NAME__
+  namespace: launch-bench
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 64Mi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: __NAME__
+  namespace: launch-bench
+  labels: {app: launch-bench}
+spec:
+  terminationGracePeriodSeconds: 0
+  containers:
+    - name: desktop
+      image: busybox:1.37
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "3600"]
+      volumeMounts:
+        - {name: home, mountPath: /home}
+  volumes:
+    - name: home
+      persistentVolumeClaim:
+        claimName: __NAME__
