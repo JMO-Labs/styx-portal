@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { describe, test, expect, vi } from "vitest";
+import { describe, test, expect, vi, beforeEach } from "vitest";
 import { expectNoSeriousA11y } from "@/test/axe";
 
 const login = vi.fn().mockRejectedValue(new Error("bad"));
@@ -20,9 +20,13 @@ vi.mock("@/api/client", () => ({
   withRetry: (fn: () => unknown) => fn(),
   ApiError: class extends Error {},
 }));
+const authState = vi.hoisted(() => ({ setupRequired: false }));
 vi.mock("@/hooks/use-auth", () => ({
-  useAuth: () => ({ user: null, loading: false, setupRequired: true, refresh: vi.fn(), logout: vi.fn() }),
+  useAuth: () => ({ user: null, loading: false, setupRequired: authState.setupRequired, refresh: vi.fn(), logout: vi.fn() }),
 }));
+beforeEach(() => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({}));
+});
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }));
 
 import { LoginPage } from "../LoginPage";
@@ -30,7 +34,8 @@ import { SetupWizard } from "../SetupWizard";
 import { ChangePasswordPage } from "../ChangePasswordPage";
 import { AcceptInvitePage } from "../AcceptInvitePage";
 
-function mount(ui: React.ReactNode) {
+function mount(ui: React.ReactNode, setupRequired = false) {
+  authState.setupRequired = setupRequired;
   const qc = new QueryClient();
   return render(
     <QueryClientProvider client={qc}>
@@ -47,7 +52,7 @@ describe("auth pages a11y", () => {
     await expectNoSeriousA11y(container);
   });
   test("SetupWizard", async () => {
-    const { container } = mount(<SetupWizard />);
+    const { container } = mount(<SetupWizard />, true);
     await screen.findByText("Environment check");
     await expectNoSeriousA11y(container);
   });
@@ -76,7 +81,6 @@ describe("auth pages a11y", () => {
   });
 
   test("AcceptInvite error is alert linked to inputs", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({}));
     mount(<AcceptInvitePage />);
     fireEvent.change(screen.getByLabelText("Username"), { target: { value: "bob" } });
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "Xk9#vQ2!mZ7@pL4$wR8" } });
@@ -87,7 +91,7 @@ describe("auth pages a11y", () => {
   });
 
   test("Setup error is alert linked to password", async () => {
-    mount(<SetupWizard />);
+    mount(<SetupWizard />, true);
     fireEvent.change(screen.getByLabelText("Username"), { target: { value: "bob" } });
     fireEvent.change(screen.getByLabelText("Setup code"), { target: { value: "x" } });
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "abc" } });
