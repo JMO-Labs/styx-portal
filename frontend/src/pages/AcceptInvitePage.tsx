@@ -72,6 +72,7 @@ export function AcceptInvitePage() {
                 onChange={(e) => setP(e.target.value)}
                 required
                 aria-invalid={err ? true : undefined}
+                aria-describedby={err ? "form-error" : undefined}
               />
               {password && (
                 <div className="space-y-2 pt-2">
@@ -84,7 +85,7 @@ export function AcceptInvitePage() {
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">Strength:</span>
                     <span className={`text-xs font-medium ${
-                      score < 2 ? "text-destructive" : score < 3 ? "text-warning-foreground" : "text-success"
+                      score < 2 ? "text-destructive" : score < 3 ? "text-warning-foreground" : "text-success-foreground"
                     }`}>
                       {STRENGTH_LABELS[score]}
                     </span>
@@ -93,12 +94,12 @@ export function AcceptInvitePage() {
               )}
             </div>
             {err && (
-              <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+              <div id="form-error" role="alert" className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
                 {err}
               </div>
             )}
             <Button type="submit" className="w-full" disabled={score < 3 || submitting}>
-              {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Joining…</> : "Join"}
+              {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />Joining…</> : "Join"}
             </Button>
           </form>
         </div>
