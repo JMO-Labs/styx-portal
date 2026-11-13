@@ -504,3 +504,13 @@ from app.schemas_services import (  # noqa: E402,F401  (re-export)
     ProxiedServiceCreate, ProxiedServiceOut, ProxiedServiceUpdate, ServicePresetOut, ServiceTileOut,
     UserGroupsUpdate, _ServiceFields,
 )
+
+
+class ArchiveEntry(BaseModel):
+    relpath: str
+    size: int
+    mtime: float
+
+
+class ArchivePath(BaseModel):
+    relpath: str
