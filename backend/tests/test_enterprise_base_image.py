@@ -120,6 +120,12 @@ def test_smartcard_smoke_avoids_procps_and_uses_ulong():
     assert "SCardListReaders.argtypes" in smoke and "SCardEstablishContext.argtypes" in smoke
 
 
+
+def test_smartcard_smoke_sets_unlock_key():
+    # styx-start fails closed without STYX_UNLOCK_KEY; the smoke pod must set one.
+    smoke = (BASE.parents[1] / "scripts/kind/20-smartcard-smoke.sh").read_text()
+    assert "{name: STYX_UNLOCK_KEY, value:" in smoke
+
 def test_dockerfile_applies_selkies_patches_after_pip_install():
     assert "COPY patches/selkies/ /opt/selkies-patches/" in DOCKERFILE
     assert "apply_selkies_patches.sh" in DOCKERFILE

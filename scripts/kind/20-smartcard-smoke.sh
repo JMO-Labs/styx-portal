@@ -24,6 +24,7 @@ spec:
       imagePullPolicy: Never
       env:
         - {name: SMARTCARD_ENABLED, value: "true"}
+        - {name: STYX_UNLOCK_KEY, value: kind-spike-key}
         - {name: STYX_INSTANCE_ID, value: smoke}
       securityContext:
         runAsNonRoot: true
