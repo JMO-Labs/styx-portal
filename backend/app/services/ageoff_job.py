@@ -36,7 +36,11 @@ async def ageoff_tick(session, store, now: datetime, is_leader, dry_run: bool,
         sent = notice.created_at if notice else None
         if sent is not None:  # only files that were already stale when notified
             was = set(stale_files(home, sent))
-            stale = [s for s in stale if s in was]
+            noticed = [s for s in stale if s in was]
+            if noticed or now - sent < timedelta(days=NOTICE_DAYS):
+                stale = noticed
+            else:  # period elapsed, only newly-stale files remain: start a new cycle
+                sent = None
         p = plan(stale, sent, now, NOTICE_DAYS, home)
         if p.action in ("none", "wait"):
             continue

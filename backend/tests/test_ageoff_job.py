@@ -5,6 +5,7 @@ import pytest
 from sqlmodel import select
 
 from app.models import AuditLog, Notice, User
+from app.config import Settings
 from app.services.ageoff_job import ageoff_tick
 
 NOW = datetime(2026, 11, 13, 3, 0)
@@ -97,3 +98,25 @@ async def test_dry_run_changes_nothing(session, tmp_path):
     assert res[u.id].action == "move" and res[u.id].files == ["old.txt"]
     assert st.puts == [] and f.exists()
     assert (await session.exec(select(AuditLog))).all() == []
+
+
+def test_dry_run_default_true():
+    assert Settings().ageoff_dry_run is True
+
+
+@pytest.mark.asyncio
+async def test_new_stale_file_after_move_gets_new_notice(session, tmp_path):
+    u, f = await _setup(session, tmp_path)
+    st = FakeStore()
+    await _run(session, st, tmp_path, NOW)
+    await _age_notice(session, 15)
+    await _run(session, st, tmp_path, NOW)
+    assert not f.exists()
+    g = f.parent / "new.txt"
+    g.write_text("n")
+    t = (NOW - timedelta(days=100)).timestamp()
+    os.utime(g, (t, t))
+    later = NOW + timedelta(days=1)
+    await _run(session, st, tmp_path, later)
+    ns = (await session.exec(select(Notice).where(Notice.kind == "ageoff"))).all()
+    assert len(ns) == 2 and g.exists()

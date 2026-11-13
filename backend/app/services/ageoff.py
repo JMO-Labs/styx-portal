@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 import stat
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -16,7 +16,7 @@ class Plan:
 
 def stale_files(home: Path, now: datetime, days: int = 90) -> list[str]:
     """Relpaths of regular files with mtime and atime older than `days`."""
-    cutoff = (now - timedelta(days=days)).timestamp()
+    cutoff = (now - timedelta(days=days)).replace(tzinfo=timezone.utc).timestamp()
     out: list[str] = []
     for dirpath, _dirs, names in os.walk(home):
         rel_dir = Path(dirpath).relative_to(home)
@@ -52,7 +52,7 @@ def plan(
         return Plan("wait", list(stale))
     files = list(stale)
     if home is not None:
-        sent = notice_due_at.timestamp()
+        sent = notice_due_at.replace(tzinfo=timezone.utc).timestamp()
         keep = []
         for rel in files:
             try:
