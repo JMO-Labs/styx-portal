@@ -58,7 +58,9 @@ def test_start_script_has_display_source_and_port():
 
 
 def test_apt_run_does_not_swallow_install_failure():
-    run = next(i for i in DOCKERFILE.split("\n\n") if "apt-get install" in i)
+    # Runtime stage only: builder stages (relay, vpcd) may install freely.
+    runtime = DOCKERFILE.split("\nFROM ")[-1]
+    run = next(i for i in runtime.split("\n\n") if "apt-get install" in i)
     assert "apt-get install" in run
     assert "{ find" in run and "|| true; }" in run
     assert "-exec chmod a-s {} + 2>/dev/null || true \\" not in run
