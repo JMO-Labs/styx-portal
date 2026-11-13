@@ -88,6 +88,6 @@ async def launch_overrides(session: AsyncSession, runtime, instance, template):
     tier = await user_group_tier(session, instance.owner_id)
     owner = await session.get(User, instance.owner_id) if instance.owner_id else None
     dlp = dlp_env(await user_group_dlp(session, instance.owner_id),
-                  owner.username if owner else None)
+                  (owner.username if owner else None) or instance.owner_id)
     return ({**tier_env(tier), **dlp}, template.memory_limit or tier.get("memory"),
             template.cpu_limit or tier.get("cpu"))

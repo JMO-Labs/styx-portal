@@ -8,29 +8,31 @@ DLP_DEFAULTS = {
     "download": False, "printing": False, "watermark": True,
 }
 
-# SELKIES_CLIPBOARD_ENABLED is the name pinned in selkies-defaults.ts; the
-# SELKIES_ENABLE_CLIPBOARD alias carries the in/out direction. STYX_WATERMARK_USER
-# is read by the ADR-0058 pixelflux patch (05), which adds the UTC time itself.
+# Names below are those in the pinned Selkies (selkies-defaults.ts). Selkies has no
+# per-direction clipboard or env-configurable printing switch, so clipboard stays on
+# only when both directions are allowed (fail closed) and printing is not configurable
+# via env. STYX_WATERMARK_USER is read by the ADR-0058 pixelflux patch (05), which
+# adds the UTC time itself (the watermark's time placeholder).
 DLP_ENV_KEYS = frozenset({
-    "SELKIES_CLIPBOARD_ENABLED", "SELKIES_ENABLE_CLIPBOARD", "SELKIES_FILE_TRANSFERS",
-    "SELKIES_PRINTING_ENABLED", "STYX_WATERMARK_USER",
+    "SELKIES_CLIPBOARD_ENABLED", "SELKIES_FILE_TRANSFERS", "STYX_WATERMARK_USER",
 })
 
 
 def dlp_env(policy: dict[str, bool], username: str | None = None) -> dict[str, str]:
-    """Selkies env enforcing the policy server-side. Printing on sets no key."""
-    cin, cout = policy["clipboard_in"], policy["clipboard_out"]
+    """Selkies env enforcing the policy server-side.
+
+    A watermark needs a non-empty identifier: the patch treats "" as unset.
+    """
     env = {
-        "SELKIES_CLIPBOARD_ENABLED": "true" if cin or cout else "false",
-        "SELKIES_ENABLE_CLIPBOARD": (
-            "true" if cin and cout else "in" if cin else "out" if cout else "false"),
+        "SELKIES_CLIPBOARD_ENABLED": (
+            "true" if policy["clipboard_in"] and policy["clipboard_out"] else "false"),
         "SELKIES_FILE_TRANSFERS": ",".join(
             d for d in ("upload", "download") if policy[d]) or "none",
     }
-    if not policy["printing"]:
-        env["SELKIES_PRINTING_ENABLED"] = "false"
     if policy["watermark"]:
-        env["STYX_WATERMARK_USER"] = username or ""
+        if not username:
+            raise ValueError("watermark requires a non-empty username")
+        env["STYX_WATERMARK_USER"] = username
     return env
 
 

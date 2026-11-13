@@ -9,19 +9,26 @@ from app.services.group_dlp import DLP_DEFAULTS, DLP_ENV_KEYS, dlp_env
 
 def test_d38_defaults():
     env = dlp_env(dict(DLP_DEFAULTS), username="alice")
-    assert env["SELKIES_ENABLE_CLIPBOARD"] == "true"
     assert env["SELKIES_FILE_TRANSFERS"] == "upload"
-    assert env["SELKIES_PRINTING_ENABLED"] == "false"
     assert env["STYX_WATERMARK_USER"] == "alice"
     assert env["SELKIES_CLIPBOARD_ENABLED"] == "true"
+    assert "SELKIES_PRINTING_ENABLED" not in env
 
 
 @pytest.mark.parametrize("cin,cout,want", [
-    (True, True, "true"), (True, False, "in"), (False, True, "out"), (False, False, "false")])
-def test_clipboard_directions(cin, cout, want):
-    env = dlp_env({**DLP_DEFAULTS, "clipboard_in": cin, "clipboard_out": cout})
-    assert env["SELKIES_ENABLE_CLIPBOARD"] == want
-    assert env["SELKIES_CLIPBOARD_ENABLED"] == ("true" if cin or cout else "false")
+    (True, True, "true"), (True, False, "false"), (False, True, "false"),
+    (False, False, "false")])
+def test_clipboard_fails_closed_unless_both(cin, cout, want):
+    env = dlp_env({**DLP_DEFAULTS, "clipboard_in": cin, "clipboard_out": cout,
+                   "watermark": False})
+    assert env["SELKIES_CLIPBOARD_ENABLED"] == want
+    assert "SELKIES_ENABLE_CLIPBOARD" not in env
+
+
+def test_watermark_requires_username():
+    for u in (None, ""):
+        with pytest.raises(ValueError):
+            dlp_env(DLP_DEFAULTS, username=u)
 
 
 def test_file_transfers_and_watermark_off():
@@ -30,11 +37,6 @@ def test_file_transfers_and_watermark_off():
     assert env["SELKIES_FILE_TRANSFERS"] == "upload,download"
     assert "STYX_WATERMARK_USER" not in env
     assert dlp_env({**DLP_DEFAULTS, "upload": False})["SELKIES_FILE_TRANSFERS"] == "none"
-
-
-def test_printing_on_omits_disable_key():
-    env = dlp_env({**DLP_DEFAULTS, "printing": True})
-    assert "SELKIES_PRINTING_ENABLED" not in env
 
 
 def test_watermark_is_bare_username():
@@ -64,7 +66,5 @@ async def test_launch_overrides_dlp_wins_over_template(session):
     assert env["STYX_WATERMARK_USER"] == "dave"
     merged = merge_launch_env(env, tpl.env_vars, {"SELKIES_FILE_TRANSFERS": "upload,download"})
     assert merged["SELKIES_CLIPBOARD_ENABLED"] == "false"
-    assert merged["SELKIES_ENABLE_CLIPBOARD"] == "false"
     assert merged["SELKIES_FILE_TRANSFERS"] == "upload"
-    assert merged["SELKIES_PRINTING_ENABLED"] == "false"
     assert merged["SELKIES_FRAMERATE"] == "144"  # tier keys: template wins
