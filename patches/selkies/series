@@ -1,3 +1,4 @@
 # Apply order. Patches merged upstream (note: "not kept") stay in this dir for
 # history but are not listed: the pinned wheels already ship them.
 01-selkies-owner-lag-gate.patch
+05-pixelflux-watermark.patch

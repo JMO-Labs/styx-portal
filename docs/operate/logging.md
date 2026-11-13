@@ -81,6 +81,21 @@ or annotate the ExternalSecret with `force-sync`), restart both DaemonSets
 `DELETE /_security/api_key` the old id. The setup key gets the same treatment, held
 by the SIEM team.
 
+## Import the session timeline
+
+`deploy/logging/kibana/session-timeline.ndjson` holds a data view for
+`logs-styx.audit-*` and the saved search "Styx session timeline" (`event.category: session`,
+oldest first, columns user, action, session id, reason, node). Import it in Kibana under
+Stack Management > Saved Objects > Import, or with the API:
+
+```
+curl -X POST "$KIBANA_URL/api/saved_objects/_import?overwrite=true" \
+  -H "kbn-xsrf: true" -H "Authorization: ApiKey $KIBANA_API_KEY" \
+  --form file=@deploy/logging/kibana/session-timeline.ndjson
+```
+
+Filter by `styx.session.id` to follow one session end to end.
+
 ## Outage and buffering
 
 Every output has `retry_limit false` and filesystem buffering on the node
