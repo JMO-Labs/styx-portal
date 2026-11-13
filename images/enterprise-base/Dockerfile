@@ -8,7 +8,8 @@ ARG UBUNTU_DIGEST=sha256:0000000000000000000000000000000000000000000000000000000
 FROM golang:1.22-bookworm AS relay
 WORKDIR /src
 COPY --from=smartcard . .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/styx-card-relay ./cmd/styx-card-relay
+# go.sum is not committed yet: resolve it at build time (TODO: commit go.sum, then drop tidy).
+RUN go mod tidy && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/styx-card-relay ./cmd/styx-card-relay
 
 # virtualsmartcard vpcd (pcscd IFD driver), pinned upstream release.
 FROM ubuntu:24.04@${UBUNTU_DIGEST} AS vpcd
