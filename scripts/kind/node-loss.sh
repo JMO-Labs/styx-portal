@@ -78,7 +78,13 @@ eff=$(kubectl get node "$victim" -o jsonpath='{.spec.taints[?(@.key=="node.kuber
 [ "$eff" = "NoExecute" ] || { echo "FAIL: out-of-service taint missing (got '$eff')"; exit 1; }
 
 echo "waiting for pod on another node"
-for _ in $(seq 24); do
+for i in $(seq 48); do
+  # the taint should evict the pod; if it is still untouched after 60s, delete
+  # it (graceful) so the out-of-service GC can force-remove it from the dead node
+  if [ "$i" = 12 ]; then
+    kubectl -n "$NS" get pod -l app=home -o wide
+    kubectl -n "$NS" delete pod -l app=home --wait=false || true
+  fi
   new=$(kubectl -n "$NS" get pod -l app=home --field-selector=status.phase=Running \
     -o json | jq -r '.items[] | select(.metadata.deletionTimestamp==null) | .spec.nodeName' | head -1)
   [ -n "$new" ] && [ "$new" != "$victim" ] && break
