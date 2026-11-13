@@ -26,10 +26,10 @@ def queue_ms(state: dict, wm) -> float | None:
     return max(0.0, min(stand) - floor)
 
 
-def trace_steer(server_cls, wm, steer_cls) -> None:
-    """Hand each congestion tick's queue to the display's steer (`styx_q_ms`)
-    and log one STYX-CC line per measured tick, for cc_report.py.
-    ponytail: the trace is for the Phase 1 A/B; drop or gate behind a setting once tuned."""
+def trace_steer(server_cls, wm, steer_cls, log_cc: bool = False) -> None:
+    """Hand each congestion tick's queue to the display's steer (`styx_q_ms`),
+    always. With `log_cc` (stream-override.json `cc_trace`, set by the e2e/stream-ab
+    harness) also log one STYX-CC line per measured tick, for cc_report.py."""
     orig = server_cls._steer_bitrate_to_link
 
     def steer(self, display_id, state, now):
@@ -37,7 +37,7 @@ def trace_steer(server_cls, wm, steer_cls) -> None:
         if q is not None:
             state.setdefault("link_steer", steer_cls()).styx_q_ms = q
         out = orig(self, display_id, state, now)
-        if q is not None:
+        if q is not None and log_cc:
             log.info(f"STYX-CC {display_id} q={q:.0f} floor={state.get('rtt_floor_ms', 0):.0f} "
                      f"dlv={state.get('link_delivered_bps', 0) / 1000:.0f} "
                      f"rate={state.get('link_kbps', 0):.0f}")
@@ -58,7 +58,8 @@ def owner_gate(relay_cls, wm, version: str) -> None:
     predicts past it (`_lose` -> `_repair`). Anchors and frame_num-wrap frames
     always go.
     ponytail: copy of upstream _forward (selkies 2.1.0, identical in 2.2.0); drop when selkies
-    gates the owner (issue TBD). Another version keeps upstream's."""
+    gates the owner (no upstream issue filed; the owner gate is Styx-specific). Another
+    version keeps upstream's."""
     if version != GATED_SELKIES:
         log.warning(f"shallow pipe: selkies {version} != {GATED_SELKIES}; owner gate off")
         return
