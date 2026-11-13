@@ -12,6 +12,16 @@ OVERLAY=test/kind/squid-egress
 PROXY=http://squid.egress-proxy.svc.cluster.local.:3128
 FAILED=0
 
+retry() { # transient kyverno webhook errors (broken pipe, closed connection)
+  local a
+  for a in 1 2 3 4 5; do
+    "$@" && return 0
+    echo "retry $a: $*" >&2
+    sleep 5
+  done
+  return 1
+}
+
 check() { # <name> <expected: ok|squid-deny|drop> <curl args...>
   local name=$1 want=$2 out err rc code connect; shift 2
   set +e
@@ -38,17 +48,19 @@ helm upgrade --install cilium cilium/cilium --version "$CILIUM_VERSION" -n kube-
   --set kubeProxyReplacement=false --set image.pullPolicy=IfNotPresent \
   --wait --timeout 10m
 kubectl -n kube-system rollout status ds/cilium --timeout=300s
+kubectl -n kube-system rollout status deploy/cilium-operator --timeout=300s
+kubectl wait --for=condition=Ready nodes --all --timeout=300s
 # Pods created under kindnet must be re-created to join Cilium.
 kubectl -n kube-system rollout restart deploy/coredns
-kubectl -n kube-system rollout status deploy/coredns --timeout=180s
+kubectl -n kube-system rollout status deploy/coredns --timeout=420s
 
 echo "== apply baseline + squid"
 kubectl kustomize "$OVERLAY" > /tmp/squid-egress.yaml
-kubectl apply -f /tmp/squid-egress.yaml
+retry kubectl apply -f /tmp/squid-egress.yaml
 kubectl -n egress-proxy rollout status deploy/squid --timeout=300s
 
 echo "== test pod (labelled as a desktop)"
-kubectl -n styx-instances run desktop-test --image=curlimages/curl:8.11.1 \
+retry kubectl -n styx-instances run desktop-test --image=curlimages/curl:8.11.1 \
   --labels=app.kubernetes.io/name=desktop-test --restart=Never \
   --overrides='{"spec":{"securityContext":{"runAsNonRoot":true,"runAsUser":1000,"seccompProfile":{"type":"RuntimeDefault"}},"containers":[{"name":"desktop-test","image":"curlimages/curl:8.11.1","command":["sleep","3600"],"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}}}]}}'
 kubectl -n styx-instances wait --for=condition=Ready pod/desktop-test --timeout=180s

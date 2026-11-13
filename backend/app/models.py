@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import NaiveDatetime
 from sqlmodel import Field, SQLModel, Column
-from sqlalchemy import JSON, BigInteger, LargeBinary, DateTime, Index, Integer, String, UniqueConstraint
+from sqlalchemy import text, JSON, BigInteger, LargeBinary, DateTime, Index, Integer, String, UniqueConstraint
 
 from app.db_types import NAMING_CONVENTION, UTCDateTime
 
@@ -445,6 +445,22 @@ class AccessReviewDecision(SQLModel, table=True):
     decided_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
+class SessionTakeover(SQLModel, table=True):
+    """Staff takeover of a user's session (ADR-0060). One active row per instance."""
+    __tablename__ = "session_takeovers"
+    __table_args__ = (Index("uq_session_takeovers_active", "instance_id", unique=True,
+                            sqlite_where=text("ended_at IS NULL"),
+                            postgresql_where=text("ended_at IS NULL")),)
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    instance_id: str = Field(index=True)  # no FK: record survives instance deletion
+    actor_id: str  # no FK: record survives user deletion
+    user_id: str | None = None  # session owner
+    mode: str  # view | control
+    reason: str
+    started_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+    ended_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+
+
 class UserGroup(SQLModel, table=True):
     __tablename__ = "user_groups"
     user_id: str = Field(foreign_key="users.id", primary_key=True)
@@ -457,6 +473,22 @@ class UserProfile(SQLModel, table=True):
     template_id: str = Field(foreign_key="service_templates.id", primary_key=True)
     volume_name: str
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+    last_used_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+
+
+class Notice(SQLModel, table=True):
+    """Portal notification for a user (ADR-0059); unique per (user, kind, key)."""
+    __tablename__ = "notices"
+    __table_args__ = (UniqueConstraint("user_id", "kind", "key", name="uq_notice_user_kind_key"),)
+
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    user_id: str = Field(foreign_key="users.id", index=True)
+    kind: str
+    key: str
+    message: str
+    due_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+    dismissed_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
 
 
 class ServicePreset(SQLModel, table=True):
@@ -607,4 +639,17 @@ class Announcement(SQLModel, table=True):
     starts_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
     ends_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
     created_by: str | None = Field(default=None, foreign_key="users.id")
+    created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+
+
+class SmartcardToken(SQLModel, table=True):
+    """One-time relay token for a desktop session (ADR-0041). Only the hash is stored."""
+    __tablename__ = "smartcard_tokens"
+
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    token_hash: str = Field(unique=True, index=True)
+    user_id: str = Field(foreign_key="users.id", index=True)
+    instance_id: str = Field(foreign_key="instances.id", index=True)
+    expires_at: NaiveDatetime = Field(sa_type=UTCDateTime)
+    used_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
