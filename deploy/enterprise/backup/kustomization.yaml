@@ -10,6 +10,7 @@ resources:
   - home-snapshots-params.yaml
   - home-snapshots-cronjob.yaml
   - velero-schedules.yaml
+  - prometheusrule.yaml
 configMapGenerator:
   - name: styx-home-snapshots-script
     namespace: styx-backup

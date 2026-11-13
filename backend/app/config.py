@@ -99,6 +99,8 @@ class Settings(BaseSettings):
     # routable address. k8s: keeps an enrolled agent from aiming Traefik at in-cluster IPs.
     WORKSTATION_ALLOW_CIDRS: str = ""
     JWT_SECRET: str = ""
+    # Bearer token for the Alertmanager webhook (/internal/alerts/alertmanager); empty = disabled
+    ALERT_WEBHOOK_TOKEN: str = ""
     ACCESS_TTL: int = 900          # 15 minutes
     REFRESH_TTL: int = 604800      # 7 days
     SESSION_MAX_AGE: int = 2592000  # 30 days: absolute cap on a refresh family
@@ -167,6 +169,12 @@ class Settings(BaseSettings):
     ACCOUNT_DELETION_RETENTION_DAYS: int = 90
 
     LIFECYCLE_INACTIVITY_DAYS: int = 35   # auto-disable after this many idle days (ADR-0022)
+    # SLO scope gauges (styx_slo_business_hours / styx_maintenance_active)
+    SLO_TIMEZONE: str = "America/New_York"
+    SLO_BUSINESS_DAYS: str = "Mon,Tue,Wed,Thu,Fri"
+    SLO_BUSINESS_HOURS: str = "07:00-18:00"   # HH:MM-HH:MM local, end exclusive
+    SLO_MAINTENANCE_START: str = ""           # ISO datetime (naive = UTC); empty = none
+    SLO_MAINTENANCE_END: str = ""
 
     # extra="ignore": the repo-root .env is shared with docker-compose,
     # cloudflared, and authentik, so it carries keys the backend does not

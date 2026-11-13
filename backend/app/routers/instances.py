@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -18,7 +19,7 @@ from app.services.k8s_instances import K8sInstanceRuntime
 from app.services.posix_uid import allocate_uid
 from app.services.k8s_runtime import ensure_instance_supported, instance_runtime
 from app.services.screenshot import ScreenshotService
-from app.services import gpu_access, instance_readiness, profiles
+from app.services import gpu_access, instance_readiness, profiles, prom_metrics, slo_metrics
 from app.services.group_tier import launch_overrides
 from app.services.traefik_labels import generate_traefik_labels
 from app.services.audit import audit
@@ -191,9 +192,10 @@ async def list_instances(
     return result.all()
 
 
-async def _launch_instance_background(instance_id: str, template_id: str):
+async def _launch_instance_background(instance_id: str, template_id: str, t0: float | None = None):
     """Background task: pull image, create container, start it."""
     docker = instance_runtime()
+    launch_start = time.monotonic()
     async with async_session() as session:
         instance = await session.get(Instance, instance_id)
         template = await session.get(ServiceTemplate, template_id)
@@ -303,10 +305,14 @@ async def _launch_instance_background(instance_id: str, template_id: str):
             event = SessionEvent(instance_id=instance.id, event_type="started")
             session.add(event)
             await session.commit()
-            instance_readiness.kick(instance)
+            instance_readiness.kick(instance, t0, "create")
             await _refresh_routes(session)
+            prom_metrics.INSTANCE_LAUNCH_DURATION.observe(time.monotonic() - launch_start)
 
         except Exception as e:
+            prom_metrics.INSTANCE_LAUNCH_FAILURES.inc()
+            slo_metrics.observe_since("create", "error", t0)
+            slo_metrics.record_launch_failure("other")
             logger.error(f"Instance {instance_id} launch failed: {e}")
             instance.status = "error"
             instance.error_message = str(e)
@@ -359,6 +365,7 @@ async def create_instance(
         raise HTTPException(409, f"Subdomain '{body.subdomain}' already in use")
 
     profile_volume = await profiles.claim_profile(session, user.id, template) if body.use_profile else None
+    t0 = time.monotonic()
     instance = Instance(
         template_id=template.id,
         owner_id=user.id,
@@ -384,7 +391,7 @@ async def create_instance(
     )
     await session.commit()
 
-    asyncio.create_task(_launch_instance_background(instance.id, template.id))
+    asyncio.create_task(_launch_instance_background(instance.id, template.id, t0))
     return instance
 
 
@@ -410,6 +417,7 @@ async def start_instance(
 ):
     if is_disabled(user):
         raise HTTPException(403, "Account disabled")
+    t0 = time.monotonic()
     instance = await session.get(Instance, instance_id)
     if not instance:
         raise HTTPException(404, "Instance not found")
@@ -454,7 +462,7 @@ async def start_instance(
     session.add(event)
     await session.commit()
     await session.refresh(instance)
-    instance_readiness.kick(instance)
+    instance_readiness.kick(instance, t0, "start")
     await _refresh_routes(session)
     return instance
 
@@ -495,6 +503,7 @@ async def restart_instance(
     docker: DockerManager = Depends(get_docker_manager),
     user: User = Depends(get_current_user),
 ):
+    t0 = time.monotonic()
     instance = await session.get(Instance, instance_id)
     if not instance:
         raise HTTPException(404, "Instance not found")
@@ -519,7 +528,7 @@ async def restart_instance(
     session.add(event)
     await session.commit()
     await session.refresh(instance)
-    instance_readiness.kick(instance)
+    instance_readiness.kick(instance, t0, "start")
     return instance
 
 
@@ -532,6 +541,7 @@ async def recreate_instance(
 ):
     """Rebuild the instance's container from its (updated) template, reusing the
     instance's named volumes so persistent data is preserved. Same instance id/subdomain."""
+    t0 = time.monotonic()
     instance = await session.get(Instance, instance_id)
     if not instance:
         raise HTTPException(404, "Instance not found")
@@ -568,7 +578,7 @@ async def recreate_instance(
     session.add(event)
     await session.commit()
     await session.refresh(instance)
-    instance_readiness.kick(instance)
+    instance_readiness.kick(instance, t0, "start")
     await _refresh_routes(session)
     return instance
 
@@ -606,6 +616,7 @@ async def unpause_instance(
     docker: DockerManager = Depends(get_docker_manager),
     user: User = Depends(get_current_user),
 ):
+    t0 = time.monotonic()
     instance = await session.get(Instance, instance_id)
     if not instance:
         raise HTTPException(404, "Instance not found")
@@ -621,6 +632,7 @@ async def unpause_instance(
     event = SessionEvent(instance_id=instance.id, event_type="unpaused")
     session.add(event)
     await session.commit()
+    slo_metrics.observe_since("resume", "ok", t0)
     await session.refresh(instance)
     await _refresh_routes(session)
     return instance

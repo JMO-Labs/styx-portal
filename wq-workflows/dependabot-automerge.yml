@@ -1,0 +1,25 @@
+name: dependabot auto-merge
+# Approves and arms auto-merge on Dependabot minor/patch PRs. GitHub merges once
+# the ruleset's required status checks pass; majors stay open for manual review.
+# pull_request (not _target): explicit permissions raise the Dependabot token.
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    if: github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'homelab' }}
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@v3
+      # allowlist, not denylist: unknown or empty update types stay manual
+      - if: contains(fromJSON('["version-update:semver-patch","version-update:semver-minor"]'), steps.meta.outputs.update-type)
+        run: |
+          gh pr review --approve "$PR"
+          gh pr merge --auto --squash "$PR"
+        env:
+          PR: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -13,6 +13,39 @@ resources:
   - networkpolicy.yaml
   - backup-cronjob.yaml
   - prometheusrule.yaml
+  - slo-rules.yaml
+  - probes.yaml
+  - servicemonitor.yaml
+  - alertmanager-config.yaml
+configMapGenerator:
+  - name: styx-dashboard-availability
+    files:
+      - dashboards/availability.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+  - name: styx-dashboard-launch
+    files:
+      - dashboards/launch.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+  - name: styx-dashboard-stream-rtt
+    files:
+      - dashboards/stream-rtt.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+  - name: styx-dashboard-headroom
+    files:
+      - dashboards/headroom.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
 # Tag must be >= v2.3.0 (first release with ROUTE_BACKEND=k8s); older tags boot
 # healthy but publish no IngressRoutes (404). Check: kubectl -n styx get ingressroutes
 images:

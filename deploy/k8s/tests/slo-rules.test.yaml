@@ -1,0 +1,313 @@
+# Run via scripts/slo_rules_test.sh (promtool; rules file is the unwrapped spec).
+rule_files:
+  - slo-rules.yaml
+evaluation_interval: 5m
+tests:
+  - name: availability_100pct_failing_pages
+    interval: 1m
+    input_series:
+      - series: 'styx_slo_business_hours'
+        values: '1x40'
+      - series: 'styx_maintenance_active'
+        values: '0x40'
+      - series: 'probe_success{instance="a"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: StyxAvailabilityBurnRatePage
+        exp_alerts:
+              - exp_labels: {severity: page, slo: availability, window: 1h}
+                exp_annotations:
+                  summary: "availability below 99.9%: burning error budget at >14.4x (1h/5m)"
+              - exp_labels: {severity: page, slo: availability, window: 6h}
+                exp_annotations:
+                  summary: "availability below 99.9%: burning error budget at >6x (6h/30m)"
+
+  - name: availability_maintenance_no_alert
+    interval: 1m
+    input_series:
+      - series: 'styx_slo_business_hours'
+        values: '1x40'
+      - series: 'styx_maintenance_active'
+        values: '1x40'
+      - series: 'probe_success{instance="a"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: StyxAvailabilityBurnRatePage
+        exp_alerts: []
+
+  - name: availability_out_of_business_hours_no_page
+    interval: 1m
+    input_series:
+      - series: 'styx_slo_business_hours'
+        values: '0x40'
+      - series: 'styx_maintenance_active'
+        values: '0x40'
+      - series: 'probe_success{instance="a"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: StyxAvailabilityBurnRatePage
+        exp_alerts: []
+
+  - name: availability_gauges_absent_failsafe_pages
+    interval: 1m
+    input_series:
+      - series: 'probe_success{instance="a"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: StyxAvailabilityBurnRatePage
+        exp_alerts:
+              - exp_labels: {severity: page, slo: availability, window: 1h}
+                exp_annotations:
+                  summary: "availability below 99.9%: burning error budget at >14.4x (1h/5m)"
+              - exp_labels: {severity: page, slo: availability, window: 6h}
+                exp_annotations:
+                  summary: "availability below 99.9%: burning error budget at >6x (6h/30m)"
+
+  - name: availability_tiny_error_share_no_page
+    interval: 1s
+    input_series:
+      - series: 'probe_success{instance="a"}'
+        values: '1x1800 0 1x1800'
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: StyxAvailabilityBurnRatePage
+        exp_alerts: []
+
+  - name: launch_3_slow_launches_total_guard_no_page
+    interval: 1m
+    input_series:
+      - series: 'styx_launch_duration_seconds_bucket{le="10",outcome="ok",kind="start"}'
+        values: '0x40'
+      - series: 'styx_launch_duration_seconds_count{outcome="ok",kind="start"}'
+        values: '0 1 2 3x40'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: StyxLaunchBurnRatePage
+        exp_alerts: []
+
+  - name: launch_20_slow_launches_pages
+    interval: 1m
+    input_series:
+      - series: 'styx_launch_duration_seconds_bucket{le="10",outcome="ok",kind="start"}'
+        values: '0x40'
+      - series: 'styx_launch_duration_seconds_count{outcome="ok",kind="start"}'
+        values: '0+20x40'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: StyxLaunchBurnRatePage
+        exp_alerts:
+              - exp_labels: {severity: page, slo: launch, window: 1h}
+                exp_annotations:
+                  summary: "launches slower than 10s: burning error budget at >14.4x (1h/5m)"
+              - exp_labels: {severity: page, slo: launch, window: 6h}
+                exp_annotations:
+                  summary: "launches slower than 10s: burning error budget at >6x (6h/30m)"
+
+  - name: rtt_50pct_slow_pages_6x_only
+    interval: 1m
+    input_series:
+      - series: 'styx_stream_rtt_seconds_bucket{le="0.08"}'
+        values: '0+10x40'
+      - series: 'styx_stream_rtt_seconds_count'
+        values: '0+20x40'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: StyxStreamRttBurnRatePage
+        exp_alerts:
+              - exp_labels: {severity: page, slo: rtt, window: 6h}
+                exp_annotations:
+                  summary: "stream RTT above 80ms: burning error budget at >6x (6h/30m)"
+
+  - name: rtt_2pct_slow_no_page
+    interval: 1m
+    input_series:
+      - series: 'styx_stream_rtt_seconds_bucket{le="0.08"}'
+        values: '0+98x40'
+      - series: 'styx_stream_rtt_seconds_count'
+        values: '0+100x40'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: StyxStreamRttBurnRatePage
+        exp_alerts: []
+
+  - name: launch_p50_about_7s_fires
+    interval: 1m
+    input_series:
+      - series: 'styx_launch_duration_seconds_bucket{le="6",outcome="ok",kind="start"}'
+        values: '0x180'
+      - series: 'styx_launch_duration_seconds_bucket{le="8",outcome="ok",kind="start"}'
+        values: '0+10x180'
+      - series: 'styx_launch_duration_seconds_bucket{le="10",outcome="ok",kind="start"}'
+        values: '0+10x180'
+      - series: 'styx_launch_duration_seconds_bucket{le="+Inf",outcome="ok",kind="start"}'
+        values: '0+10x180'
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: StyxLaunchP50AboveGoal
+        exp_alerts:
+              - exp_labels: {severity: ticket}
+                exp_annotations:
+                  summary: "Median launch time above the 5s goal over 1d"
+
+  - name: headroom_below_largest_node_warns
+    interval: 1m
+    input_series:
+      - series: 'kube_node_status_allocatable{node="a",resource="cpu"}'
+        values: '48x30'
+      - series: 'kube_node_status_allocatable{node="a",resource="memory"}'
+        values: '206158430208x30'
+      - series: 'kube_node_status_allocatable{node="b",resource="cpu"}'
+        values: '48x30'
+      - series: 'kube_node_status_allocatable{node="b",resource="memory"}'
+        values: '206158430208x30'
+      # a has 12 free slots by CPU (12 CPU requested -> 36 free), b 0 free (memory bound irrelevant)
+      - series: 'kube_pod_container_resource_requests{namespace="n",node="a",pod="p",resource="cpu"}'
+        values: '12x30'
+      - series: 'kube_pod_container_resource_requests{namespace="n",node="b",pod="q",resource="cpu"}'
+        values: '48x30'
+      - series: 'kube_pod_status_phase{namespace="n",pod="p",phase="Running"}'
+        values: '1x30'
+      - series: 'kube_pod_status_phase{namespace="n",pod="q",phase="Running"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: StyxHeadroomLow
+        exp_alerts:
+          - exp_labels: {severity: ticket}
+            exp_annotations:
+              summary: "Free desktop slots are fewer than the largest node holds: cannot survive a node loss (N+1)"
+      - eval_time: 20m
+        alertname: StyxHeadroomCritical
+        # 12 free < 10% of 200-desktop peak (20): critical also fires
+        exp_alerts:
+          - exp_labels: {severity: page}
+            exp_annotations:
+              summary: "Free desktop slots below 10% of peak capacity"
+
+  - name: headroom_below_10pct_of_peak_critical
+    interval: 1m
+    input_series:
+      - series: 'kube_node_status_allocatable{node="a",resource="cpu"}'
+        values: '120x30'
+      - series: 'kube_node_status_allocatable{node="a",resource="memory"}'
+        values: '515396075520x30'
+      - series: 'kube_pod_container_resource_requests{namespace="n",node="a",pod="p",resource="cpu"}'
+        values: '90x30'
+      - series: 'kube_pod_status_phase{namespace="n",pod="p",phase="Running"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: StyxHeadroomCritical
+        exp_alerts:
+          - exp_labels: {severity: page}
+            exp_annotations:
+              summary: "Free desktop slots below 10% of peak capacity"
+
+  - name: traefik_5xx_ratio_fires
+    interval: 1m
+    input_series:
+      - series: 'traefik_service_requests_total{code="200",service="s"}'
+        values: '0+90x30'
+      - series: 'traefik_service_requests_total{code="502",service="s"}'
+        values: '0+10x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: StyxTraefik5xxRatio
+        exp_alerts:
+          - exp_labels: {severity: ticket}
+            exp_annotations:
+              summary: "Traefik 5xx ratio above 5% for 10m"
+
+  - name: traefik_5xx_ratio_under_5pct_no_alert
+    interval: 1m
+    input_series:
+      - series: 'traefik_service_requests_total{code="200",service="s"}'
+        values: '0+97x30'
+      - series: 'traefik_service_requests_total{code="502",service="s"}'
+        values: '0+3x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: StyxTraefik5xxRatio
+        exp_alerts: []
+
+  - name: headroom_ample_no_alerts
+    interval: 1m
+    input_series:
+      - series: 'kube_node_status_allocatable{node="a",resource="cpu"}'
+        values: '120x30'
+      - series: 'kube_node_status_allocatable{node="a",resource="memory"}'
+        values: '515396075520x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: StyxHeadroomLow
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: StyxHeadroomCritical
+        exp_alerts: []
+
+  - name: headroom_low_without_critical
+    interval: 1m
+    input_series:
+      # two nodes of 40 slots; 10 free each = 20 free: < largest (40), not < 20 (10% of peak)
+      - series: 'kube_node_status_allocatable{node="a",resource="cpu"}'
+        values: '120x30'
+      - series: 'kube_node_status_allocatable{node="a",resource="memory"}'
+        values: '515396075520x30'
+      - series: 'kube_node_status_allocatable{node="b",resource="cpu"}'
+        values: '120x30'
+      - series: 'kube_node_status_allocatable{node="b",resource="memory"}'
+        values: '515396075520x30'
+      - series: 'kube_pod_container_resource_requests{namespace="n",node="a",pod="p",resource="cpu"}'
+        values: '90x30'
+      - series: 'kube_pod_container_resource_requests{namespace="n",node="b",pod="q",resource="cpu"}'
+        values: '90x30'
+      - series: 'kube_pod_status_phase{namespace="n",pod="p",phase="Running"}'
+        values: '1x30'
+      - series: 'kube_pod_status_phase{namespace="n",pod="q",phase="Running"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: StyxHeadroomLow
+        exp_alerts:
+          - exp_labels: {severity: ticket}
+            exp_annotations:
+              summary: "Free desktop slots are fewer than the largest node holds: cannot survive a node loss (N+1)"
+      - eval_time: 20m
+        alertname: StyxHeadroomCritical
+        exp_alerts: []
+
+  - name: headroom_ignores_succeeded_pod_requests
+    interval: 1m
+    input_series:
+      - series: 'kube_node_status_allocatable{node="a",resource="cpu"}'
+        values: '120x30'
+      - series: 'kube_node_status_allocatable{node="a",resource="memory"}'
+        values: '515396075520x30'
+      - series: 'kube_pod_container_resource_requests{namespace="n",node="a",pod="job",resource="cpu"}'
+        values: '119x30'
+      - series: 'kube_pod_container_resource_requests{namespace="n",node="a",pod="run",resource="cpu"}'
+        values: '3x30'
+      - series: 'kube_pod_container_resource_requests{namespace="n",node="a",pod="job",resource="memory"}'
+        values: '515396075520x30'
+      - series: 'kube_pod_status_phase{namespace="n",pod="job",phase="Succeeded"}'
+        values: '1x30'
+      - series: 'kube_pod_status_phase{namespace="n",pod="job",phase="Running"}'
+        values: '0x30'
+      - series: 'kube_pod_status_phase{namespace="n",pod="run",phase="Running"}'
+        values: '1x30'
+    promql_expr_test:
+      # only the Running pod counts: (120-3)/3 = 39 CPU slots; Succeeded memory ignored: 120
+      - expr: 'styx:node_slots_cpu{node="a"}'
+        eval_time: 20m
+        exp_samples:
+          - labels: 'styx:node_slots_cpu{kind="free",node="a"}'
+            value: 39
+      - expr: 'styx:node_slots_memory{node="a"}'
+        eval_time: 20m
+        exp_samples:
+          - labels: 'styx:node_slots_memory{kind="free",node="a"}'
+            value: 120

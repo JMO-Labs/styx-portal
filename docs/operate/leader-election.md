@@ -49,4 +49,18 @@ Request serving is unaffected during a gap; only leader-only loops pause.
 
 Lockouts, IP failure counts and bans live in Postgres and are shared. Each replica caches active bans in memory and refreshes every `BAN_CACHE_TTL` seconds, so a ban written on one replica can take up to that long to apply on another. The writing replica applies it immediately.
 
-Known gaps, tracked as follow-ups: `settings_store` cache is per replica; metric and health series are per replica; service thumbnails are per-replica files.
+## Metrics across replicas
+
+Every replica serves its own `/metrics` port; Prometheus scrapes them all. Each series is either leader-owned or per replica:
+
+| Metric | Owner | Aggregate with |
+|---|---|---|
+| `styx_instances{status}`, `styx_stream_sessions_active` | Leader only (DB-derived; non-leaders export nothing) | `max` or `sum` (one series) |
+| `styx_http_request_duration_seconds` | Per replica (requests that replica served) | `sum` |
+| `styx_launch_duration_seconds`, `styx_launch_failures_total`, `styx_instance_launch_*` | Per replica (launches that replica handled) | `sum` |
+| `styx_stream_rtt_seconds` | Per replica (client reports that replica received) | `sum` |
+| `styx_slo_business_hours`, `styx_maintenance_active` | Per replica (config-derived, identical) | `max` |
+
+The scrape's `instance`/`pod` target label tells replicas apart; no extra `replica` label is added. Service health checks run only on the leader and are stored in the DB, so every replica serves the same health state. During failover the leader-owned gauges are absent for up to one election cycle.
+
+Known gaps, tracked as follow-ups: `settings_store` cache is per replica.

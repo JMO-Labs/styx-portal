@@ -227,10 +227,15 @@ def test_networkpolicy_db_operator_s3():
 @pytest.mark.skipif(not (shutil.which("kustomize") or shutil.which("kubectl")),
                     reason="kustomize/kubectl not installed")
 def test_kustomize_build_alerts():
-    (r,) = [d for d in _build(ENT) if d["kind"] == "PrometheusRule"]
-    assert "StyxBackupStale" not in _alerts(r)
-    (h,) = [d for d in _build(HOMELAB) if d["kind"] == "PrometheusRule"]
-    assert "StyxBackupStale" in _alerts(h)
+    def all_alerts(docs):
+        out = {}
+        for d in docs:
+            if d["kind"] == "PrometheusRule":
+                out.update(_alerts(d))
+        return out
+
+    assert "StyxBackupStale" not in all_alerts(_build(ENT))
+    assert "StyxBackupStale" in all_alerts(_build(HOMELAB))
 
 
 def _backend():

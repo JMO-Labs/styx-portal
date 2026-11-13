@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from sqlmodel import select
@@ -43,6 +44,8 @@ from app.routers import services as services_router
 from app.routers import service_mounts as service_mounts_router
 from app.routers import service_icons as service_icons_router
 from app.routers import services_auth as services_auth_router
+from app.routers import ops_alerts as ops_alerts_router
+from app.routers import stream_rtt as stream_rtt_router
 from app.security.deps import get_current_user, require_admin
 from app.services.docker_manager import DockerManager
 from app.services.k8s_runtime import instance_runtime
@@ -56,6 +59,7 @@ from app.services.janitor import janitor_loop
 from app.services.settings_sync import settings_sync_loop
 from app.services.leader import LeaderTasks, get_elector
 from app.services.mount_jobs import sweep_interrupted
+from app.services.prom_metrics import PrometheusMiddleware, start_metrics_server
 from app.security.csrf import csrf_valid, CSRF_COOKIE, CSRF_HEADER, UNSAFE_METHODS
 
 logger = logging.getLogger("styx-portal")
@@ -63,7 +67,8 @@ _settings = Settings()
 
 _CSRF_EXEMPT = {"/api/auth/login", "/api/auth/login/matrix", "/api/auth/setup"}
 # /api/provision/: machine caller (mTLS + bearer), no cookies, so CSRF does not apply.
-_CSRF_EXEMPT_PREFIXES = ("/api/enroll/", "/api/agent/", "/api/provision/")
+_CSRF_EXEMPT_PREFIXES = ("/api/enroll/", "/api/agent/", "/api/provision/",
+                            "/internal/alerts/")
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):
@@ -113,6 +118,8 @@ async def lifespan(app: FastAPI):
     from app.middleware.rate_limit import _tunnel_pod_ips, snapshot_own_networks
     snapshot_own_networks()
     _tunnel_pod_ips()   # k8s: start the first cloudflared pod lookup (no-op in compose)
+
+    start_metrics_server(_settings.METRICS_PORT)
 
     await init_db()
 
@@ -238,6 +245,14 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "X-CSRF-Token", "X-Styx-Client"],
 )
+app.add_middleware(PrometheusMiddleware)  # outermost: also records 403/429 from inner middleware
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error(_: Request, exc: RequestValidationError):
+    # Drop echoed input/ctx: NaN/Infinity inputs are not JSON-serialisable.
+    errs = [{k: v for k, v in e.items() if k not in ("input", "ctx", "url")} for e in exc.errors()]
+    return JSONResponse({"detail": errs}, status_code=422)
+
 
 app.include_router(templates.router, prefix="/api/templates", tags=["templates"])
 app.include_router(instance_thumbs.router, prefix="/api/instances", tags=["instances"])
@@ -273,6 +288,9 @@ app.include_router(service_icons_router.router, prefix="/api/services", tags=["s
 app.include_router(services_router.router, prefix="/api/services", tags=["services"])
 app.include_router(services_auth_router.router, prefix="/api/services", tags=["services"])
 app.include_router(services_auth_router.internal_router, prefix="/internal", tags=["services"])
+app.include_router(stream_rtt_router.router, prefix="/api/stream", tags=["stream"])
+app.include_router(ops_alerts_router.internal_router, prefix="/internal", tags=["ops"])
+app.include_router(ops_alerts_router.router, prefix="/api/admin", tags=["ops"])
 app.include_router(instance_auth_router.internal_router, prefix="/internal/instances",
                    tags=["instances"])
 app.include_router(services_auth_router.exit_router, prefix="/_styx", tags=["services"])
