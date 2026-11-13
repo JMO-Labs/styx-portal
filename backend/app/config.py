@@ -235,3 +235,6 @@ class Settings(BaseSettings):
 
     def server_lan_url(self) -> str:
         return (self.SERVER_LAN_URL or f"https://{self.DOMAIN}").rstrip("/")
+
+
+settings = Settings()
