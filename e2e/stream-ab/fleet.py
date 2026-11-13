@@ -30,8 +30,10 @@ class Session:
     error: str | None = None
 
 
-def _launch_one(client, name, template, timeout_s, poll_s):
+def _launch_one(client, name, template, timeout_s, poll_s, out=None):
     s = Session(name=name)
+    if out is not None:
+        out.append(s)  # visible to teardown even if the run is interrupted
     t0 = time.monotonic()
     try:
         inst = client.request("POST", "/api/instances",
@@ -57,10 +59,13 @@ def _launch_one(client, name, template, timeout_s, poll_s):
         return s
 
 
-def launch(client, n, template, timeout_s, poll_s=1.0, prefix="fleet"):
-    """Launch n sessions concurrently; returns Sessions in creation order."""
+def launch(client, n, template, timeout_s, poll_s=1.0, prefix="fleet", sessions=None):
+    """Launch n sessions concurrently; returns Sessions in creation order.
+
+    `sessions`: optional out-list that receives each Session as soon as it is created,
+    so callers can tear down even if launch is interrupted."""
     with ThreadPoolExecutor(max_workers=max(n, 1)) as ex:
-        futs = [ex.submit(_launch_one, client, f"{prefix}-{i}", template, timeout_s, poll_s)
+        futs = [ex.submit(_launch_one, client, f"{prefix}-{i}", template, timeout_s, poll_s, sessions)
                 for i in range(n)]
         return [f.result() for f in futs]
 
