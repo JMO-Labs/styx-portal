@@ -15,7 +15,10 @@ class Plan:
 
 
 def stale_files(home: Path, now: datetime, days: int = 90) -> list[str]:
-    """Relpaths of regular files with mtime and atime older than `days`."""
+    """Relpaths of regular files with mtime and atime older than `days`.
+
+    `now` (and plan's `notice_due_at`) must be naive UTC datetimes.
+    """
     cutoff = (now - timedelta(days=days)).replace(tzinfo=timezone.utc).timestamp()
     out: list[str] = []
     for dirpath, _dirs, names in os.walk(home):

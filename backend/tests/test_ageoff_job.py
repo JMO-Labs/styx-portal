@@ -120,3 +120,28 @@ async def test_new_stale_file_after_move_gets_new_notice(session, tmp_path):
     await _run(session, st, tmp_path, later)
     ns = (await session.exec(select(Notice).where(Notice.kind == "ageoff"))).all()
     assert len(ns) == 2 and g.exists()
+
+
+def test_move_refuses_symlinked_file(tmp_path):
+    from app.services.ageoff_job import _move
+    home = tmp_path / "home"
+    home.mkdir()
+    secret = tmp_path / "secret.txt"
+    secret.write_text("s3cret")
+    (home / "old.txt").symlink_to(secret)
+    st = FakeStore()
+    assert _move(st, "u", home, ["old.txt"]) == []
+    assert st.puts == [] and secret.read_text() == "s3cret"
+
+
+def test_move_refuses_symlinked_parent(tmp_path):
+    from app.services.ageoff_job import _move
+    home = tmp_path / "home"
+    home.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "x.txt").write_text("s3cret")
+    (home / "sub").symlink_to(outside)
+    st = FakeStore()
+    assert _move(st, "u", home, ["sub/x.txt"]) == []
+    assert st.puts == [] and (outside / "x.txt").exists()

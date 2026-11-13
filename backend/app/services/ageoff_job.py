@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import os
+import stat
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -63,21 +64,52 @@ async def ageoff_tick(session, store, now: datetime, is_leader, dry_run: bool,
     return out
 
 
+def _open_parent(home: Path, rel: str) -> tuple[int, str]:
+    """Walk rel's directories under home with O_NOFOLLOW; return (dir_fd, name)."""
+    *dirs, name = Path(rel).parts
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    fd = os.open(home, flags)
+    try:
+        for d in dirs:
+            nxt = os.open(d, flags, dir_fd=fd)
+            os.close(fd)
+            fd = nxt
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd, name
+
+
 def _move(store, uid: str, home: Path, files: list[str]) -> list[str]:
     moved = []
     for rel in files:
-        path = home / rel
         try:
-            with open(path, "rb") as fh:
-                store.put(uid, rel, fh, os.fstat(fh.fileno()).st_mtime)
-        except Exception:  # noqa: BLE001 - keep file on any upload/read error
-            log.warning("ageoff upload failed uid=%s rel=%s", uid, rel, exc_info=True)
+            dfd, name = _open_parent(home, rel)
+        except OSError:
+            log.warning("ageoff skip uid=%s rel=%s (unsafe path)", uid, rel)
             continue
         try:
-            path.unlink()
-            moved.append(rel)
-        except OSError:
-            log.warning("ageoff local delete failed uid=%s rel=%s", uid, rel)
+            try:
+                fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dfd)
+            except OSError:
+                log.warning("ageoff skip uid=%s rel=%s (open refused)", uid, rel)
+                continue
+            try:
+                if not stat.S_ISREG(os.fstat(fd).st_mode):
+                    os.close(fd)
+                    continue
+                with os.fdopen(fd, "rb") as fh:
+                    store.put(uid, rel, fh, os.fstat(fh.fileno()).st_mtime)
+            except Exception:  # noqa: BLE001 - keep file on any upload/read error
+                log.warning("ageoff upload failed uid=%s rel=%s", uid, rel, exc_info=True)
+                continue
+            try:
+                os.unlink(name, dir_fd=dfd)
+                moved.append(rel)
+            except OSError:
+                log.warning("ageoff local delete failed uid=%s rel=%s", uid, rel)
+        finally:
+            os.close(dfd)
     return moved
 
 
