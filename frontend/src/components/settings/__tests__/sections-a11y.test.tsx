@@ -15,7 +15,13 @@ vi.mock("@/api/client", () => {
       trust_email: false, allow_signup: false, auto_promote_admins: false, redirect_uri: "", test_redirect_uri: "",
     }],
     getDiagnosticsHistory: async () => ({ status: {} }),
-    getRelayStats: async () => { throw new Error("unavailable"); },
+    // Shaped payload: a throwing stub is retried with backoff by useRelayStats and outlives waitFor.
+    getRelayStats: async () => ({
+      used_gb: 12, free_gb: 1000, projected_gb: 30, est_usd: 0, budget_usd: 0, budget_gb: null, relayed_pct: 4,
+      daily: [{ date: "2026-11-01", gb: 1 }], monthly: [{ month: "2026-11", gb: 12 }],
+      by_user: [{ name: "admin", gb: 12 }], by_workstation: [{ name: "ws1", gb: 12 }],
+      reasons: [{ reason: "strict_nat", sessions: 3 }],
+    }),
   };
   return {
     api: new Proxy({}, {
