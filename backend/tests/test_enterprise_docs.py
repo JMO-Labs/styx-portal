@@ -147,7 +147,7 @@ def test_adr_0066_cephfs_homes():
 
 def test_adr_index_matches_files():
     index = (ADR / "README.md").read_text()
-    new = ("0062", "0063", "0065", "0066", "0067", "0068", "0069", "0070", "0071", "0072", "0073")
+    new = ("0062", "0063", "0065", "0066", "0067", "0068", "0069", "0070", "0071", "0072", "0073", "0074")
     older = [ln for ln in index.splitlines() if not any(f"({n}-" in ln for n in new)]
     assert "| Proposed |" not in "\n".join(older)
     assert f"accepted {DATE}" in index.lower()
@@ -328,3 +328,20 @@ def test_keycloak_runbook_and_matrix():
     _links_resolve(DOCS / "control-matrix.md")
     assert "- Decision ID: D67" in adr("0068")
     assert "(0068-" in (ADR / "README.md").read_text()
+
+
+def test_home_age_off_docs():
+    """Issue #276: ADR-0074, runbook and MP-6/SI-12 evidence."""
+    text = adr("0074")
+    for phrase in ("/homes", "u/<uid>/", "GOVERNANCE", "30 d", "dry-run", "60 d", "7 d"):
+        assert phrase in text, phrase
+    runbook = DOCS / "runbooks/home-age-off.md"
+    body = runbook.read_text()
+    for phrase in ("AGEOFF_DRY_RUN", "ageoff.move", "Manual restore", "get-object-lock-configuration"):
+        assert phrase in body, phrase
+    _links_resolve(runbook)
+    cm = (DOCS / "control-matrix.md").read_text()
+    for ctl in ("MP-6", "SI-12"):
+        r = row(cm, ctl)
+        for ref in ("0074", "ageoff_job.py", "runbooks/home-age-off.md"):
+            assert ref in r, (ctl, ref)
