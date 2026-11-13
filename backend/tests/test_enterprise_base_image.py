@@ -89,3 +89,36 @@ def test_apt_run_does_not_swallow_install_failure():
     assert "apt-get install" in run
     assert "{ find" in run and "|| true; }" in run
     assert "-exec chmod a-s {} + 2>/dev/null || true \\" not in run
+
+
+def test_dockerfile_applies_selkies_patches_after_pip_install():
+    assert "COPY patches/selkies/ /opt/selkies-patches/" in DOCKERFILE
+    assert "apply_selkies_patches.sh" in DOCKERFILE
+    assert DOCKERFILE.index("pip install") < DOCKERFILE.index("apply_selkies_patches.sh")
+
+
+def test_patch_tool_installed_for_selkies_series():
+    apt = re.search(r"apt-get install[^&]*", DOCKERFILE).group(0)
+    assert re.search(r"\bpatch\b", apt)
+
+
+def test_series_skips_patches_merged_upstream():
+    """Patches whose note says 'not kept' ship in the pinned wheels; applying them fails the build."""
+    root = BASE.parents[1]
+    series = (root / "patches/selkies/series").read_text().splitlines()
+    names = [n.strip() for n in series if n.strip() and not n.strip().startswith("#")]
+    for name in names:
+        note = (root / "docs/upstream" / name.replace(".patch", ".md")).read_text()
+        assert "not kept" not in note, f"{name} is merged upstream; drop it from series"
+
+
+def test_series_patches_touch_only_installed_package_paths():
+    """The script patches installed wheels; Rust sources (pixelflux/src/*.rs) are not shipped."""
+    root = BASE.parents[1] / "patches/selkies"
+    series = (root / "series").read_text().splitlines()
+    names = [n.strip() for n in series if n.strip() and not n.strip().startswith("#")]
+    for name in names:
+        targets = re.findall(r"^\+\+\+ b/(\S+)", (root / name).read_text(), re.M)
+        assert targets, f"{name} has no targets"
+        bad = [t for t in targets if t.endswith(".rs") or t.startswith("pixelflux/src/")]
+        assert not bad, f"{name} edits source not in the installed wheel: {bad}"
