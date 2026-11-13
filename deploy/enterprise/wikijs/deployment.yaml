@@ -62,7 +62,7 @@ spec:
               labelSelector:
                 matchLabels: {app.kubernetes.io/name: wikijs}
       volumes:
-        - {name: tmp, emptyDir: {}}
+        - {name: data, emptyDir: {}}
       containers:
         - name: wikijs
           # PLACEHOLDER(digest): mirror ghcr.io/requarks/wiki:2.5 into Harbor and
@@ -87,8 +87,10 @@ spec:
             - name: OIDC_CLIENT_SECRET
               valueFrom: {secretKeyRef: {name: wikijs-oidc, key: client-secret}}
             - {name: LOCAL_LOGIN_DISABLED, value: "true"}
+            # Wiki.js 2 HA mode (PostgreSQL pub/sub) keeps config/cache in sync across replicas.
+            - {name: HA_ACTIVE, value: "true"}
           volumeMounts:
-            - {name: tmp, mountPath: /wiki/data}
+            - {name: data, mountPath: /wiki/data}
           readinessProbe:
             httpGet: {path: /healthz, port: http}
             periodSeconds: 10

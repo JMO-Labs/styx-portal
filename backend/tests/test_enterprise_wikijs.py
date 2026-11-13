@@ -49,7 +49,7 @@ def test_kustomize_build_and_kubeconform():
     assert "kind: Deployment" in out
     _need("kubeconform")
     res = subprocess.run([str(ROOT.parents[2] / "scripts/k8s_policy_check.sh"), "--stdin"],
-                         input=out, capture_output=True, text=True)
+                         input=out, capture_output=True, text=True, check=False)
     assert res.returncode == 0, res.stdout + res.stderr
 
 
@@ -85,7 +85,16 @@ def test_oidc_external_secret():
     assert es["spec"]["secretStoreRef"] == {"kind": "ClusterSecretStore", "name": "openbao"}
     (item,) = es["spec"]["data"]
     assert item["secretKey"] == "client-secret"
-    assert item["remoteRef"]["key"] == "styx/wikijs/oidc"
+    assert item["remoteRef"] == {"key": "kv/styx/wikijs/oidc", "property": "client_secret"}
+
+
+def test_oidc_secret_matches_keycloak_side():
+    kc = ROOT.parent / "keycloak/external-secrets.yaml"
+    kcs = {d["metadata"]["name"]: d for d in yaml.safe_load_all(kc.read_text()) if d}
+    (kc_item,) = kcs["keycloak-wikijs-oidc"]["spec"]["data"]
+    ours = {d["metadata"]["name"]: d for d in of_kind("ExternalSecret")}
+    (item,) = ours["wikijs-oidc"]["spec"]["data"]
+    assert item["remoteRef"] == kc_item["remoteRef"]
 
 
 def test_every_used_secret_comes_from_external_secret():
@@ -114,6 +123,10 @@ def test_deployment_oidc_only():
     assert env["OIDC_CLIENT_ID"]["value"] == "wikijs"
     assert re.fullmatch(r"https://login\.[^/]+/realms/styx", env["OIDC_ISSUER"]["value"])
     assert env["LOCAL_LOGIN_DISABLED"]["value"] == "true"
+    if d["spec"]["replicas"] > 1:
+        assert env["HA_ACTIVE"]["value"] == "true"
+    mounts = {m["mountPath"]: m["name"] for m in ctr["volumeMounts"]}
+    assert mounts["/wiki/data"] == "data"
     base = "http://keycloak.keycloak.svc:8080/realms/styx/protocol/openid-connect"
     assert env["OIDC_TOKEN_URL"]["value"] == f"{base}/token"
     assert env["OIDC_USERINFO_URL"]["value"] == f"{base}/userinfo"
