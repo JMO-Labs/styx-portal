@@ -41,6 +41,7 @@ from app.routers import group_dlp as group_dlp_router
 from app.routers import groups as groups_router
 from app.routers import announcements as announcements_router
 from app.routers import access_review as access_review_router
+from app.routers import takeover as takeover_router
 from app.routers import provision as provision_router
 from app.routers import profiles as profiles_router
 from app.routers import notices as notices_router
@@ -256,6 +257,7 @@ app.include_router(smartcard_router.mint_router, prefix="/api/instances", tags=[
 app.include_router(smartcard_router.router, prefix="/api/smartcard", tags=["smartcard"])
 app.include_router(instance_thumbs.router, prefix="/api/instances", tags=["instances"])
 app.include_router(instances.router, prefix="/api/instances", tags=["instances"])
+app.include_router(takeover_router.router, prefix="/api/instances", tags=["takeover"])
 app.include_router(registry.router, prefix="/api/registry/images", tags=["registry"])
 app.include_router(images.router, prefix="/api/images", tags=["images"])
 app.include_router(auth_router.router, prefix="/api/auth", tags=["auth"])
