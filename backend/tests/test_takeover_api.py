@@ -133,17 +133,23 @@ async def test_get_null_for_owner(member_client, inst, session):
     assert r.status_code == 200 and r.json() is None
 
 
-async def test_get_active_for_owner_and_actor(admin_client, member_client, inst, session):
+async def test_get_active_for_owner_and_actor(member_client, second_member_client, inst, session):
+    """Owner (member) and actor (member2, help-desk) use separate clients/cookie jars."""
     await _own(session, inst)
-    r = await admin_client.post("/api/instances/i-1/takeover", json={"mode": "control", "reason": "fix"})
-    assert r.status_code == 201
-    for c in (member_client, admin_client):
+    actor = (await session.exec(select(User).where(User.username == "member2"))).one()
+    actor.staff_role = "help-desk"
+    session.add(actor)
+    await session.commit()
+    sc = second_member_client
+    r = await sc.post("/api/instances/i-1/takeover", json={"mode": "control", "reason": "fix"})
+    assert r.status_code == 201, r.text
+    for c in (member_client, sc):
         g = await c.get("/api/instances/i-1/takeover")
         assert g.status_code == 200, g.text
         body = g.json()
-        assert body["actor_name"] == "admin" and body["mode"] == "control"
+        assert body["actor_name"] == "member2" and body["mode"] == "control"
         assert body["started_at"] and "reason" not in body
-    await admin_client.delete("/api/instances/i-1/takeover")
+    await sc.delete("/api/instances/i-1/takeover")
     assert (await member_client.get("/api/instances/i-1/takeover")).json() is None
 
 
