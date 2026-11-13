@@ -108,7 +108,8 @@ def test_every_used_secret_comes_from_external_secret():
     used |= {v["name"] for v in o["spec"]["configuration"]["s3Credentials"].values()}
     targets = {es["spec"]["target"]["name"] for es in of_kind("ExternalSecret")}
     assert "wikijs-oidc" in used
-    assert used <= targets, used - targets
+    cnpg_owned = {"wikijs-db-ca"}  # created by CNPG, not ESO
+    assert used - cnpg_owned <= targets, used - cnpg_owned - targets
 
 
 def test_deployment_oidc_only():
@@ -119,6 +120,8 @@ def test_deployment_oidc_only():
     env = {e["name"]: e for e in ctr["env"]}
     assert env["DB_HOST"]["value"] == "wikijs-db-rw"
     assert "secretKeyRef" in env["DB_PASS"]["valueFrom"]
+    assert env["DB_SSL"]["value"] == "true"
+    assert env["DB_SSL_CA"]["valueFrom"]["secretKeyRef"] == {"name": "wikijs-db-ca", "key": "ca.crt"}
     assert "secretKeyRef" in env["OIDC_CLIENT_SECRET"]["valueFrom"]
     assert env["OIDC_CLIENT_ID"]["value"] == "wikijs"
     assert re.fullmatch(r"https://login\.[^/]+/realms/styx", env["OIDC_ISSUER"]["value"])

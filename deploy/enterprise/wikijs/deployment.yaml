@@ -76,6 +76,9 @@ spec:
             - {name: DB_PORT, value: "5432"}
             - {name: DB_NAME, value: wikijs}
             - {name: DB_SSL, value: "true"}
+            # CNPG self-signed CA; Wiki.js verifies the server cert against it
+            - name: DB_SSL_CA
+              valueFrom: {secretKeyRef: {name: wikijs-db-ca, key: ca.crt}}
             - name: DB_USER
               valueFrom: {secretKeyRef: {name: wikijs-db-app, key: username}}
             - name: DB_PASS
