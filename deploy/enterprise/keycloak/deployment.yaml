@@ -97,6 +97,10 @@ spec:
               valueFrom: {secretKeyRef: {name: keycloak-admin, key: username}}
             - name: KC_BOOTSTRAP_ADMIN_PASSWORD
               valueFrom: {secretKeyRef: {name: keycloak-admin, key: password}}
+            - name: WIKIJS_OIDC_SECRET
+              valueFrom: {secretKeyRef: {name: keycloak-wikijs-oidc, key: client-secret}}
+            - name: SYNAPSE_OIDC_SECRET
+              valueFrom: {secretKeyRef: {name: keycloak-synapse-oidc, key: client-secret}}
           volumeMounts:
             - {name: realm, mountPath: /opt/keycloak/data/import, readOnly: true}
             - {name: crl, mountPath: /opt/keycloak/crl, readOnly: true}   # CRL mirror (#130)
