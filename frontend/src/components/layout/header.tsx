@@ -1,8 +1,10 @@
-import { Monitor, Moon, Sun, Waves } from "lucide-react";
+import { Monitor, Moon, Sun } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useTheme, type Theme } from "@/theme/ThemeProvider";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { OpeningMenu } from "@/components/layout/opening-menu";
+import { useBranding } from "@/theme/branding";
+import { BrandMark } from "@/components/layout/brand-mark";
 import { cn } from "@/lib/utils";
 
 function ThemeToggle({ theme, cycle }: { theme: Theme; cycle: () => void }) {
@@ -25,6 +27,7 @@ export type HeaderTab = "home" | "admin";
 export function Header({ activeTab, onTabChange }: { activeTab: HeaderTab; onTabChange: (tab: HeaderTab) => void }) {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
+  const brand = useBranding();
   function cycle() {
     const order: Theme[] = ["light", "dark", "system"];
     setTheme(order[(order.indexOf(theme) + 1) % order.length]!);
@@ -38,8 +41,8 @@ export function Header({ activeTab, onTabChange }: { activeTab: HeaderTab; onTab
   return (
     <header className="styx-header flex h-[58px] items-center gap-3 border-b border-border px-3 md:gap-6 md:px-6">
       <div className="styx-logo flex shrink-0 items-center gap-2.5 whitespace-nowrap text-[15px] font-extrabold tracking-[.08em]">
-        <Waves className="h-5 w-5" style={{ color: "var(--brand-accent)" }} />
-        <span className="max-[359px]:sr-only">STYX PORTAL</span>
+        <BrandMark b={brand} className="h-5 w-5 object-contain" />
+        <span className="max-[359px]:sr-only">{brand.brand_name}</span>
       </div>
       <nav className="styx-tabs flex h-full" aria-label="Main">
         {tabs.map((t) => (
