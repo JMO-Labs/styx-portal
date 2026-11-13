@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     SELKIES_DEFAULT_PORT: int = 3001
     TEMPLATES_DIR: str = "/app/templates"
     SERVICE_PRESETS_DIR: str = "/app/templates/services"
+    WIKI_URL: str = ""     # enterprise: seeds a "My services" link when set
+    ELEMENT_URL: str = ""  # enterprise: same, for Element
     SCREENSHOT_CACHE_DIR: str = "/app/data/screenshots"
     SCREENSHOT_INTERVAL_SECONDS: int = 30
     SERVICE_THUMBNAIL_MAX_BYTES: int = 1_048_576  # reject larger service thumbnails
@@ -234,3 +236,6 @@ class Settings(BaseSettings):
 
     def server_lan_url(self) -> str:
         return (self.SERVER_LAN_URL or f"https://{self.DOMAIN}").rstrip("/")
+
+
+settings = Settings()
