@@ -219,6 +219,7 @@ class UserOut(BaseModel):
     must_change_pw: bool = False
     has_matrix_card: bool = False
     can_use_gpu: bool = False
+    can_takeover: bool = False
     groups: list[str] = []
 
 
