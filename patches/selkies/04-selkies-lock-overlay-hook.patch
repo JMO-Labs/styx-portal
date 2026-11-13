@@ -1,0 +1,36 @@
+--- a/selkies/websockets_mode.py
++++ b/selkies/websockets_mode.py
+@@ -4,6 +4,23 @@
+ VIDEO_RELAY_LAG_SECONDS = 0.1
+ VIDEO_RELAY_OWNER_LAG_SECONDS = 0.1
+ VIDEO_RELAY_PING_SECONDS = 0.05
++# Lock overlay: while LOCK["locked"], relays send BLANK_FRAME (an empty video
++# payload) in place of every desktop frame, so no desktop pixels leave the host.
++# Driven by the text command `STYX_LOCK,1` / `STYX_LOCK,0` (see handle_lock_command).
++BLANK_FRAME = b""
++LOCK = {"locked": False}
++
++
++def set_lock(locked):
++    LOCK["locked"] = bool(locked)
++
++
++def handle_lock_command(msg):
++    """True if msg was a lock command (and was applied)."""
++    if msg in ("STYX_LOCK,1", "STYX_LOCK,0"):
++        set_lock(msg.endswith("1"))
++        return True
++    return False
+ 
+ 
+ class _VideoRelay:
+@@ -22,6 +39,9 @@
+         return 0.0
+ 
+     def _forward(self, frame_id, frame, kept=False, anchor=False):
++        if LOCK["locked"]:
++            self.sent.append(BLANK_FRAME)
++            return True
+         if self.server._owns_display(self.ws, self.display_id):
+             self.gauged = True
+             if kept or anchor or self._lag() < VIDEO_RELAY_OWNER_LAG_SECONDS:
