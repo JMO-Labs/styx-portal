@@ -4,7 +4,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlmodel import select, update
+from sqlmodel import col, select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.database import get_session
@@ -30,7 +30,7 @@ async def list_users(admin: User = Depends(require_admin),
     result = await session.exec(select(User))
     rows = (await session.exec(
         select(UserGroup.user_id, Group.name)
-        .join(Group, Group.id == UserGroup.group_id).order_by(Group.name))).all()
+        .join(Group, col(Group.id) == UserGroup.group_id).order_by(col(Group.name)))).all()
     names: dict[str, list[str]] = {}
     for uid, gname in rows:
         names.setdefault(uid, []).append(gname)
@@ -43,7 +43,7 @@ async def list_invites(admin: User = Depends(require_admin),
                        session: AsyncSession = Depends(get_session)):
     now = datetime.now(timezone.utc)
     rows = (await session.exec(select(Invite).where(Invite.used_at == None)  # noqa: E711
-                               .order_by(Invite.created_at.desc()))).all()
+                               .order_by(col(Invite.created_at).desc()))).all()
     out = []
     for i in rows:
         exp = i.expires_at
@@ -200,7 +200,7 @@ async def reset_password(user_id: str, request: Request,
     await get_abuse_store().clear_user(user.username)
     session.add(user)
     await session.exec(update(RefreshToken)
-                       .where(RefreshToken.user_id == user.id)
+                       .where(col(RefreshToken.user_id) == user.id)
                        .values(revoked=True))
     await audit_request(session, request, "user.reset_password", user_id=admin.id,
                         resource=user.id)
@@ -246,7 +246,7 @@ async def delete_user(user_id: str, request: Request,
             detail=f"User owns {len(inst)} instance(s) and {len(tmpls)} template(s); "
                    "reassign or remove them first.")
     await profiles.purge_profiles(session, docker, user_id=user.id)
-    await session.exec(update(RefreshToken).where(RefreshToken.user_id == user.id).values(revoked=True))
+    await session.exec(update(RefreshToken).where(col(RefreshToken.user_id) == user.id).values(revoked=True))
     fids = (await session.exec(select(FederatedIdentity).where(FederatedIdentity.user_id == user.id))).all()
     for f in fids:
         await session.delete(f)

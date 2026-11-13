@@ -1,10 +1,11 @@
 """Managed base path endpoints (spec 3.2, 9). Admin only."""
 import asyncio
 import logging
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -41,8 +42,8 @@ def _refetch_icon(docker):
     return hook
 
 
-def _start(*args, **kw) -> None:
-    t = asyncio.create_task(run_job(*args, after_done=_refetch_icon(args[3]), **kw))
+def _start(*args: Any, **kw: Any) -> None:
+    t = asyncio.create_task(run_job(*args, **{**kw, "after_done": _refetch_icon(args[3])}))
     _tasks.add(t)
     t.add_done_callback(_tasks.discard)
     t.add_done_callback(_log_failure)
@@ -76,7 +77,7 @@ async def mount_apply(sid: str, body: ApplyBody, request: Request,
         raise HTTPException(422, "Managed mounts are manual on Kubernetes: see the plan's instructions.")
     async with _apply_locks.setdefault(sid, asyncio.Lock()):
         running = (await session.exec(select(MountJob).where(
-            MountJob.service_id == sid, MountJob.state.in_(["pending", "running"])))).first()
+            col(MountJob.service_id) == sid, col(MountJob.state).in_(["pending", "running"])))).first()
         if running:
             raise HTTPException(409, "A change is already running for this service")
         svc, preset, p = await _plan(session, sid, docker)
@@ -102,7 +103,7 @@ async def mount_apply(sid: str, body: ApplyBody, request: Request,
 async def mount_latest(sid: str, admin: User = Depends(require_admin),
                        session: AsyncSession = Depends(get_session)):
     job = (await session.exec(select(MountJob).where(MountJob.service_id == sid)
-                              .order_by(MountJob.created_at.desc()))).first()
+                              .order_by(col(MountJob.created_at).desc()))).first()
     if job is None:
         raise HTTPException(404, "No changes yet")
     return {"id": job.id, "state": job.state, "steps": job.steps, "changes": job.changes,

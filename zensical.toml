@@ -56,6 +56,7 @@ nav = [
     { "Enterprise: DLP policy" = "enterprise/runbooks/dlp-policy.md" },
     { "Enterprise: Wiki.js and Matrix" = "enterprise/runbooks/wikijs-matrix.md" },
     { "Enterprise: Offboarding" = "enterprise/runbooks/offboarding.md" },
+    { "Enterprise: Home age-off" = "enterprise/runbooks/home-age-off.md" },
   ] },
   { "Build" = [
     "build/index.md",

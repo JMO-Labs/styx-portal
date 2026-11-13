@@ -8,7 +8,7 @@ from importlib.metadata import PackageNotFoundError, version as _pkg_version
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -195,6 +195,9 @@ async def lifespan(app: FastAPI):
     if _settings.HARBOR_URL:
         from app.services.cve_recycle import cve_recycle_loop
         leader_loops.append(cve_recycle_loop)
+    if _settings.archive_s3_endpoint:
+        from app.services.ageoff_job import ageoff_loop
+        leader_loops.append(ageoff_loop)
     leader = LeaderTasks(boot=[_probe_cleanup, _reconcile, _close_dangling, _refresh_routes],
                          loops=leader_loops)
     elector = get_elector()
@@ -260,6 +263,7 @@ app.include_router(smartcard_router.router, prefix="/api/smartcard", tags=["smar
 app.include_router(instance_thumbs.router, prefix="/api/instances", tags=["instances"])
 app.include_router(instances.router, prefix="/api/instances", tags=["instances"])
 app.include_router(takeover_router.router, prefix="/api/instances", tags=["takeover"])
+app.include_router(takeover_router.admin_router, prefix="/api/admin", tags=["takeover"])
 app.include_router(takeover_router.report_router, prefix="/api/admin/takeovers", tags=["takeover"])
 app.include_router(registry.router, prefix="/api/registry/images", tags=["registry"])
 app.include_router(images.router, prefix="/api/images", tags=["images"])
@@ -385,7 +389,7 @@ async def system_metrics(
     docker = instance_runtime()
 
     result = await session.exec(
-        select(Instance).where(Instance.status.in_(["running", "idle"]))
+        select(Instance).where(col(Instance.status).in_(["running", "idle"]))
     )
     running = result.all()
 
@@ -405,14 +409,14 @@ async def system_metrics(
     gpu_info = detect_gpu()
 
     events_result = await session.exec(
-        select(SessionEvent).order_by(SessionEvent.id.desc()).limit(20)
+        select(SessionEvent).order_by(col(SessionEvent.id).desc()).limit(20)
     )
     events = events_result.all()
 
     instances_map = {}
     if events:
         inst_ids = list({e.instance_id for e in events})
-        insts_result = await session.exec(select(Instance).where(Instance.id.in_(inst_ids)))
+        insts_result = await session.exec(select(Instance).where(col(Instance.id).in_(inst_ids)))
         instances_map = {i.id: i.name for i in insts_result.all()}
 
     recent_events = []

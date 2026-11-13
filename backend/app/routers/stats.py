@@ -1,10 +1,10 @@
 """Admin stats for the Overview and Relay cost pages."""
 import shutil
 from datetime import datetime, timedelta, timezone
-from typing import Literal
+from typing import Any, Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.database import get_session
@@ -30,7 +30,7 @@ async def _series(session: AsyncSession, now: datetime):
     for h in _slots(now):
         v = by.get(h)
         if h == metric_rollup._hour(now) and cur:
-            v = type("V", (), cur)
+            v = cast(Any, type("V", (), cur))
         out.append((h, v))
     return out
 
@@ -65,7 +65,7 @@ async def overview(range: Literal["24h", "7d", "30d"] = "24h",
     host = metric_rollup.latest()
     d = shutil.disk_usage("/")
     live = len((await session.exec(select(StreamSession.id).where(
-        StreamSession.ended_at.is_(None)))).all())
+        col(StreamSession.ended_at).is_(None)))).all())
     last = lambda col: next((x for x in reversed(col) if x is not None), None)  # noqa: E731
     cpu, ram, disk, lv = (_col(series, a) for a in ("cpu_avg", "ram_avg", "disk_pct", "live_max"))
     health = [(v.health if v else None) for _, v in series]
@@ -111,7 +111,7 @@ async def relay(period: Literal["this", "last", "6m"] = "this",
     used = sum(r["cf_egress_bytes"] if r["cf_egress_bytes"] is not None else r["total_bytes"]
                for r in reports)
     price, free, budget = (settings.get(k) for k in ("TURN_USD_PER_GB", "TURN_FREE_GB_MONTH", "TURN_BUDGET_GB"))
-    agg = {"by_user": {}, "by_workstation": {}}
+    agg: dict[str, dict] = {"by_user": {}, "by_workstation": {}}
     for r in reports:
         for key, label in (("by_user", "username"), ("by_workstation", "name")):
             for x in r[key]:

@@ -2,7 +2,7 @@
 from collections import Counter
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -24,10 +24,10 @@ def _node() -> str | None:
 
 async def _running(session: AsyncSession):
     q = (select(Instance, ServiceTemplate, User)
-         .join(ServiceTemplate, Instance.template_id == ServiceTemplate.id)
-         .outerjoin(User, Instance.owner_id == User.id)
+         .join(ServiceTemplate, col(Instance.template_id) == ServiceTemplate.id)
+         .outerjoin(User, col(Instance.owner_id) == User.id)
          .where(Instance.status == "running")
-         .order_by(Instance.started_at))
+         .order_by(col(Instance.started_at)))
     return (await session.exec(q)).all()
 
 
@@ -49,7 +49,7 @@ async def capacity(user: User = Depends(staff), session: AsyncSession = Depends(
     rows = await _running(session)
     node = _node()
     live = len((await session.exec(select(StreamSession.id).where(
-        StreamSession.ended_at.is_(None)))).all())
+        col(StreamSession.ended_at).is_(None)))).all())
     return {
         "running": len(rows),
         "max_per_user": settings.get("MAX_INSTANCES_PER_USER") or None,
@@ -66,7 +66,7 @@ async def user_detail(user_id: str, user: User = Depends(staff),
     if target is None:
         raise HTTPException(404, "User not found")
     groups = (await session.exec(select(Group.name).join(
-        UserGroup, UserGroup.group_id == Group.id).where(
+        UserGroup, col(UserGroup.group_id) == Group.id).where(
         UserGroup.user_id == target.id).order_by(Group.name))).all()
     node = _node()
     running = [r for r in await _running(session) if r[0].owner_id == target.id]

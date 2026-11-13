@@ -3,8 +3,9 @@ import asyncio
 import hashlib
 import logging
 from datetime import datetime, timezone
+from typing import Any
 
-from sqlmodel import select
+from sqlmodel import col, select
 
 from app.config import Settings
 from app.models import ServiceTemplate, User
@@ -36,7 +37,7 @@ def build_prepull_daemonset(image: str, ns: str, stamp: str | None = None) -> di
            "initContainers": [init],
            "containers": [{"name": "pause", "image": "registry.k8s.io/pause:3.10",
                            "resources": _RES, "securityContext": dict(_SEC)}]}
-    meta = {"name": name, "namespace": ns, "labels": {"styx/prepull": "true", **MANAGED}}
+    meta: dict[str, Any] = {"name": name, "namespace": ns, "labels": {"styx/prepull": "true", **MANAGED}}
     digest = digest_of(image)
     if digest:
         repo = image.split("@", 1)[0]
@@ -101,8 +102,8 @@ async def sync_prepull(session) -> None:
     from app.services.k8s_api import incluster_client
     # only shared or admin-owned templates: member templates pull at launch
     rows = await session.exec(
-        select(ServiceTemplate).outerjoin(User, ServiceTemplate.owner_id == User.id)
-        .where((ServiceTemplate.owner_id.is_(None)) | (User.role == "admin")))
+        select(ServiceTemplate).outerjoin(User, col(ServiceTemplate.owner_id) == User.id)
+        .where((col(ServiceTemplate.owner_id).is_(None)) | (col(User.role) == "admin")))
     ns = Settings().K8S_INSTANCE_NAMESPACE
     templates = rows.all()
     # resolve_digest does blocking HTTP: keep it off the event loop

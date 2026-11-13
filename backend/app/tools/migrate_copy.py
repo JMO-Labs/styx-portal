@@ -5,6 +5,7 @@ verification) runs in ONE transaction that commits only if every table matches.
 The source is only read. alembic_version is never copied or truncated.
 """
 import hashlib
+from typing import cast
 
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -82,7 +83,7 @@ async def _insert(conn, tables, data) -> None:
 
 async def _reset_sequences(conn, tables) -> None:
     for t in sequence_tables(tables):
-        col = t.autoincrement_column.name
+        col = cast(sa.Column, t.autoincrement_column).name
         await conn.execute(sa.text(
             f'SELECT setval(pg_get_serial_sequence(:t, :c), COALESCE(MAX("{col}"), 1), MAX("{col}") IS NOT NULL) '  # nosec B608
             f'FROM "{t.name}"'), {"t": f'"{t.name}"', "c": col})

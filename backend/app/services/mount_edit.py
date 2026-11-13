@@ -37,9 +37,13 @@ def _xml_root(text: str) -> ET.Element:
         raise ValueError(f"bad xml: {e}") from e
 
 
+class _CaseParser(configparser.ConfigParser):
+    def optionxform(self, optionstr: str) -> str:
+        return optionstr  # keep key case
+
+
 def _ini(text: str) -> configparser.ConfigParser:
-    cp = configparser.ConfigParser(interpolation=None)
-    cp.optionxform = str  # keep key case
+    cp = _CaseParser(interpolation=None)
     try:
         cp.read_string(text)
     except configparser.Error as e:
