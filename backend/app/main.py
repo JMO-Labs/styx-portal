@@ -180,6 +180,8 @@ async def lifespan(app: FastAPI):
                     partial(service_thumbnail_loop, async_session, _settings.SCREENSHOT_CACHE_DIR)]
     if _settings.ROUTE_BACKEND == "k8s":
         leader_loops.append(prepull_loop)
+        from app.services.session_reaper import session_reaper_loop
+        leader_loops.append(session_reaper_loop)
     if _settings.HARBOR_URL:
         from app.services.cve_recycle import cve_recycle_loop
         leader_loops.append(cve_recycle_loop)
