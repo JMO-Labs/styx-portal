@@ -18,7 +18,7 @@
      if _queue is None:
 --- /dev/null
 +++ b/selkies/styx_audit.py
-@@ -0,0 +1,40 @@
+@@ -0,0 +1,48 @@
 +"""Styx D38 audit: one metadata-only JSON line on stdout per clipboard or file transfer.
 +
 +Fields (exactly): user, time, direction (in|out), size, type, filename_hash.
@@ -45,6 +45,14 @@
 +
 +
 +def on_event(event: str, fields: dict) -> None:
++    """Never raise: this runs inside upstream audit.emit on transfer paths."""
++    try:
++        _on_event(event, fields)
++    except Exception:
++        log.debug("styx audit hook failed", exc_info=True)
++
++
++def _on_event(event: str, fields: dict) -> None:
 +    direction = _DIRECTION.get(event)
 +    if direction is None:
 +        return

@@ -75,3 +75,9 @@ def test_patch_hooks_audit_emit_and_is_in_series():
     text = PATCH.read_text()
     assert "+++ b/selkies/audit.py" in text and "styx_audit.on_event(event, fields)" in text
     assert PATCH.name in (PATCH.parent / "series").read_text().split()
+
+
+def test_bad_filename_does_not_raise():
+    mod = _load()
+    _capture(mod)
+    mod.on_event("file.upload.end", {"filename": 123, "size_bytes": 1})
