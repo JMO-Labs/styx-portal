@@ -50,6 +50,6 @@ spec:
         - name: homes
           persistentVolumeClaim: {claimName: styx-homes}
         - name: db-app
-          secret: {secretName: styx-db-app, defaultMode: 0440}
+          secret: {secretName: styx-db-app, defaultMode: 288}  # 0o440
         - name: db-ca
-          secret: {secretName: styx-db-ca, defaultMode: 0440}
+          secret: {secretName: styx-db-ca, defaultMode: 288}  # 0o440

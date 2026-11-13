@@ -76,3 +76,79 @@ def test_backend_mounts_homes():
     assert "/homes" in mounts
     vol = next(v for v in spec["volumes"] if v["name"] == mounts["/homes"]["name"])
     assert "persistentVolumeClaim" in vol
+
+
+def _all_docs():
+    out = []
+    for p in ENT.rglob("*.yaml"):
+        try:
+            out += [d for d in yaml.safe_load_all(p.read_text()) if isinstance(d, dict)]
+        except yaml.YAMLError:
+            continue
+    return out
+
+
+def _find(kind, name, ns=None):
+    return next(
+        (d for d in _all_docs() if d.get("kind") == kind
+         and d["metadata"].get("name") == name
+         and (ns is None or d["metadata"].get("namespace") == ns)),
+        None,
+    )
+
+
+BRIDGE = ENT / "archive-s3-credentials.yaml"
+
+
+def test_backend_archive_secret_is_produced():
+    env = {e["name"]: e for e in _backend()["containers"][0]["env"]}
+    name = env["ARCHIVE_S3_ACCESS_KEY"]["valueFrom"]["secretKeyRef"]["name"]
+    es = next(d for d in yaml.safe_load_all(BRIDGE.read_text())
+              if d["kind"] == "ExternalSecret")
+    assert es["metadata"]["namespace"] == "styx"
+    assert es["spec"]["target"]["name"] == name
+    keys = {d["secretKey"] for d in es["spec"]["data"]}
+    assert keys == {"AccessKey", "SecretKey"}
+    assert {d["remoteRef"]["key"] for d in es["spec"]["data"]} == {
+        "rook-ceph-object-user-styx-store-styx-archive"}
+    k = yaml.safe_load((ENT / "kustomization.yaml").read_text())
+    assert BRIDGE.name in k["resources"]
+
+
+def test_archive_secret_reader_is_least_privilege():
+    docs = list(yaml.safe_load_all(BRIDGE.read_text()))
+    role = next(d for d in docs if d["kind"] == "Role")
+    assert role["metadata"]["namespace"] == "rook-ceph"
+    assert role["rules"] == [{
+        "apiGroups": [""], "resources": ["secrets"],
+        "resourceNames": ["rook-ceph-object-user-styx-store-styx-archive"],
+        "verbs": ["get"]}]
+    store = next(d for d in docs if d["kind"] == "SecretStore")
+    assert store["spec"]["provider"]["kubernetes"]["remoteNamespace"] == "rook-ceph"
+
+
+def test_homes_claim_exists_rwx():
+    spec = _backend()
+    vol = next(v for v in spec["volumes"] if v["name"] == "homes")
+    claim = vol["persistentVolumeClaim"]["claimName"]
+    pvc = _find("PersistentVolumeClaim", claim, "styx")
+    assert pvc is not None
+    assert pvc["spec"]["accessModes"] == ["ReadWriteMany"]
+    pv = _find("PersistentVolume", pvc["spec"]["volumeName"])
+    assert pv["spec"]["accessModes"] == ["ReadWriteMany"]
+    attrs = pv["spec"]["csi"]["volumeAttributes"]
+    assert attrs["staticVolume"] == "true"
+    assert attrs["fsName"] == "homes"
+    assert attrs["rootPath"] == "/volumes/homes"
+    k = yaml.safe_load((ENT / "kustomization.yaml").read_text())
+    assert "homes-pv.yaml" in k["resources"]
+
+
+def test_bootstrap_job_hardened():
+    pod = _kind("Job")["spec"]["template"]["spec"]
+    assert pod["securityContext"]["runAsNonRoot"] is True
+    assert pod["securityContext"]["seccompProfile"]["type"] == "RuntimeDefault"
+    c = pod["containers"][0]["securityContext"]
+    assert c["runAsNonRoot"] is True
+    assert c["seccompProfile"]["type"] == "RuntimeDefault"
+    assert _kind("Job")["spec"]["ttlSecondsAfterFinished"] > 0

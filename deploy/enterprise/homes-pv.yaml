@@ -1,0 +1,37 @@
+# Static ceph-csi volume on the CephFS "homes" subvolume group root, so the backend
+# sees every user home under /homes (ADR-0035). Uses Rook's CephFS node secret,
+# per Rook's static-provisioning docs.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: styx-homes
+spec:
+  accessModes: [ReadWriteMany]
+  capacity: {storage: 1Ti}
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  volumeMode: Filesystem
+  claimRef: {namespace: styx, name: styx-homes}
+  csi:
+    driver: rook-ceph.cephfs.csi.ceph.com
+    volumeHandle: styx-homes
+    nodeStageSecretRef:
+      name: rook-csi-cephfs-node
+      namespace: rook-ceph
+    volumeAttributes:
+      clusterID: rook-ceph
+      fsName: homes
+      staticVolume: "true"
+      rootPath: /volumes/homes
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: styx-homes
+  namespace: styx
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: styx-homes
+  resources:
+    requests: {storage: 1Ti}
