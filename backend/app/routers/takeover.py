@@ -116,5 +116,5 @@ async def get_takeover(iid: str, user: User = Depends(get_current_user),
     if t is None:
         return None
     actor = await session.get(User, t.actor_id)
-    name = (actor.display_name or actor.username) if actor else "Support staff"
+    name = actor.username if actor else "Support staff"
     return ActiveTakeoverOut(actor_name=name, mode=t.mode, started_at=t.started_at)
