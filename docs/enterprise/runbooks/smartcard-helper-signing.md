@@ -57,8 +57,11 @@ Record version, SHA-256 of the signed MSI, signer thumbprint and date in the rel
 ## 5. Intune profile (no secrets)
 
 1. Intune **Apps > Windows > Line-of-business app** takes the signed MSI directly.
-2. Install context: **System**. Detection rule: MSI product code from
-   `Get-AppLockerFileInformation` or the Intune MSI auto-detect.
+2. Install context: **System**. Detection rule: use the product code
+   Intune auto-detects from the uploaded MSI. The ProductCode is regenerated on every build,
+   so always take it from the signed MSI being deployed (never reuse an earlier one). To read
+   it manually, query the MSI's Property table (Orca, `msiinfo`, or the WindowsInstaller COM
+   object), not `Get-AppLockerFileInformation`, which only returns publisher/hash data.
 3. Export the assignment for review without secrets: `Graph GET
    /deviceAppManagement/mobileApps/{id}` and save the JSON. It holds names, version, product
    code, hash and assignments only. Strip any `contentVersion` upload URLs before filing it.
