@@ -42,7 +42,7 @@ async def redeem(session: AsyncSession, token: str, instance_id: str,
             user.username.encode(), cert_username.encode()):
         return row, "cert_user_mismatch"
     res = await session.exec(update(SmartcardToken).where(
-        SmartcardToken.id == row.id, col(SmartcardToken.used_at).is_(None)).values(used_at=_now()))
+        col(SmartcardToken.id) == row.id, col(SmartcardToken.used_at).is_(None)).values(used_at=_now()))
     if res.rowcount != 1:
         return row, "used"
     return row, None

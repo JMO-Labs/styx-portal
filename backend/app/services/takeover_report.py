@@ -41,8 +41,8 @@ async def build_report(session: AsyncSession, month: str) -> str:
     w.writerow(HEADER)
     for t in rows:
         dur = int((t.ended_at - t.started_at).total_seconds()) if t.ended_at else ""
-        w.writerow([_cell(names.get(t.actor_id, t.actor_id or "")),
-                    _cell(names.get(t.user_id, t.user_id or "")), t.instance_id, t.mode,
+        w.writerow([_cell(names.get(t.actor_id or "", t.actor_id or "")),
+                    _cell(names.get(t.user_id or "", t.user_id or "")), t.instance_id, t.mode,
                     _cell(t.reason), t.started_at.isoformat(),
                     t.ended_at.isoformat() if t.ended_at else "", dur])
     return out.getvalue()
