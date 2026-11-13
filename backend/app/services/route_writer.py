@@ -245,6 +245,17 @@ def build_routes_config(instances: list[dict], domain: str,
             svc["serversTransport"] = "selkies-transport"
             has_https = True
         config["http"]["services"][rid] = {"loadBalancer": svc}
+        if _settings.SMARTCARD_ENABLED:
+            sc = f"{rid}-smartcard"
+            config["http"]["routers"][sc] = {
+                "rule": f"Host(`{domain}`) && ({_seg(f'/w/{sub}/smartcard')})",
+                "middlewares": router_middlewares,
+                "service": sc,
+                "priority": 60,  # beats the ws-<id> stream route (50)
+                **_router_transport(deploy_mode, domain),
+            }
+            config["http"]["services"][sc] = {"loadBalancer": {"servers": [
+                {"url": f"http://{host}:{_settings.SMARTCARD_RELAY_PORT}"}]}}
 
     # Host-agnostic LAN routers (IP / LAN hostname access via websecure).
     # api beats frontend on /api; ws-*-lan above (prio 50) beats frontend on /w.
