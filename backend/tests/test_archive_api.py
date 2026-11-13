@@ -30,7 +30,7 @@ def env(member_client, tmp_path, monkeypatch):
 
     store = FakeStore()
     chowns = []
-    monkeypatch.setattr(ar, "_chown", lambda p, uid: chowns.append((str(p), uid)))
+    monkeypatch.setattr(ar, "_chown", lambda p, uid, **kw: chowns.append((p, uid)))
     app.dependency_overrides[ar.get_archive_store] = lambda: store
     app.dependency_overrides[ar.get_homes_root] = lambda: str(tmp_path)
     yield member_client, store, tmp_path, chowns
@@ -153,3 +153,30 @@ async def test_post_requires_csrf(env):
     r = await c.post("/api/archive/send", json={"relpath": "f"},
                      headers={"X-CSRF-Token": "bad"})
     assert r.status_code == 403
+
+
+async def test_list_writes_audit(env, session):
+    c, *_ = env
+    assert (await c.get("/api/archive")).status_code == 200
+    rows = (await session.exec(select(AuditLog).where(AuditLog.action == "archive.list"))).all()
+    assert len(rows) == 1
+
+
+async def test_restore_chowns_open_fd(env, session):
+    c, store, _, chowns = env
+    uid = await _uid(session)
+    store.objs[(str(uid), "d/f")] = (b"x", 1.0)
+    assert (await c.post("/api/archive/restore", json={"relpath": "d/f"})).status_code == 200
+    assert (chowns[-1][0].__class__ is int) and chowns[-1][1] == uid
+
+
+async def test_send_refuses_symlink_target(env, session, tmp_path_factory):
+    c, store, home, _ = env
+    uid = await _uid(session)
+    outside = tmp_path_factory.mktemp("out")
+    (outside / "secret").write_text("s")
+    h = home / str(uid)
+    h.mkdir()
+    (h / "f").symlink_to(outside / "secret")
+    r = await c.post("/api/archive/send", json={"relpath": "f"})
+    assert r.status_code == 404 and not store.objs

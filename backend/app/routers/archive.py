@@ -1,5 +1,6 @@
 """Home archive API: list, restore, send (ADR-0052 POSIX uid, S3 store)."""
 import os
+import stat
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
@@ -27,8 +28,8 @@ def get_homes_root() -> str:
     return Settings().homes_root
 
 
-def _chown(path, uid: int) -> None:
-    os.chown(path, uid, -1)
+def _chown(path_or_fd, uid: int, **kw) -> None:
+    os.chown(path_or_fd, uid, -1, **kw)
 
 
 def _safe_target(homes_root: str, uid: int, relpath: str) -> tuple[str, str]:
@@ -57,36 +58,44 @@ def _restore(store, key: str, homes_root: str, uid: int, relpath: str) -> None:
         d = os.path.dirname(d)
     os.makedirs(os.path.dirname(target), exist_ok=True)
     for m in reversed(missing):
-        _chown(m, uid)
+        _chown(m, uid, follow_symlinks=False)
     try:
         with open(target, "xb") as fh:
             mtime = store.get(key, relpath, fh)
+            fh.flush()
+            os.utime(fh.fileno(), (mtime, mtime))
+            _chown(fh.fileno(), uid)
     except FileExistsError:
         raise HTTPException(409, "file exists") from None
     except BaseException:
         if os.path.exists(target):
             os.unlink(target)
         raise
-    os.utime(target, (mtime, mtime))
-    _chown(target, uid)
 
 
 def _send(store, key: str, homes_root: str, uid: int, relpath: str) -> None:
     _, target = _safe_target(homes_root, uid, relpath)
-    if os.path.islink(target) or not os.path.isfile(target):
-        raise HTTPException(404, "file not found")
-    mtime = os.stat(target).st_mtime
-    with open(target, "rb") as fh:
-        store.put(key, relpath, fh, mtime)
+    try:
+        fd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError:
+        raise HTTPException(404, "file not found") from None
+    with os.fdopen(fd, "rb") as fh:
+        st = os.fstat(fh.fileno())
+        if not stat.S_ISREG(st.st_mode):
+            raise HTTPException(404, "file not found")
+        store.put(key, relpath, fh, st.st_mtime)
     os.unlink(target)
 
 
 @router.get("", response_model=list[ArchiveEntry])
-async def list_archive(user: User = Depends(get_current_user),
+async def list_archive(request: Request,
+                       user: User = Depends(get_current_user),
                        store: ArchiveStore = Depends(get_archive_store),
                        session: AsyncSession = Depends(get_session)):
     key = str(await allocate_uid(session, user.id))
     rows = await run_in_threadpool(store.list_with_size, key)
+    await audit_request(session, request, "archive.list", user_id=user.id)
+    await session.commit()
     return [ArchiveEntry(relpath=r, size=s, mtime=m) for r, s, m in rows]
 
 
