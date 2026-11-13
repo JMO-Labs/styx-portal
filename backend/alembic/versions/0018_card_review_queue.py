@@ -1,7 +1,7 @@
 """card_review_queue table (styx-portal#122)
 
-Revision ID: 0014_card_review_queue
-Revises: 0013_group_dlp
+Revision ID: 0018_card_review_queue
+Revises: 0017_announcements
 Create Date: 2026-11-12
 
 """
@@ -10,8 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = '0014_card_review_queue'
-down_revision: Union[str, Sequence[str], None] = '0013_group_dlp'
+revision: str = '0018_card_review_queue'
+down_revision: Union[str, Sequence[str], None] = '0017_announcements'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

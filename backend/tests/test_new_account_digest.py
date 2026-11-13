@@ -62,7 +62,7 @@ async def test_post_when_set(session, monkeypatch):
 async def test_skipped_when_unset(session, caplog):
     caplog.set_level("INFO")
     assert await nd.run_once(session, "", NOW) is False
-    assert "MATRIX_DIGEST_WEBHOOK_URL" in caplog.text
+    assert "no Matrix target configured" in caplog.text
 
 
 async def test_failure_logged_and_audited(session):
@@ -92,3 +92,45 @@ async def test_audit_failure_is_swallowed(session, monkeypatch, caplog):
                           transport=httpx.MockTransport(lambda req: httpx.Response(500)))
     assert r is False
     assert "digest failure audit failed" in caplog.text
+
+
+def _matrix_env(monkeypatch):
+    monkeypatch.setenv("MATRIX_NOTIFY_HOMESERVER", "https://hs.test")
+    monkeypatch.setenv("MATRIX_NOTIFY_ROOM_ID", "!r:hs.test")
+    monkeypatch.setenv("MATRIX_NOTIFY_TOKEN", "tok")
+
+
+async def test_adapter_used_when_configured(session, monkeypatch):
+    _matrix_env(monkeypatch)
+    await _seed(session)
+    seen = []
+
+    def handler(req: httpx.Request):
+        seen.append(req)
+        return httpx.Response(200, json={"event_id": "$e"})
+    assert await nd.run_once(session, "", NOW, transport=httpx.MockTransport(handler)) is True
+    assert len(seen) == 1 and seen[0].method == "PUT"
+    assert seen[0].url.path.startswith("/_matrix/client/v3/rooms/")
+    assert "/send/m.room.message/" in seen[0].url.path
+
+
+async def test_adapter_failure_logged_and_audited(session, monkeypatch):
+    _matrix_env(monkeypatch)
+    r = await nd.run_once(session, "", NOW,
+                          transport=httpx.MockTransport(lambda req: httpx.Response(500)))
+    assert r is False
+    rows = (await session.exec(select(AuditLog).where(
+        AuditLog.action == "account.digest_failed"))).all()
+    assert len(rows) == 1
+
+
+async def test_adapter_takes_precedence_over_webhook(session, monkeypatch):
+    _matrix_env(monkeypatch)
+    seen = []
+
+    def handler(req: httpx.Request):
+        seen.append(req)
+        return httpx.Response(200)
+    assert await nd.run_once(session, "http://matrix.test/hook", NOW,
+                             transport=httpx.MockTransport(handler)) is True
+    assert [r.url.host for r in seen] == ["hs.test"]

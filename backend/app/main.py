@@ -32,10 +32,15 @@ from app.routers import instance_auth as instance_auth_router
 from app.routers import enroll as enroll_router
 from app.routers import agent as agent_router
 from app.routers import system_settings as system_settings_router
+from app.routers import branding as branding_router
 from app.routers import turn_usage as turn_usage_router
 from app.routers import provisioned as provisioned_router
 from app.routers import stats as stats_router
+from app.routers import admin_console as admin_console_router
+from app.routers import group_dlp as group_dlp_router
 from app.routers import groups as groups_router
+from app.routers import announcements as announcements_router
+from app.routers import access_review as access_review_router
 from app.routers import provision as provision_router
 from app.routers import card_reviews as card_reviews_router
 from app.routers import profiles as profiles_router
@@ -178,6 +183,8 @@ async def lifespan(app: FastAPI):
                     partial(service_thumbnail_loop, async_session, _settings.SCREENSHOT_CACHE_DIR)]
     if _settings.ROUTE_BACKEND == "k8s":
         leader_loops.append(prepull_loop)
+        from app.services.session_reaper import session_reaper_loop
+        leader_loops.append(session_reaper_loop)
     if _settings.HARBOR_URL:
         from app.services.cve_recycle import cve_recycle_loop
         leader_loops.append(cve_recycle_loop)
@@ -260,14 +267,20 @@ app.include_router(workstations_router.internal_router, prefix="/internal/workst
 app.include_router(enroll_router.router, prefix="/api/enroll", tags=["enroll"])
 app.include_router(agent_router.router, prefix="/api/agent", tags=["agent"])
 app.include_router(system_settings_router.router, prefix="/api/system-settings", tags=["system-settings"])
+app.include_router(branding_router.router, prefix="/api/branding", tags=["branding"])
 app.include_router(provisioned_router.router, prefix="/api/admin/provisioned", tags=["provisioned"])
 app.include_router(turn_usage_router.router, prefix="/api/admin/turn-usage", tags=["turn-usage"])
 app.include_router(turn_usage_router.check_router, prefix="/api/admin/turn-check", tags=["turn-usage"])
 app.include_router(stats_router.router, prefix="/api/admin/stats", tags=["stats"])
+app.include_router(admin_console_router.router, prefix="/api/admin/console", tags=["admin-console"])
 app.include_router(provision_router.router, prefix="/api/provision", tags=["provision"])
 app.include_router(card_reviews_router.router, prefix="/api/admin/card-reviews",
                    tags=["card-reviews"])
 app.include_router(groups_router.router, prefix="/api/groups", tags=["groups"])
+app.include_router(announcements_router.admin_router, prefix="/api/admin/announcements", tags=["announcements"])
+app.include_router(announcements_router.router, prefix="/api/announcements", tags=["announcements"])
+app.include_router(group_dlp_router.router, prefix="/api/groups", tags=["groups"])
+app.include_router(access_review_router.router, prefix="/api/access-review", tags=["access-review"])
 app.include_router(groups_router.users_router, prefix="/api/users", tags=["groups"])
 app.include_router(profiles_router.router, prefix="/api/profiles", tags=["profiles"])
 app.include_router(profiles_router.users_router, prefix="/api/users", tags=["profiles"])
