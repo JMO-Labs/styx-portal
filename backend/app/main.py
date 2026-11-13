@@ -178,11 +178,13 @@ async def lifespan(app: FastAPI):
     from app.services.profile_reclaim import profile_reclaim_loop
     from app.services.new_account_review import new_account_review_loop
     from app.services.new_account_digest import digest_loop
+    from app.services.scratch_reclaim import scratch_reclaim_loop
     leader_loops = [_session_monitor_loop, _service_health_loop, _metrics_db_loop, janitor_loop,
                     _lifecycle_loop,
                     partial(new_account_review_loop, async_session),
                     partial(digest_loop, async_session),
                     partial(account_deletion_loop, async_session),
+                    partial(scratch_reclaim_loop, async_session, instance_runtime()),
                     partial(profile_reclaim_loop, async_session, instance_runtime),
                     # Thumbnails live in the shared DB: one capturer avoids PK races (#99).
                     partial(service_thumbnail_loop, async_session, _settings.SCREENSHOT_CACHE_DIR)]
