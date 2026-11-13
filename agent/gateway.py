@@ -29,6 +29,7 @@ import seat_scale
 import yarl
 from aiohttp import web
 from multidict import CIMultiDict
+from gateway_idlelock import IdleLock
 from gateway_webrtc import KILL_SUFFIX, WebRTCGateway
 from gateway_ws import same_origin
 from viewers import StallClock, Viewers, split_vid  # noqa: F401
@@ -104,7 +105,9 @@ def create_app(user: str, password: str,
                idle_lead_s: int = 60, idle_enabled: bool = False,
                seat_dir: str = "", icon_dir: str = "",
                transport: str = "", max_session_s: int = 0,
-               webrtc_off: bool = False) -> web.Application:
+               webrtc_off: bool = False, lock_idle_s: int = 0,
+               unlock_url: str = "", unlock_key: str = "",
+               instance_id: str = "") -> web.Application:
     # The supervisor can promote a warm standby selkies on a refit: the live
     # port is then in <seat_dir>/selkies-port, re-read per request.
     port_file = os.path.join(seat_dir, "selkies-port") if seat_dir else ""
@@ -277,6 +280,9 @@ def create_app(user: str, password: str,
         except OSError:
             pass  # occupancy is advisory; never break the stream over it
 
+    lock = IdleLock(lock_idle_s, unlock_url, unlock_key, instance_id,
+                    active=lambda: conns["n"] + wrtc.n, log=log)
+
     def mark_frame():
         """First video frame of this session -> viewer no longer starving.
         Every frame also stamps `last_frame`, the mid-session stall clock."""
@@ -386,6 +392,17 @@ def create_app(user: str, password: str,
                             break
                     await dst.close()
 
+                async def lock_watch():
+                    """Lock (not close) once this tab sent no input for lock_idle_s."""
+                    if lock_idle_s <= 0:
+                        return
+                    while not ws_server.closed:
+                        idle = lock.idle_for(opened, rec.last_input)
+                        if idle >= lock_idle_s:
+                            await lock.lock()
+                            return
+                        await asyncio.sleep(min(1.0, lock_idle_s - idle))
+
                 async def idle_closer():
                     """Authoritative idle timeout: close the client socket once
                     this tab sent no input for idle_timeout_s. Ends the pumps."""
@@ -453,12 +470,13 @@ def create_app(user: str, password: str,
                 # controller owns the size at once. Shared (`role=viewer`) sockets
                 # never send `r,` and never own.
                 rec = attach(vid, ws_server, shared)
+                lock.register(ws_server)
                 log(f"ws open vid={vid[:8]} role={'viewer' if shared else 'controller'} "
                     f"from={peer} (n={conns['n']})")
 
                 await asyncio.gather(pump(ws_server, ws_client, on_activity=on_client),
                                      pump(ws_client, ws_server, on_binary=mark_frame),
-                                     idle_closer(),
+                                     idle_closer(), lock_watch(),
                                      return_exceptions=True)
             finally:
                 conns["n"] -= 1
@@ -466,6 +484,7 @@ def create_app(user: str, password: str,
                     log(f"ws close vid={vid[:8]} code={ws_server.close_code} "
                         f"after {int(time.time() - opened)}s (n={conns['n']})")
                 transports.pop(ws_server, None)
+                lock.unregister(ws_server)
                 detach(vid, ws_server, rec)
                 _write_state()
                 await ws_client.close()
@@ -621,11 +640,13 @@ def create_app(user: str, password: str,
     gm = wrtc.gamemode = GameMode(viewers, size_owner, submit_size, bool(seat_dir), log)
     _write_state()   # reset any stale count from a previous gateway run
 
-    app = web.Application(middlewares=[auth_mw], client_max_size=0)
+    app = web.Application(middlewares=[auth_mw, lock.middleware], client_max_size=0)
     for path in ("/api/websockets", "/websockets", "/websocket"):
         app.router.add_get(path, ws_proxy)
     wrtc.install(app)
     app.router.add_post("/styx/gamemode", gm.handle)
+    app.router.add_get("/styx/unlock", lock.handle_unlock)
+    app.router.add_get("/styx/state", lock.handle_state)
     app.router.add_get("/", index)
     app.router.add_get("/styx-favicon", styx_favicon)
     if files_dir and os.path.isdir(files_dir):
@@ -650,12 +671,16 @@ def main() -> None:
     transport = os.environ.get("STYX_GW_TRANSPORT", "")
     max_session_s = int(os.environ.get("STYX_GW_MAX_SESSION_S", "0") or "0")
     webrtc_off = os.environ.get("STYX_GW_WEBRTC_OFF", "") == "1"
+    lock_idle_s = int(os.environ.get("STYX_GW_LOCK_IDLE_S", "0") or "0")
     web.run_app(create_app(user, password, upstream_port, files_dir,
                            state_file=state_file, idle_timeout_s=idle_timeout_s,
                            idle_lead_s=idle_lead_s, idle_enabled=idle_enabled,
                            seat_dir=seat_dir, icon_dir=icon_dir,
                            transport=transport, max_session_s=max_session_s,
-                           webrtc_off=webrtc_off),
+                           webrtc_off=webrtc_off, lock_idle_s=lock_idle_s,
+                           unlock_url=os.environ.get("STYX_GW_UNLOCK_URL", ""),
+                           unlock_key=os.environ.get("STYX_GW_UNLOCK_KEY", ""),
+                           instance_id=os.environ.get("STYX_GW_INSTANCE_ID", "")),
                 host="0.0.0.0", port=listen_port)
 
 
