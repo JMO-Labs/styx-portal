@@ -50,6 +50,11 @@ async def require_admin(request: Request, user: User = Depends(get_current_user)
     return user
 
 
+def can_takeover(user: User) -> bool:
+    """ADR-0026: only platform-admin or help-desk (admin role counts as platform-admin)."""
+    return user.role == "admin" or user.staff_role in ("platform-admin", "help-desk")
+
+
 def require_owner_or_admin(owner_id: str | None, user: User) -> None:
     if user.role == "admin":
         return

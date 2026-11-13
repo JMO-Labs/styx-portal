@@ -32,7 +32,8 @@ from aiohttp import web
 from multidict import CIMultiDict
 from gateway_idlelock import IdleLock
 from gateway_webrtc import KILL_SUFFIX, WebRTCGateway
-from gateway_dlp import allow_message
+from gateway_dlp import allow_message, safe_record
+from gateway_report import build_reporter
 from gateway_ws import same_origin
 from viewers import StallClock, Viewers, split_vid  # noqa: F401
 from gateway_html import (  # noqa: F401  (re-exported for tests)
@@ -110,7 +111,8 @@ def create_app(user: str, password: str,
                webrtc_off: bool = False, lock_idle_s: int = 0,
                unlock_url: str = "", unlock_key: str = "",
                instance_id: str = "",
-               dlp_policy: dict | None = None) -> web.Application:
+               dlp_policy: dict | None = None,
+               dlp_reporter=None) -> web.Application:
     # The supervisor can promote a warm standby selkies on a refit: the live
     # port is then in <seat_dir>/selkies-port, re-read per request.
     port_file = os.path.join(seat_dir, "selkies-port") if seat_dir else ""
@@ -382,9 +384,11 @@ def create_app(user: str, password: str,
 
                 async def pump(src, dst, direction, on_activity=None, on_binary=None):
                     async for msg in src:
-                        if (msg.type in (aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY)
-                                and not allow_message(msg.data, direction, dlp_policy)):
-                            continue    # DLP (gateway_dlp)
+                        if msg.type in (aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY):
+                            ok = allow_message(msg.data, direction, dlp_policy)
+                            safe_record(dlp_reporter, msg.data, direction, ok)
+                            if not ok:
+                                continue    # DLP (gateway_dlp)
                         if msg.type == aiohttp.WSMsgType.TEXT:
                             out = on_activity(msg.data) if on_activity else None
                             if out is True:
@@ -673,6 +677,7 @@ def main() -> None:
     max_session_s = int(os.environ.get("STYX_GW_MAX_SESSION_S", "0") or "0")
     webrtc_off = os.environ.get("STYX_GW_WEBRTC_OFF", "") == "1"
     lock_idle_s = int(os.environ.get("STYX_GW_LOCK_IDLE_S", "0") or "0")
+    dlp_reporter = build_reporter()
     web.run_app(create_app(user, password, upstream_port, files_dir,
                            state_file=state_file, idle_timeout_s=idle_timeout_s,
                            idle_lead_s=idle_lead_s, idle_enabled=idle_enabled,
@@ -681,7 +686,8 @@ def main() -> None:
                            webrtc_off=webrtc_off, lock_idle_s=lock_idle_s,
                            unlock_url=os.environ.get("STYX_GW_UNLOCK_URL", ""),
                            unlock_key=os.environ.get("STYX_GW_UNLOCK_KEY", ""),
-                           instance_id=os.environ.get("STYX_GW_INSTANCE_ID", "")),
+                           instance_id=os.environ.get("STYX_GW_INSTANCE_ID", ""),
+                           dlp_reporter=dlp_reporter),
                 host="0.0.0.0", port=listen_port)
 
 
