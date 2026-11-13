@@ -136,3 +136,30 @@ async def test_audit_events(member_client, session):
     assert [r.action for r in rows] == [
         "smartcard.token.mint", "smartcard.redeem.fail", "smartcard.redeem.ok"]
     assert tok not in str([r.detail for r in rows])
+
+
+@pytest.mark.asyncio
+async def test_redeem_unknown_token_service(session):
+    from app.services import smartcard_tokens as svc
+    row, reason = await svc.redeem(session, "no-such-token", "i", "u")
+    assert (row, reason) == (None, "unknown")
+
+
+@pytest.mark.asyncio
+async def test_redeem_lost_consume_race(member_client, session, monkeypatch):
+    """A concurrent redeemer wins the atomic UPDATE; we must report 'used'."""
+    from sqlalchemy.sql.dml import Update
+    from app.services import smartcard_tokens as svc
+    me = await _me(member_client)
+    iid = await _inst(session, me["id"])
+    tok = await _mint(member_client, iid)
+    real_exec = session.exec
+
+    async def racing_exec(stmt, *a, **kw):
+        if isinstance(stmt, Update):
+            await real_exec(stmt)  # the competing redeemer consumes first
+        return await real_exec(stmt, *a, **kw)
+
+    monkeypatch.setattr(session, "exec", racing_exec)
+    row, reason = await svc.redeem(session, tok, iid, me["username"])
+    assert row is not None and reason == "used"
