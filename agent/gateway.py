@@ -26,11 +26,13 @@ import refit
 from codecpref import inject_codecpref
 from gamemode import GameMode
 import seat_scale
+import session_events
 import yarl
 from aiohttp import web
 from multidict import CIMultiDict
 from gateway_idlelock import IdleLock
 from gateway_webrtc import KILL_SUFFIX, WebRTCGateway
+from gateway_dlp import allow_message
 from gateway_ws import same_origin
 from viewers import StallClock, Viewers, split_vid  # noqa: F401
 from gateway_html import (  # noqa: F401  (re-exported for tests)
@@ -107,10 +109,13 @@ def create_app(user: str, password: str,
                transport: str = "", max_session_s: int = 0,
                webrtc_off: bool = False, lock_idle_s: int = 0,
                unlock_url: str = "", unlock_key: str = "",
-               instance_id: str = "") -> web.Application:
+               instance_id: str = "",
+               dlp_policy: dict | None = None) -> web.Application:
     # The supervisor can promote a warm standby selkies on a refit: the live
     # port is then in <seat_dir>/selkies-port, re-read per request.
     port_file = os.path.join(seat_dir, "selkies-port") if seat_dir else ""
+    events_path = (os.path.join(os.path.dirname(state_file), session_events.NAME)
+                   if state_file else "")
 
     def live_port() -> int:
         try:
@@ -240,6 +245,7 @@ def create_app(user: str, password: str,
         """Register a stream socket for `vid`; a controller claims or takes the size."""
         rec = viewers.connect(vid, ws)
         rec.vid, rec.shared = vid, shared
+        events_path and session_events.record(events_path, "connect", vid)
         if seat_dir and not shared:
             if size_owner.owner and size_owner.owner != vid:
                 set_owner(vid)
@@ -249,6 +255,7 @@ def create_app(user: str, password: str,
 
     def detach(vid, ws, rec):
         if rec and viewers.disconnect(vid, ws):
+            events_path and session_events.record(events_path, "disconnect", vid)
             rec.timer and rec.timer.cancel()
             # Not released at once: a refit reconnect brings the same vid back.
             rec.gone = asyncio.get_running_loop().call_later(OWNER_GRACE_S, expire, vid)
@@ -373,8 +380,11 @@ def create_app(user: str, password: str,
                 transports[ws_server] = request.transport
                 stall = StallClock(time.time())
 
-                async def pump(src, dst, on_activity=None, on_binary=None):
+                async def pump(src, dst, direction, on_activity=None, on_binary=None):
                     async for msg in src:
+                        if (msg.type in (aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY)
+                                and not allow_message(msg.data, direction, dlp_policy)):
+                            continue    # DLP (gateway_dlp)
                         if msg.type == aiohttp.WSMsgType.TEXT:
                             out = on_activity(msg.data) if on_activity else None
                             if out is True:
@@ -465,8 +475,8 @@ def create_app(user: str, password: str,
 
                 # Viewers never send input: only controllers arm the global lock.
                 watch = [] if shared else [lock.watch(ws_server, opened, rec)]
-                await asyncio.gather(pump(ws_server, ws_client, on_activity=on_client),
-                                     pump(ws_client, ws_server, on_binary=mark_frame),
+                await asyncio.gather(pump(ws_server, ws_client, "in", on_activity=on_client),
+                                     pump(ws_client, ws_server, "out", on_binary=mark_frame),
                                      idle_closer(), *watch, return_exceptions=True)
             finally:
                 conns["n"] -= 1
