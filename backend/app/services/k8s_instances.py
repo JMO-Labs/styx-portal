@@ -1,5 +1,6 @@
 """Instance runtime on Kubernetes: same method names as DockerManager."""
 import logging
+import time
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
@@ -26,6 +27,7 @@ class K8sInstanceRuntime:
         self._c = client or incluster_client()
         self._ns = Settings().K8S_INSTANCE_NAMESPACE
         self._digests: dict[str, str | None] = {}
+        self._launches: dict[str, dict] = {}
 
     # images: the kubelet pulls
     def image_exists(self, image: str) -> bool:
@@ -83,18 +85,23 @@ class K8sInstanceRuntime:
             logger.info("k8s: ignoring container options %s", sorted(ignored))
         if posix_uid is not None:
             ensure_home(self._c, posix_uid, self._ns)
+        t_start = time.monotonic()
+        timings: dict = {}
         objs = build_objects(
                 name, image, environment, volumes, port, self._ns, network or "",
                 gpu_enabled=gpu_enabled, gpu_count=gpu_count, memory_limit=memory_limit,
                 cpu_limit=cpu_limit, shm_size=shm_size, cap_add=cap_add,
                 read_only_rootfs=read_only_rootfs, tmpfs=tmpfs, extra_hosts=extra_hosts,
                 entrypoint=entrypoint, command=command, posix_uid=posix_uid,
-                egress_mode=egress_mode, home_read_only=home_read_only)
+                egress_mode=egress_mode, home_read_only=home_read_only, timings=timings)
+        t_apply = time.monotonic()
         for obj in objs:
             self._c.apply(obj)
             if obj["kind"] == "Deployment":
                 img = obj["spec"]["template"]["spec"]["containers"][0]["image"]
                 self._digests[name] = image_digest.digest_of(img)
+        self._launches[name] = {"t0": t_start, "digest_s": timings.get("digest_s", 0.0),
+                                "apply_s": time.monotonic() - t_apply}
         return name
 
     def pinned_digest(self, name: str) -> str | None:
@@ -105,6 +112,18 @@ class K8sInstanceRuntime:
 
     def start_container(self, name: str) -> None:
         self._patch(name, {"spec": {"replicas": 1}})
+        if name in self._launches:
+            self._launches[name]["t_started"] = time.monotonic()
+
+    def _log_launch(self, name: str) -> None:
+        """One `launch_phases` line when a fresh launch first reports running."""
+        ph = self._launches.get(name)
+        if not ph or "t_started" not in ph:
+            return
+        del self._launches[name]
+        now = time.monotonic()
+        logger.info("launch_phases digest_s=%.3f apply_s=%.3f ready_s=%.3f total_s=%.3f",
+                    ph["digest_s"], ph["apply_s"], now - ph["t_started"], now - ph["t0"])
 
     def stop_container(self, name: str) -> None:
         self._patch(name, {"spec": {"replicas": 0}})
@@ -145,6 +164,7 @@ class K8sInstanceRuntime:
         if ready:
             pods = self._pods(name)
             started = (pods[0].get("status") or {}).get("startTime", "") if pods else ""
+            self._log_launch(name)
             return {"status": "running", "started_at": started}
         return {"status": "created", "detail": self._not_ready_reason(name)}
 

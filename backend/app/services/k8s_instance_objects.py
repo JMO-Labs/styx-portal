@@ -1,6 +1,7 @@
 """Pure builders for instance Deployments/Services/PVCs (no I/O)."""
 import logging
 import re
+import time
 
 from app.config import Settings
 from app.services import image_digest
@@ -96,10 +97,14 @@ def build_objects(name, image, env, volumes, port, ns, owner, *, gpu_enabled=Fal
                   gpu_count=1, memory_limit=None, cpu_limit=None, shm_size=None,
                   cap_add=None, read_only_rootfs=False, tmpfs=None, extra_hosts=None,
                   entrypoint=None, command=None, posix_uid: int | None = None,
-                  egress_mode=None, home_read_only: bool = False) -> list[dict]:
+                  egress_mode=None, home_read_only: bool = False,
+                  timings: dict | None = None) -> list[dict]:
     if "/" not in image:
         image = Settings().K8S_DESKTOP_IMAGE
+    t0 = time.monotonic()
     image = image_digest.resolve_digest(image)
+    if timings is not None:
+        timings["digest_s"] = time.monotonic() - t0
     cfg = Settings()
     memory_limit = memory_limit or cfg.CPU_TIER_MEMORY
     cpu_limit = cpu_limit or cfg.CPU_TIER_CPU
