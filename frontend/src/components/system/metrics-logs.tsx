@@ -58,7 +58,7 @@ export function MetricsLogs() {
           aria-label="Instance"
           value={selectedId ?? ""}
           onChange={(e) => { setSelectedId(e.target.value); setLiveTail(false); }}
-          className="rounded-md border border-border bg-background px-3 py-1.5 pointer-coarse:py-2.5 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[180px]"
+          className="rounded-md border border-input bg-background px-3 py-1.5 pointer-coarse:py-2.5 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[180px]"
         >
           <option value="" disabled>Select instance…</option>
           {instances?.map((inst) => (
@@ -92,7 +92,7 @@ export function MetricsLogs() {
             placeholder="Filter logs…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-md border border-border bg-background pl-7 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="w-full rounded-md border border-input bg-background pl-7 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </div>
 

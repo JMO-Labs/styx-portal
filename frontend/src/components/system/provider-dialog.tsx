@@ -188,7 +188,7 @@ export function ProviderDialog({ open, onOpenChange, editing }: Props) {
 
           <Field label="Type">
             <select
-              className="w-full rounded-md border border-border bg-background p-2 text-sm"
+              className="w-full rounded-md border border-input bg-background p-2 text-sm"
               value={form.kind}
               onChange={set("kind")}
               disabled={!!editing}
