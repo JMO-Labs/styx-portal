@@ -18,7 +18,7 @@ from app.security.passwords import hash_password, verify_password, validate_pass
 from app.security.cookies import (DEVICE_COOKIE, TX_PATH, clear_auth_cookies, set_auth_cookies,
                                   set_device_cookie)
 from app.security.csrf import new_csrf_token, CSRF_COOKIE
-from app.security.deps import get_current_user
+from app.security.deps import can_takeover, get_current_user
 from app.security.setup_gate import users_exist
 from app.services import federation, login_flow, single_use, stream_sessions
 from app.services.audit import audit_request
@@ -340,6 +340,7 @@ def _me_out(user: User) -> UserOut:
 async def _me_full(session: AsyncSession, user: User) -> UserOut:
     out = _me_out(user)
     out.can_use_gpu = await user_may_use_gpu(session, user)
+    out.can_takeover = can_takeover(user)
     return out
 
 

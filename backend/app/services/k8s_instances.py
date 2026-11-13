@@ -1,5 +1,6 @@
 """Instance runtime on Kubernetes: same method names as DockerManager."""
 import logging
+import time
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
@@ -12,6 +13,17 @@ from app.services.k8s_instance_objects import build_objects, parse_qty, pvc
 
 logger = logging.getLogger("styx-portal")
 _APPS = "apps/v1"
+# Launch timings shared across runtimes: instance_runtime() builds a new
+# K8sInstanceRuntime per call, so the readiness poller sees a fresh object.
+_LAUNCHES: dict[str, dict] = {}
+_LAUNCH_TTL_S = 3600.0
+
+
+def _prune_launches() -> None:
+    """Drop launches that never became ready (failed, timed out)."""
+    cutoff = time.monotonic() - _LAUNCH_TTL_S
+    for k in [k for k, v in _LAUNCHES.items() if v["t0"] < cutoff]:
+        _LAUNCHES.pop(k, None)
 
 
 class K8sUnsupported(HTTPException, NotImplementedError):
@@ -83,6 +95,8 @@ class K8sInstanceRuntime:
             logger.info("k8s: ignoring container options %s", sorted(ignored))
         if posix_uid is not None:
             ensure_home(self._c, posix_uid, self._ns)
+        t_start = time.monotonic()
+        timings: dict = {}
         objs = build_objects(
                 name, image, environment, volumes, port, self._ns, network or "",
                 gpu_enabled=gpu_enabled, gpu_count=gpu_count, memory_limit=memory_limit,
@@ -90,12 +104,16 @@ class K8sInstanceRuntime:
                 read_only_rootfs=read_only_rootfs, tmpfs=tmpfs, extra_hosts=extra_hosts,
                 entrypoint=entrypoint, command=command, posix_uid=posix_uid,
                 egress_mode=egress_mode, home_read_only=home_read_only,
-                client=self._c)
+                timings=timings, client=self._c)
+        t_apply = time.monotonic()
         for obj in objs:
             self._c.apply(obj)
             if obj["kind"] == "Deployment":
                 img = obj["spec"]["template"]["spec"]["containers"][0]["image"]
                 self._digests[name] = image_digest.digest_of(img)
+        _prune_launches()
+        _LAUNCHES[name] = {"t0": t_start, "digest_s": timings.get("digest_s", 0.0),
+                           "apply_s": time.monotonic() - t_apply}
         return name
 
     def pinned_digest(self, name: str) -> str | None:
@@ -106,6 +124,18 @@ class K8sInstanceRuntime:
 
     def start_container(self, name: str) -> None:
         self._patch(name, {"spec": {"replicas": 1}})
+        if name in _LAUNCHES:
+            _LAUNCHES[name]["t_started"] = time.monotonic()
+
+    def _log_launch(self, name: str) -> None:
+        """One `launch_phases` line when a fresh launch first reports running."""
+        ph = _LAUNCHES.get(name)
+        if not ph or "t_started" not in ph:
+            return
+        _LAUNCHES.pop(name, None)
+        now = time.monotonic()
+        logger.info("launch_phases digest_s=%.3f apply_s=%.3f ready_s=%.3f total_s=%.3f",
+                    ph["digest_s"], ph["apply_s"], now - ph["t_started"], now - ph["t0"])
 
     def stop_container(self, name: str) -> None:
         self._patch(name, {"spec": {"replicas": 0}})
@@ -121,6 +151,7 @@ class K8sInstanceRuntime:
     unpause_container = pause_container
 
     def remove_container(self, name: str) -> None:
+        _LAUNCHES.pop(name, None)
         self._c.delete(_APPS, "Deployment", self._ns, name)
         self._c.delete("v1", "Service", self._ns, name)
 
@@ -146,6 +177,7 @@ class K8sInstanceRuntime:
         if ready:
             pods = self._pods(name)
             started = (pods[0].get("status") or {}).get("startTime", "") if pods else ""
+            self._log_launch(name)
             return {"status": "running", "started_at": started}
         return {"status": "created", "detail": self._not_ready_reason(name)}
 

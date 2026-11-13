@@ -14,7 +14,7 @@ troubleshoot) are in the Operate section.
 | `styx_agent.py` | Supervisor: heartbeat, config, restarts, `run`/`status`/`doctor`/`rollback`/`uninstall` |
 | `agent_procs.py` | Child-process helpers, restart planning, gateway command/env |
 | `engine.py` | Pure builders for the selkies command, encoder probe, audio/sink helpers |
-| `gateway.py`, `gateway_html.py`, `gateway_ws.py`, `gateway_dlp.py`, `gateway_webrtc.py`, `viewers.py`, `refit.py` | The gateway, WebSocket pass-through, WebRTC session tracking, per-tab bookkeeping |
+| `gateway.py`, `gateway_html.py`, `gateway_ws.py`, `gateway_dlp.py`, `gateway_report.py`, `gateway_webrtc.py`, `viewers.py`, `refit.py` | The gateway, WebSocket pass-through, WebRTC session tracking, per-tab bookkeeping |
 | `gamemode.py`, `codecpref.py` | Game-mode size pin (`POST /styx/gamemode`); WebRTC hardware-codec-first page shim |
 | `xwl_eager.c`, `xwl_eager.py` | LD_PRELOAD shim (built by `scripts/build_xwl_eager.sh`, shipped base64) that makes mutter start Xwayland eagerly |
 | `seat_gnome.py`, `seat_portal.py`, `seat_systemd.py`, `seat_scale.py`, `seat_clipboard.py`, `seat_thumb*.py` | Headless GNOME seat |

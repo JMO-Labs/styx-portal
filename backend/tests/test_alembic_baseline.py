@@ -4,7 +4,7 @@ from sqlmodel import SQLModel
 from app.db_migrate import alembic_config, migrate
 from tests.db_helpers import diff_vs_models, downgrade_base, scalar, table_names
 
-HEAD = "0015_merge_ops_access_review"
+HEAD = "0017_merge_ops_enterprise"
 
 
 def test_naming_convention_set():

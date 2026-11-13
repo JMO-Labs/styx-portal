@@ -83,7 +83,9 @@ def _build(path):
 def test_kustomize_build():
     kinds = {(d["kind"], d["metadata"]["name"]) for d in _build(ENT)}
     assert not kinds & HOMELAB_ONLY
-    assert not {k for k, _ in kinds} & {"CronJob", "PersistentVolumeClaim"}
+    assert not {k for k, _ in kinds} & {"CronJob"}
+    # Only the static CephFS homes claim (#267); no homelab data/backup PVCs.
+    assert {n for k, n in kinds if k == "PersistentVolumeClaim"} == {"styx-homes"}
     be = [d for d in _build(ENT) if d["kind"] == "Deployment" and d["metadata"]["name"] == "backend"]
     assert be[0]["spec"]["replicas"] == 3
     assert ("CronJob", "styx-db-backup") in {(d["kind"], d["metadata"]["name"])
@@ -261,7 +263,8 @@ def test_backend_patch_multi_replica():
     assert spec["strategy"] == {"type": "RollingUpdate",
                                 "rollingUpdate": {"maxSurge": 1, "maxUnavailable": 0}}
     ann = _pod()["metadata"]["annotations"]
-    assert ann["secret.reloader.stakater.com/reload"] == "styx-db-app,styx-secrets,styx-matrix-notify"
+    assert ann["secret.reloader.stakater.com/reload"] == (
+        "styx-db-app,styx-secrets,styx-matrix-notify,styx-archive-s3")
     (tsc,) = _pod()["spec"]["topologySpreadConstraints"]
     assert tsc["topologyKey"] == "kubernetes.io/hostname"
     assert _container()["startupProbe"]["failureThreshold"] == 60
