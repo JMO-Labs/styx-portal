@@ -2,7 +2,6 @@ import logging
 
 import httpx
 
-from app.services import k8s_instances
 from tests.test_k8s_instances import DEP, PODS, Rec, _create
 
 READY = {"metadata": {"generation": 1}, "spec": {"replicas": 1},
