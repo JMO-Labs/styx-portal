@@ -74,3 +74,4 @@ All ADRs were accepted 2026-11-09 (owner approval, Rounds 1-5; issue #1). One AD
 | [D67](0068-keycloak-deployment-details-crl-metrics-breakglass-alert-group-mirroring.md) | Keycloak deployment details: CRL metrics, break-glass alert, group mirroring | Proposed | IA-2, IA-5(2), AC-2, AC-6, AC-8, AU-6 |
 | [D68](0069-image-supply-chain-implementation-choices.md) | Image supply chain implementation choices | Proposed | SI-2, SI-7, CM-14, RA-5 |
 | [D69](0070-dlp-policy-enforcement-and-event-shipping.md) | DLP policy enforcement and event shipping | Proposed | AC-4, SC-7, AU-2, AU-12 |
+| [D70](0071-offboarding-and-access-review-implementation-choices.md) | Offboarding and access-review implementation choices | Proposed | AC-2, AC-2(3), AC-2(4), PS-4 |
