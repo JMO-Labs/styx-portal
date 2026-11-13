@@ -42,10 +42,11 @@ for i in $(seq 1 "$N"); do
   t=$(awk -v s="$start" -v e="$end" 'BEGIN{printf "%.3f", e-s}')
   echo "pod $name create->Ready ${t}s" >&2
   times+=("$t")
-  sed "s/__NAME__/$name/g" "$DIR/pod.yaml" | kubectl delete -f - --wait=true --timeout=120s >&2
+  retry kubectl delete -f <(sed "s/__NAME__/$name/g" "$DIR/pod.yaml") \
+    --ignore-not-found --wait=true --timeout=120s >&2
 done
 
-kubectl delete -f "$DIR/prepull-daemonset.yaml" --wait=false >&2 || true
+retry kubectl delete -f "$DIR/prepull-daemonset.yaml" --ignore-not-found --wait=false >&2 || true
 
 mapfile -t sorted < <(printf '%s\n' "${times[@]}" | sort -n)
 p50=$(percentile 50 "${sorted[@]}")
