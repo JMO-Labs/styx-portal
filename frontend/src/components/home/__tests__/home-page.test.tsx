@@ -39,7 +39,7 @@ describe("HomePage", () => {
     renderHome();
     await screen.findByText("mini");
     const names = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-    expect(names).toEqual(["Recent", "Desktops", "Apps", "Containers"]);
+    expect(names).toEqual(["Recent", "My desktops", "My services", "Containers"]);
   });
 
   test("New container button sits in the Containers heading row", async () => {

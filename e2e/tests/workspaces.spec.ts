@@ -10,7 +10,7 @@ test("first app open asks, remember new tab, second open goes straight to a new 
   await expect(p.getByRole("button", { name: "Log out" })).toBeVisible();
   await apiCall(ctx, "PUT", "/api/auth/me/preferences", { open_apps: null, open_workspaces: null });
   await p.goto("/");
-  const tile = p.getByRole("region", { name: "Apps" }).getByRole("link", { name: "Open Sonarr" });
+  const tile = p.getByRole("region", { name: "My services" }).getByRole("link", { name: "Open Sonarr" });
   await tile.click();
   const dlg = p.getByRole("dialog", { name: "Open Sonarr" });
   await expect(dlg.getByRole("checkbox", { name: "Remember for all apps" })).toBeChecked();
@@ -34,10 +34,10 @@ test("dock switches between Apps and Workspaces", async ({ browser }) => {
   await p.goto("/_styx/app/sonarr/");
   await p.locator('[aria-label="Open the Styx menu (Alt+Shift+S)"]').click();
   const dock = p.getByRole("dialog");
-  await expect(dock.getByRole("tab", { name: "Apps" })).toHaveAttribute("aria-selected", "true");
+  await expect(dock.getByRole("tab", { name: "My services" })).toHaveAttribute("aria-selected", "true");
   await dock.getByRole("tab", { name: "Workspaces" }).click();
   await expect(dock.getByText("No workspaces yet")).toBeVisible(); // the e2e stack has no workstations or instances
-  await dock.getByRole("tab", { name: "Apps" }).click();
+  await dock.getByRole("tab", { name: "My services" }).click();
   await expect(dock.getByRole("link", { name: /Sonarr/ })).toBeVisible();
   await ctx.close();
 });

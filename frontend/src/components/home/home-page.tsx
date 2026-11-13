@@ -8,6 +8,7 @@ import { useHomeStorage } from "@/hooks/use-home-storage";
 import { useTemplates } from "@/hooks/use-templates";
 import { useOpenInstance, useWorkstationConnect } from "@/hooks/use-open-actions";
 import { OPENED_EVENT, readOpened, recentItems, recordOpened, type RecentItem } from "@/lib/recents";
+import { AnnouncementsList } from "./announcements-list";
 import { AppsGrid } from "./apps-grid";
 import { ContainerRows } from "./container-rows";
 import { DesktopTiles } from "./desktop-tiles";
@@ -57,15 +58,16 @@ export function HomePage({ onNewContainer, onOpenSettings }: { onNewContainer: (
         <SectionHead title="Recent" />
         <RecentStrip items={recents} onAct={actOnRecent} />
       </section>
-      <section aria-label="Desktops">
-        <SectionHead title="Desktops" />
+      <section aria-label="My desktops">
+        <SectionHead title="My desktops" />
         {error && <p role="alert" className="mb-2 text-xs text-destructive">{error}</p>}
         <DesktopTiles workstations={workstations} onConnect={connect} onDetails={(ws) => setDetail({ kind: "desktop", ws })} />
       </section>
-      <section aria-label="Apps">
-        <SectionHead title="Apps" />
+      <section aria-label="My services">
+        <SectionHead title="My services" />
         <AppsGrid onOpenSettings={onOpenSettings} />
       </section>
+      <AnnouncementsList />
       <section aria-label="Containers">
         <SectionHead
           title="Containers"

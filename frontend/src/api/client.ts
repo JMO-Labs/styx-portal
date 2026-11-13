@@ -13,6 +13,7 @@ export type Workstation = {
   in_use: boolean; in_use_by: string | null; in_use_self: boolean;
   icon_kind: "auto" | "emoji" | "image"; icon_etag: string;
 };
+export type Announcement = { id: string; title: string; body: string; kind: "info" | "maintenance"; starts_at: string; ends_at: string | null };
 export type BypassRule = {
   path_prefix: string; required_header: string | null;
   header_prefix?: string | null; required_query?: string | null;
@@ -381,6 +382,7 @@ export const api = {
   listArchive: () => request<ArchiveFile[]>("/archive"),
   restoreArchive: (path: string) => request<unknown>("/archive/restore", { method: "POST", body: JSON.stringify({ relpath: path }) }),
   sendToArchive: (path: string) => request<unknown>("/archive/send", { method: "POST", body: JSON.stringify({ relpath: path }) }),
+  listAnnouncements: () => request<Announcement[]>("/announcements/active"),
   listNotices: () => request<Notice[]>("/notices"),
   dismissNotice: (id: string) => request<void>(`/notices/${encodeURIComponent(id)}/dismiss`, { method: "POST" }),
   getHomeStorage: () => request<HomeStorage>("/me/storage"),
