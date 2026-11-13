@@ -7,9 +7,10 @@ export const OUTSIDER = { username: "bob", password: "Styx-e2e-Outsider-Cobalt-M
 export const STYX_COOKIES = ["access_token", "refresh_token", "styx_proxy", "csrf_token", "styx_svc"];
 export const SHOTS = "screenshots";
 
-/** First-run setup code, read from the backend's data volume (POST /api/auth/setup needs it). */
+/** First-run setup code: a singleton row in the backend DB (POST /api/auth/setup needs it). */
 export function setupCode(): string {
-  return execFileSync("docker", ["compose", "-p", "styx-e2e", "exec", "-T", "backend", "cat", "/app/data/setup-token"],
+  const py = "import sqlite3;print(sqlite3.connect('/app/data/styx-portal.db').execute('select token from setup_tokens where id=1').fetchone()[0])";
+  return execFileSync("docker", ["compose", "-p", "styx-e2e", "exec", "-T", "backend", "python", "-c", py],
     { stdio: "pipe" }).toString().trim();
 }
 
