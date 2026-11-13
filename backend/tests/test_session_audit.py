@@ -1,27 +1,14 @@
 """record_session_event: SessionEvent row + one ECS styx.audit line (#235)."""
-import io
-import json
-import logging
-
 import pytest
 from sqlmodel import select
 
-from app.models import Group, Instance, SessionEvent, User, UserGroup
+from app.models import Group, Instance, ServiceTemplate, SessionEvent, User, UserGroup
 from app.services.session_audit import record_session_event
 from tests.test_instances_api import (  # noqa: F401  fixtures
-    _make_owned_instance, shared_docker, template_id,
+    _make_owned_instance,
+    shared_docker,
+    template_id,
 )
-
-
-@pytest.fixture
-def lines():
-    buf = io.StringIO()
-    h = logging.StreamHandler(buf)
-    h.setFormatter(logging.Formatter("%(message)s"))
-    log = logging.getLogger("styx.audit")
-    log.addHandler(h)
-    yield lambda: [json.loads(ln) for ln in buf.getvalue().splitlines() if ln]
-    log.removeHandler(h)
 
 
 def _session_only(evs):
@@ -33,10 +20,11 @@ async def _inst(session, digest="sha256:abc"):
     user = User(username="ann", email="ann@example.com", password_hash="x")
     session.add(user)
     grp = Group(name="devs")
-    session.add(grp)
+    tmpl = ServiceTemplate(name="t", display_name="t", image="x:latest")
+    session.add_all([grp, tmpl])
     await session.flush()
     session.add(UserGroup(user_id=user.id, group_id=grp.id))
-    inst = Instance(owner_id=user.id, template_id="t", name="i1", subdomain="s1", image_digest=digest)
+    inst = Instance(owner_id=user.id, template_id=tmpl.id, name="i1", subdomain="s1", image_digest=digest)
     session.add(inst)
     await session.commit()
     return user, inst
@@ -114,7 +102,6 @@ async def test_router_emits_session_line(admin_client, session, lines,
 async def test_background_launch_emits_session_launch(session, lines):
     from unittest.mock import patch
 
-    from app.models import ServiceTemplate
     from app.routers.instances import _launch_instance_background
     from tests.test_instance_image_digest import runtime
 
