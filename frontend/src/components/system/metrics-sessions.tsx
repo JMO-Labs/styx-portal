@@ -10,6 +10,8 @@ import {
   useUnpauseInstance,
   useDeleteInstance,
 } from "@/hooks/use-instances";
+import { useAuth } from "@/hooks/use-auth";
+import { TakeoverDialog, endTakeoverFor } from "@/components/system/takeover-dialog";
 import { useSessionEvents } from "@/hooks/use-system";
 import { openPending } from "@/lib/connect-wipe";
 import { useOpenChoice } from "@/components/open-prompt";
@@ -25,6 +27,8 @@ import {
   ChevronDown,
   Filter,
   ExternalLink,
+  UserCog,
+  UserX,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -37,6 +41,11 @@ export function MetricsSessions() {
   const [filter, setFilter] = useState<string>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [destroyTarget, setDestroyTarget] = useState<Instance | null>(null);
+  const [takeTarget, setTakeTarget] = useState<Instance | null>(null);
+  const [taken, setTaken] = useState<Set<string>>(new Set());
+  const canTakeover = !!useAuth().user?.can_takeover;
+  const setTakenId = (id: string, on: boolean) =>
+    setTaken((p) => { const n = new Set(p); if (on) n.add(id); else n.delete(id); return n; });
 
   const filtered = instances?.filter((inst) => {
     if (filter === "all") return true;
@@ -97,11 +106,22 @@ export function MetricsSessions() {
                 expanded={expandedId === inst.id}
                 onToggle={() => setExpandedId(expandedId === inst.id ? null : inst.id)}
                 onDestroyClick={(inst) => setDestroyTarget(inst)}
+                canTakeover={canTakeover}
+                takenOver={taken.has(inst.id)}
+                onTakeover={() => setTakeTarget(inst)}
+                onEndTakeover={() => endTakeoverFor(inst.id).then(
+                  () => { setTakenId(inst.id, false); toast.success(`Ended takeover of "${inst.name}"`); },
+                  (e: Error) => toast.error(e.message))}
               />
             ))
           )}
         </div>
       </div>
+
+      {takeTarget && (
+        <TakeoverDialog open instance={takeTarget} onOpenChange={(o) => !o && setTakeTarget(null)}
+          onStarted={() => setTakenId(takeTarget.id, true)} />
+      )}
 
       {/* Destroy confirmation dialog */}
       {destroyTarget && (
@@ -155,11 +175,19 @@ function SessionRow({
   expanded,
   onToggle,
   onDestroyClick,
+  canTakeover,
+  takenOver,
+  onTakeover,
+  onEndTakeover,
 }: {
   instance: Instance;
   expanded: boolean;
   onToggle: () => void;
   onDestroyClick: (inst: Instance) => void;
+  canTakeover: boolean;
+  takenOver: boolean;
+  onTakeover: () => void;
+  onEndTakeover: () => void;
 }) {
   const start = useStartInstance();
   const stop = useStopInstance();
@@ -214,6 +242,9 @@ function SessionRow({
           {isRunning && (
             <>
               <ActionBtn icon={ExternalLink} color="success" title="Connect" onClick={connect} />
+              {canTakeover && (takenOver
+                ? <ActionBtn icon={UserX} color="warning" title="End takeover" onClick={onEndTakeover} />
+                : <ActionBtn icon={UserCog} color="blue" title="Take over" onClick={onTakeover} />)}
               <ActionBtn icon={RotateCcw} color="blue" title="Restart" onClick={() => restart.mutate(instance.id, { onError: (e) => toast.error(e.message) })} />
               <ActionBtn icon={Pause} color="warning" title="Pause" onClick={() => pause.mutate(instance.id, { onError: (e) => toast.error(e.message) })} />
               <ActionBtn icon={Square} color="destructive" title="Stop" onClick={() => stop.mutate(instance.id, { onError: (e) => toast.error(e.message) })} />

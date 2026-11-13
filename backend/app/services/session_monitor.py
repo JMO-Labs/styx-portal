@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.models import Instance, SessionEvent
 from app.services.docker_manager import DockerManager
+from app.services.session_audit import record_session_event
 
 _DURATION_RE = re.compile(r"^(\d+)(s|m|h)$")
 
@@ -46,12 +47,6 @@ class SessionMonitor:
             instance.status = "stopped"
             instance.stopped_at = now
             session.add(instance)
-            event = SessionEvent(
-                instance_id=instance.id,
-                event_type="auto_stopped",
-                details={"idle_seconds": idle_duration.total_seconds()},
-            )
-            session.add(event)
             actions.append("auto_stopped")
 
         elif instance.status == "running" and idle_duration > idle_timeout:
@@ -66,6 +61,15 @@ class SessionMonitor:
             actions.append("idle_warning")
 
         return actions
+
+    async def record_auto_stop(self, session, instance: Instance) -> None:
+        """Row + ECS ``session.stop`` (reason idle) for an instance check_instance stopped."""
+        last = instance.last_activity or instance.started_at or instance.stopped_at
+        if last is not None and last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        idle = (instance.stopped_at - last).total_seconds() if last and instance.stopped_at else 0
+        await record_session_event(session, instance, "auto_stopped", action="session.stop",
+                                   reason="idle", details={"idle_seconds": idle})
 
     def check_all(self, session, instances: list[Instance]) -> dict[str, list[str]]:
         results = {}

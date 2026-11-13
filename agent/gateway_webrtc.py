@@ -44,7 +44,7 @@ class Session:
 class WebRTCGateway:
     def __init__(self, *, transport: str, idle_s: int, idle_enabled: bool, max_session_s: int,
                  hold_s: float, viewers, seat: bool, live_port, write_state, touch, kill_path,
-                 attach, detach, submit_size, submit_dpi, log=print, webrtc_off: bool = False):
+                 attach, detach, submit_size, submit_dpi, log=print, webrtc_off: bool = False, lock=None):
         self.transport = transport if transport == "webrtc" else "websockets"
         self.idle_s = idle_s if idle_enabled and idle_s > 0 else 0
         self.max_s, self.hold_s = max_session_s, hold_s
@@ -55,6 +55,7 @@ class WebRTCGateway:
         self.attach, self.detach, self.submit_size, self.log = attach, detach, submit_size, log
         self.submit_dpi = submit_dpi
         self.gamemode = None
+        self.lock = lock               # IdleLock (ADR-0039) or None
         self.webrtc_off = webrtc_off   # TURN budget reached: no WebRTC at all
 
     @property
@@ -102,6 +103,19 @@ class WebRTCGateway:
                 Path(self.kill_path).write_text(why)
             except OSError:
                 pass
+
+    async def lock_all(self) -> None:
+        """Idle lock: close every signaling socket and drop the peer connection."""
+        from gateway_idlelock import LOCK_CODE
+        dropped = False
+        for s in self.sessions.values():
+            if not s.socks:
+                continue
+            s.dead = dropped = True
+            for w in list(s.socks):
+                await w.close(code=LOCK_CODE, message=b"locked")
+        if dropped:
+            self.kill("locked")
 
     # -- HTTP beacons --------------------------------------------------------
     @staticmethod
@@ -204,6 +218,8 @@ class WebRTCGateway:
             finally:
                 s.socks.discard(down)
                 s.gone_at = time.time()
+                if self.lock:
+                    self.lock.stamp_disconnect()
                 self.detach(sid, down, rec)
                 self.write_state()
                 self.log(f"webrtc close sid={sid[:8]} (n={self.n})")
@@ -212,6 +228,11 @@ class WebRTCGateway:
 
     async def _watch(self, s: Session, down) -> None:
         while not down.closed:
+            lk = self.lock
+            if lk and lk.idle_s > 0 and not lk.locked:
+                if lk.idle_for(s.opened, s.last_activity) >= lk.idle_s:
+                    await lk.lock()
+                    return
             why = self.expired(s, time.time())
             if why:
                 self.log(f"webrtc {why} sid={s.sid[:8]}: closing and restarting selkies")
@@ -220,4 +241,4 @@ class WebRTCGateway:
                     await w.close(code=FINAL_CODE, message=why.encode())
                 self.kill(why)
                 return
-            await asyncio.sleep(min(1.0, self.idle_s or 1.0))
+            await asyncio.sleep(min(1.0, self.idle_s or 1.0, (self.lock.idle_s if self.lock and self.lock.idle_s > 0 else 1.0)))
