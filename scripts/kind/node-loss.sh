@@ -79,12 +79,9 @@ eff=$(kubectl get node "$victim" -o jsonpath='{.spec.taints[?(@.key=="node.kuber
 
 echo "waiting for pod on another node"
 for i in $(seq 48); do
-  # the taint should evict the pod; if it is still untouched after 60s, delete
-  # it (graceful) so the out-of-service GC can force-remove it from the dead node
-  if [ "$i" = 12 ]; then
-    kubectl -n "$NS" get pod -l app=home -o wide
-    kubectl -n "$NS" delete pod -l app=home --wait=false || true
-  fi
+  # the taint alone must evict the pod (ADR-0054); no manual delete fallback.
+  # diagnostic only, so a failure is easy to read
+  [ "$i" = 12 ] && kubectl -n "$NS" get pod -l app=home -o wide
   new=$(kubectl -n "$NS" get pod -l app=home --field-selector=status.phase=Running \
     -o json | jq -r '.items[] | select(.metadata.deletionTimestamp==null) | .spec.nodeName' | head -1)
   [ -n "$new" ] && [ "$new" != "$victim" ] && break
