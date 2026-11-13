@@ -33,6 +33,7 @@ export function LaunchStep({ target, onClose }: { target: LaunchTarget; onClose:
   const [idle, setIdle] = useState<Idle>(template?.session_config?.never_timeout ? "keep" : "stop");
   const [saveSetup, setSaveSetup] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [nameError, setNameError] = useState("");
   const [tmplGpu, setTmplGpu] = useState(true);
   // New launches: cfg is the single source for GPU (preset seeds it, Advanced can edit it).
   const useGpu = template ? tmplGpu : cfg.gpuEnabled;
@@ -56,7 +57,8 @@ export function LaunchStep({ target, onClose }: { target: LaunchTarget; onClose:
   }, [preset?.id, template]);
 
   async function launch() {
-    if (!cfg.name.trim() || !cfg.image.trim()) { toast.error("Name and image required"); return; }
+    if (!cfg.name.trim() || !cfg.image.trim()) { setNameError("Name and image required"); return; }
+    setNameError("");
     setBusy(true);
     try {
       const data = cfg.buildTemplateData();
@@ -87,7 +89,9 @@ export function LaunchStep({ target, onClose }: { target: LaunchTarget; onClose:
             <div className="min-w-0"><strong className="block text-lg">{image?.name ?? template?.display_name ?? cfg.name}</strong><div className="truncate text-[13.5px] text-muted-foreground">{cfg.image}</div></div>
           </div>
           <label className="grid gap-1.5 text-sm font-medium">Name
-            <Input value={cfg.name} onChange={(e) => { cfg.setName(e.target.value); cfg.setSubdomain(slugify(e.target.value)); }} />
+            <Input value={cfg.name} aria-invalid={nameError ? true : undefined} aria-describedby={nameError ? "launch-name-error" : undefined}
+              onChange={(e) => { setNameError(""); cfg.setName(e.target.value); cfg.setSubdomain(slugify(e.target.value)); }} />
+            {nameError && <span id="launch-name-error" role="alert" className="text-[13px] font-normal text-destructive">{nameError}</span>}
           </label>
           {template ? (
             <p className="text-sm text-muted-foreground">Size comes from this setup: {template.cpu_limit ?? "default"} cores, {template.memory_limit ?? "default"}{template.gpu_enabled ? ", GPU" : ""}.</p>
@@ -97,7 +101,7 @@ export function LaunchStep({ target, onClose }: { target: LaunchTarget; onClose:
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {presets.map((p) => (
                   <button key={p.id} type="button" aria-pressed={p.id === presetId} onClick={() => setPresetId(p.id)}
-                    className="rounded-[10px] border border-border bg-card p-2.5 text-left text-[13px] text-muted-foreground aria-pressed:border-transparent aria-pressed:shadow-[0_0_0_1.5px_#C9A04E]">
+                    className="rounded-[10px] border border-border bg-card p-2.5 text-left text-[13px] text-muted-foreground aria-pressed:border-transparent aria-pressed:shadow-[0_0_0_1.5px_#C9A04E] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                     <strong className="block text-sm text-foreground">{p.label}</strong>{p.cpus} cores, {p.memory_gb} GB{p.gpu ? ", GPU" : ""}
                   </button>
                 ))}
@@ -108,7 +112,7 @@ export function LaunchStep({ target, onClose }: { target: LaunchTarget; onClose:
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="size-4 accent-primary" checked={keepProfile} onChange={(e) => setKeepProfile(e.target.checked)} /> Keep my profile between sessions</label>
           )}
           <label className="grid gap-1.5 text-sm font-medium">When idle
-            <select value={idle} onChange={(e) => setIdle(e.target.value as Idle)} className="rounded-lg border border-border bg-card px-3 py-2">
+            <select value={idle} onChange={(e) => setIdle(e.target.value as Idle)} className="rounded-lg border border-border bg-card px-3 py-2 focus-visible:outline-2 focus-visible:outline-ring">
               <option value="stop">Stop after 30 min</option>
               <option value="keep">Keep running</option>
             </select>
@@ -118,7 +122,7 @@ export function LaunchStep({ target, onClose }: { target: LaunchTarget; onClose:
           )}
           {!template && (
             <details>
-              <summary className="cursor-pointer text-sm text-muted-foreground">Advanced: environment, volumes, ports, resources</summary>
+              <summary className="cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-ring text-sm text-muted-foreground">Advanced: environment, volumes, ports, resources</summary>
               <div className="mt-2 space-y-4">
                 {image && <p className="text-[13px] text-muted-foreground">Prefilled from the LinuxServer image docs.</p>}
                 <label className="grid gap-1.5 text-sm font-medium">Address

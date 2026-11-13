@@ -71,7 +71,7 @@ export function ConnectingPage() {
     <div className="fixed inset-0" style={{ background: "#0c1730" }}>
       <WaveTransition show label={target?.label || "Connecting…"} onDone={done} />
       {!target && (
-        <div className="flex h-full items-center justify-center text-sm text-white/70">
+        <div role="alert" className="flex h-full items-center justify-center text-sm text-white/70">
           Invalid connection link.
         </div>
       )}

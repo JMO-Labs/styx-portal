@@ -10,6 +10,8 @@ import aiohttp
 import yarl
 from aiohttp import web
 
+from gateway_dlp import allow_message
+
 
 def same_origin(request) -> bool:
     """Cross-site WebSocket hijacking guard: browsers replay cached Basic auth
@@ -24,8 +26,13 @@ def same_origin(request) -> bool:
     return o.host == h.host and o.explicit_port == h.explicit_port
 
 
-async def pump(src, dst):
+async def pump(src, dst, direction=None, policy=None):
+    """Relay src to dst. With a direction ("in"/"out"), messages the DLP policy
+    forbids are dropped (gateway_dlp); without one nothing is filtered."""
     async for msg in src:
+        if (direction and msg.type in (aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY)
+                and not allow_message(msg.data, direction, policy)):
+            continue
         if msg.type == aiohttp.WSMsgType.TEXT:
             await dst.send_str(msg.data)
         elif msg.type == aiohttp.WSMsgType.BINARY:
@@ -35,7 +42,7 @@ async def pump(src, dst):
     await dst.close()
 
 
-async def raw_ws_proxy(request, upstream_url: str):
+async def raw_ws_proxy(request, upstream_url: str, policy=None):
     if request.headers.get("Upgrade", "").lower() != "websocket":
         return web.Response(status=426, text="websocket upgrade required")
     if not same_origin(request):
@@ -47,6 +54,7 @@ async def raw_ws_proxy(request, upstream_url: str):
             return web.Response(status=502, text="stream backend unavailable")
         down = web.WebSocketResponse(max_msg_size=0)
         await down.prepare(request)
-        await asyncio.gather(pump(down, up), pump(up, down), return_exceptions=True)
+        await asyncio.gather(pump(down, up, "in", policy),
+                             pump(up, down, "out", policy), return_exceptions=True)
         await up.close()
         return down
