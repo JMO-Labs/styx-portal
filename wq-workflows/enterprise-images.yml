@@ -1,0 +1,65 @@
+# Build the enterprise base image and golden images (ADR-0028/0057).
+# Build-only: no registry push, signing or SBOM (ADR-0029).
+name: enterprise-images
+
+on:
+  push:
+    branches: [enterprise]
+    paths:
+      - "images/enterprise-base/**"
+      - "patches/selkies/**"
+      - "scripts/apply_selkies_patches.sh"
+      - "images/golden/**"
+      - ".github/workflows/enterprise-images.yml"
+  pull_request:
+    branches: [enterprise]
+    paths:
+      - "images/enterprise-base/**"
+      - "patches/selkies/**"
+      - "scripts/apply_selkies_patches.sh"
+      - "images/golden/**"
+      - ".github/workflows/enterprise-images.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: enterprise-images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      BASE_TAG: styx-enterprise-base:ci-${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Resolve ubuntu:24.04 digest
+        id: digest
+        run: |
+          set -euo pipefail
+          d=$(docker buildx imagetools inspect ubuntu:24.04 --format '{{json .Manifest}}' | jq -r .digest)
+          [[ "$d" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "bad digest: $d"; exit 1; }
+          echo "ubuntu:24.04@$d"
+          echo "value=$d" >> "$GITHUB_OUTPUT"
+
+      - name: Build enterprise base
+        run: |
+          set -euo pipefail
+          docker build --pull \
+            --build-arg UBUNTU_DIGEST=${{ steps.digest.outputs.value }} \
+            -f images/enterprise-base/Dockerfile \
+            -t "$BASE_TAG" .
+
+      - name: Build golden base-office
+        run: docker build --build-arg BASE_IMAGE="$BASE_TAG" -t styx-golden-base-office:ci images/golden/base-office
+
+      - name: Build golden developer
+        run: docker build --build-arg BASE_IMAGE="$BASE_TAG" -t styx-golden-developer:ci images/golden/developer
+
+      - name: Build golden browser-only
+        run: docker build --build-arg BASE_IMAGE="$BASE_TAG" -t styx-golden-browser-only:ci images/golden/browser-only

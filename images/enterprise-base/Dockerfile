@@ -14,7 +14,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # No sudo, no setuid helpers are installed.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates curl python3 python3-pip python3-venv \
+        ca-certificates curl patch python3 python3-pip python3-venv \
         xwayland labwc pulseaudio libgl1 libegl1 libopus0 fonts-dejavu-core \
     && { find / -xdev -perm /6000 -type f -exec chmod a-s {} + 2>/dev/null || true; } \
     && rm -rf /var/lib/apt/lists/*
@@ -25,12 +25,20 @@ RUN python3 -m venv /opt/selkies \
         "pixelflux==${PIXELFLUX_VERSION}" \
         "pcmflux==${PCMFLUX_VERSION}"
 
+# Build context is the repo root (docker build -f images/enterprise-base/Dockerfile .).
+# Fails the build if any patch in the series does not apply.
+COPY patches/selkies/ /opt/selkies-patches/
+COPY --chmod=0755 scripts/apply_selkies_patches.sh /usr/local/bin/apply_selkies_patches.sh
+RUN SELKIES_PATCH_DIR=/opt/selkies-patches /usr/local/bin/apply_selkies_patches.sh \
+        "$(/opt/selkies/bin/python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
+    && rm -rf /opt/selkies-patches /usr/local/bin/apply_selkies_patches.sh
+
 # Ubuntu 24.04 ships uid 1000 ("ubuntu"); replace it with our user.
 RUN userdel -r ubuntu 2>/dev/null || true \
     && groupadd -g 1000 styx \
     && useradd -u 1000 -g 1000 -m -d /home/styx -s /bin/bash styx
 
-COPY --chmod=0755 root/usr/local/bin/styx-start /usr/local/bin/styx-start
+COPY --chmod=0755 images/enterprise-base/root/usr/local/bin/styx-start /usr/local/bin/styx-start
 
 EXPOSE 8082
 # Health URL: http://localhost:8082/
