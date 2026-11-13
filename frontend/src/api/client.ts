@@ -63,6 +63,12 @@ export type DiscoveredContainer = {
 export type OpenMode = "new_tab" | "same_tab";
 export type Me = { id: string; username: string; email: string | null; role: string;
   open_workspaces: OpenMode | null; open_apps: OpenMode | null; must_change_pw?: boolean; can_use_gpu?: boolean; can_takeover?: boolean; staff_role?: string };
+export type AdminUserRow = { id: string; username: string; email: string | null; staff_role: string };
+export type AdminUserDetail = AdminUserRow & {
+  display_name: string; groups: string[]; created_at: string | null; last_login: string | null;
+  storage: { used_bytes: number | null; quota_bytes: number | null; percent: number | null; warn: boolean };
+  sessions: { id: string; template: string; started_at: string | null; node: string | null }[];
+};
 export type AdminSession = { id: string; owner: string | null; template: string; image: string; started_at: string | null; node: string | null };
 export type AdminCapacity = { running: number; max_per_user: number | null; limit: number | null; live_streams: number; per_node: Record<string, number> };
 export type EgressMode = "category" | "allowlist";
@@ -278,6 +284,8 @@ export function expiredLoginUrl(pathname: string, search: string): string {
 
 export const api = {
   adminSessions: () => request<{ sessions: AdminSession[] }>("/admin/console/sessions"),
+  adminUsers: () => request<{ users: AdminUserRow[] }>("/admin/console/users"),
+  adminUser: (id: string) => request<AdminUserDetail>(`/admin/console/users/${id}`),
   adminCapacity: () => request<AdminCapacity>("/admin/console/capacity"),
   listServices: () => request<ProxiedService[]>("/services"),
   /** Role-dependent shape: tiles for members, full services for admins. Always fetch fresh. */

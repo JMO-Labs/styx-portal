@@ -4,7 +4,10 @@ import { useAuth } from "@/hooks/use-auth";
 import { CapacityPage } from "./capacity-page";
 import { navFor } from "./nav";
 import { NoAccess } from "./no-access";
+import { PolicyEditor } from "./policy-editor";
 import { SessionsPage } from "./sessions-page";
+import { UserDetail } from "./user-detail";
+import { UsersPage } from "./users-page";
 
 const Soon = ({ name }: { name: string }) => <p className="text-sm text-muted-foreground">{name} is coming soon.</p>;
 
@@ -32,7 +35,10 @@ export function AdminConsole() {
               <Route index element={<Navigate to="sessions" replace />} />
               <Route path="sessions" element={<SessionsPage />} />
               <Route path="capacity" element={<CapacityPage />} />
-              {items.filter((n) => !["sessions", "capacity"].includes(n.to)).map((n) => (
+              <Route path="users" element={<UsersPage />} />
+              <Route path="users/:id" element={<UserDetail />} />
+              <Route path="policy" element={<PolicyEditor />} />
+              {items.filter((n) => !["sessions", "capacity", "users", "policy"].includes(n.to)).map((n) => (
                 <Route key={n.to} path={n.to} element={<Soon name={n.label} />} />
               ))}
               <Route path="*" element={<Navigate to="sessions" replace />} />

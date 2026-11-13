@@ -14,6 +14,7 @@ from app.services.settings_store import settings
 
 router = APIRouter()
 staff = require_staff_role("platform-admin", "help-desk", "auditor")
+user_staff = require_staff_role("platform-admin", "help-desk")
 
 
 def _node() -> str | None:
@@ -57,6 +58,14 @@ async def capacity(user: User = Depends(staff), session: AsyncSession = Depends(
         "live_streams": live,
         "per_node": dict(Counter(node or "unknown" for _ in rows)),
     }
+
+
+@router.get("/users")
+async def users_list(user: User = Depends(user_staff),
+                     session: AsyncSession = Depends(get_session)):
+    rows = (await session.exec(select(User).order_by(col(User.username)))).all()
+    return {"users": [{"id": u.id, "username": u.username, "email": u.email,
+                       "staff_role": u.staff_role} for u in rows]}
 
 
 @router.get("/users/{user_id}")
