@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, timezone
 
 import pytest
 from sqlmodel import select
@@ -50,7 +50,7 @@ async def test_mint_owner_only_and_hashed(member_client, session):
     row = (await session.exec(select(SmartcardToken))).one()
     assert row.token_hash != body["token"] and body["token"] not in row.token_hash
     assert (row.user_id, row.instance_id) == (me["id"], iid)
-    assert timedelta(seconds=100) < row.expires_at - _now() <= timedelta(seconds=120)
+    assert timedelta(seconds=100) < row.expires_at.replace(tzinfo=timezone.utc) - _now() <= timedelta(seconds=120)
 
 
 @pytest.mark.asyncio

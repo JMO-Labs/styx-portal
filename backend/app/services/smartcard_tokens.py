@@ -1,7 +1,7 @@
 """Per-session one-time smart-card relay tokens (ADR-0041). Only a SHA-256 hash is stored."""
 import hashlib
 import secrets
-from datetime import timedelta
+from datetime import timedelta, timezone
 
 from sqlalchemy import update
 from sqlmodel import select
@@ -33,7 +33,7 @@ async def redeem(session: AsyncSession, token: str, instance_id: str,
         return None, "unknown"
     if row.used_at is not None:
         return row, "used"
-    if row.expires_at <= _now():
+    if row.expires_at.replace(tzinfo=timezone.utc) <= _now():
         return row, "expired"
     if row.instance_id != instance_id:
         return row, "instance_mismatch"
