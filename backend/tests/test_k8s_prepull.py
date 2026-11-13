@@ -66,7 +66,9 @@ async def test_sync_trusted_only_one_ds_per_image_and_prunes(session, monkeypatc
     await session.commit()
     with patch("app.services.k8s_api.incluster_client") as c:
         cl = c.return_value
-        cl.list_names.return_value = [pp.prepull_name("shared/x:1"), "styx-prepull-stale"]
+        stale = {"metadata": {"name": "styx-prepull-stale"}}
+        cl.list_items.return_value = [
+            {"metadata": {"name": pp.prepull_name("shared/x:1")}}, stale]
         await pp.sync_prepull(session)
     applied = {call[0][0]["metadata"]["name"]: call[0][0] for call in cl.apply.call_args_list}
     assert set(applied) == {pp.prepull_name("shared/x:1"), pp.prepull_name("admin/y:1")}
@@ -127,3 +129,68 @@ async def test_loop_syncs_every_interval(monkeypatch):
     with pytest.raises(asyncio.CancelledError):
         await pp.prepull_loop()
     assert sleeps == [3600] * 3 and len(calls) == 3
+
+
+def _ds(digest, ready, desired=2, repo="harbor.x/lib/desk", ts="2026-01-01T00:00:00Z"):
+    img = f"{repo}@sha256:{digest * 64}"
+    d = pp.build_prepull_daemonset(img, "styx-instances")
+    d["metadata"]["creationTimestamp"] = ts
+    d["status"] = {"numberReady": ready, "desiredNumberScheduled": desired}
+    return d
+
+
+def _resolved(d):
+    return f"harbor.x/lib/desk@sha256:{d * 64}"
+
+
+def _client(*items):
+    c = type("C", (), {})()
+    c.list_items = lambda *a: list(items)
+    return c
+
+
+def test_ready_digest_uses_resolved_when_ready():
+    c = _client(_ds("a", 2, ts="1"), _ds("b", 2, ts="2"))
+    assert pp.ready_digest(c, "styx-instances", _resolved("b")) == _resolved("b")
+
+
+def test_ready_digest_falls_back_to_newest_ready_older():
+    c = _client(_ds("a", 2, ts="1"), _ds("c", 2, ts="2"), _ds("b", 1, ts="3"))
+    assert pp.ready_digest(c, "styx-instances", _resolved("b")) == _resolved("c")
+
+
+def test_ready_digest_resolved_when_nothing_ready():
+    c = _client(_ds("a", 0), _ds("b", 1))
+    assert pp.ready_digest(c, "styx-instances", _resolved("b")) == _resolved("b")
+
+
+def test_ready_digest_unpinned_or_error_passthrough():
+    assert pp.ready_digest(_client(), "ns", "ghcr.io/a/x:1") == "ghcr.io/a/x:1"
+    c = type("C", (), {"list_items": lambda *a: 1 / 0})()
+    assert pp.ready_digest(c, "ns", _resolved("b")) == _resolved("b")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("new_ready,deleted", [(0, False), (2, True)])
+async def test_sync_keeps_old_ds_until_new_ready(session, monkeypatch, new_ready, deleted):
+    monkeypatch.setenv("ROUTE_BACKEND", "k8s")
+    session.add(ServiceTemplate(name="s", display_name="s", image="harbor.x/lib/desk:1",
+                                internal_port=3000))
+    await session.commit()
+    old, new = _ds("a", 2, ts="1"), _ds("b", new_ready, ts="2")
+    with patch("app.services.k8s_api.incluster_client") as c, \
+            patch("app.services.k8s_prepull.resolve_digest", return_value=_resolved("b")):
+        cl = c.return_value
+        cl.list_items.return_value = [old, new]
+        await pp.sync_prepull(session)
+    names = [x[0][3] for x in cl.delete.call_args_list]
+    assert (old["metadata"]["name"] in names) is deleted
+
+
+def test_build_objects_launches_ready_digest(monkeypatch):
+    from app.services.k8s_instance_objects import build_objects
+    monkeypatch.setenv("HARBOR_URL", "")
+    c = _client(_ds("a", 2, ts="1"), _ds("b", 0, ts="2"))
+    objs = build_objects("n", _resolved("b"), {}, [], 3000, "styx-instances", "o", client=c)
+    dep = next(o for o in objs if o["kind"] == "Deployment")
+    assert dep["spec"]["template"]["spec"]["containers"][0]["image"] == _resolved("a")
