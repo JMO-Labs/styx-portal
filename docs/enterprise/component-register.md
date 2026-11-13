@@ -1251,7 +1251,7 @@ outside `scope: service`, proprietary licenses without an ADR exception and a st
 | pypi | pathspec | 1.1.1 | MPL-2.0 | enterprise | free |  | pkg:pypi/pathspec@1.1.1 |
 | pypi | playwright | 1.65.0 | Apache-2.0 | enterprise | free |  | pkg:pypi/playwright@1.65.0 |
 | pypi | pluggy | 1.7.0 | MIT | enterprise | free |  | pkg:pypi/pluggy@1.7.0 |
-| pypi | prometheus-client | 0.26.0 | Apache-2.0 | enterprise | free |  | pkg:pypi/prometheus-client@0.26.0 |
+| pypi | prometheus-client | 0.26.0 | Apache-2.0 AND BSD-2-Clause | enterprise | free |  | pkg:pypi/prometheus-client@0.26.0 |
 | pypi | propcache | 0.5.4 | Apache-2.0 | enterprise | free |  | pkg:pypi/propcache@0.5.4 |
 | pypi | pycparser | 3.12 | BSD-3-Clause | enterprise | free |  | pkg:pypi/pycparser@3.12 |
 | pypi | pydantic | 2.14.2 | MIT | enterprise | free |  | pkg:pypi/pydantic@2.14.2 |
