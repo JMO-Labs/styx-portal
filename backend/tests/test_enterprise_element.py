@@ -49,6 +49,12 @@ def test_deployment_pinned_and_nonroot():
     assert spec["securityContext"]["runAsNonRoot"] is True
     assert spec["securityContext"]["runAsUser"] != 0
     assert spec["containers"][0]["securityContext"]["allowPrivilegeEscalation"] is False
+    c = spec["containers"][0]
+    env = {e["name"]: e["value"] for e in c["env"]}
+    port = c["ports"][0]["containerPort"]
+    assert int(env["ELEMENT_WEB_PORT"]) == port > 1024
+    mounts = {m["mountPath"] for m in c["volumeMounts"]}
+    assert {"/etc/nginx/conf.d", "/var/cache/nginx"} <= mounts
 
 
 def test_service_and_pdb_select_deployment():
@@ -80,6 +86,7 @@ def test_networkpolicy_ingress_controller_only_and_dns_egress():
     frm = np["ingress"][0]["from"]
     assert len(frm) == 1
     assert frm[0]["namespaceSelector"]["matchLabels"] == {"kubernetes.io/metadata.name": "traefik"}
+    assert np["egress"]
     for rule in np["egress"]:
         assert {(p["port"], p["protocol"]) for p in rule["ports"]} <= {(53, "UDP"), (53, "TCP")}
         assert rule["to"][0]["namespaceSelector"]["matchLabels"] == {"kubernetes.io/metadata.name": "kube-system"}
