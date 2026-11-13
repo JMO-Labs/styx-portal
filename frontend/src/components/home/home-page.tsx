@@ -57,10 +57,10 @@ export function HomePage({ onNewContainer, onOpenSettings }: { onNewContainer: (
       </section>
       <section aria-label="Desktops">
         <SectionHead title="Desktops" />
-        {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
+        {error && <p role="alert" className="mb-2 text-xs text-destructive">{error}</p>}
         <DesktopTiles workstations={workstations} onConnect={connect} onDetails={(ws) => setDetail({ kind: "desktop", ws })} />
       </section>
-      <section>
+      <section aria-label="Apps">
         <SectionHead title="Apps" />
         <AppsGrid onOpenSettings={onOpenSettings} />
       </section>

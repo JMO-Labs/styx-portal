@@ -37,6 +37,8 @@ async def init_db():
     async with async_session() as session:
         await seed_templates(session, settings.TEMPLATES_DIR)
         await seed_service_presets(session, settings.SERVICE_PRESETS_DIR)
+        from app.services.enterprise_services import seed_enterprise_services
+        await seed_enterprise_services(session)
 
 
 async def get_session():

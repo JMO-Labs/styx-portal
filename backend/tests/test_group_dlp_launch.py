@@ -64,7 +64,7 @@ async def test_launch_overrides_dlp_wins_over_template(session):
     await session.commit()
     session.add(UserGroup(user_id=u.id, group_id=g.id))
     await session.commit()
-    inst = NS(owner_id=u.id)
+    inst = NS(owner_id=u.id, id="i1")
     tpl = NS(memory_limit=None, cpu_limit=None,
              env_vars={"SELKIES_ENABLE_CLIPBOARD": "true", "SELKIES_CLIPBOARD_ENABLED": "true",
                        "SELKIES_FILE_TRANSFERS": "upload,download",
