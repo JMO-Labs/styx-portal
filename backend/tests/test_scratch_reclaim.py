@@ -13,7 +13,7 @@ async def _inst(session, name, *, status="stopped", age_days=8, vols=("s1", "s2"
     u = (await session.exec(select(User).where(User.username == "sr"))).first()
     if not u:
         u = User(username="sr", password_hash="x", role="user")
-        t = ServiceTemplate(name="t", image="i")
+        t = ServiceTemplate(name="t", display_name="T", image="i")
         session.add_all([u, t])
         await session.commit()
     t = (await session.exec(select(ServiceTemplate))).first()
