@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     SELKIES_DEFAULT_PORT: int = 3001
     TEMPLATES_DIR: str = "/app/templates"
     SERVICE_PRESETS_DIR: str = "/app/templates/services"
+    WIKI_URL: str = ""     # enterprise: seeds a "My services" link when set
+    ELEMENT_URL: str = ""  # enterprise: same, for Element
     SCREENSHOT_CACHE_DIR: str = "/app/data/screenshots"
     SCREENSHOT_INTERVAL_SECONDS: int = 30
     SERVICE_THUMBNAIL_MAX_BYTES: int = 1_048_576  # reject larger service thumbnails
@@ -59,6 +61,7 @@ class Settings(BaseSettings):
     HARBOR_URL: str = ""   # empty = no digest pinning (ADR-0030)
     HARBOR_USER: str = ""
     HARBOR_PASSWORD: str = ""
+    PREPULL_INTERVAL_S: int = 3600  # image prepull sync loop
     CVE_RECYCLE_INTERVAL_S: int = 3600  # critical-CVE scan loop (ADR-0030)
     CVE_RECYCLE_GRACE_H: int = 24
     K8S_DESKTOP_IMAGE: str = "ghcr.io/jmo-labs/styx-desktop:latest"
@@ -104,6 +107,9 @@ class Settings(BaseSettings):
     SESSION_MAX_AGE: int = 2592000  # 30 days: absolute cap on a refresh family
     MATRIX_SESSION_MAX_HOURS: int = 12  # absolute cap on a session-only (card) family
     MATRIX_DIGEST_WEBHOOK_URL: str = ""  # daily new-account digest target; unset = skipped
+    MATRIX_NOTIFY_HOMESERVER: str = ""  # Matrix notify adapter; any of the three empty = off
+    MATRIX_NOTIFY_ROOM_ID: str = ""
+    MATRIX_NOTIFY_TOKEN: str = ""
     COOKIE_SECURE: bool = True
     DEV_CORS: bool = False          # allow the Vite dev origin (http://localhost:5173) with credentials
     ENABLE_DOCS: bool = False       # expose /docs, /redoc, /openapi.json (dev only)
@@ -233,3 +239,6 @@ class Settings(BaseSettings):
 
     def server_lan_url(self) -> str:
         return (self.SERVER_LAN_URL or f"https://{self.DOMAIN}").rstrip("/")
+
+
+settings = Settings()

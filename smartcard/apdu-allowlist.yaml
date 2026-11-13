@@ -1,0 +1,12 @@
+# APDU allowlist for PIV/CAC smart-card redirection.
+# Anything not matched here is denied. p1/p2 are optional; omitted = any.
+# signing: true => the user must confirm each use (private-key operations).
+version: 1
+entries:
+  - {name: SELECT,               cla: 0x00, ins: 0xA4, signing: false}
+  - {name: GET DATA,             cla: 0x00, ins: 0xCB, signing: false}
+  - {name: GET DATA (chained),   cla: 0x10, ins: 0xCB, signing: false}
+  - {name: GET RESPONSE,         cla: 0x00, ins: 0xC0, signing: false}
+  - {name: VERIFY,               cla: 0x00, ins: 0x20, signing: false}
+  - {name: GENERAL AUTHENTICATE, cla: 0x00, ins: 0x87, signing: true}
+  - {name: GENERAL AUTHENTICATE (chained), cla: 0x10, ins: 0x87, signing: true}

@@ -176,6 +176,14 @@ async def _run_migrations(conn):
         ("instances", "notice", "TEXT"),
         ("groups", "allow_gpu", "BOOLEAN DEFAULT 0"),
         ("groups", "egress_mode", "TEXT NOT NULL DEFAULT 'category'"),
+        ("groups", "dlp_clipboard_in", "BOOLEAN"),
+        ("groups", "dlp_clipboard_out", "BOOLEAN"),
+        ("groups", "dlp_upload", "BOOLEAN"),
+        ("groups", "dlp_download", "BOOLEAN"),
+        ("groups", "dlp_printing", "BOOLEAN"),
+        ("groups", "dlp_watermark", "BOOLEAN"),
+        ("groups", "dlp_approval_ref", "TEXT"),
+        ("groups", "dlp_approved_at", "DATETIME"),
     ]
     for table, column, col_type in migrations:
         try:
