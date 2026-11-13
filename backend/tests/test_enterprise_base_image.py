@@ -72,6 +72,12 @@ def test_vsmartcard_tarball_checksum_verified():
     assert not re.search(r"curl[^\n]*vsmartcard[^\n]*\n[^\n]*\|\s*tar", DOCKERFILE)
 
 
+def test_vpcd_stage_installs_python_for_configure():
+    # virtualsmartcard's configure aborts without a Python interpreter (>= 3.2).
+    stage = DOCKERFILE.split(" AS vpcd")[1].split("\nFROM ")[0]
+    assert re.search(r"\bpython3\b", stage.split("./configure")[0])
+
+
 def test_smartcard_smoke_avoids_procps_and_uses_ulong():
     smoke = (BASE.parents[1] / "scripts/kind/20-smartcard-smoke.sh").read_text()
     assert "pgrep" not in smoke
