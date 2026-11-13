@@ -1,4 +1,5 @@
 import { ChevronDown, UserRound } from "lucide-react";
+import { useTheme, type Theme } from "@/theme/ThemeProvider";
 import { toast } from "sonner";
 import { useOpenPrefs, useSavePrefs } from "@/components/open-prompt";
 import {
@@ -12,6 +13,7 @@ const ROWS = [["open_workspaces", "Workspaces"], ["open_apps", "Apps"]] as const
 export function OpeningMenu({ username, onLogout, onToggleTheme }: { username: string; onLogout?: () => void; onToggleTheme?: () => void }) {
   const { data: me, isPending } = useOpenPrefs();
   const save = useSavePrefs();
+  const { theme, setTheme } = useTheme();
   const set = (key: (typeof ROWS)[number][0], v: string) =>
     save.mutate({ [key]: v === "ask" ? null : v } as Parameters<typeof save.mutate>[0], {
       onSuccess: () => toast.success("Opening preference saved"),
@@ -42,6 +44,13 @@ export function OpeningMenu({ username, onLogout, onToggleTheme }: { username: s
             </DropdownMenuRadioGroup>
           </div>
         ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Theme</DropdownMenuLabel>
+        <DropdownMenuRadioGroup aria-label="Theme" value={theme} onValueChange={(v) => setTheme(v as Theme)}>
+          <DropdownMenuRadioItem value="system">System</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
         {(onLogout || onToggleTheme) && (
           <div className="md:hidden">
             <DropdownMenuSeparator />

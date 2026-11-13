@@ -11,7 +11,9 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { LoginBrandPanel } from "@/components/auth/LoginBrandPanel";
 import { friendlyLoginError } from "@/lib/auth-errors";
 import { safeNext } from "@/lib/safe-next";
-import { KeyRound, Loader2, Waves } from "lucide-react";
+import { KeyRound, Loader2 } from "lucide-react";
+import { useBranding } from "@/theme/branding";
+import { BrandMark } from "@/components/layout/brand-mark";
 import { useProfile } from "@/hooks/use-profile";
 
 export function LoginPage() {
@@ -29,6 +31,7 @@ export function LoginPage() {
     calmRects: () => [cardRef.current, logoRef.current].filter((e): e is HTMLDivElement => !!e).map((e) => e.getBoundingClientRect()),
   }), []);
   const nav = useNavigate();
+  const brand = useBranding();
   const { refresh, setupRequired, loading, user } = useAuth();
 
   // SameSite=Strict: a cross-site link to /sonarr/ lands here with
@@ -159,7 +162,7 @@ export function LoginPage() {
       <LoginBrandPanel />
       <section className="styx-auth-form login-form" data-testid="login-form-panel">
         <canvas ref={formCv} aria-hidden="true" />
-        <div ref={logoRef} className="login-logo" data-testid="login-logo"><Waves className="h-6 w-6" aria-hidden />STYX PORTAL</div>
+        <div ref={logoRef} className="login-logo" data-testid="login-logo"><BrandMark b={brand} className="h-6 w-6 object-contain" />{brand.brand_name}</div>
         <div ref={cardRef} className="login-card space-y-6">
           <div className="space-y-1 text-center">
             <h1 className="text-2xl font-semibold">Sign in</h1>
