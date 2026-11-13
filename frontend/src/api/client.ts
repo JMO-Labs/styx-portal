@@ -401,7 +401,9 @@ export const api = {
   getInstanceLogs: (instanceId: string) =>
     request<string[]>(`/instances/${instanceId}/logs`),
 
-  systemProfile: () => request<{ profile: string; disabled: string[] }>("/system/profile"),
+  systemProfile: () => request<{ profile: string; disabled: string[]; smartcard?: boolean }>("/system/profile"),
+  smartcardToken: (instanceId: string) =>
+    request<{ token: string; host: string }>(`/instances/${instanceId}/smartcard-token`, { method: "POST" }),
   setupRequired: () => request<{ setup_required: boolean; banner_url?: string }>("/auth/setup-required"),
   setupPreflight: () => request<SetupPreflight>("/auth/setup-preflight"),
   setup: (data: { username: string; email?: string; password: string; setup_token: string }) =>
