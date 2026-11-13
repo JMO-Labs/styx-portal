@@ -36,7 +36,8 @@ def test_file_transfers_and_watermark_off():
     env = dlp_env(p, username="a")
     assert env["SELKIES_FILE_TRANSFERS"] == "upload,download"
     assert "STYX_WATERMARK_USER" not in env
-    assert dlp_env({**DLP_DEFAULTS, "upload": False})["SELKIES_FILE_TRANSFERS"] == "none"
+    env = dlp_env({**DLP_DEFAULTS, "upload": False}, username="a")
+    assert env["SELKIES_FILE_TRANSFERS"] == "none"
 
 
 def test_watermark_is_bare_username():
