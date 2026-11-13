@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // Generic API stub: list*/discover* and known array endpoints -> [],
 // shaped endpoints -> minimal payload, everything else -> {}.
 vi.mock("@/api/client", () => {
-  const arrays = new Set(["getSystemSettings", "linkedProviders", "oauthProviders", "getMyProfiles"]);
+  const arrays = new Set(["getSystemSettings", "linkedProviders", "oauthProviders", "getMyProfiles", "accessReview"]);
   const shaped: Record<string, () => Promise<unknown>> = {
     listImages: async () => [{ id: "img1", image: "styx/desktop:latest", size_mb: 512, pulled_at: "2026-11-01T00:00:00Z" }],
     listOAuthProviders: async () => [{
