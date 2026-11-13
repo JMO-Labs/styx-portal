@@ -33,7 +33,7 @@ def main() -> None:
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(1))   # stop -> finally restores selkies
     user, pw = ab.creds()
     if a.variant:
-        ab.OVERRIDE.write_text(json.dumps({"args": ab.VARIANTS[a.variant]}))
+        ab.OVERRIDE.write_text(json.dumps({"args": ab.VARIANTS[a.variant], "cc_trace": True}))
         ab.restart_selkies(user, pw)
     since, end = time.strftime("%Y-%m-%d %H:%M:%S"), time.time() + a.minutes * 60
     trend, rows, firefox = probes.Sampler(every=10), [], ab.open_workload()

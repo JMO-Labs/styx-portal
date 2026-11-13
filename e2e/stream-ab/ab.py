@@ -283,7 +283,7 @@ def main() -> None:
     try:
         time.sleep(5)
         for v in a.variants.split(","):
-            OVERRIDE.write_text(json.dumps({"args": VARIANTS[v]}))
+            OVERRIDE.write_text(json.dumps({"args": VARIANTS[v], "cc_trace": True}))
             restart_selkies(user, pw)
             warm_up(user, pw)
             for p in [p for p in a.profiles.split(",") for _ in range(a.repeats)]:
@@ -293,7 +293,7 @@ def main() -> None:
                     print(f"ABORT: a user tab ({rows[-1]['foreign']}) connected; yielding the seat", flush=True)
                     return finish(rows)
         if a.fallback:
-            OVERRIDE.write_text(json.dumps({"args": VARIANTS["av1-30"]}))
+            OVERRIDE.write_text(json.dumps({"args": VARIANTS["av1-30"], "cc_trace": True}))
             restart_selkies(user, pw)
             warm_up(user, pw)
             rows.append(run_one("av1-30", "lan", user, pw, refuse="av01"))

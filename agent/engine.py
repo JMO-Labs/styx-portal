@@ -328,6 +328,14 @@ def apply_stream_override(argv: list, path: Path = STREAM_OVERRIDE) -> list:
     return argv + extra
 
 
+def cc_trace_enabled(path: Path = STREAM_OVERRIDE) -> bool:
+    """`cc_trace` in the override file: log STYX-CC lines (default off)."""
+    try:
+        return json.loads(path.read_text()).get("cc_trace") is True
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
 def packaged_web_root() -> str:
     """selkies' web client inside the installed package, found without importing it."""
     spec = importlib.util.find_spec("selkies")
@@ -357,7 +365,8 @@ def seat_selkies_main() -> None:
     input_handler.ScreenCapture = SeatCapture
     from selkies import websockets_mode
     from selkies.stream_server import CongestionSteer
-    shallow_pipe.trace_steer(websockets_mode.DataStreamingServer, websockets_mode, CongestionSteer)
+    shallow_pipe.trace_steer(websockets_mode.DataStreamingServer, websockets_mode, CongestionSteer,
+                             log_cc=cc_trace_enabled())
     import selkies
     shallow_pipe.owner_gate(websockets_mode._VideoRelay, websockets_mode, selkies.__version__)
     sys.exit(main())
