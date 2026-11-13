@@ -25,12 +25,20 @@ RUN python3 -m venv /opt/selkies \
         "pixelflux==${PIXELFLUX_VERSION}" \
         "pcmflux==${PCMFLUX_VERSION}"
 
+# Build context is the repo root (docker build -f images/enterprise-base/Dockerfile .).
+# Fails the build if any patch in the series does not apply.
+COPY patches/selkies/ /opt/selkies-patches/
+COPY --chmod=0755 scripts/apply_selkies_patches.sh /usr/local/bin/apply_selkies_patches.sh
+RUN SELKIES_PATCH_DIR=/opt/selkies-patches /usr/local/bin/apply_selkies_patches.sh \
+        "$(/opt/selkies/bin/python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
+    && rm -rf /opt/selkies-patches /usr/local/bin/apply_selkies_patches.sh
+
 # Ubuntu 24.04 ships uid 1000 ("ubuntu"); replace it with our user.
 RUN userdel -r ubuntu 2>/dev/null || true \
     && groupadd -g 1000 styx \
     && useradd -u 1000 -g 1000 -m -d /home/styx -s /bin/bash styx
 
-COPY --chmod=0755 root/usr/local/bin/styx-start /usr/local/bin/styx-start
+COPY --chmod=0755 images/enterprise-base/root/usr/local/bin/styx-start /usr/local/bin/styx-start
 
 EXPOSE 8082
 # Health URL: http://localhost:8082/

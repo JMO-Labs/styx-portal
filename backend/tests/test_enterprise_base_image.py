@@ -62,3 +62,9 @@ def test_apt_run_does_not_swallow_install_failure():
     assert "apt-get install" in run
     assert "{ find" in run and "|| true; }" in run
     assert "-exec chmod a-s {} + 2>/dev/null || true \\" not in run
+
+
+def test_dockerfile_applies_selkies_patches_after_pip_install():
+    assert "COPY patches/selkies/ /opt/selkies-patches/" in DOCKERFILE
+    assert "apply_selkies_patches.sh" in DOCKERFILE
+    assert DOCKERFILE.index("pip install") < DOCKERFILE.index("apply_selkies_patches.sh")
