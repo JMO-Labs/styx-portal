@@ -54,10 +54,14 @@ async def test_notices_and_last_used_up_and_down(scratch_engine):
 
     await migrate(scratch_engine)
     async with scratch_engine.connect() as conn:
-        insp = await conn.run_sync(lambda c: inspect(c))
+        notice_cols, prof = await conn.run_sync(
+            lambda c: (
+                {x["name"] for x in inspect(c).get_columns("notices")},
+                {x["name"]: x for x in inspect(c).get_columns("user_profiles")},
+            )
+        )
         assert {"id", "user_id", "kind", "key", "message", "due_at", "created_at",
-                "dismissed_at"} <= {c["name"] for c in insp.get_columns("notices")}
-        prof = {c["name"]: c for c in insp.get_columns("user_profiles")}
+                "dismissed_at"} <= notice_cols
         assert prof["last_used_at"]["nullable"]
 
     async with scratch_engine.begin() as conn:
