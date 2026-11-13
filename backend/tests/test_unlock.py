@@ -36,7 +36,7 @@ def test_pod_env_has_unlock_key():
 
 async def _inst(session, owner_name="member"):
     owner = (await session.exec(select(User).where(User.username == owner_name))).one()
-    t = ServiceTemplate(name="t", image="i", default_port=3000)
+    t = ServiceTemplate(name="t", display_name="T", image="i", default_port=3000)
     session.add(t)
     await session.commit()
     i = Instance(template_id=t.id, owner_id=owner.id, name="n", subdomain="abc")
