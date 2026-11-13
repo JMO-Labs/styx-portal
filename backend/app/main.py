@@ -41,12 +41,15 @@ from app.routers import group_dlp as group_dlp_router
 from app.routers import groups as groups_router
 from app.routers import announcements as announcements_router
 from app.routers import access_review as access_review_router
+from app.routers import takeover as takeover_router
 from app.routers import provision as provision_router
 from app.routers import profiles as profiles_router
 from app.routers import notices as notices_router
 from app.routers import me_storage as me_storage_router
+from app.routers import archive as archive_router
 from app.routers import services as services_router
 from app.routers import service_mounts as service_mounts_router
+from app.routers import smartcard as smartcard_router
 from app.routers import service_icons as service_icons_router
 from app.routers import services_auth as services_auth_router
 from app.security.deps import get_current_user, require_admin
@@ -69,7 +72,7 @@ _settings = Settings()
 
 _CSRF_EXEMPT = {"/api/auth/login", "/api/auth/login/matrix", "/api/auth/setup"}
 # /api/provision/: machine caller (mTLS + bearer), no cookies, so CSRF does not apply.
-_CSRF_EXEMPT_PREFIXES = ("/api/enroll/", "/api/agent/", "/api/provision/")
+_CSRF_EXEMPT_PREFIXES = ("/api/enroll/", "/api/agent/", "/api/provision/", "/api/smartcard/")
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):
@@ -172,13 +175,17 @@ async def lifespan(app: FastAPI):
 
     # Leader-only: boot steps run on every promotion, loops start after them.
     from app.services.account_deletion import account_deletion_loop
+    from app.services.profile_reclaim import profile_reclaim_loop
     from app.services.new_account_review import new_account_review_loop
     from app.services.new_account_digest import digest_loop
+    from app.services.scratch_reclaim import scratch_reclaim_loop
     leader_loops = [_session_monitor_loop, _service_health_loop, _metrics_db_loop, janitor_loop,
                     _lifecycle_loop,
                     partial(new_account_review_loop, async_session),
                     partial(digest_loop, async_session),
                     partial(account_deletion_loop, async_session),
+                    partial(scratch_reclaim_loop, async_session, instance_runtime()),
+                    partial(profile_reclaim_loop, async_session, instance_runtime),
                     # Thumbnails live in the shared DB: one capturer avoids PK races (#99).
                     partial(service_thumbnail_loop, async_session, _settings.SCREENSHOT_CACHE_DIR)]
     if _settings.ROUTE_BACKEND == "k8s":
@@ -248,14 +255,19 @@ app.add_middleware(
 )
 
 app.include_router(templates.router, prefix="/api/templates", tags=["templates"])
+app.include_router(smartcard_router.mint_router, prefix="/api/instances", tags=["smartcard"])
+app.include_router(smartcard_router.router, prefix="/api/smartcard", tags=["smartcard"])
 app.include_router(instance_thumbs.router, prefix="/api/instances", tags=["instances"])
 app.include_router(instances.router, prefix="/api/instances", tags=["instances"])
+app.include_router(takeover_router.router, prefix="/api/instances", tags=["takeover"])
+app.include_router(takeover_router.report_router, prefix="/api/admin/takeovers", tags=["takeover"])
 app.include_router(registry.router, prefix="/api/registry/images", tags=["registry"])
 app.include_router(images.router, prefix="/api/images", tags=["images"])
 app.include_router(auth_router.router, prefix="/api/auth", tags=["auth"])
 app.include_router(matrix_router.router, prefix="/api/auth", tags=["auth"])
 app.include_router(users_router.router, prefix="/api/users", tags=["users"])
 app.include_router(me_storage_router.router, prefix="/api/me", tags=["me"])
+app.include_router(archive_router.router, prefix="/api/archive", tags=["archive"])
 app.include_router(oauth_router.router, prefix="/api/auth/oauth", tags=["oauth"])
 app.include_router(oauth_admin_router.router, prefix="/api/oauth-providers", tags=["oauth-admin"])
 app.include_router(audit_router.router, prefix="/api/audit", tags=["audit"])
