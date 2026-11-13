@@ -4,6 +4,7 @@ Token = <instance_id>.<expiry_unix>.<hex HMAC-SHA256(key, "<instance_id>.<expiry
 valid for at most TOKEN_MAX_S. Off when lock_idle_s is 0.
 """
 import hashlib
+import asyncio
 import hmac
 import html as _html
 import time
@@ -50,6 +51,7 @@ class IdleLock:
         self.locked_at: float | None = None
         self.last_disconnect: float | None = None
         self.socks: set = set()
+        self.on_lock: list = []   # async callbacks (e.g. WebRTC gateway drop)
 
     @property
     def locked(self) -> bool:
@@ -60,6 +62,9 @@ class IdleLock:
 
     def unregister(self, ws):
         self.socks.discard(ws)
+        self.stamp_disconnect()
+
+    def stamp_disconnect(self):
         self.last_disconnect = time.time()
 
     async def lock(self):
@@ -69,9 +74,22 @@ class IdleLock:
         self.log("locked: idle")
         for ws in list(self.socks):
             await ws.close(code=LOCK_CODE, message=b"locked")
+        for cb in self.on_lock:
+            await cb()
 
     def idle_for(self, opened: float, last_input: float) -> float:
         return time.time() - max(opened, last_input)
+
+    async def watch(self, ws, opened: float, rec):
+        """Lock (not close) once this tab sent no input for lock_idle_s."""
+        if self.idle_s <= 0:
+            return
+        while not ws.closed:
+            idle = self.idle_for(opened, rec.last_input)
+            if idle >= self.idle_s:
+                await self.lock()
+                return
+            await asyncio.sleep(min(1.0, self.idle_s - idle))
 
     @web.middleware
     async def middleware(self, request, handler):

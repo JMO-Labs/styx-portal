@@ -392,17 +392,6 @@ def create_app(user: str, password: str,
                             break
                     await dst.close()
 
-                async def lock_watch():
-                    """Lock (not close) once this tab sent no input for lock_idle_s."""
-                    if lock_idle_s <= 0:
-                        return
-                    while not ws_server.closed:
-                        idle = lock.idle_for(opened, rec.last_input)
-                        if idle >= lock_idle_s:
-                            await lock.lock()
-                            return
-                        await asyncio.sleep(min(1.0, lock_idle_s - idle))
-
                 async def idle_closer():
                     """Authoritative idle timeout: close the client socket once
                     this tab sent no input for idle_timeout_s. Ends the pumps."""
@@ -476,7 +465,7 @@ def create_app(user: str, password: str,
 
                 await asyncio.gather(pump(ws_server, ws_client, on_activity=on_client),
                                      pump(ws_client, ws_server, on_binary=mark_frame),
-                                     idle_closer(), lock_watch(),
+                                     idle_closer(), lock.watch(ws_server, opened, rec),
                                      return_exceptions=True)
             finally:
                 conns["n"] -= 1
@@ -636,7 +625,8 @@ def create_app(user: str, password: str,
         hold_s=idle_timeout_s if idle_enabled and idle_timeout_s > 0 else BUSY_HOLD_S,
         viewers=viewers, seat=bool(seat_dir), live_port=live_port,
         write_state=_write_state, touch=lambda ts: last_input.update(ts=ts),
-        kill_path=state_file and state_file + KILL_SUFFIX, attach=attach, detach=detach, submit_size=submit_size, submit_dpi=submit_dpi, log=log)
+        kill_path=state_file and state_file + KILL_SUFFIX, attach=attach, detach=detach, submit_size=submit_size, submit_dpi=submit_dpi, log=log, lock=lock)
+    lock.on_lock.append(wrtc.lock_all)
     gm = wrtc.gamemode = GameMode(viewers, size_owner, submit_size, bool(seat_dir), log)
     _write_state()   # reset any stale count from a previous gateway run
 

@@ -71,6 +71,7 @@ async def test_423_while_locked_and_overlay_page():
         assert r.status == 423
         r = await client.get("/", headers={**HDR, "Accept": "text/html"})
         body = await r.text()
+        assert r.status == 423
         assert 'href="https://portal/unlock"' in body and "Unlock" in body
         assert r.headers["Content-Type"].startswith("text/html")
     finally:
@@ -125,3 +126,58 @@ async def test_state_tracks_connections_and_disconnect():
         assert st["active_connections"] == 0 and st["last_disconnect_ts"] is not None
     finally:
         await client.close(); await up.close()
+
+
+async def _rtc_pair(tmp_path):
+    from .test_gateway_webrtc import _pair as rtc_pair
+    return await rtc_pair(tmp_path, **LOCK)
+
+
+@pytest.mark.asyncio
+async def test_webrtc_only_session_locks_and_drops_peer(tmp_path):
+    from .test_gateway_webrtc import _sig
+    up, client, _ = await _rtc_pair(tmp_path)
+    try:
+        ws = await _sig(client, "wr1")
+        await _closed_with(ws, 4003, t=4, reason=b"locked")
+        st = await (await client.get("/styx/state", headers=HDR)).json()
+        assert st["locked"] is True
+        assert (tmp_path / "gw_state.json.kill").read_text() == "locked"
+        assert st["last_disconnect_ts"] is not None
+    finally:
+        await client.close(); await up.close()
+
+
+@pytest.mark.asyncio
+async def test_webrtc_activity_defers_lock(tmp_path):
+    from .test_gateway_webrtc import _beacon, _sig
+    up, client, _ = await _rtc_pair(tmp_path)
+    try:
+        ws = await _sig(client, "wr1")
+        for _i in range(3):
+            await asyncio.sleep(0.5)
+            await _beacon(client, "wr1")
+        assert not ws.closed
+        st = await (await client.get("/styx/state", headers=HDR)).json()
+        assert st["locked"] is False
+    finally:
+        await client.close(); await up.close()
+
+
+@pytest.mark.asyncio
+async def test_webrtc_close_stamps_last_disconnect(tmp_path):
+    from .test_gateway_webrtc import _sig
+    up, client, _ = await _pair_rtc_off(tmp_path)
+    try:
+        ws = await _sig(client, "wr1")
+        await ws.close()
+        await asyncio.sleep(0.2)
+        st = await (await client.get("/styx/state", headers=HDR)).json()
+        assert st["active_connections"] == 0 and st["last_disconnect_ts"] is not None
+    finally:
+        await client.close(); await up.close()
+
+
+async def _pair_rtc_off(tmp_path):
+    from .test_gateway_webrtc import _pair as rtc_pair
+    return await rtc_pair(tmp_path)
