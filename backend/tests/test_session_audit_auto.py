@@ -11,7 +11,6 @@ from app.services.background_loops import _run_monitor_pass
 from app.services.offboarding import disable_account
 from app.services.session_monitor import SessionMonitor
 from tests.test_cve_recycle import NOW, cfg, harbor
-from tests.test_session_audit import lines  # noqa: F401  fixture
 
 
 async def _inst(session, **kw):
