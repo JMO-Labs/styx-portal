@@ -22,6 +22,11 @@ os.environ.setdefault("RATE_LIMIT_DEFAULT", "1000/60")
 _test_tmpdir = tempfile.mkdtemp()
 os.environ.setdefault("SECRETS_FILE", os.path.join(_test_tmpdir, "secrets.json"))
 
+import yaml  # noqa: E402
+
+# kustomize emits bare `=` (matchType), a YAML 1.1 'value' tag PyYAML can't construct.
+yaml.SafeLoader.add_constructor("tag:yaml.org,2002:value", lambda _l, node: node.value)
+
 from app.main import app  # noqa: E402
 from tests.helpers_setup import st  # noqa: E402
 from tests.gitlab_stub import serve, stub_cert  # noqa: E402,F401 - shared HTTPS stub fixtures

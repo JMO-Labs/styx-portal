@@ -13,7 +13,7 @@ from app.db_migrate import migrate
 from tests.db_helpers import diff_vs_models, scalar, table_names
 
 FIXTURES = Path(__file__).parent / "fixtures"
-HEAD = "0012_instance_recycle_deadline"
+HEAD = "0013_ops_alerts"
 
 # Drift a legacy (ALTER-built) SQLite DB keeps after the stamp. SQLite is type-lax, so
 # these are harmless. Expected; do not "fix" them in the baseline.

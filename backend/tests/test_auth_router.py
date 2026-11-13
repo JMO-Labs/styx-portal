@@ -159,7 +159,7 @@ async def test_setup_adopts_ownerless_instances_and_templates(client, session):
     session.add(Instance(template_id=tpl.id, name="orphan", subdomain="orphan"))
     await session.commit()
 
-    r = await client.post("/api/auth/setup", json={**st(),
+    r = await client.post("/api/auth/setup", json={**await st(),
         "username": "admin", "password": "correct horse battery staple"})
     assert r.status_code == 201, r.text
 
