@@ -39,7 +39,9 @@ def open_source(path: Path) -> AsyncEngine:
 
 
 def code_head() -> str:
-    return ScriptDirectory.from_config(alembic_config()).get_current_head()
+    head = ScriptDirectory.from_config(alembic_config()).get_current_head()
+    assert head is not None
+    return head
 
 
 async def check_version(engine: AsyncEngine) -> str:

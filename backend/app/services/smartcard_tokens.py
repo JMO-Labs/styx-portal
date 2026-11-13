@@ -4,7 +4,7 @@ import secrets
 from datetime import timedelta, timezone
 
 from sqlalchemy import update
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models import SmartcardToken, User, _now
@@ -42,7 +42,7 @@ async def redeem(session: AsyncSession, token: str, instance_id: str,
             user.username.encode(), cert_username.encode()):
         return row, "cert_user_mismatch"
     res = await session.exec(update(SmartcardToken).where(
-        SmartcardToken.id == row.id, SmartcardToken.used_at.is_(None)).values(used_at=_now()))
+        SmartcardToken.id == row.id, col(SmartcardToken.used_at).is_(None)).values(used_at=_now()))
     if res.rowcount != 1:
         return row, "used"
     return row, None

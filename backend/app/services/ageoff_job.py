@@ -6,7 +6,7 @@ import stat
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from sqlmodel import select
+from sqlmodel import col, select
 
 from app.config import Settings
 from app.models import Notice, User
@@ -33,7 +33,7 @@ async def ageoff_tick(session, store, now: datetime, is_leader, dry_run: bool,
         stale = stale_files(home, now)
         notice = (await session.exec(
             select(Notice).where(Notice.user_id == uid, Notice.kind == "ageoff")
-            .order_by(Notice.created_at.desc()))).first()
+            .order_by(col(Notice.created_at).desc()))).first()
         sent = notice.created_at if notice else None
         if sent is not None:  # only files that were already stale when notified
             was = set(stale_files(home, sent))

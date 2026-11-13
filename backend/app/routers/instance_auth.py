@@ -9,7 +9,7 @@ instance's routers (/internal/instances/<id>/auth-check), never from parsing
 the request: Traefik's routing and our parsing can never disagree.
 """
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
@@ -29,7 +29,7 @@ async def _require_owner_or_takeover(session: AsyncSession, inst: Instance, user
         return
     active = (await session.exec(select(SessionTakeover).where(
         SessionTakeover.instance_id == inst.id, SessionTakeover.actor_id == user.id,
-        SessionTakeover.ended_at.is_(None)))).first()
+        col(SessionTakeover.ended_at).is_(None)))).first()
     if active is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Takeover required")
 

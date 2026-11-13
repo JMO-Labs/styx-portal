@@ -4,7 +4,7 @@ import io
 import re
 from datetime import datetime
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models import SessionTakeover, User
@@ -29,19 +29,19 @@ def _cell(v: str) -> str:
 async def build_report(session: AsyncSession, month: str) -> str:
     lo, hi = month_bounds(month)
     rows = (await session.exec(select(SessionTakeover).where(
-        SessionTakeover.started_at >= lo, SessionTakeover.started_at < hi)
-        .order_by(SessionTakeover.started_at))).all()
+        col(SessionTakeover.started_at) >= lo, col(SessionTakeover.started_at) < hi)
+        .order_by(col(SessionTakeover.started_at)))).all()
     ids = {i for t in rows for i in (t.actor_id, t.user_id) if i}
-    names = {}
+    names: dict[str, str] = {}
     if ids:
         names = {u.id: u.username for u in (await session.exec(
-            select(User).where(User.id.in_(ids)))).all()}
+            select(User).where(col(User.id).in_(ids)))).all()}
     out = io.StringIO()
     w = csv.writer(out, lineterminator="\r\n")
     w.writerow(HEADER)
     for t in rows:
         dur = int((t.ended_at - t.started_at).total_seconds()) if t.ended_at else ""
-        w.writerow([_cell(names.get(t.actor_id, t.actor_id)),
+        w.writerow([_cell(names.get(t.actor_id, t.actor_id or "")),
                     _cell(names.get(t.user_id, t.user_id or "")), t.instance_id, t.mode,
                     _cell(t.reason), t.started_at.isoformat(),
                     t.ended_at.isoformat() if t.ended_at else "", dur])
