@@ -29,8 +29,6 @@ def upgrade() -> None:
         sa.Column('reason', sa.String(), nullable=False),
         sa.Column('started_at', sa.DateTime(), nullable=False),
         sa.Column('ended_at', sa.DateTime(), nullable=True),
-        sa.ForeignKeyConstraint(['instance_id'], ['instances.id'],
-                                name='fk_session_takeovers_instance_id_instances'),
         sa.PrimaryKeyConstraint('id', name='pk_session_takeovers'),
     )
     op.create_index('ix_session_takeovers_instance_id', 'session_takeovers', ['instance_id'])

@@ -436,7 +436,7 @@ class SessionTakeover(SQLModel, table=True):
                             sqlite_where=text("ended_at IS NULL"),
                             postgresql_where=text("ended_at IS NULL")),)
     id: str = Field(default_factory=_uuid, primary_key=True)
-    instance_id: str = Field(foreign_key="instances.id", index=True)
+    instance_id: str = Field(index=True)  # no FK: record survives instance deletion
     actor_id: str  # no FK: record survives user deletion
     user_id: str | None = None  # session owner
     mode: str  # view | control

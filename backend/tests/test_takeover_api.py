@@ -9,7 +9,10 @@ async def inst(session):
     t = ServiceTemplate(name="t", display_name="T", image="img")
     session.add(t)
     await session.commit()
-    i = Instance(id="i-1", template_id=t.id, name="n", subdomain="s1", owner_id=None)
+    o = User(username="owner", password_hash="x", role="member", is_active=True)
+    session.add(o)
+    await session.commit()
+    i = Instance(id="i-1", template_id=t.id, name="n", subdomain="s1", owner_id=o.id)
     session.add(i)
     await session.commit()
     return i
@@ -36,6 +39,7 @@ async def test_start_allowed_admin(admin_client, inst, session):
     a = (await session.exec(select(AuditLog).where(AuditLog.action == "takeover.start"))).one()
     assert a.detail["mode"] == "view" and a.detail["reason"] == "ticket 42"
     assert "started_at" in a.detail and a.detail["actor_id"] == row.actor_id
+    assert row.user_id == inst.owner_id and a.detail["user_id"] == inst.owner_id
 
 
 async def test_start_allowed_help_desk(member_client, inst, session):
@@ -102,3 +106,15 @@ async def test_end_denied(member_client, inst, session):
     await _set_staff(session, "auditor")
     assert (await member_client.delete("/api/instances/i-1/takeover")).status_code == 403
     assert "takeover.denied" in await _actions(session)
+
+
+async def test_instance_delete_keeps_takeover_record(admin_client, inst, session):
+    await admin_client.post("/api/instances/i-1/takeover", json={"mode": "view", "reason": "r"})
+    assert (await admin_client.delete("/api/instances/i-1/takeover")).status_code == 204
+    assert (await admin_client.delete("/api/instances/i-1")).status_code == 204
+    row = (await session.exec(select(SessionTakeover))).one()
+    assert row.instance_id == "i-1" and row.user_id == inst.owner_id
+
+
+def test_takeover_has_no_instance_fk():
+    assert not SessionTakeover.__table__.c.instance_id.foreign_keys
