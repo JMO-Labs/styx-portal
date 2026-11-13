@@ -83,3 +83,15 @@ def test_series_skips_patches_merged_upstream():
     for name in names:
         note = (root / "docs/upstream" / name.replace(".patch", ".md")).read_text()
         assert "not kept" not in note, f"{name} is merged upstream; drop it from series"
+
+
+def test_series_patches_touch_only_installed_package_paths():
+    """The script patches installed wheels; Rust sources (pixelflux/src/*.rs) are not shipped."""
+    root = BASE.parents[1] / "patches/selkies"
+    series = (root / "series").read_text().splitlines()
+    names = [n.strip() for n in series if n.strip() and not n.strip().startswith("#")]
+    for name in names:
+        targets = re.findall(r"^\+\+\+ b/(\S+)", (root / name).read_text(), re.M)
+        assert targets, f"{name} has no targets"
+        bad = [t for t in targets if t.endswith(".rs") or t.startswith("pixelflux/src/")]
+        assert not bad, f"{name} edits source not in the installed wheel: {bad}"
