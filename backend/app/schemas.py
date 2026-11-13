@@ -1,4 +1,5 @@
 import re
+from datetime import datetime
 import ipaddress
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -218,6 +219,7 @@ class UserOut(BaseModel):
     must_change_pw: bool = False
     has_matrix_card: bool = False
     can_use_gpu: bool = False
+    can_takeover: bool = False
     groups: list[str] = []
 
 
@@ -483,6 +485,18 @@ class WorkstationUpdateCommandOut(BaseModel):
 class ChangePasswordRequest(BaseModel):
     old_password: str
     new_password: str = Field(min_length=8, max_length=256)
+
+
+
+class DlpEventIn(BaseModel):
+    """Metadata-only DLP event from the gateway. Never carries content."""
+    model_config = ConfigDict(extra="forbid")
+    direction: Literal["in", "out"]
+    channel: Literal["clipboard", "file"]
+    size: int | None = Field(default=None, ge=0)
+    mime_type: str | None = Field(default=None, max_length=255)
+    filename: str | None = Field(default=None, max_length=1024)
+    ts: datetime | None = None
 
 
 from app.schemas_services import (  # noqa: E402,F401  (re-export)

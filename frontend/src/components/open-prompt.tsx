@@ -30,6 +30,7 @@ export const useOpenChoice = (): Choose => useContext(Ctx) ?? direct;
 export function OpenPrefProvider({ children }: { children: ReactNode }) {
   const { data: me } = useOpenPrefs();
   const save = useSavePrefs();
+  const { data: sys } = useQuery({ queryKey: ["system-profile"], queryFn: () => api.systemProfile(), staleTime: Infinity });
   const [ask, setAsk] = useState<{ group: OpenGroup; name: string; run: Run } | null>(null);
   const [remember, setRemember] = useState(true);
   const primary = useRef<HTMLButtonElement>(null);
@@ -38,10 +39,11 @@ export function OpenPrefProvider({ children }: { children: ReactNode }) {
   const shown = ask ?? last.current; // keeps the text steady through the close fade
 
   const choose = useCallback<Choose>((group, name, run) => {
-    const pref = me?.[KEY[group]]; // ponytail: not loaded yet = ask (harmless)
+    // Enterprise profile: unset means new tab (AC2). Not loaded yet = ask (harmless).
+    const pref = me?.[KEY[group]] ?? (sys?.profile === "enterprise" && me ? "new_tab" : null);
     if (pref) run(pref);
     else { setRemember(true); setAsk({ group, name, run }); }
-  }, [me]);
+  }, [me, sys]);
 
   function pick(mode: OpenMode) {
     if (!ask) return;

@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef } from "react";
 import { useCanvasEffect } from "@/hooks/use-canvas-effect";
 import { createWaves } from "@/lib/effects/waves";
 import { Link, useParams } from "react-router";
-import { Loader2 } from "lucide-react";
+import { Home, Loader2, Maximize, Unplug } from "lucide-react";
 import { useInstances, useKeepalive } from "@/hooks/use-instances";
 import { useTemplates } from "@/hooks/use-templates";
 import { startActivityHeartbeat } from "@/lib/activity";
+import { useProfile } from "@/hooks/use-profile";
+import { SmartcardConnect } from "@/components/launch/smartcard-connect";
 import { startThumbUploader } from "@/lib/stream-thumb";
 
 const ALLOW = "fullscreen; clipboard-read; clipboard-write; autoplay; gamepad; microphone; camera; display-capture; pointer-lock";
@@ -32,12 +34,38 @@ function Notice({ children }: { children: React.ReactNode }) {
   );
 }
 
+const BTN = "inline-flex h-8 items-center gap-1.5 rounded px-2 text-xs text-foreground/90 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary";
+
+/** Slim (40px) bar: name, fullscreen, disconnect (closes this tab; the desktop keeps running), back home. */
+function Toolbar({ name }: { name: string }) {
+  const goHome = () => { window.close(); if (!window.closed) window.location.assign("/"); };
+  const fullscreen = () => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void document.documentElement.requestFullscreen?.();
+  };
+  return (
+    <div role="toolbar" aria-label="Desktop controls" className="flex h-10 shrink-0 items-center gap-1 border-b border-white/10 bg-background px-2">
+      <span className="mr-auto truncate text-sm font-medium">{name}</span>
+      <button type="button" className={BTN} aria-label="Fullscreen" onClick={fullscreen}>
+        <Maximize className="size-4" aria-hidden /><span className="hidden sm:inline">Fullscreen</span>
+      </button>
+      <button type="button" className={BTN} aria-label="Disconnect" onClick={goHome}>
+        <Unplug className="size-4" aria-hidden /><span className="hidden sm:inline">Disconnect</span>
+      </button>
+      <Link to="/" className={BTN} aria-label="Home">
+        <Home className="size-4" aria-hidden /><span className="hidden sm:inline">Home</span>
+      </Link>
+    </div>
+  );
+}
+
 /** Full-viewport same-origin wrapper around /i/<sub>/ so the portal can snapshot the stream for card thumbnails. */
 export function DesktopPage() {
   const { sub = "" } = useParams();
   const { data, isPending } = useInstances();
   const instance = data?.find((i) => i.subdomain === sub);
   const keepalive = useKeepalive();
+  const { profile, smartcard } = useProfile();
   const frameRef = useRef<HTMLIFrameElement>(null);
   const live = instance?.status === "running" || instance?.status === "idle";
   const id = instance?.id;
@@ -85,9 +113,10 @@ export function DesktopPage() {
     return <Notice><p>{instance.name} is {instance.status}</p><Link to="/" className="underline">Go home</Link></Notice>;
   }
   return (
-    <>
+    <div className="flex h-dvh w-screen flex-col bg-black">
+      <Toolbar name={instance.name} />
       {instance.status === "idle" && (
-        <div role="alert" className="fixed inset-x-0 top-0 z-10 flex items-center justify-center gap-3 bg-amber-500 px-3 py-2 text-sm font-medium text-black">
+        <div role="alert" className="fixed inset-x-0 top-10 z-10 flex items-center justify-center gap-3 bg-amber-500 px-3 py-2 text-sm font-medium text-black">
           Pausing soon due to inactivity
           <button
             type="button"
@@ -98,15 +127,15 @@ export function DesktopPage() {
           </button>
         </div>
       )}
+      {profile === "enterprise" && smartcard && <SmartcardConnect instanceId={instance.id} />}
     <iframe
       ref={frameRef}
       src={`/i/${sub}/`}
       title={instance.name}
       allow={ALLOW}
       onLoad={onLoad}
-      className="block h-screen w-screen border-0 bg-black"
-      style={{ width: "100vw", height: "100vh" }}
+      className="block min-h-0 w-full flex-1 border-0 bg-black"
     />
-    </>
+    </div>
   );
 }

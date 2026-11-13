@@ -14,11 +14,11 @@ const STRENGTH_LABELS = ["Very weak", "Weak", "Fair", "Good", "Strong"];
 const STRENGTH_COLORS = ["bg-destructive", "bg-warning", "bg-warning", "bg-success", "bg-success"];
 
 function PreRow({ ok, label, detail, warnOnly }: { ok: boolean; label: string; detail: string; warnOnly?: boolean }) {
-  const color = ok ? "text-success" : warnOnly ? "text-warning-foreground" : "text-destructive";
+  const color = ok ? "text-success-foreground" : warnOnly ? "text-warning-foreground" : "text-destructive";
   return (
     <div className="flex items-center justify-between">
       <span>{label}</span>
-      <span className={color}>{ok ? "✓" : warnOnly ? "!" : "✗"} {detail}</span>
+      <span className={color}><span aria-hidden>{ok ? "✓" : warnOnly ? "!" : "✗"}</span> {detail}</span>
     </div>
   );
 }
@@ -108,6 +108,7 @@ export function SetupWizard() {
                 onChange={(e) => setP(e.target.value)}
                 required
                 aria-invalid={err ? true : undefined}
+                aria-describedby={err ? "form-error" : undefined}
               />
               {password && (
                 <div className="space-y-2 pt-2">
@@ -120,7 +121,7 @@ export function SetupWizard() {
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">Strength:</span>
                     <span className={`text-xs font-medium ${
-                      score < 2 ? "text-destructive" : score < 3 ? "text-warning-foreground" : "text-success"
+                      score < 2 ? "text-destructive" : score < 3 ? "text-warning-foreground" : "text-success-foreground"
                     }`}>
                       {STRENGTH_LABELS[score]}
                     </span>
@@ -129,12 +130,12 @@ export function SetupWizard() {
               )}
             </div>
             {err && (
-              <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+              <div id="form-error" role="alert" className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
                 {err}
               </div>
             )}
             <Button type="submit" className="w-full" disabled={score < 3 || submitting}>
-              {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating…</> : "Create admin"}
+              {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />Creating…</> : "Create admin"}
             </Button>
           </form>
         </div>
