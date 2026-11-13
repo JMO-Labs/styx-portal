@@ -188,6 +188,9 @@ async def lifespan(app: FastAPI):
     if _settings.HARBOR_URL:
         from app.services.cve_recycle import cve_recycle_loop
         leader_loops.append(cve_recycle_loop)
+    if _settings.archive_s3_endpoint:
+        from app.services.ageoff_job import ageoff_loop
+        leader_loops.append(ageoff_loop)
     leader = LeaderTasks(boot=[_probe_cleanup, _reconcile, _close_dangling, _refresh_routes],
                          loops=leader_loops)
     elector = get_elector()
