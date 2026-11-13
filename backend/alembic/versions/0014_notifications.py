@@ -1,7 +1,7 @@
 """notifications table: per-user in-app notifications (styx-portal#300)
 
-Revision ID: 0013_notifications
-Revises: 0012_instance_recycle_deadline
+Revision ID: 0014_notifications
+Revises: 0013_group_dlp
 Create Date: 2026-11-13
 
 """
@@ -10,8 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = '0013_notifications'
-down_revision: Union[str, Sequence[str], None] = '0012_instance_recycle_deadline'
+revision: str = '0014_notifications'
+down_revision: Union[str, Sequence[str], None] = '0013_group_dlp'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
