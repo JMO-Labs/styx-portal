@@ -23,7 +23,7 @@ export STYX_GW_UNLOCK_URL="${STYX_UNLOCK_URL:-}"
 export STYX_GW_INSTANCE_ID="${STYX_INSTANCE_ID:-}"
 
 # --wayland=true: pixelflux's own headless compositor is the display source.
-# selkies 2.x binds loopback by default (no --public).
+# selkies 2.x binds loopback by default; only the gateway listens publicly.
 /opt/selkies/bin/selkies --wayland=true --port=8082 "$@" &
 SELKIES_PID=$!
 trap 'kill "$SELKIES_PID" 2>/dev/null || true' EXIT TERM INT
