@@ -1,6 +1,6 @@
 # Load-test gate (D47): 200-session soak
 
-Owner runbook for the evidence in ADR-0047. Design: ADR-0077. Harness: `e2e/stream-ab/` (`soak.py`, `fleet.py`, `session_probe.py`, `gate.py`). Plumbing smoke (not capacity evidence): `scripts/kind/30-loadtest-smoke.sh`.
+Owner runbook for the evidence in ADR-0047. Design: ADR-0077. Harness: `e2e/stream-ab/` (`soak.py`, `soak_fleet.py`, `fleet.py`, `session_probe.py`, `gate.py`). Plumbing smoke (not capacity evidence): `scripts/kind/30-loadtest-smoke.sh`.
 
 ## Pass criteria
 
@@ -42,10 +42,11 @@ During the run watch the Grafana SLO and capacity dashboards (ADR-0044): worker 
 Written to `e2e/stream-ab/results/gate-<YYYYmmdd-HHMMSS>.json` and `.md`. The terminal prints `gate: pass|fail (N sessions)`.
 
 - `verdict`: `pass` only if every metric passes and there was at least one session.
-- `n_sessions`: must be 200. Fewer means launches failed (they count as failures in `failed_launches`).
-- `metrics.launch_p95_s`: value vs 10 s; `failed_launches` must be 0.
-- `metrics.rtt_p95_ms`: value vs 80 ms, pooled over all sessions.
-- `metrics.drops`: total, must be 0.
+- `n_sessions`: should be 200, the requested count. Failed launches still count as sessions; they show up in `metrics.launch_p95_s.failed_launches`.
+- `metrics.launch_p95_s.value`: vs 10 s; `metrics.launch_p95_s.failed_launches` must be 0.
+- `metrics.rtt_p95_ms.value`: vs 80 ms, pooled over all sessions.
+- `metrics.drops.value`: total, must be 0.
+- Each metric is `{value, threshold, pass}`; every `pass` must be true.
 
 A missing value (`-`) is a fail: no launches or no samples. On fail, look at which metric failed, then at node CPU and Ceph at that time. Do not re-run with relaxed thresholds. If CPU is the limit, the CPU caps (ADR-0031) are not final: adjust them and repeat. Attach the `.json` and `.md` to the rollout decision (ADR-0047).
 
