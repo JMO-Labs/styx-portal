@@ -17,6 +17,7 @@ from pathlib import Path
 
 import health
 import shallow_pipe
+from stream_override import STREAM_OVERRIDE, apply_stream_override, cc_trace_enabled  # noqa: F401
 
 HOME = Path.home()
 DRI_DIR = "/dev/dri"
@@ -309,31 +310,6 @@ SEAT_CLIPBOARD = {
         [m, base64.b64encode(bytes(d)).decode()] for m, d in offered]}),
     "clipboard_watch_app": lambda _d, cb: clip_watch(cb),
 }
-
-
-STREAM_OVERRIDE = HOME / ".local/share/styx-agent/stream-override.json"
-
-
-def apply_stream_override(argv: list, path: Path = STREAM_OVERRIDE) -> list:
-    """argv plus the selkies flags in `path` ({"args": [...]}), which win as
-    argparse keeps the last value. The stream A/B harness swaps encoder and
-    bitrate this way and restarts only selkies, so the seat survives.
-    ponytail: dev/harness hook; production settings still come from the portal."""
-    try:
-        extra = json.loads(path.read_text()).get("args", [])
-    except (OSError, ValueError, AttributeError):
-        return argv
-    if not isinstance(extra, list) or not all(isinstance(a, str) for a in extra):
-        return argv
-    return argv + extra
-
-
-def cc_trace_enabled(path: Path = STREAM_OVERRIDE) -> bool:
-    """`cc_trace` in the override file: log STYX-CC lines (default off)."""
-    try:
-        return json.loads(path.read_text()).get("cc_trace") is True
-    except (OSError, ValueError, AttributeError):
-        return False
 
 
 def packaged_web_root() -> str:
