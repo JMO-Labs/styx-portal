@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 const ICON = {
   ok: { Icon: CheckCircle2, cls: "text-emerald-500", text: "OK" },
   warn: { Icon: AlertTriangle, cls: "text-amber-500", text: "Warning" },
-  error: { Icon: XCircle, cls: "text-red-500", text: "Error" },
+  error: { Icon: XCircle, cls: "text-destructive", text: "Error" },
   skip: { Icon: MinusCircle, cls: "text-muted-foreground", text: "Skipped" },
 } satisfies Record<TurnCheckStatus, { Icon: unknown; cls: string; text: string }>;
 
@@ -33,7 +33,7 @@ export function TurnSetupCheck({ provider }: { provider: string }) {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {isError && <p role="alert" className="text-sm text-red-500">Check failed. Try again.</p>}
+        {isError && <p role="alert" className="text-sm text-destructive">Check failed. Try again.</p>}
         {!data && !isError && !isFetching && (
           <p className="text-sm text-muted-foreground">
             {provider === "none" ? "No TURN provider selected. " : ""}Press Check setup to verify.
