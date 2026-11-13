@@ -4,19 +4,29 @@ import os
 import stat
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from starlette.concurrency import run_in_threadpool
+from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from app.config import Settings
 from app.database import get_session
 from app.models import User
-from app.schemas import ArchiveEntry, ArchivePath
 from app.security.deps import get_current_user
 from app.services.archive_store import ArchiveStore
 from app.services.audit import audit_request
 from app.services.posix_uid import allocate_uid
 
 router = APIRouter()
+
+
+class ArchiveEntry(BaseModel):
+    relpath: str
+    size: int
+    mtime: float
+
+
+class ArchivePath(BaseModel):
+    relpath: str
 
 
 def get_archive_store() -> ArchiveStore:
@@ -83,6 +93,9 @@ def _restore(store, key: str, homes_root: str, uid: int, relpath: str) -> None:
             fd = os.open(leaf, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
                          0o644, dir_fd=dfd)
         except FileExistsError:
+            st = os.stat(leaf, dir_fd=dfd, follow_symlinks=False)
+            if stat.S_ISLNK(st.st_mode):
+                raise HTTPException(400, "invalid path") from None
             raise HTTPException(409, "file exists") from None
         try:
             with os.fdopen(fd, "wb") as fh:
@@ -103,7 +116,9 @@ def _send(store, key: str, homes_root: str, uid: int, relpath: str) -> None:
         try:
             fd = os.open(leaf, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
                          dir_fd=dfd)
-        except OSError:
+        except OSError as e:
+            if e.errno == errno.ELOOP:
+                raise HTTPException(400, "invalid path") from None
             raise HTTPException(404, "file not found") from None
         with os.fdopen(fd, "rb") as fh:
             st = os.fstat(fh.fileno())

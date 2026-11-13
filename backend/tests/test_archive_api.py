@@ -176,8 +176,20 @@ async def test_send_refuses_symlink_target(env, session, tmp_path_factory):
     h.mkdir()
     (h / "f").symlink_to(outside / "secret")
     r = await c.post("/api/archive/send", json={"relpath": "f"})
-    assert r.status_code == 404 and not store.objs
+    assert r.status_code == 400 and not store.objs
 
+
+async def test_restore_leaf_symlink_400(env, session, tmp_path_factory):
+    c, store, home, _ = env
+    uid = await _uid(session)
+    outside = tmp_path_factory.mktemp("out")
+    h = home / str(uid)
+    h.mkdir()
+    (h / "f").symlink_to(outside / "target")
+    store.objs[(str(uid), "f")] = (b"x", 1.0)
+    r = await c.post("/api/archive/restore", json={"relpath": "f"})
+    assert r.status_code == 400
+    assert not (outside / "target").exists()
 
 
 async def test_send_fifo_404_without_blocking(env, session):
