@@ -75,4 +75,5 @@ All ADRs were accepted 2026-11-09 (owner approval, Rounds 1-5; issue #1). One AD
 | [D68](0069-image-supply-chain-implementation-choices.md) | Image supply chain implementation choices | Proposed | SI-2, SI-7, CM-14, RA-5 |
 | [D69](0070-dlp-policy-enforcement-and-event-shipping.md) | DLP policy enforcement and event shipping | Proposed | AC-4, SC-7, AU-2, AU-12 |
 | [D70](0071-wikijs-and-matrix-implementation.md) | Wiki.js and Matrix implementation choices | Proposed | IA-2, AC-2, AU-6, IR-4, CP-9, SC-7 |
-| [D71](0072-offboarding-and-access-review-implementation-choices.md) | Offboarding and access-review implementation choices | Proposed | AC-2, AC-2(3), AC-2(4), PS-4 |
+| [D71](0072-session-lifecycle-audit-events.md) | Session lifecycle audit events | Proposed | AU-2, AU-3, AU-12 |
+| [D72](0073-offboarding-and-access-review-implementation-choices.md) | Offboarding and access-review implementation choices | Proposed | AC-2, AC-2(3), AC-2(4), PS-4 |

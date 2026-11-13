@@ -1,6 +1,6 @@
 # Offboarding and access review runbook
 
-Controls: AC-2, AC-2(3), AC-2(4), PS-4. Decisions: ADR-0022, 0023, 0024, 0071.
+Controls: AC-2, AC-2(3), AC-2(4), PS-4. Decisions: ADR-0022, 0023, 0024, 0073.
 All calls need an admin session cookie (and CSRF header on writes) unless noted; `$P` is the portal origin.
 
 ## Remove access (immediate)

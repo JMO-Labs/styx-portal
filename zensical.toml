@@ -45,6 +45,7 @@ nav = [
     { "Leader election" = "operate/leader-election.md" },
     { "Upgrade" = "operate/upgrade.md" },
     { "SQLite to PostgreSQL" = "operate/sqlite-to-postgres.md" },
+    { "Enterprise: Session events" = "enterprise/session-events.md" },
     { "Enterprise: OpenBao" = "enterprise/runbooks/openbao.md" },
     { "Enterprise: DMZ HAProxy" = "enterprise/runbooks/dmz-haproxy.md" },
     { "Enterprise: Rook-Ceph" = "enterprise/runbooks/rook-ceph.md" },
