@@ -146,6 +146,7 @@ spec:
       - name: openbao
         image: $BAO_IMAGE
         args: [server, -config=/etc/bao/config.hcl]
+        securityContext: {runAsUser: 0}  # hostPath dir is root-owned; spike only
         env: [{name: SKIP_CHOWN, value: "true"}, {name: SKIP_SETCAP, value: "true"}]
         ports: [{containerPort: 8200}]
         readinessProbe:
