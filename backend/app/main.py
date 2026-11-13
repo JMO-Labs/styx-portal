@@ -41,6 +41,7 @@ from app.routers import group_dlp as group_dlp_router
 from app.routers import groups as groups_router
 from app.routers import announcements as announcements_router
 from app.routers import access_review as access_review_router
+from app.routers import takeover as takeover_router
 from app.routers import provision as provision_router
 from app.routers import profiles as profiles_router
 from app.routers import notices as notices_router
@@ -174,13 +175,17 @@ async def lifespan(app: FastAPI):
 
     # Leader-only: boot steps run on every promotion, loops start after them.
     from app.services.account_deletion import account_deletion_loop
+    from app.services.profile_reclaim import profile_reclaim_loop
     from app.services.new_account_review import new_account_review_loop
     from app.services.new_account_digest import digest_loop
+    from app.services.scratch_reclaim import scratch_reclaim_loop
     leader_loops = [_session_monitor_loop, _service_health_loop, _metrics_db_loop, janitor_loop,
                     _lifecycle_loop,
                     partial(new_account_review_loop, async_session),
                     partial(digest_loop, async_session),
                     partial(account_deletion_loop, async_session),
+                    partial(scratch_reclaim_loop, async_session, instance_runtime()),
+                    partial(profile_reclaim_loop, async_session, instance_runtime),
                     # Thumbnails live in the shared DB: one capturer avoids PK races (#99).
                     partial(service_thumbnail_loop, async_session, _settings.SCREENSHOT_CACHE_DIR)]
     if _settings.ROUTE_BACKEND == "k8s":
@@ -254,6 +259,8 @@ app.include_router(smartcard_router.mint_router, prefix="/api/instances", tags=[
 app.include_router(smartcard_router.router, prefix="/api/smartcard", tags=["smartcard"])
 app.include_router(instance_thumbs.router, prefix="/api/instances", tags=["instances"])
 app.include_router(instances.router, prefix="/api/instances", tags=["instances"])
+app.include_router(takeover_router.router, prefix="/api/instances", tags=["takeover"])
+app.include_router(takeover_router.report_router, prefix="/api/admin/takeovers", tags=["takeover"])
 app.include_router(registry.router, prefix="/api/registry/images", tags=["registry"])
 app.include_router(images.router, prefix="/api/images", tags=["images"])
 app.include_router(auth_router.router, prefix="/api/auth", tags=["auth"])

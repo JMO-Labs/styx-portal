@@ -9,16 +9,29 @@ instance's routers (/internal/instances/<id>/auth-check), never from parsing
 the request: Traefik's routing and our parsing can never disagree.
 """
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.config import Settings
 from app.database import get_session
-from app.models import Instance
+from app.models import Instance, SessionTakeover, User
 from app.routers.services_auth import login_redirect
 from app.security.cookies import clean_cookie_header
 from app.security.nav import no_access
 from app.security.deps import proxy_user_or_none, require_owner_or_admin
 
 internal_router = APIRouter()
+
+
+async def _require_owner_or_takeover(session: AsyncSession, inst: Instance, user: User) -> None:
+    """Enterprise: owner, or the actor of the instance's active takeover (ADR-0060)."""
+    if inst.owner_id == user.id:
+        return
+    active = (await session.exec(select(SessionTakeover).where(
+        SessionTakeover.instance_id == inst.id, SessionTakeover.actor_id == user.id,
+        SessionTakeover.ended_at.is_(None)))).first()
+    if active is None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Takeover required")
 
 
 @internal_router.get("/{instance_id}/auth-check")
@@ -35,7 +48,10 @@ async def auth_check(instance_id: str, request: Request,
     if inst is None:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Instance unavailable")
     try:
-        require_owner_or_admin(inst.owner_id, user)
+        if Settings().STYX_PROFILE == "enterprise":
+            await _require_owner_or_takeover(session, inst, user)
+        else:
+            require_owner_or_admin(inst.owner_id, user)
     except HTTPException as e:
         if e.status_code != status.HTTP_403_FORBIDDEN:
             raise
