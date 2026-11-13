@@ -3,13 +3,21 @@ import { describe, test, vi } from "vitest";
 import { MemoryRouter } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-// Generic API stub: list*/discover* -> [], everything else -> {}.
-vi.mock("@/api/client", () => ({
-  api: new Proxy({}, {
-    get: (_t, k: string) => async () => (/^(list|discover)/.test(k) ? [] : {}),
-  }),
-  ApiError: class extends Error {},
-}));
+// Generic API stub: list*/discover* and known array endpoints -> [],
+// shaped endpoints -> minimal payload, everything else -> {}.
+vi.mock("@/api/client", () => {
+  const arrays = new Set(["getSystemSettings", "linkedProviders", "oauthProviders", "getMyProfiles"]);
+  const shaped: Record<string, () => Promise<unknown>> = {
+    getDiagnosticsHistory: async () => ({ status: {} }),
+    getRelayStats: async () => { throw new Error("unavailable"); },
+  };
+  return {
+    api: new Proxy({}, {
+      get: (_t, k: string) => shaped[k] ?? (async () => (/^(list|discover)/.test(k) || arrays.has(k) ? [] : {})),
+    }),
+    ApiError: class extends Error {},
+  };
+});
 vi.mock("@/hooks/use-auth", () => ({
   useAuth: () => ({ user: { id: 1, username: "admin", role: "admin" }, logout: vi.fn() }),
 }));
