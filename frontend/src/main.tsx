@@ -16,6 +16,7 @@ import { ChangePasswordPage } from "@/pages/ChangePasswordPage";
 import { SetupWizard } from "@/pages/SetupWizard";
 import { AcceptInvitePage } from "@/pages/AcceptInvitePage";
 import { ConnectingPage } from "@/pages/ConnectingPage";
+import { ArchivePage } from "@/pages/ArchivePage";
 import { AccountPage } from "@/pages/AccountPage";
 import { DesktopPage } from "@/pages/DesktopPage";
 import "@fontsource-variable/commissioner/flar.css";
@@ -50,6 +51,7 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/accept-invite/:token" element={<AcceptInvitePage />} />
             <Route path="/connecting" element={<ConnectingPage />} />
             <Route path="/desktop/:sub" element={<ProtectedRoute><DesktopPage /></ProtectedRoute>} />
+            <Route path="/archive" element={<ProtectedRoute><ArchivePage /></ProtectedRoute>} />
             <Route path="/account" element={<ProtectedRoute><OpenPrefProvider><AccountPage /></OpenPrefProvider></ProtectedRoute>} />
             <Route path="/*" element={<ProtectedRoute><OpenPrefProvider><App /></OpenPrefProvider></ProtectedRoute>} />
           </Routes>

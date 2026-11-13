@@ -220,6 +220,8 @@ const silentRefresh = singleFlight(async (): Promise<boolean> => {
   return res.ok;
 });
 
+export interface ArchiveFile { relpath: string; size: number; mtime: number }
+export interface Notice { id: string; message: string; dismissed?: boolean }
 export interface HomeStorage { used_bytes: number | null; quota_bytes: number | null; percent: number | null; warn: boolean }
 
 async function request<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
@@ -374,6 +376,11 @@ export const api = {
   getRegistryImage: (name: string) => request<RegistryImage>(`/registry/images/${name}`),
 
   getRuntime: () => request<{ runtime: "docker" | "kubernetes" }>("/system/runtime"),
+  listArchive: () => request<ArchiveFile[]>("/archive"),
+  restoreArchive: (path: string) => request<unknown>("/archive/restore", { method: "POST", body: JSON.stringify({ relpath: path }) }),
+  sendToArchive: (path: string) => request<unknown>("/archive/send", { method: "POST", body: JSON.stringify({ relpath: path }) }),
+  listNotices: () => request<Notice[]>("/notices"),
+  dismissNotice: (id: string) => request<void>(`/notices/${encodeURIComponent(id)}/dismiss`, { method: "POST" }),
   getHomeStorage: () => request<HomeStorage>("/me/storage"),
   getGpuInfo: () => request<{ available: boolean; type: string | null; devices: string[] }>("/system/gpu"),
 
