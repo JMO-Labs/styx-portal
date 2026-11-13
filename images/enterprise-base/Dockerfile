@@ -14,7 +14,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # No sudo, no setuid helpers are installed.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates curl python3 python3-pip python3-venv \
+        ca-certificates curl patch python3 python3-pip python3-venv \
         xwayland labwc pulseaudio libgl1 libegl1 libopus0 fonts-dejavu-core \
     && { find / -xdev -perm /6000 -type f -exec chmod a-s {} + 2>/dev/null || true; } \
     && rm -rf /var/lib/apt/lists/*

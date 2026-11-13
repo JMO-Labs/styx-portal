@@ -68,3 +68,8 @@ def test_dockerfile_applies_selkies_patches_after_pip_install():
     assert "COPY patches/selkies/ /opt/selkies-patches/" in DOCKERFILE
     assert "apply_selkies_patches.sh" in DOCKERFILE
     assert DOCKERFILE.index("pip install") < DOCKERFILE.index("apply_selkies_patches.sh")
+
+
+def test_patch_tool_installed_for_selkies_series():
+    apt = re.search(r"apt-get install[^&]*", DOCKERFILE).group(0)
+    assert re.search(r"\bpatch\b", apt)
