@@ -8,10 +8,10 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
-| AC-2 | Account Management | Keycloak directory; webhook provisioning, offboarding, review (ADR-0014, 0018, 0019, 0022, 0024). Evidence: ADR-0068; IaC `deploy/enterprise/keycloak/`, tests `backend/tests/test_federation_groups.py`, `test_kc_admin.py`; [runbook](runbooks/keycloak.md); Wiki.js/Synapse accounts only via OIDC; registration off (ADR-0071); runbook [wikijs-matrix.md](runbooks/wikijs-matrix.md) | System | Planned |
+| AC-2 | Account Management | Keycloak directory; webhook provisioning, offboarding, review (ADR-0014, 0018, 0019, 0022, 0024). Evidence: ADR-0068; IaC `deploy/enterprise/keycloak/`, tests `backend/tests/test_federation_groups.py`, `test_kc_admin.py`; [runbook](runbooks/keycloak.md); Wiki.js/Synapse accounts only via OIDC; registration off (ADR-0071); runbook [wikijs-matrix.md](runbooks/wikijs-matrix.md); Offboarding: [runbook](runbooks/offboarding.md), ADR-0073. | System | Implemented |
 | AC-2(1) | Automated System Account Management | Webhook/SCIM-shaped provisioning (ADR-0019) | System | Planned |
-| AC-2(3) | Disable Accounts | End-date, 35-day inactivity, remove-access flows (ADR-0022, 0024) | System | Planned |
-| AC-2(4) | Automated Audit Actions | Account events to Elastic; Recently provisioned view (ADR-0023); security officer owns the daily review; new accounts unreviewed for 2 business days are auto-suspended (R04) | System | Planned |
+| AC-2(3) | Disable Accounts | End-date, 35-day inactivity, remove-access flows (ADR-0022, 0024). Evidence: `backend/app/services/lifecycle_jobs.py`, `offboarding.py`, `account_deletion.py`; [runbook](runbooks/offboarding.md); ADR-0073. | System | Implemented |
+| AC-2(4) | Automated Audit Actions | Account events to Elastic; Recently provisioned view (ADR-0023); security officer owns the daily review; new accounts unreviewed for 2 business days are auto-suspended (R04). Evidence: `backend/app/services/new_account_review.py`, `new_account_digest.py`, `backend/app/routers/access_review.py`; [runbook](runbooks/offboarding.md); ADR-0073. | System | Implemented |
 | AC-3 | Access Enforcement | Keycloak roles, Styx authorization, Kyverno (ADR-0001, 0026); CephFS homes: [ADR-0066](adr/0066-cephfs-homes-uid-ownership-and-freeze.md), [runbook](runbooks/node-loss-reattach.md) | System | Planned |
 | AC-4 | Information Flow Enforcement | DLP policy, Cilium deny-all non-proxy egress, Squid category filtering (ADR-0038, 0040); Cilium baseline (CCNPs, default-deny, desktop egress patch `patch-desktop-egress.yaml`) in `deploy/k8s/components/cilium-baseline/` (README), implemented in code, not deployed; Squid egress (two ports 3128 category / 3129 allowlist, label-selected, UT1 category CronJob, hostname-only JSON logs; ADR-0064, `deploy/enterprise/squid/`, runbook `runbooks/squid-egress.md`) implemented in code, not deployed; HAProxy part not done. DLP implementation and evidence: ADR-0070; [runbook](runbooks/dlp-policy.md). | System | Planned |
 | AC-5 | Separation of Duties | Admin role split (ADR-0026) | System | Planned |
@@ -131,7 +131,7 @@ Responsibility: System = this project, Inherited-Org = provided by the organizat
 | Control | Title | Implementation | Responsibility | Status |
 |---|---|---|---|---|
 | PS-3 | Personnel Screening | Organizational | Inherited-Org | Planned |
-| PS-4 | Personnel Termination | Offboarding flows (ADR-0022) | Hybrid | Planned |
+| PS-4 | Personnel Termination | Offboarding flows (ADR-0022). Evidence: `backend/app/services/offboarding.py`, `backend/app/routers/users.py`; [runbook](runbooks/offboarding.md). | Hybrid | Implemented |
 | PS-5 | Personnel Transfer | Group changes and access review (ADR-0024) | Hybrid | Planned |
 
 ## RA - Risk Assessment

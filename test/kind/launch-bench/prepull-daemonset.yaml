@@ -1,0 +1,16 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: prepull
+  namespace: launch-bench
+spec:
+  selector:
+    matchLabels: {app: prepull}
+  template:
+    metadata:
+      labels: {app: prepull}
+    spec:
+      containers:
+        - name: image
+          image: busybox:1.37
+          command: ["sleep", "3600"]

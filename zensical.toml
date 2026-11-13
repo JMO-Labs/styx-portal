@@ -55,6 +55,7 @@ nav = [
     { "Enterprise: Image supply chain" = "enterprise/runbooks/image-supply-chain.md" },
     { "Enterprise: DLP policy" = "enterprise/runbooks/dlp-policy.md" },
     { "Enterprise: Wiki.js and Matrix" = "enterprise/runbooks/wikijs-matrix.md" },
+    { "Enterprise: Offboarding" = "enterprise/runbooks/offboarding.md" },
   ] },
   { "Build" = [
     "build/index.md",
