@@ -2,7 +2,7 @@
 import pytest
 from sqlmodel import select
 
-from app.models import Group, Instance, SessionEvent, User, UserGroup
+from app.models import Group, Instance, ServiceTemplate, SessionEvent, User, UserGroup
 from app.services.session_audit import record_session_event
 from tests.test_instances_api import (  # noqa: F401  fixtures
     _make_owned_instance, shared_docker, template_id,
@@ -19,9 +19,11 @@ async def _inst(session, digest="sha256:abc"):
     session.add(user)
     grp = Group(name="devs")
     session.add(grp)
+    tmpl = ServiceTemplate(name="t", display_name="t", image="x:latest")
+    session.add(tmpl)
     await session.flush()
     session.add(UserGroup(user_id=user.id, group_id=grp.id))
-    inst = Instance(owner_id=user.id, template_id="t", name="i1", subdomain="s1", image_digest=digest)
+    inst = Instance(owner_id=user.id, template_id=tmpl.id, name="i1", subdomain="s1", image_digest=digest)
     session.add(inst)
     await session.commit()
     return user, inst

@@ -55,7 +55,10 @@ async def test_403_without_card_header(member_client, session):
 @pytest.mark.asyncio
 async def test_403_for_non_owner(second_member_client, session):
     i = await _inst(session, "member2")
-    i.owner_id = "someone-else"
+    other = User(username="someone-else", password_hash="x")
+    session.add(other)
+    await session.flush()
+    i.owner_id = other.id
     session.add(i)
     await session.commit()
     r = await second_member_client.get(f"/api/instances/{i.id}/unlock",
