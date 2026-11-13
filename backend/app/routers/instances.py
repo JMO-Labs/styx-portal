@@ -23,6 +23,7 @@ from app.services import gpu_access, instance_readiness, profiles, slo_metrics
 from app.services.group_tier import launch_overrides
 from app.services.traefik_labels import generate_traefik_labels
 from app.services.audit import audit, audit_request
+from app.services.session_audit import record_session_event
 from app.services.unlock_token import mint_token
 from app.services.offboarding import is_disabled
 from app.services.settings_store import settings as sys_settings
@@ -300,8 +301,7 @@ async def _launch_instance_background(instance_id: str, template_id: str, t0: fl
             instance_readiness.defer_on_k8s(instance)
             session.add(instance)
 
-            event = SessionEvent(instance_id=instance.id, event_type="started")
-            session.add(event)
+            await record_session_event(session, instance, "started", action="session.launch")
             await session.commit()
             instance_readiness.kick(instance, t0, "create")
             await _refresh_routes(session)
@@ -313,12 +313,7 @@ async def _launch_instance_background(instance_id: str, template_id: str, t0: fl
             instance.status = "error"
             instance.error_message = str(e)
             session.add(instance)
-            event = SessionEvent(
-                instance_id=instance.id,
-                event_type="error",
-                details={"error": str(e)},
-            )
-            session.add(event)
+            await record_session_event(session, instance, "error", details={"error": str(e)})
             await session.commit()
 
 
@@ -479,12 +474,8 @@ async def start_instance(
     instance_readiness.defer_on_k8s(instance)
     session.add(instance)
 
-    event = SessionEvent(
-        instance_id=instance.id,
-        event_type="started",
-        details={"recreated": not container_exists},
-    )
-    session.add(event)
+    await record_session_event(session, instance, "started", action="session.launch",
+                               details={"recreated": not container_exists})
     await session.commit()
     await session.refresh(instance)
     instance_readiness.kick(instance, t0, "start")
@@ -513,8 +504,7 @@ async def stop_instance(
     instance.stopped_at = datetime.now(timezone.utc)
     session.add(instance)
 
-    event = SessionEvent(instance_id=instance.id, event_type="stopped")
-    session.add(event)
+    await record_session_event(session, instance, "stopped", action="session.stop", reason="user")
     await session.commit()
     await session.refresh(instance)
     await _refresh_routes(session)
@@ -549,8 +539,7 @@ async def restart_instance(
     instance_readiness.defer_on_k8s(instance)
     session.add(instance)
 
-    event = SessionEvent(instance_id=instance.id, event_type="restarted")
-    session.add(event)
+    await record_session_event(session, instance, "restarted")
     await session.commit()
     await session.refresh(instance)
     instance_readiness.kick(instance, t0, "start")
@@ -599,8 +588,7 @@ async def recreate_instance(
     instance_readiness.defer_on_k8s(instance)
     session.add(instance)
 
-    event = SessionEvent(instance_id=instance.id, event_type="recreated")
-    session.add(event)
+    await record_session_event(session, instance, "recreated")
     await session.commit()
     await session.refresh(instance)
     instance_readiness.kick(instance, t0, "start")
@@ -626,8 +614,7 @@ async def pause_instance(
     instance.status = "paused"
     session.add(instance)
 
-    event = SessionEvent(instance_id=instance.id, event_type="paused")
-    session.add(event)
+    await record_session_event(session, instance, "paused", action="session.lock")
     await session.commit()
     await session.refresh(instance)
     await _refresh_routes(session)
@@ -654,8 +641,7 @@ async def unpause_instance(
     instance.last_activity = datetime.now(timezone.utc)
     session.add(instance)
 
-    event = SessionEvent(instance_id=instance.id, event_type="unpaused")
-    session.add(event)
+    await record_session_event(session, instance, "unpaused", action="session.unlock")
     await session.commit()
     slo_metrics.observe_since("resume", "ok", t0)
     await session.refresh(instance)
@@ -700,8 +686,8 @@ async def delete_instance(
     image_tag = template.image if template else None
     template_id = instance.template_id
 
-    event = SessionEvent(instance_id=instance.id, event_type="destroyed")
-    session.add(event)
+    await record_session_event(session, instance, "destroyed", action="session.stop",
+                               reason="deleted")
     await session.delete(instance)
     await session.commit()
 

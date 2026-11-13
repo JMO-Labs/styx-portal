@@ -7,6 +7,7 @@ import { OverviewPane, PeoplePane, SecurityPane, TimeoutsPane, StreamingPane } f
 import { MetricsSessions } from "@/components/system/metrics-sessions";
 import { MetricsLogs } from "@/components/system/metrics-logs";
 import { RelayCostPage } from "@/components/system/relay-cost-page";
+import { AccessReviewPanel } from "@/components/system/access-review-panel";
 import { HealthPanel } from "@/components/system/health-panel";
 import { ServicesPanel } from "@/components/system/services-panel";
 import { WorkstationsPanel } from "@/components/system/workstations-panel";
@@ -72,6 +73,10 @@ export const CATEGORIES: SettingsCategory[] = [
         description: "Manage accounts, roles, invitations and groups.",
         tooltip: "Create or disable users; generate invites; manage groups",
         keywords: ["invite", "role", "lock", "unlock", "members"], Component: PeoplePane },
+      { id: "access-review", label: "Access review", icon: ShieldCheck,
+        description: "Quarterly certify or revoke of group members.",
+        tooltip: "Certify or revoke group members; export CSV", keywords: ["quarter", "audit", "certify", "revoke", "csv"],
+        Component: AccessReviewPanel },
       { id: "sso", label: "Sign-in providers", icon: KeyRound,
         description: "Configure OIDC / OAuth identity providers.",
         tooltip: "Add and manage single sign-on providers", keywords: ["sso", "oidc", "oauth"], visible: on("generic_oidc"), Component: OAuthProvidersPanel },

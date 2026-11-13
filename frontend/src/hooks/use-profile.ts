@@ -8,12 +8,14 @@ export type ProfileFeature =
 /** Deployment profile from the public `/api/system/profile`; homelab (nothing disabled) until it loads or on error. */
 export function useProfile() {
   const [disabled, setDisabled] = useState<string[]>([]);
+  const [profile, setProfile] = useState("homelab");
+  const [smartcard, setSmartcard] = useState(false);
   useEffect(() => {
     let live = true;
     Promise.resolve(api.systemProfile?.())
-      .then((p) => { if (live) setDisabled(p?.disabled ?? []); })
+      .then((p) => { if (live) { setDisabled(p?.disabled ?? []); setProfile(p?.profile ?? "homelab"); setSmartcard(!!p?.smartcard); } })
       .catch(() => {});
     return () => { live = false; };
   }, []);
-  return { disabled, isDisabled: (f: ProfileFeature) => disabled.includes(f) };
+  return { disabled, profile, smartcard, isDisabled: (f: ProfileFeature) => disabled.includes(f) };
 }
