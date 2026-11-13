@@ -39,6 +39,7 @@ from app.routers import stats as stats_router
 from app.routers import group_dlp as group_dlp_router
 from app.routers import groups as groups_router
 from app.routers import access_review as access_review_router
+from app.routers import takeover as takeover_router
 from app.routers import provision as provision_router
 from app.routers import profiles as profiles_router
 from app.routers import me_storage as me_storage_router
@@ -245,6 +246,7 @@ app.add_middleware(
 app.include_router(templates.router, prefix="/api/templates", tags=["templates"])
 app.include_router(instance_thumbs.router, prefix="/api/instances", tags=["instances"])
 app.include_router(instances.router, prefix="/api/instances", tags=["instances"])
+app.include_router(takeover_router.router, prefix="/api/instances", tags=["takeover"])
 app.include_router(registry.router, prefix="/api/registry/images", tags=["registry"])
 app.include_router(images.router, prefix="/api/images", tags=["images"])
 app.include_router(auth_router.router, prefix="/api/auth", tags=["auth"])

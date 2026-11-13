@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import NaiveDatetime
 from sqlmodel import Field, SQLModel, Column
-from sqlalchemy import JSON, BigInteger, LargeBinary, DateTime, Index, Integer, String, UniqueConstraint
+from sqlalchemy import text, JSON, BigInteger, LargeBinary, DateTime, Index, Integer, String, UniqueConstraint
 
 from app.db_types import NAMING_CONVENTION, UTCDateTime
 
@@ -427,6 +427,22 @@ class AccessReviewDecision(SQLModel, table=True):
     decision: str  # certify | revoke
     actor_id: str
     decided_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+
+
+class SessionTakeover(SQLModel, table=True):
+    """Staff takeover of a user's session (ADR-0060). One active row per instance."""
+    __tablename__ = "session_takeovers"
+    __table_args__ = (Index("uq_session_takeovers_active", "instance_id", unique=True,
+                            sqlite_where=text("ended_at IS NULL"),
+                            postgresql_where=text("ended_at IS NULL")),)
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    instance_id: str = Field(foreign_key="instances.id", index=True)
+    actor_id: str  # no FK: record survives user deletion
+    user_id: str | None = None  # session owner
+    mode: str  # view | control
+    reason: str
+    started_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
+    ended_at: NaiveDatetime | None = Field(default=None, sa_type=UTCDateTime)
 
 
 class UserGroup(SQLModel, table=True):
