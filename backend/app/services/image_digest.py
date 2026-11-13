@@ -6,6 +6,7 @@ holder: in Harbor a tag sits on one artifact, so once it moves to an unsigned
 push the older signed artifact is untagged but still the one to run.
 """
 import logging
+import time
 from urllib.parse import quote, urlsplit
 
 import httpx
@@ -13,6 +14,12 @@ import httpx
 from app.config import Settings
 
 logger = logging.getLogger("styx-portal")
+
+_cache: dict[str, tuple[float, str]] = {}  # ref -> (expires monotonic, resolved)
+
+
+def clear_cache() -> None:
+    _cache.clear()
 
 
 def digest_of(ref: str) -> str | None:
@@ -46,6 +53,9 @@ def resolve_digest(ref: str, cfg: Settings | None = None,
     split = _split(ref, urlsplit(cfg.HARBOR_URL).netloc.lower())
     if not split:  # not a Harbor ref (e.g. ghcr.io): never mix registries
         return ref
+    hit = _cache.get(ref)
+    if hit and hit[0] > time.monotonic():
+        return hit[1]
     path, project, repo = split
     url = (f"{cfg.HARBOR_URL.rstrip('/')}/api/v2.0/projects/{project}/repositories/"
            f"{quote(quote(repo, safe=''), safe='')}/artifacts")
@@ -70,4 +80,7 @@ def resolve_digest(ref: str, cfg: Settings | None = None,
         logger.warning("harbor has no signed artifact for %s; using configured ref", ref)
         return ref
     newest = max(arts, key=lambda a: a.get("push_time") or "")
-    return f"{path}@{newest['digest']}"
+    resolved = f"{path}@{newest['digest']}"
+    if cfg.DIGEST_CACHE_S > 0:  # only successes are cached; errors/unsigned retry
+        _cache[ref] = (time.monotonic() + cfg.DIGEST_CACHE_S, resolved)
+    return resolved

@@ -40,14 +40,47 @@ def build_prepull_daemonset(image: str, ns: str, stamp: str | None = None) -> di
     digest = digest_of(image)
     if digest:
         repo = image.split("@", 1)[0]
-        meta["labels"]["styx/prepull-repo"] = hashlib.sha1(
-            repo.encode(), usedforsecurity=False).hexdigest()[:10]
+        meta["labels"]["styx/prepull-repo"] = _repo_key(repo)
         meta["annotations"] = {"styx/prepull-digest": digest}
     return {"apiVersion": "apps/v1", "kind": "DaemonSet", "metadata": meta,
             "spec": {"selector": {"matchLabels": {"app": name}},
                      "template": {"metadata": {"labels": labels,
                                                "annotations": {"styx/prepull-at": stamp}},
                                   "spec": pod}}}
+
+
+def _repo_key(repo: str) -> str:
+    return hashlib.sha1(repo.encode(), usedforsecurity=False).hexdigest()[:10]
+
+
+def _is_ready(ds: dict) -> bool:
+    st = ds.get("status") or {}
+    desired = st.get("desiredNumberScheduled") or 0
+    return desired > 0 and (st.get("numberReady") or 0) >= desired
+
+
+def _ds_digest(ds: dict) -> str | None:
+    return ((ds.get("metadata") or {}).get("annotations") or {}).get("styx/prepull-digest")
+
+
+def ready_digest(client, ns: str, resolved: str) -> str:
+    """`resolved`, unless its prepull DaemonSet is still pulling: then the newest
+    fully-ready older digest of the same repo. Never blocks: falls back to `resolved`."""
+    digest = digest_of(resolved)
+    if not digest:
+        return resolved
+    repo = resolved.split("@", 1)[0]
+    try:
+        items = client.list_items("apps/v1", "DaemonSet", ns,
+                                  f"styx/prepull-repo={_repo_key(repo)}")
+        ready = [d for d in items if _is_ready(d) and _ds_digest(d)]
+        if any(_ds_digest(d) == digest for d in ready):
+            return resolved
+        ready.sort(key=lambda d: d["metadata"].get("creationTimestamp", ""), reverse=True)
+        return f"{repo}@{_ds_digest(ready[0])}" if ready else resolved
+    except Exception:  # noqa: BLE001 - never block a launch
+        logger.warning("prepull readiness check failed", exc_info=True)
+        return resolved
 
 
 def prepull_images(templates) -> list[str]:
@@ -81,8 +114,14 @@ async def sync_prepull(session) -> None:
         stamp = datetime.now(timezone.utc).isoformat()
         for img in desired.values():
             client.apply(build_prepull_daemonset(img, ns, stamp))
-        for name in client.list_names("apps/v1", "DaemonSet", ns, "styx/prepull=true"):
-            if name not in desired:
+        items = client.list_items("apps/v1", "DaemonSet", ns, "styx/prepull=true")
+        # an old digest stays until the newer one for the same repo is fully ready
+        pulling = {(d["metadata"].get("labels") or {}).get("styx/prepull-repo")
+                   for d in items if d["metadata"]["name"] in desired and not _is_ready(d)}
+        for d in items:
+            name = d["metadata"]["name"]
+            repo = (d["metadata"].get("labels") or {}).get("styx/prepull-repo")
+            if name not in desired and not (repo and repo in pulling):
                 client.delete("apps/v1", "DaemonSet", ns, name)
     await asyncio.to_thread(_apply)
 
