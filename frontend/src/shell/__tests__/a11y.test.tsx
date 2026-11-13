@@ -44,3 +44,10 @@ test("dock has no serious a11y violations and named controls", async () => {
   }
   await expectNoSeriousA11y(document.body);
 });
+
+test("edge tab keeps its opaque outline while the fill fades", () => {
+  render(<EdgeTab onOpen={() => {}} />);
+  const outline = screen.getByTestId("edge-tab-outline");
+  expect(outline.style.boxShadow).toContain("1px");
+  expect(screen.getByRole("button").style.opacity).toBe("");
+});
