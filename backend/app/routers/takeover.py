@@ -10,10 +10,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.database import get_session
 from app.models import Instance, SessionTakeover, User
-from app.security.deps import can_takeover, get_current_user
+from app.security.deps import can_takeover, get_current_user, require_staff_role
 from app.services.audit import audit_request
+from app.services.takeover_report import build_report, month_bounds
 
 router = APIRouter()
+report_router = APIRouter()
 
 
 class TakeoverIn(BaseModel):
@@ -118,3 +120,19 @@ async def get_takeover(iid: str, user: User = Depends(get_current_user),
     actor = await session.get(User, t.actor_id)
     name = actor.username if actor else "Support staff"
     return ActiveTakeoverOut(actor_name=name, mode=t.mode, started_at=t.started_at)
+
+
+@report_router.get("/report")
+async def takeover_report(month: str, request: Request,
+                          user: User = Depends(require_staff_role("platform-admin", "auditor")),
+                          session: AsyncSession = Depends(get_session)):
+    try:
+        month_bounds(month)
+    except ValueError:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "month must be YYYY-MM")
+    body = await build_report(session, month)
+    await audit_request(session, request, "takeover.report", user_id=user.id,
+                        detail={"month": month})
+    await session.commit()
+    return Response(body, media_type="text/csv", headers={
+        "Content-Disposition": f'attachment; filename="takeovers-{month}.csv"'})
