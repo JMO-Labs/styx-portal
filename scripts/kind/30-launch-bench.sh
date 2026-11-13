@@ -17,15 +17,26 @@ percentile() {
   echo "${arr[$((rank-1))]}"
 }
 
-kubectl apply -f "$DIR/namespace.yaml" >&2
-kubectl apply -f "$DIR/prepull-daemonset.yaml" >&2
+# Retry transient admission-webhook failures (kyverno closes idle connections).
+retry() {
+  local a
+  for a in 1 2 3 4 5; do
+    "$@" && return 0
+    echo "retry $a: $*" >&2
+    sleep 5
+  done
+  return 1
+}
+
+retry kubectl apply -f "$DIR/namespace.yaml" >&2
+retry kubectl apply -f "$DIR/prepull-daemonset.yaml" >&2
 kubectl -n "$NS" rollout status ds/prepull --timeout=300s >&2
 
 times=()
 for i in $(seq 1 "$N"); do
   name="bench-$i"
   start=$(date +%s.%N)
-  sed "s/__NAME__/$name/g" "$DIR/pod.yaml" | kubectl apply -f - >&2
+  retry kubectl apply -f <(sed "s/__NAME__/$name/g" "$DIR/pod.yaml") >&2
   kubectl -n "$NS" wait --for=condition=Ready "pod/$name" --timeout=120s >&2
   end=$(date +%s.%N)
   t=$(awk -v s="$start" -v e="$end" 'BEGIN{printf "%.3f", e-s}')
