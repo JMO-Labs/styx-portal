@@ -8,11 +8,12 @@ DLP_DEFAULTS = {
     "download": False, "printing": False, "watermark": True,
 }
 
-# Selkies settings (docs/settings.md upstream); SELKIES_WATERMARK_TEXT comes from
-# the ADR-0058 patch set (upstream only has a PNG path). "{time}" is filled at render.
+# SELKIES_CLIPBOARD_ENABLED is the name pinned in selkies-defaults.ts; the
+# SELKIES_ENABLE_CLIPBOARD alias carries the in/out direction. STYX_WATERMARK_USER
+# is read by the ADR-0058 pixelflux patch (05), which adds the UTC time itself.
 DLP_ENV_KEYS = frozenset({
-    "SELKIES_ENABLE_CLIPBOARD", "SELKIES_FILE_TRANSFERS",
-    "SELKIES_PRINTING_ENABLED", "SELKIES_WATERMARK_TEXT",
+    "SELKIES_CLIPBOARD_ENABLED", "SELKIES_ENABLE_CLIPBOARD", "SELKIES_FILE_TRANSFERS",
+    "SELKIES_PRINTING_ENABLED", "STYX_WATERMARK_USER",
 })
 
 
@@ -20,6 +21,7 @@ def dlp_env(policy: dict[str, bool], username: str | None = None) -> dict[str, s
     """Selkies env enforcing the policy server-side. Printing on sets no key."""
     cin, cout = policy["clipboard_in"], policy["clipboard_out"]
     env = {
+        "SELKIES_CLIPBOARD_ENABLED": "true" if cin or cout else "false",
         "SELKIES_ENABLE_CLIPBOARD": (
             "true" if cin and cout else "in" if cin else "out" if cout else "false"),
         "SELKIES_FILE_TRANSFERS": ",".join(
@@ -28,7 +30,7 @@ def dlp_env(policy: dict[str, bool], username: str | None = None) -> dict[str, s
     if not policy["printing"]:
         env["SELKIES_PRINTING_ENABLED"] = "false"
     if policy["watermark"]:
-        env["SELKIES_WATERMARK_TEXT"] = f"{username or ''} {{time}}".strip()
+        env["STYX_WATERMARK_USER"] = username or ""
     return env
 
 
