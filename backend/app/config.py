@@ -61,9 +61,15 @@ class Settings(BaseSettings):
     HARBOR_URL: str = ""   # empty = no digest pinning (ADR-0030)
     HARBOR_USER: str = ""
     HARBOR_PASSWORD: str = ""
+    DIGEST_CACHE_S: int = 60  # per-ref cache of resolved Harbor digests (0 = off)
     PREPULL_INTERVAL_S: int = 3600  # image prepull sync loop
     CVE_RECYCLE_INTERVAL_S: int = 3600  # critical-CVE scan loop (ADR-0030)
     CVE_RECYCLE_GRACE_H: int = 24
+    SESSION_REAPER_INTERVAL_S: int = 60  # leader-only session reaper (ADR-0039)
+    SESSION_DISCONNECT_MAX_H: float = 2
+    SESSION_MAX_H: float = 12
+    SESSION_WARN_MIN: int = 15
+    GATEWAY_PORT: int = 8080  # in-pod gateway serving /styx/state
     K8S_DESKTOP_IMAGE: str = "ghcr.io/jmo-labs/styx-desktop:latest"
     EGRESS_PROXY_HOST: str = "squid.egress-proxy.svc.cluster.local"
     EGRESS_PROXY_PORT_CATEGORY: int = 3128
@@ -137,6 +143,7 @@ class Settings(BaseSettings):
     OAUTH_REDIRECT_BASE: str = ""   # e.g. https://s.jmolabs.dev ; defaults to https://{DOMAIN}
     BANNER_URL: str = ""            # enterprise: unauthenticated login page redirects here when set
     SECRETS_FILE: str = "/app/data/secrets.json"
+    SMARTCARD_RELAY_SECRET: str = ""  # shared secret for POST /api/smartcard/redeem; empty = disabled
     # --- Workstation streaming (physical machines) ---
     SERVER_LAN_URL: str = ""        # e.g. https://192.168.1.10 — used in enrollment one-liner
     SERVER_CA_PIN: str = ""         # optional sha256:<hex fp> for self-signed LAN TLS
@@ -171,6 +178,13 @@ class Settings(BaseSettings):
     KC_PROVIDER_NAME: str = "keycloak"
     # Days after disable before the account and its homes are deleted (ADR-0022).
     ACCOUNT_DELETION_RETENTION_DAYS: int = 90
+
+    # Home archive on S3/RGW; disabled when archive_s3_endpoint is empty.
+    archive_s3_endpoint: str = ""
+    archive_s3_bucket: str = ""
+    archive_s3_access_key: str = ""
+    archive_s3_secret_key: str = ""
+    homes_root: str = "/homes"
 
     LIFECYCLE_INACTIVITY_DAYS: int = 35   # auto-disable after this many idle days (ADR-0022)
 

@@ -1,0 +1,61 @@
+--- a/selkies/websockets_mode.py
++++ b/selkies/websockets_mode.py
+@@ -270,6 +270,24 @@
+ # still go. Without it the owner's backlog is bounded only by the relay budget.
+ VIDEO_RELAY_OWNER_LAG_SECONDS = 0.1
+ VIDEO_RELAY_PING_SECONDS = 0.05
++# Lock overlay (Styx): while LOCK["locked"], no video frame is written to any
++# page, so no desktop pixels leave the host. Driven by the text message
++# `STYX_LOCK,<1|0>,<token>`; the token is STYX_LOCK_TOKEN from the environment,
++# held by the gateway only. With no token configured every lock message is refused.
++LOCK = {"locked": False}
++
++
++def handle_lock_command(message: str) -> Optional[bool]:
++    """None if `message` is not a lock command; True if applied; False if refused."""
++    if not message.startswith("STYX_LOCK,"):
++        return None
++    parts = message.split(",", 2)
++    token = os.environ.get("STYX_LOCK_TOKEN", "")
++    if (len(parts) != 3 or parts[1] not in ("0", "1") or not token
++            or not secrets.compare_digest(parts[2].encode(), token.encode())):
++        return False
++    LOCK["locked"] = parts[1] == "1"
++    return True
+ # Frames a run left out of a page may span before the encoder is told without
+ # waiting for the page's room: the encoder predicts from the last eight
+ # (REFERENCE_FRAMES in pixelflux), and the report lands a frame or two late.
+@@ -1441,6 +1459,8 @@
+         data = item['data']
+         size = len(data)
+         is_video = size >= 12 and data[0] == 0x04
++        if is_video and LOCK["locked"]:
++            return False
+         is_idr = is_video and (data[1] & 0x0F) == 0x01
+         dropped = False
+         flushed = 0
+@@ -1522,6 +1542,8 @@
+                 item = self.backlog.popleft()
+                 data = item['data']
+                 self.backlog_bytes -= len(data)
++                if LOCK["locked"] and len(data) >= 12 and data[0] == 0x04:
++                    continue  # queued before the lock: never written
+                 self.written += len(data)
+                 self.marks.append(self.written)
+                 # Stamped before the await, and only for the display's
+@@ -5426,6 +5448,15 @@
+                         except Exception:
+                             pass
+                         continue
++                    applied = handle_lock_command(message)
++                    if applied is not None:
++                        if applied:
++                            # A fresh key frame so the stream resumes cleanly on unlock.
++                            for lock_display in list(self.display_clients):
++                                self._schedule_idr_for_display(lock_display)
++                        else:
++                            data_logger.warning(f"Refused STYX_LOCK from {remote_address}")
++                        continue
+                     perms = client_permissions.get(websocket)
+                     if perms and perms.get("role") == "viewer":
+                         # Authority lists shared with the WebRTC gate: the collab extras

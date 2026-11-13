@@ -35,6 +35,7 @@ async def _run_monitor_pass(session, monitor, docker) -> bool:
                 continue
         actions = monitor.check_instance(inst, session)
         if "auto_stopped" in actions:
+            await monitor.record_auto_stop(session, inst)
             changed = True
     return changed
 
