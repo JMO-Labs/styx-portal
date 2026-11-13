@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/api/client";
+import { api, ApiError } from "@/api/client";
 import { toast } from "sonner";
 import type { Instance, InstanceCreate } from "@/lib/types";
 
@@ -136,11 +136,16 @@ export function useKeepalive() {
   });
 }
 
-/** Active staff takeover of an instance (polled every 5 s while `enabled`); null when none or not permitted. */
+/** Active staff takeover of an instance (polled every 5 s while `enabled`); null when none or not permitted.
+ *  Transient poll errors propagate so react-query keeps the last known takeover (banner stays up). */
 export function useTakeover(id: string | undefined, enabled: boolean) {
   return useQuery({
     queryKey: ["takeover", id],
-    queryFn: () => api.takeover(id!).catch(() => null),
+    queryFn: () =>
+      api.takeover(id!).catch((e) => {
+        if (e instanceof ApiError && (e.status === 403 || e.status === 404)) return null;
+        throw e;
+      }),
     enabled: enabled && !!id,
     refetchInterval: 5000,
   });
