@@ -8,6 +8,7 @@ from sqlmodel import select
 
 from app.config import Settings
 from app.models import ServiceTemplate, User
+from app.services.image_digest import digest_of, resolve_digest
 from app.services.k8s_instance_objects import MANAGED, refuse_reason
 
 logger = logging.getLogger("styx-portal")
@@ -35,9 +36,14 @@ def build_prepull_daemonset(image: str, ns: str, stamp: str | None = None) -> di
            "initContainers": [init],
            "containers": [{"name": "pause", "image": "registry.k8s.io/pause:3.10",
                            "resources": _RES, "securityContext": dict(_SEC)}]}
-    return {"apiVersion": "apps/v1", "kind": "DaemonSet",
-            "metadata": {"name": name, "namespace": ns,
-                         "labels": {"styx/prepull": "true", **MANAGED}},
+    meta = {"name": name, "namespace": ns, "labels": {"styx/prepull": "true", **MANAGED}}
+    digest = digest_of(image)
+    if digest:
+        repo = image.split("@", 1)[0]
+        meta["labels"]["styx/prepull-repo"] = hashlib.sha1(
+            repo.encode(), usedforsecurity=False).hexdigest()[:10]
+        meta["annotations"] = {"styx/prepull-digest": digest}
+    return {"apiVersion": "apps/v1", "kind": "DaemonSet", "metadata": meta,
             "spec": {"selector": {"matchLabels": {"app": name}},
                      "template": {"metadata": {"labels": labels,
                                                "annotations": {"styx/prepull-at": stamp}},
@@ -50,6 +56,7 @@ def prepull_images(templates) -> list[str]:
         if refuse_reason(t):
             continue
         img = t.image if "/" in t.image else Settings().K8S_DESKTOP_IMAGE
+        img = resolve_digest(img)
         if img not in out:
             out.append(img)
     return out
@@ -64,7 +71,10 @@ async def sync_prepull(session) -> None:
         select(ServiceTemplate).outerjoin(User, ServiceTemplate.owner_id == User.id)
         .where((ServiceTemplate.owner_id.is_(None)) | (User.role == "admin")))
     ns = Settings().K8S_INSTANCE_NAMESPACE
-    desired = {prepull_name(i): i for i in prepull_images(rows.all())}
+    templates = rows.all()
+    # resolve_digest does blocking HTTP: keep it off the event loop
+    images = await asyncio.to_thread(prepull_images, templates)
+    desired = {prepull_name(i): i for i in images}
     client = incluster_client()
 
     def _apply() -> None:
@@ -95,13 +105,8 @@ def schedule_sync() -> None:
     t.add_done_callback(_bg.discard)
 
 
-async def prepull_loop(hour: int = 3) -> None:
-    """Sync at startup, then nightly at `hour` local time (bumps the annotation => re-pull)."""
-    last_day = None
-    await _sync_own_session()
+async def prepull_loop() -> None:
+    """Sync at startup, then every PREPULL_INTERVAL_S (picks up newly signed digests)."""
     while True:
-        await asyncio.sleep(60)
-        now = datetime.now()
-        if now.hour == hour and last_day != now.date():
-            last_day = now.date()
-            await _sync_own_session()
+        await _sync_own_session()
+        await asyncio.sleep(Settings().PREPULL_INTERVAL_S)
