@@ -26,10 +26,13 @@ import refit
 from codecpref import inject_codecpref
 from gamemode import GameMode
 import seat_scale
+import session_events
 import yarl
 from aiohttp import web
 from multidict import CIMultiDict
 from gateway_webrtc import KILL_SUFFIX, WebRTCGateway
+from gateway_dlp import allow_message, safe_record
+from gateway_report import build_reporter
 from gateway_ws import same_origin
 from viewers import StallClock, Viewers, split_vid  # noqa: F401
 from gateway_html import (  # noqa: F401  (re-exported for tests)
@@ -104,10 +107,14 @@ def create_app(user: str, password: str,
                idle_lead_s: int = 60, idle_enabled: bool = False,
                seat_dir: str = "", icon_dir: str = "",
                transport: str = "", max_session_s: int = 0,
-               webrtc_off: bool = False) -> web.Application:
+               webrtc_off: bool = False,
+               dlp_policy: dict | None = None,
+               dlp_reporter=None) -> web.Application:
     # The supervisor can promote a warm standby selkies on a refit: the live
     # port is then in <seat_dir>/selkies-port, re-read per request.
     port_file = os.path.join(seat_dir, "selkies-port") if seat_dir else ""
+    events_path = (os.path.join(os.path.dirname(state_file), session_events.NAME)
+                   if state_file else "")
 
     def live_port() -> int:
         try:
@@ -237,6 +244,7 @@ def create_app(user: str, password: str,
         """Register a stream socket for `vid`; a controller claims or takes the size."""
         rec = viewers.connect(vid, ws)
         rec.vid, rec.shared = vid, shared
+        events_path and session_events.record(events_path, "connect", vid)
         if seat_dir and not shared:
             if size_owner.owner and size_owner.owner != vid:
                 set_owner(vid)
@@ -246,6 +254,7 @@ def create_app(user: str, password: str,
 
     def detach(vid, ws, rec):
         if rec and viewers.disconnect(vid, ws):
+            events_path and session_events.record(events_path, "disconnect", vid)
             rec.timer and rec.timer.cancel()
             # Not released at once: a refit reconnect brings the same vid back.
             rec.gone = asyncio.get_running_loop().call_later(OWNER_GRACE_S, expire, vid)
@@ -367,8 +376,13 @@ def create_app(user: str, password: str,
                 transports[ws_server] = request.transport
                 stall = StallClock(time.time())
 
-                async def pump(src, dst, on_activity=None, on_binary=None):
+                async def pump(src, dst, direction, on_activity=None, on_binary=None):
                     async for msg in src:
+                        if msg.type in (aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY):
+                            ok = allow_message(msg.data, direction, dlp_policy)
+                            safe_record(dlp_reporter, msg.data, direction, ok)
+                            if not ok:
+                                continue    # DLP (gateway_dlp)
                         if msg.type == aiohttp.WSMsgType.TEXT:
                             out = on_activity(msg.data) if on_activity else None
                             if out is True:
@@ -456,8 +470,8 @@ def create_app(user: str, password: str,
                 log(f"ws open vid={vid[:8]} role={'viewer' if shared else 'controller'} "
                     f"from={peer} (n={conns['n']})")
 
-                await asyncio.gather(pump(ws_server, ws_client, on_activity=on_client),
-                                     pump(ws_client, ws_server, on_binary=mark_frame),
+                await asyncio.gather(pump(ws_server, ws_client, "in", on_activity=on_client),
+                                     pump(ws_client, ws_server, "out", on_binary=mark_frame),
                                      idle_closer(),
                                      return_exceptions=True)
             finally:
@@ -650,12 +664,13 @@ def main() -> None:
     transport = os.environ.get("STYX_GW_TRANSPORT", "")
     max_session_s = int(os.environ.get("STYX_GW_MAX_SESSION_S", "0") or "0")
     webrtc_off = os.environ.get("STYX_GW_WEBRTC_OFF", "") == "1"
+    dlp_reporter = build_reporter()
     web.run_app(create_app(user, password, upstream_port, files_dir,
                            state_file=state_file, idle_timeout_s=idle_timeout_s,
                            idle_lead_s=idle_lead_s, idle_enabled=idle_enabled,
                            seat_dir=seat_dir, icon_dir=icon_dir,
                            transport=transport, max_session_s=max_session_s,
-                           webrtc_off=webrtc_off),
+                           webrtc_off=webrtc_off, dlp_reporter=dlp_reporter),
                 host="0.0.0.0", port=listen_port)
 
 

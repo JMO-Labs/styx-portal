@@ -23,6 +23,12 @@
           }
         },
         "user": {"properties": {"id": {"type": "keyword"}, "name": {"type": "keyword"}}},
+        "host": {"properties": {"name": {"type": "keyword"}}},
+        "container": {
+          "properties": {
+            "image": {"properties": {"hash": {"properties": {"all": {"type": "keyword"}}}}}
+          }
+        },
         "source": {"properties": {"ip": {"type": "ip"}}},
         "destination": {"properties": {"domain": {"type": "keyword"}}},
         "url": {"properties": {"domain": {"type": "keyword"}, "path": {"type": "keyword"}}},
@@ -51,6 +57,15 @@
               "properties": {
                 "resource": {"type": "keyword"},
                 "detail": {"type": "flattened"}
+              }
+            },
+            "session": {
+              "properties": {
+                "id": {"type": "keyword"},
+                "kind": {"type": "keyword"},
+                "reason": {"type": "keyword"},
+                "viewer_id": {"type": "keyword"},
+                "groups": {"type": "keyword"}
               }
             },
             "identity": {

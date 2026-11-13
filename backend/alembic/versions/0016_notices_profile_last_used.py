@@ -10,8 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = '0013_notices_profile_last_used'
-down_revision: Union[str, Sequence[str], None] = '0012_instance_recycle_deadline'
+revision: str = '0016_notices_profile_last_used'
+down_revision: Union[str, Sequence[str], None] = '0015_group_idle_lock_minutes'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -1,0 +1,10 @@
+# Element Web client (SSO only), pointed at Synapse. The matrix Namespace is owned by the Synapse ticket.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: matrix
+resources:
+  - configmap.yaml
+  - deployment.yaml
+  - service.yaml
+  - pdb.yaml
+  - networkpolicy.yaml

@@ -32,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import agent_update  # noqa: E402
 import favicon  # noqa: E402
 import seat_thumb  # noqa: E402
+import session_events  # noqa: E402
 import refit  # noqa: E402
 import engine  # noqa: E402  (installed next to this file by enroll.sh)
 import seat_gnome  # noqa: E402
@@ -71,6 +72,15 @@ def health_payload(cfg: dict, selkies_alive: bool, gateway_alive: bool,
         "seat_x11": seat_x11,
         "update": agent_update.report(),
     }
+
+
+def send_heartbeat(cfg: dict, body: dict, events_path) -> dict:
+    """POST the heartbeat with queued viewer events; clear them only on success."""
+    evs, n = session_events.pending(events_path)
+    body["health"]["session_events"] = evs
+    hb = api(cfg, "/api/agent/heartbeat", body)
+    session_events.ack(events_path, n)
+    return hb
 
 
 def _write_state(d: dict) -> None:
@@ -359,14 +369,14 @@ def run(cfg: dict) -> int:
             continue
 
         try:
-            hb = api(cfg, "/api/agent/heartbeat", {
+            hb = send_heartbeat(cfg, {
                 "status": "online" if selkies_ok and gateway_ok else "error",
                 "last_error": last_error,
                 "health": health_payload(
                     cfg, selkies_ok, gateway_ok, shell_kind,
                     gseat.restarts if gseat else 0, degraded,
                     gseat.info()["x11"] if gseat else ""),
-            })
+            }, gw_state_path(cfg).with_name(session_events.NAME))
             _write_state({"ts": time.time(), "ok": True, "state": hb["state"]})
             if hb["state"] == "revoked":
                 print("Revoked by server. Stopping. To remove this agent run:\n"
