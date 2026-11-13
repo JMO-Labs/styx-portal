@@ -165,7 +165,8 @@ async def test_live_gateway_relay_drops_cw_in_and_clipboard_out():
     up.router.add_get("/api/websockets", upstream_ws)
     upc = TestClient(TestServer(up))
     await upc.start_server()
-    app = gateway.create_app("styx", "pw", upstream_port=upc.server.port)
+    app = gateway.create_app("styx", "pw", upstream_port=upc.server.port,
+                              dlp_policy={"clipboard_in": False, "clipboard_out": False})
     client = TestClient(TestServer(app))
     await client.start_server()
     try:
