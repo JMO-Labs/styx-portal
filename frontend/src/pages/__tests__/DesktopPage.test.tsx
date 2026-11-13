@@ -10,6 +10,10 @@ const useTemplates = vi.fn(() => ({ data: [{ id: "t1", icon: "🌐" }] }));
 vi.mock("@/hooks/use-templates", () => ({ useTemplates: () => useTemplates() }));
 vi.mock("@/lib/stream-thumb", () => ({ startThumbUploader: () => () => {} }));
 
+const profile = vi.fn(() => ({ disabled: [] as string[], isDisabled: () => false, profile: "homelab", smartcard: false }));
+vi.mock("@/hooks/use-profile", () => ({ useProfile: () => profile() }));
+vi.mock("@/components/launch/smartcard-connect", () => ({ SmartcardConnect: () => <button>Connect smart card</button> }));
+
 import { DesktopPage, faviconHref } from "../DesktopPage";
 
 const inst = (status: string, extra = {}) =>
@@ -25,7 +29,10 @@ function renderAt(list: unknown[] | undefined, pending = false) {
 }
 
 describe("DesktopPage", () => {
-  beforeEach(() => { useInstances.mockReset(); mutate.mockReset(); });
+  beforeEach(() => {
+    useInstances.mockReset(); mutate.mockReset();
+    profile.mockReturnValue({ disabled: [], isDisabled: () => false, profile: "homelab", smartcard: false });
+  });
 
   it("mounts the iframe when running", () => {
     renderAt([inst("running")]);
@@ -71,6 +78,17 @@ describe("DesktopPage", () => {
   it("no banner when running", () => {
     renderAt([inst("running")]);
     expect(screen.queryByText(/Pausing soon/)).toBeNull();
+  });
+
+  it.each([
+    ["homelab", false, false],
+    ["homelab", true, false],
+    ["enterprise", false, false],
+    ["enterprise", true, true],
+  ])("Connect smart card for %s/smartcard:%s shown=%s", (prof, smartcard, shown) => {
+    profile.mockReturnValue({ disabled: [], isDisabled: () => false, profile: prof, smartcard });
+    renderAt([inst("running")]);
+    expect(screen.queryByText("Connect smart card") !== null).toBe(shown);
   });
 
   describe("toolbar", () => {

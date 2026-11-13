@@ -1,4 +1,5 @@
 import httpx
+import pytest
 
 from app.config import Settings
 from app.services import image_digest
@@ -147,3 +148,49 @@ def test_owned_client_is_closed(monkeypatch):
     monkeypatch.setattr(image_digest.httpx, "Client", Fake)
     assert resolve_digest(REF, cfg()).endswith("@sha256:a")
     assert created and created[0].is_closed
+
+
+@pytest.fixture(autouse=True)
+def _clear_cache():
+    image_digest.clear_cache()
+    yield
+    image_digest.clear_cache()
+
+
+def _counting(status=200):
+    calls = []
+
+    def h(r):
+        calls.append(r)
+        if status != 200:
+            return httpx.Response(status)
+        return httpx.Response(200, json=[art("sha256:a", "2026-01-01T00:00:00Z", True)])
+    return calls, h
+
+
+def test_cached_within_ttl_makes_no_http_request():
+    calls, h = _counting()
+    c = Settings(HARBOR_URL="https://harbor.example", DIGEST_CACHE_S=60)
+    first = resolve_digest(REF, c, client(h))
+    assert resolve_digest(REF, c, client(h)) == first
+    assert len(calls) == 1
+
+
+def test_cache_expires_after_ttl(monkeypatch):
+    calls, h = _counting()
+    c = Settings(HARBOR_URL="https://harbor.example", DIGEST_CACHE_S=60)
+    now = [1000.0]
+    monkeypatch.setattr(image_digest.time, "monotonic", lambda: now[0])
+    resolve_digest(REF, c, client(h))
+    now[0] += 61
+    resolve_digest(REF, c, client(h))
+    assert len(calls) == 2
+
+
+def test_harbor_error_not_cached():
+    c = Settings(HARBOR_URL="https://harbor.example", DIGEST_CACHE_S=60)
+    calls, bad = _counting(500)
+    assert resolve_digest(REF, c, client(bad)) == REF
+    calls2, good = _counting()
+    assert "@sha256:a" in resolve_digest(REF, c, client(good))
+    assert len(calls) == 1 and len(calls2) == 1

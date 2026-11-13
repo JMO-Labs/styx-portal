@@ -1,7 +1,7 @@
 """notices table + user_profiles.last_used_at (styx-portal#266)
 
-Revision ID: 0016_notices_profile_last_used
-Revises: 0015_group_idle_lock_minutes
+Revision ID: 0018_notices_profile_last_used
+Revises: 0017_announcements
 Create Date: 2026-11-13
 
 """
@@ -10,8 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = '0016_notices_profile_last_used'
-down_revision: Union[str, Sequence[str], None] = '0015_group_idle_lock_minutes'
+revision: str = '0018_notices_profile_last_used'
+down_revision: Union[str, Sequence[str], None] = '0017_announcements'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

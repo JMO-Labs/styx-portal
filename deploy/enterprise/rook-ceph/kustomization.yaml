@@ -6,6 +6,7 @@ resources:
   - local-pvs.yaml
   - cephcluster.yaml
   - pools.yaml
+  - home-archive.yaml
   - storageclasses.yaml
   - throttle-cephclient.yaml
   - throttle-config.yaml
