@@ -145,8 +145,10 @@ def build_objects(name, image, env, volumes, port, ns, owner, *, gpu_enabled=Fal
         mounts.append({"name": "home", "mountPath": cfg.HOME_MOUNT_PATH,
                        **({"readOnly": True} if home_read_only else {})})
     if env.get("STYX_INSTANCE_ID"):
-        env = {**env, "STYX_UNLOCK_URL":
-               f"https://login.{cfg.DOMAIN}/api/instances/{env['STYX_INSTANCE_ID']}/unlock"}
+        from app.services.unlock_token import unlock_key
+        iid = env["STYX_INSTANCE_ID"]
+        env = {**env, "STYX_UNLOCK_URL": f"https://login.{cfg.DOMAIN}/api/instances/{iid}/unlock",
+               "STYX_UNLOCK_KEY": unlock_key(iid).hex()}
     caps = _caps(list(cap_add or []))
     cap_spec: dict = {"drop": ["ALL"]}
     if caps:
