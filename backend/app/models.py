@@ -402,6 +402,15 @@ class Group(SQLModel, table=True):
     tier_memory: str | None = None
     manager_user_id: str | None = Field(default=None, foreign_key="users.id")
     kc_group_id: str | None = None
+    # Per-group DLP overrides (ADR-0038); None = default. Only honoured with an approval ref.
+    dlp_clipboard_in: bool | None = None
+    dlp_clipboard_out: bool | None = None
+    dlp_upload: bool | None = None
+    dlp_download: bool | None = None
+    dlp_printing: bool | None = None
+    dlp_watermark: bool | None = None
+    dlp_approval_ref: str | None = None
+    dlp_approved_at: NaiveDatetime | None = Field(sa_type=UTCDateTime, default=None)
     idp_managed: bool = False  # membership mirrored from the IdP groups claim; read-only in API
     created_at: NaiveDatetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
