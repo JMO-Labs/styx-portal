@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     HARBOR_USER: str = ""
     HARBOR_PASSWORD: str = ""
     DIGEST_CACHE_S: int = 60  # per-ref cache of resolved Harbor digests (0 = off)
+    PREPULL_INTERVAL_S: int = 3600  # image prepull sync loop
     CVE_RECYCLE_INTERVAL_S: int = 3600  # critical-CVE scan loop (ADR-0030)
     CVE_RECYCLE_GRACE_H: int = 24
     K8S_DESKTOP_IMAGE: str = "ghcr.io/jmo-labs/styx-desktop:latest"
