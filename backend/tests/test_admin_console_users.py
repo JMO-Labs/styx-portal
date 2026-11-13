@@ -68,3 +68,16 @@ async def test_storage_reuses_me_logic(member_client, session, monkeypatch):
     monkeypatch.setattr("app.routers.admin_console.user_storage", fake)
     body = (await member_client.get(URL.format(user.id))).json()
     assert body["storage"]["warn"] is True and body["storage"]["used_bytes"] == 9
+
+
+async def test_users_list_for_help_desk(member_client, session):
+    await _set_role(session, "help-desk")
+    r = await member_client.get("/api/admin/console/users")
+    assert r.status_code == 200
+    rows = r.json()["users"]
+    assert any(u["username"] == "member" and set(u) == {"id", "username", "email", "staff_role"} for u in rows)
+
+
+async def test_users_list_forbidden_for_auditor(member_client, session):
+    await _set_role(session, "auditor")
+    assert (await member_client.get("/api/admin/console/users")).status_code == 403

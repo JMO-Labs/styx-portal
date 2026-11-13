@@ -342,6 +342,7 @@ async def _me_full(session: AsyncSession, user: User) -> UserOut:
     out = _me_out(user)
     out.can_use_gpu = await user_may_use_gpu(session, user)
     out.can_takeover = can_takeover(user)
+    out.staff_role = "platform-admin" if user.role == "admin" else user.staff_role
     return out
 
 

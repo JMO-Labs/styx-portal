@@ -220,6 +220,7 @@ class UserOut(BaseModel):
     has_matrix_card: bool = False
     can_use_gpu: bool = False
     can_takeover: bool = False
+    staff_role: str = ""
     groups: list[str] = []
 
 

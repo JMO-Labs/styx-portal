@@ -48,6 +48,7 @@ nav = [
     { "SQLite to PostgreSQL" = "operate/sqlite-to-postgres.md" },
     { "Enterprise: Session events" = "enterprise/session-events.md" },
     { "Enterprise: OpenBao" = "enterprise/runbooks/openbao.md" },
+    { "Enterprise: Smartcard helper signing" = "enterprise/runbooks/smartcard-helper-signing.md" },
     { "Enterprise: DMZ HAProxy" = "enterprise/runbooks/dmz-haproxy.md" },
     { "Enterprise: Rook-Ceph" = "enterprise/runbooks/rook-ceph.md" },
     { "Enterprise: Squid egress" = "enterprise/runbooks/squid-egress.md" },
@@ -59,6 +60,7 @@ nav = [
     { "Enterprise: Offboarding" = "enterprise/runbooks/offboarding.md" },
     { "Enterprise: Home age-off" = "enterprise/runbooks/home-age-off.md" },
     { "Enterprise: Session takeover" = "enterprise/runbooks/session-takeover.md" },
+    { "Enterprise: Load-test gate" = "enterprise/runbooks/load-test-gate.md" },
   ] },
   { "Build" = [
     "build/index.md",
