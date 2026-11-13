@@ -1,9 +1,12 @@
+import asyncio
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
+import pytest
 from sqlmodel import select
 
 from app.models import AuditLog, Instance, Notice, ServiceTemplate, User
+from app.services import scratch_reclaim as sr
 from app.services.scratch_reclaim import scratch_reclaim_tick
 
 NOW = datetime(2026, 11, 13, 12, 0)
@@ -67,3 +70,59 @@ async def test_missing_volume_is_ok(session):
     await scratch_reclaim_tick(session, rt, NOW, True)
     await session.refresh(i)
     assert i.volume_names == []
+
+
+async def test_non_404_error_propagates(session):
+    await _inst(session, "a", vols=("s1",))
+    rt = MagicMock()
+    rt.remove_volume.side_effect = RuntimeError("boom")
+    with pytest.raises(RuntimeError):
+        await scratch_reclaim_tick(session, rt, NOW, True)
+
+
+class _Ctx:
+    def __init__(self, s):
+        self.s = s
+
+    async def __aenter__(self):
+        return self.s
+
+    async def __aexit__(self, *a):
+        return False
+
+
+async def _run_loop_once(monkeypatch, tick):
+    """Run one loop iteration; the patched sleep ends the loop via CancelledError."""
+    async def stop(_):
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(sr, "scratch_reclaim_tick", tick)
+    monkeypatch.setattr(sr.asyncio, "sleep", stop)
+    with pytest.raises(asyncio.CancelledError):
+        await sr.scratch_reclaim_loop(lambda: _Ctx(object()), MagicMock())
+
+
+async def test_loop_logs_reclaimed_count(monkeypatch, caplog):
+    async def tick(*a):
+        return 2
+
+    with caplog.at_level("INFO", logger=sr.log.name):
+        await _run_loop_once(monkeypatch, tick)
+    assert "reclaimed scratch volumes of 2 instance(s)" in caplog.text
+
+
+async def test_loop_survives_tick_error(monkeypatch, caplog):
+    async def tick(*a):
+        raise RuntimeError("db down")
+
+    await _run_loop_once(monkeypatch, tick)
+    assert "scratch reclaim failed" in caplog.text
+
+
+async def test_loop_propagates_cancel_from_tick(monkeypatch):
+    async def tick(*a):
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(sr, "scratch_reclaim_tick", tick)
+    with pytest.raises(asyncio.CancelledError):
+        await sr.scratch_reclaim_loop(lambda: _Ctx(object()), MagicMock())

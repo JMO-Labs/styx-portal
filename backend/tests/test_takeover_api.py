@@ -154,3 +154,22 @@ async def test_get_forbidden_for_others(member_client, inst):
 
 async def test_get_unknown_instance(admin_client):
     assert (await admin_client.get("/api/instances/nope/takeover")).status_code == 404
+
+
+async def test_start_race_lost_to_unique_index(admin_client, inst, session, monkeypatch):
+    """Pre-check misses (race); the partial unique index rejects the insert -> 409."""
+    from app.routers import takeover
+
+    first = await admin_client.post("/api/instances/i-1/takeover",
+                                    json={"mode": "view", "reason": "one"})
+    assert first.status_code == 201
+
+    async def _miss(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(takeover, "_active", _miss)
+    r = await admin_client.post("/api/instances/i-1/takeover",
+                                json={"mode": "view", "reason": "two"})
+    assert r.status_code == 409
+    rows = (await session.exec(select(SessionTakeover))).all()
+    assert len(rows) == 1 and rows[0].reason == "one"
