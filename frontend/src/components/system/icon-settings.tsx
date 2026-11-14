@@ -144,7 +144,7 @@ export function IconSettings({ iconUrl, kind, id, onSave, onStage, extra }: Prop
             aria-invalid={emojiErr ? true : undefined}
             aria-describedby={emojiErr ? `icon-error-${id}` : undefined}
             placeholder="🖥️"
-            className="w-16 rounded border border-border bg-surface px-1 py-0.5 text-center"
+            className="w-16 rounded border border-input bg-surface px-1 py-0.5 text-center"
           />
         )}
         {mode === "image" && (
@@ -175,7 +175,7 @@ export function IconSettings({ iconUrl, kind, id, onSave, onStage, extra }: Prop
         )}
         {extra}
       </div>
-      {(emojiErr || fileError) && <p id={`icon-error-${id}`} role="alert" className="text-xs text-rose-400">{emojiErr ?? fileError}</p>}
+      {(emojiErr || fileError) && <p id={`icon-error-${id}`} role="alert" className="text-xs text-destructive">{emojiErr ?? fileError}</p>}
     </div>
   );
 }

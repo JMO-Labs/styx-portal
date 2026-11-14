@@ -102,7 +102,7 @@ export function WorkstationStreamSettings({
           >
             FPS
             <select
-              className="rounded border border-border bg-surface px-1 py-0.5"
+              className="rounded border border-input bg-surface px-1 py-0.5"
               value={framerate}
               onChange={(e) => setFramerate(Number(e.target.value))}
             >
@@ -120,7 +120,7 @@ export function WorkstationStreamSettings({
             Transport
             <select
               aria-label="Transport"
-              className="rounded border border-border bg-surface px-1 py-0.5"
+              className="rounded border border-input bg-surface px-1 py-0.5"
               value={transport}
               onChange={(e) => setTransport(e.target.value)}
             >
@@ -136,7 +136,7 @@ export function WorkstationStreamSettings({
             X11 apps (Xwayland)
             <select
               aria-label="X11 apps (Xwayland)"
-              className="rounded border border-border bg-surface px-1 py-0.5"
+              className="rounded border border-input bg-surface px-1 py-0.5"
               value={seatX11}
               onChange={(e) => setSeatX11(e.target.value)}
             >
@@ -154,7 +154,7 @@ export function WorkstationStreamSettings({
           >
             Codec
             <select
-              className="rounded border border-border bg-surface px-1 py-0.5"
+              className="rounded border border-input bg-surface px-1 py-0.5"
               value={encoder}
               onChange={(e) => setEncoder(e.target.value)}
             >
@@ -171,7 +171,7 @@ export function WorkstationStreamSettings({
           >
             Quality (CRF)
             <input
-              className="w-16 rounded border border-border bg-surface px-1 py-0.5"
+              className="w-16 rounded border border-input bg-surface px-1 py-0.5"
               type="number"
               min={5}
               max={50}
@@ -186,7 +186,7 @@ export function WorkstationStreamSettings({
           >
             Max bitrate (kbps)
             <input
-              className="w-20 rounded border border-border bg-surface px-1 py-0.5"
+              className="w-20 rounded border border-input bg-surface px-1 py-0.5"
               type="number"
               min={1000}
               placeholder="16000"

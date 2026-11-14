@@ -14,7 +14,7 @@ export function ReplaceTokenDialog({ open, onOpenChange, onStage }: { open: bool
           <DialogDescription>Paste the new token. It is stored encrypted when you save changes and is never shown again.</DialogDescription>
         </DialogHeader>
         <input type="password" aria-label="New API token" autoComplete="new-password" value={v} onChange={(e) => setV(e.target.value)}
-          className="h-9 w-full rounded-md border border-border bg-background px-3" />
+          className="h-9 w-full rounded-md border border-input bg-background px-3" />
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button type="button" disabled={!v.trim()} onClick={done}>Use this token</Button>

@@ -10,7 +10,7 @@ POD=enterprise-base
 DIGEST=$(docker buildx imagetools inspect ubuntu:24.04 --format '{{json .Manifest.Digest}}' | tr -d '"')
 echo "ubuntu:24.04 digest: $DIGEST"
 
-docker build --build-arg "UBUNTU_DIGEST=$DIGEST" -t "$IMG" images/enterprise-base
+docker build --build-arg "UBUNTU_DIGEST=$DIGEST" -f images/enterprise-base/Dockerfile -t "$IMG" .
 kind load docker-image "$IMG" --name spike
 
 kubectl apply -f test/kind/enterprise-base-pod.yaml

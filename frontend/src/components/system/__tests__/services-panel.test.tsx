@@ -43,6 +43,14 @@ describe("ServicesPanel", () => {
     expect(screen.getByLabelText("Health: unhealthy")).toBeInTheDocument();
   });
 
+  test("disabled rows keep badges at full contrast (no opacity dimming)", async () => {
+    render(<ServicesPanel />);
+    await screen.findByText("Sonarr");
+    for (const b of screen.getAllByTitle("Mount mode: path")) {
+      for (let el: HTMLElement | null = b; el; el = el.parentElement) expect(el.className).not.toMatch(/opacity-/);
+    }
+  });
+
   test("empty state points to presets", async () => {
     a.listServices.mockResolvedValue([]);
     render(<ServicesPanel />);

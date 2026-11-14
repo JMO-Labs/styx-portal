@@ -56,6 +56,8 @@ class Settings(BaseSettings):
     MOUNT_PROBE_IMAGE: str = "busybox:1.36"
     TRAEFIK_DYNAMIC_DIR: str = "/app/traefik-dynamic"
     ROUTE_BACKEND: str = "file"   # file | k8s
+    SMARTCARD_ENABLED: bool = False  # route /smartcard to the desktop relay
+    SMARTCARD_RELAY_PORT: int = 8090
     K8S_NAMESPACE: str = "styx"
     K8S_INSTANCE_NAMESPACE: str = "styx-instances"
     HARBOR_URL: str = ""   # empty = no digest pinning (ADR-0030)

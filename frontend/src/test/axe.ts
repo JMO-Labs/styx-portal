@@ -7,6 +7,8 @@ import axe from "axe-core";
 export async function expectNoSeriousA11y(container: HTMLElement): Promise<void> {
   const results = await axe.run(container, {
     runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] },
+    // jsdom cannot do axe frame messaging ("Respondable target" error).
+    iframes: false,
     // jsdom has no layout/computed colours, so color-contrast cannot be evaluated.
     rules: { "color-contrast": { enabled: false } },
   });
