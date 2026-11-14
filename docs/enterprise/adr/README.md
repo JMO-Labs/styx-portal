@@ -84,3 +84,4 @@ All ADRs were accepted 2026-11-09 (owner approval, Rounds 1-5; issue #1). One AD
 | [D77](0078-selkies-patch-set-implementation.md) | Selkies patch set implementation | Proposed | AU-2, AC-11, SI-7, SA-10 |
 | [D78](0079-smart-card-helper-implementation.md) | Smart-card helper implementation | Proposed | IA-2(12), SC-12, SA-11 |
 | [D79](0080-session-timeouts-implementation.md) | Session timeouts implementation | Proposed | AC-11, AC-12, SC-10 |
+| [D80](0081-accessibility-wcag-2-1-aa-axe-gate.md) | Accessibility: WCAG 2.1 AA with an axe gate | Proposed | SA-11, Section 508 |
