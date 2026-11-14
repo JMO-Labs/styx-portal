@@ -24,6 +24,7 @@ spec:
       imagePullPolicy: Never
       env:
         - {name: SMARTCARD_ENABLED, value: "true"}
+        - {name: STYX_UNLOCK_KEY, value: kind-spike-key}
         - {name: STYX_INSTANCE_ID, value: smoke}
       securityContext:
         runAsNonRoot: true
@@ -34,7 +35,10 @@ Y
 kubectl -n "$NS" wait --for=condition=Ready "pod/$POD" --timeout=300s
 
 [ "$(kubectl -n "$NS" exec "$POD" -- id -u)" = "1000" ] || { echo "FAIL: not uid 1000"; exit 1; }
-kubectl -n "$NS" exec "$POD" -- sh -c 'grep -qx styx-card-relay /proc/[0-9]*/comm'  || { echo "FAIL: relay not running"; exit 1; }
+# A dead relay can linger as a zombie with the same comm; require a live one.
+kubectl -n "$NS" exec "$POD" -- sh -c 'for c in /proc/[0-9]*/comm; do
+  [ "$(cat "$c" 2>/dev/null)" = styx-card-relay ] && ! grep -q "^State:.*Z" "${c%/comm}/status" && exit 0
+done; exit 1' || { echo "FAIL: relay not running"; exit 1; }
 
 out=""
 for _ in $(seq 1 15); do

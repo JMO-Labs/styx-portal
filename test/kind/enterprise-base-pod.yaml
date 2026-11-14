@@ -19,7 +19,10 @@ spec:
       image: styx-enterprise-base:kind
       imagePullPolicy: Never
       ports:
-        - containerPort: 8082
+        - containerPort: 8080
+      env:
+        - {name: STYX_UNLOCK_KEY, value: kind-spike-key}
+        - {name: STYX_INSTANCE_ID, value: kind}
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -27,8 +30,7 @@ spec:
         capabilities:
           drop: ["ALL"]
       readinessProbe:
-        httpGet:
-          path: /
-          port: 8082
+        tcpSocket:
+          port: 8080
         periodSeconds: 5
         failureThreshold: 36

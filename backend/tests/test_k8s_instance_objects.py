@@ -11,7 +11,7 @@ NS = "styx-instances"
 def _build(**kw):
     args = dict(name="selkies-abc", image="selkies-desktop:latest",
                 env={"A": "1"}, volumes={"vol-home": {"bind": "/config"}},
-                port=3000, ns=NS, owner="u1", gpu_enabled=False, gpu_count=1,
+                port=8080, ns=NS, owner="u1", gpu_enabled=False, gpu_count=1,
                 memory_limit=None, cpu_limit=None, shm_size=None, cap_add=[],
                 read_only_rootfs=False, tmpfs=[], extra_hosts={},
                 entrypoint=None, command=None)
@@ -46,7 +46,7 @@ def test_service_shape():
     _, svc, _, _ = _build()
     assert svc["kind"] == "Service"
     assert svc["spec"]["selector"] == {"app": "selkies-abc"}
-    assert svc["spec"]["ports"] == [{"name": "http", "port": 3000, "targetPort": 3000}]
+    assert svc["spec"]["ports"] == [{"name": "http", "port": 8080, "targetPort": 8080}]
 
 
 def test_image_mapping():
@@ -135,7 +135,7 @@ def test_parse_quantity():
 
 def test_readiness_probe_on_web_port():
     _, _, _, c = _build()
-    assert c["readinessProbe"] == {"tcpSocket": {"port": 3000}, "initialDelaySeconds": 2,
+    assert c["readinessProbe"] == {"tcpSocket": {"port": 8080}, "initialDelaySeconds": 2,
                                    "periodSeconds": 2, "failureThreshold": 3}
 
 

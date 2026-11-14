@@ -1,18 +1,35 @@
 #!/bin/sh
-# Launch a Selkies session on port 8082 as the unprivileged user.
-# --wayland=true: pixelflux's own headless compositor is the display source.
-# --public: selkies 2.x binds loopback only by default; bind all interfaces
-# so the container port is reachable (the bind-address flag is exclusive with it).
-# No gateway in this image: auth is enforced upstream (portal/ingress), so
-# basic auth defaults off; set SELKIES_ENABLE_BASIC_AUTH=true plus
-# SELKIES_BASIC_AUTH_PASSWORD to enable it.
+# Launch Selkies on loopback 127.0.0.1:8082 and the Styx gateway on :8080 in
+# front of it (ADR-0039: the lock is enforced outside the desktop).
+# Fail closed: without STYX_UNLOCK_KEY the lock cannot be enforced, so refuse.
+# Env: STYX_LOCK_IDLE_S (default 900), STYX_UNLOCK_KEY, STYX_UNLOCK_URL,
+# STYX_INSTANCE_ID, optional STYX_GW_PASSWORD (basic auth the ingress injects;
+# defaults to the unlock key).
 set -eu
+if [ -z "${STYX_UNLOCK_KEY:-}" ]; then
+    echo "styx-start: STYX_UNLOCK_KEY is empty; refusing to start (fail closed)" >&2
+    exit 1
+fi
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/runtime-$(id -u)}"
-export SELKIES_ENABLE_BASIC_AUTH="${SELKIES_ENABLE_BASIC_AUTH:-false}"
+# Selkies serves only the gateway: loopback, no basic auth of its own.
+export SELKIES_ENABLE_BASIC_AUTH=false
 mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
 if [ "${SMARTCARD_ENABLED:-false}" = "true" ]; then
     # pcscd (vpcd reader) and the relay come up before Selkies.
     pcscd --foreground --disable-polkit &
     STYX_RELAY_ADDR="0.0.0.0:${SMARTCARD_RELAY_PORT:-8090}" /usr/local/bin/styx-card-relay &
 fi
-exec /opt/selkies/bin/selkies --wayland=true --public --port="${SELKIES_PORT:-8082}" "$@"
+
+export STYX_GW_USER="${STYX_GW_USER:-styx}"
+export STYX_GW_PASSWORD="${STYX_GW_PASSWORD:-$STYX_UNLOCK_KEY}"
+export STYX_GW_LOCK_IDLE_S="${STYX_LOCK_IDLE_S:-900}"
+export STYX_GW_UNLOCK_KEY="$STYX_UNLOCK_KEY"
+export STYX_GW_UNLOCK_URL="${STYX_UNLOCK_URL:-}"
+export STYX_GW_INSTANCE_ID="${STYX_INSTANCE_ID:-}"
+
+# --wayland=true: pixelflux's own headless compositor is the display source.
+# selkies 2.x binds loopback by default; only the gateway listens publicly.
+/opt/selkies/bin/selkies --wayland=true --port=8082 "$@" &
+SELKIES_PID=$!
+trap 'kill "$SELKIES_PID" 2>/dev/null || true' EXIT TERM INT
+/opt/selkies/bin/python /opt/styx/gateway.py 8080 8082
