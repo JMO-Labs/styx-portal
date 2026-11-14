@@ -1,5 +1,6 @@
 """Static checks for backend metrics wiring in deploy/k8s."""
 
+import re
 from pathlib import Path
 
 import yaml
