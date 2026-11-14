@@ -52,6 +52,7 @@ from app.routers import service_mounts as service_mounts_router
 from app.routers import smartcard as smartcard_router
 from app.routers import service_icons as service_icons_router
 from app.routers import services_auth as services_auth_router
+from app.routers import ops_alerts as ops_alerts_router
 from app.security.deps import get_current_user, require_admin
 from app.services.docker_manager import DockerManager
 from app.services.k8s_runtime import instance_runtime
@@ -73,7 +74,8 @@ _settings = Settings()
 
 _CSRF_EXEMPT = {"/api/auth/login", "/api/auth/login/matrix", "/api/auth/setup"}
 # /api/provision/: machine caller (mTLS + bearer), no cookies, so CSRF does not apply.
-_CSRF_EXEMPT_PREFIXES = ("/api/enroll/", "/api/agent/", "/api/provision/", "/api/smartcard/")
+_CSRF_EXEMPT_PREFIXES = ("/api/enroll/", "/api/agent/", "/api/provision/", "/api/smartcard/",
+                         "/internal/alerts/")  # bearer-authed
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):
@@ -308,6 +310,8 @@ app.include_router(service_icons_router.router, prefix="/api/services", tags=["s
 app.include_router(services_router.router, prefix="/api/services", tags=["services"])
 app.include_router(services_auth_router.router, prefix="/api/services", tags=["services"])
 app.include_router(services_auth_router.internal_router, prefix="/internal", tags=["services"])
+app.include_router(ops_alerts_router.internal_router, prefix="/internal", tags=["ops"])
+app.include_router(ops_alerts_router.router, prefix="/api/admin", tags=["ops"])
 app.include_router(instance_auth_router.internal_router, prefix="/internal/instances",
                    tags=["instances"])
 app.include_router(services_auth_router.exit_router, prefix="/_styx", tags=["services"])

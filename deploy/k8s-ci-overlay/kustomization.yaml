@@ -1,0 +1,5 @@
+# CI-only: renders base + all optional components.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: [../k8s]
+components: [../k8s/components/matrix, ../k8s/components/smtp]

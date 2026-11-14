@@ -10,6 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.config import Settings
 from app.db_migrate import BACKUP_SUFFIX, migrate
 from app.models import ServicePreset, ServiceTemplate
+from app import models_ops  # noqa: F401 - registers ops tables
 
 settings = Settings()
 # TODO(#24): behind the CNPG pooler (transaction mode) pass
