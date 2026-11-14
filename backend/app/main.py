@@ -43,6 +43,7 @@ from app.routers import announcements as announcements_router
 from app.routers import access_review as access_review_router
 from app.routers import takeover as takeover_router
 from app.routers import provision as provision_router
+from app.routers import card_reviews as card_reviews_router
 from app.routers import profiles as profiles_router
 from app.routers import notices as notices_router
 from app.routers import me_storage as me_storage_router
@@ -296,6 +297,8 @@ app.include_router(turn_usage_router.check_router, prefix="/api/admin/turn-check
 app.include_router(stats_router.router, prefix="/api/admin/stats", tags=["stats"])
 app.include_router(admin_console_router.router, prefix="/api/admin/console", tags=["admin-console"])
 app.include_router(provision_router.router, prefix="/api/provision", tags=["provision"])
+app.include_router(card_reviews_router.router, prefix="/api/admin/card-reviews",
+                   tags=["card-reviews"])
 app.include_router(groups_router.router, prefix="/api/groups", tags=["groups"])
 app.include_router(announcements_router.admin_router, prefix="/api/admin/announcements", tags=["announcements"])
 app.include_router(announcements_router.router, prefix="/api/announcements", tags=["announcements"])

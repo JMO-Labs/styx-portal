@@ -1,7 +1,7 @@
 """ops_alert + ops_state: Alertmanager webhook storage (dev #157, synced via styx-portal#343)
 
-Revision ID: 0021_ops_alerts
-Revises: 0020_session_takeover
+Revision ID: 0022_ops_alerts
+Revises: 0021_card_review_queue
 Create Date: 2026-11-14
 
 """
@@ -11,8 +11,8 @@ from alembic import op
 import sqlalchemy as sa
 import sqlmodel
 
-revision: str = '0021_ops_alerts'
-down_revision: Union[str, Sequence[str], None] = '0020_session_takeover'
+revision: str = '0022_ops_alerts'
+down_revision: Union[str, Sequence[str], None] = '0021_card_review_queue'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
