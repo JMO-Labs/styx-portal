@@ -49,6 +49,23 @@ async def test_set_attributes():
     assert seen[0] == ("PUT", "/admin/realms/r/users/u1", {"attributes": {"card": ["42"]}})
 
 
+async def test_get_attributes_reads_user():
+    def h(req: httpx.Request):
+        if req.url.path.endswith("/openid-connect/token"):
+            return httpx.Response(200, json={"access_token": "tok", "expires_in": 60})
+        assert (req.method, req.url.path) == ("GET", "/admin/realms/r/users/u1")
+        return httpx.Response(200, json={"id": "u1", "attributes": {"org": ["navy"]}})
+    assert await make(h).get_attributes("u1") == {"org": ["navy"]}
+
+
+async def test_get_attributes_none_is_empty():
+    def h(req: httpx.Request):
+        if req.url.path.endswith("/openid-connect/token"):
+            return httpx.Response(200, json={"access_token": "tok", "expires_in": 60})
+        return httpx.Response(200, json={"id": "u1"})
+    assert await make(h).get_attributes("u1") == {}
+
+
 async def test_add_to_group():
     h, seen = recorder()
     await make(h).add_to_group("u1", "g1")
@@ -86,6 +103,7 @@ def test_username_collision_appends_digit():
     lambda c: c.add_to_group("u1", "g1"),
     lambda c: c.update_user("u1", {"firstName": "A"}),
     lambda c: c.set_attributes("u1", {"a": ["b"]}),
+    lambda c: c.get_attributes("u1"),
     lambda c: c.create_user("a.b", "a@b.c", "A", "B"),
 ])
 async def test_provisioning_404_raises(call):
