@@ -1,0 +1,84 @@
+# Phase 1 HA demo: CNPG cluster + Styx backend (3 replicas) + in-cluster prober.
+# Kind-sized: no Ceph, no anti-affinity. See scripts/enterprise/ha_demo.sh.
+apiVersion: v1
+kind: Namespace
+metadata: {name: styx-ha}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata: {name: styx-db, namespace: styx-ha}
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:17
+  enableSuperuserAccess: false
+  bootstrap:
+    initdb: {database: styx, owner: styx}
+  storage: {size: 1Gi}
+---
+apiVersion: v1
+kind: Secret
+metadata: {name: styx-secrets, namespace: styx-ha}
+stringData:
+  JWT_SECRET: "ha-demo-only-jwt-secret-not-for-production-0123456789"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: styx-config, namespace: styx-ha}
+data:
+  DOMAIN: ha.demo.local
+  DEPLOY_MODE: local
+  COOKIE_SECURE: "false"
+  DOCKER_SOCKET: unix:///nonexistent.sock
+  TEMPLATES_DIR: /app/templates
+  ENABLE_DOCS: "false"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: backend, namespace: styx-ha}
+spec:
+  replicas: 3
+  selector: {matchLabels: {app: styx-backend}}
+  template:
+    metadata: {labels: {app: styx-backend}}
+    spec:
+      securityContext: {runAsUser: 1000, runAsGroup: 1000, runAsNonRoot: true}
+      containers:
+        - name: backend
+          image: styx-backend:kind
+          imagePullPolicy: IfNotPresent
+          ports: [{containerPort: 8000}]
+          envFrom:
+            - configMapRef: {name: styx-config}
+            - secretRef: {name: styx-secrets}
+          env:
+            - name: DB_PASSWORD
+              valueFrom: {secretKeyRef: {name: styx-db-app, key: password}}
+            - {name: DATABASE_URL, value: "postgresql+asyncpg://styx:$(DB_PASSWORD)@styx-db-rw:5432/styx"}
+            - {name: LEADER_DATABASE_URL, value: "postgresql+asyncpg://styx:$(DB_PASSWORD)@styx-db-rw:5432/styx"}
+          startupProbe:
+            httpGet: {path: /api/health, port: 8000}
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: {path: /api/health, port: 8000}
+            periodSeconds: 2
+            failureThreshold: 2
+          volumeMounts: [{name: data, mountPath: /app/data}]
+      volumes: [{name: data, emptyDir: {}}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: styx-backend, namespace: styx-ha}
+spec:
+  selector: {app: styx-backend}
+  ports: [{port: 8000, targetPort: 8000}]
+---
+# Probe client: polls the Service from inside the cluster so it survives pod kills.
+apiVersion: v1
+kind: Pod
+metadata: {name: prober, namespace: styx-ha}
+spec:
+  containers:
+    - name: curl
+      image: curlimages/curl:8.11.1
+      command: [sleep, "7200"]
