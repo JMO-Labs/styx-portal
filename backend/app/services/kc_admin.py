@@ -6,8 +6,8 @@ import logging
 import re
 import time
 import unicodedata
-from urllib.parse import quote
 from collections.abc import Callable
+from urllib.parse import quote, urlencode
 
 import httpx
 
@@ -123,6 +123,19 @@ class KeycloakAdminClient:
             return {}
         return resp.json().get("attributes") or {}
 
+    async def get_user(self, kc_user_id: str) -> dict:
+        """User representation (id, username, email, attributes); {} when disabled."""
+        resp = await self._request("get_user", "GET", f"/users/{_seg(kc_user_id)}")
+        return {} if resp is None else resp.json()
+
+    async def find_user_ids_by_attribute(self, key: str, value: str) -> list[str]:
+        """Ids of users whose attribute `key` equals `value` exactly ([] when disabled).
+        The value is quoted: card UUIDs contain ':' and must not be split."""
+        quoted = '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+        query = urlencode({"q": f"{key}:{quoted}", "exact": "true"})
+        resp = await self._request("find_users", "GET", f"/users?{query}")
+        return [] if resp is None else [u["id"] for u in resp.json()]
+
     async def set_attributes(self, kc_user_id: str, attributes: dict[str, list[str]]) -> None:
         """PUT {attributes}. Keycloak replaces the whole attribute map: pass the full map."""
         await self._request(
@@ -191,6 +204,14 @@ async def update_user(kc_user_id: str, fields: dict) -> None:
 
 async def get_attributes(kc_user_id: str) -> dict[str, list[str]]:
     return await _client().get_attributes(kc_user_id)
+
+
+async def get_user(kc_user_id: str) -> dict:
+    return await _client().get_user(kc_user_id)
+
+
+async def find_user_ids_by_attribute(key: str, value: str) -> list[str]:
+    return await _client().find_user_ids_by_attribute(key, value)
 
 
 async def set_attributes(kc_user_id: str, attributes: dict[str, list[str]]) -> None:

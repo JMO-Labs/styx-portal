@@ -14,18 +14,33 @@ KC = "kc-user-1"
 
 
 @pytest.fixture
-def kc(monkeypatch):
+def account():
+    """Keycloak representation of the logged-in user (claims["sub"])."""
+    return {"id": KC, "username": "ada.l", "email": "Ada@Example.mil", "attributes": {}}
+
+
+@pytest.fixture
+def holders():
+    """Keycloak user ids already holding the presented card key."""
+    return []
+
+
+@pytest.fixture
+def kc(monkeypatch, account, holders):
     m = AsyncMock()
     monkeypatch.setattr(card_binding.kc_admin, "set_attributes", m)
     monkeypatch.setattr(card_binding.kc_admin, "get_attributes", AsyncMock(return_value={}))
+    monkeypatch.setattr(card_binding.kc_admin, "get_user", AsyncMock(return_value=account))
+    monkeypatch.setattr(card_binding.kc_admin, "find_user_ids_by_attribute",
+                        AsyncMock(return_value=holders))
     return m
 
 
-async def req(session, ext="r1", card="CAC", email="ada@example.mil", edipi=EDIPI):
+async def req(session, ext="r1", card="CAC", email="ada@example.mil", edipi=EDIPI, **extra):
     r = ApprovedRequest(idempotency_key="k" + ext, body_hash="h", approval_id="a" + ext,
                         external_id=ext, approver_email="m@x.mil", card_type=card,
                         person_type="employee",
-                        subject={"name": "Ada", "email": email, "edipi": edipi})
+                        subject={"name": "Ada", "email": email, "edipi": edipi, **extra})
     session.add(r)
     await session.commit()
     return r
@@ -62,9 +77,8 @@ async def test_piv_email_case_insensitive_binds(session, kc, card):
     assert r.status == "bound"
 
 
-async def test_bind_keeps_existing_attributes(session, kc, monkeypatch):
-    monkeypatch.setattr(card_binding.kc_admin, "get_attributes",
-                        AsyncMock(return_value={"org": ["navy"], "edipi": ["old"]}))
+async def test_bind_keeps_existing_attributes(session, kc, account):
+    account["attributes"] = {"org": ["navy"], "edipi": [EDIPI]}
     await req(session)
     assert await card_binding.bind_card(session, cac()) == "bound"
     kc.assert_awaited_once_with(KC, {"org": ["navy"], "edipi": [EDIPI]})
@@ -139,6 +153,102 @@ async def test_no_card_ids_in_logs_or_audit(session, kc, caplog):
     blob = json.dumps([r.detail for r in rows] + [r.resource for r in rows]) + app_logs
     for secret in (EDIPI, "5555555555", UUID, "9f1c2d3e"):
         assert secret not in blob
+
+
+# --- refusals (styx-portal#350) ---
+
+async def reasons(session):
+    return [q.reason for q in await queue(session)]
+
+
+async def queued_audit(session):
+    rows = (await session.exec(select(AuditLog).where(
+        AuditLog.action == "card.review.queued"))).all()
+    return [r.detail["reason"] for r in rows]
+
+
+async def assert_refused(session, kc, r, reason):
+    kc.assert_not_awaited()
+    await session.refresh(r)
+    assert r.status == "pending_binding"
+    assert await reasons(session) == [reason]
+    assert await queued_audit(session) == [reason]
+
+
+async def test_request_kc_user_id_same_user_binds(session, kc, account):
+    account["email"] = "someone.else@example.mil"   # kc_user_id wins over email
+    await req(session, kc_user_id=KC)
+    assert await card_binding.bind_card(session, cac()) == "bound"
+
+
+async def test_request_for_other_kc_user_refused(session, kc):
+    r = await req(session, kc_user_id="kc-user-A")
+    assert await card_binding.bind_card(session, cac()) == "queued"
+    await assert_refused(session, kc, r, "subject_mismatch")
+
+
+async def test_other_account_email_refused(session, kc, account):
+    account["email"] = "bob@example.mil"
+    r = await req(session)
+    assert await card_binding.bind_card(session, cac()) == "queued"
+    await assert_refused(session, kc, r, "subject_mismatch")
+
+
+@pytest.mark.parametrize("card", ["PIV", "PIV-I"])
+async def test_piv_cert_of_other_user_refused(session, kc, account, card):
+    account["email"] = "bob@example.mil"
+    r = await req(session, card=card, edipi=None)
+    assert await card_binding.bind_card(session, piv(card_type=card)) == "queued"
+    await assert_refused(session, kc, r, "subject_mismatch")
+
+
+async def test_username_match_binds_without_email(session, kc, account):
+    account.pop("email")
+    await req(session, username="ada.l")
+    assert await card_binding.bind_card(session, cac()) == "bound"
+
+
+async def test_blank_identity_never_matches(session, kc, account):
+    account.update(email="", username="")
+    r = await req(session, email="", username="")
+    assert await card_binding.bind_card(session, cac()) == "queued"
+    await assert_refused(session, kc, r, "subject_mismatch")
+
+
+@pytest.mark.parametrize("holders", [["kc-user-A"], [KC, "kc-user-A"]])
+async def test_card_on_other_user_refused(session, kc, holders):
+    r = await req(session)
+    assert await card_binding.bind_card(session, cac()) == "queued"
+    await assert_refused(session, kc, r, "card_in_use")
+    card_binding.kc_admin.find_user_ids_by_attribute.assert_awaited_once_with("edipi", EDIPI)
+
+
+@pytest.mark.parametrize("holders", [[KC]])
+async def test_card_already_on_same_user_binds(session, kc, holders):
+    await req(session)
+    assert await card_binding.bind_card(session, cac()) == "bound"
+
+
+async def test_existing_different_card_refused(session, kc, account):
+    account["attributes"] = {"edipi": ["0000000001"]}
+    r = await req(session)
+    assert await card_binding.bind_card(session, cac()) == "queued"
+    await assert_refused(session, kc, r, "card_conflict")
+
+
+async def test_existing_different_piv_card_refused(session, kc, account):
+    account["attributes"] = {"card_uuid": ["urn:uuid:other"]}
+    r = await req(session, card="PIV", edipi=None)
+    assert await card_binding.bind_card(session, piv()) == "queued"
+    await assert_refused(session, kc, r, "card_conflict")
+
+
+async def test_happy_path_audited(session, kc):
+    await req(session, kc_user_id=KC)
+    assert await card_binding.bind_card(session, cac()) == "bound"
+    row = (await session.exec(select(AuditLog).where(AuditLog.action == "card.bound"))).one()
+    assert row.detail["kc_user_id"] == KC
+    assert await queue(session) == []
 
 
 # --- admin API ---
