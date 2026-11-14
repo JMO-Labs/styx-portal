@@ -1,0 +1,230 @@
+{
+  "uid": "styx-slo-launch",
+  "title": "Styx SLO: Launch time",
+  "description": "Target: launch p95 < 10 s, goal p50 <= 5 s.",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "tags": [
+    "styx",
+    "slo"
+  ],
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "refresh": "5m",
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "label": "Datasource"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "SLI (30d)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1 - sum_over_time(styx:sli_bad{slo=\"launch\"}[30d]) / sum_over_time(styx:sli_total{slo=\"launch\"}[30d])"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Error budget remaining (30d)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1 - (sum_over_time(styx:sli_bad{slo=\"launch\"}[30d]) / sum_over_time(styx:sli_total{slo=\"launch\"}[30d])) / scalar(styx:slo_error_budget{slo=\"launch\"})"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Burn rate (1h)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "styx:sli_error_ratio{slo=\"launch\",window=\"1h\"} / scalar(styx:slo_error_budget{slo=\"launch\"})"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Burn rate by window",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "styx:sli_error_ratio{slo=\"launch\",window=\"5m\"} / scalar(styx:slo_error_budget{slo=\"launch\"})",
+          "legendFormat": "5m"
+        },
+        {
+          "refId": "B",
+          "expr": "styx:sli_error_ratio{slo=\"launch\",window=\"1h\"} / scalar(styx:slo_error_budget{slo=\"launch\"})",
+          "legendFormat": "1h"
+        },
+        {
+          "refId": "C",
+          "expr": "styx:sli_error_ratio{slo=\"launch\",window=\"6h\"} / scalar(styx:slo_error_budget{slo=\"launch\"})",
+          "legendFormat": "6h"
+        },
+        {
+          "refId": "D",
+          "expr": "styx:sli_error_ratio{slo=\"launch\",window=\"1d\"} / scalar(styx:slo_error_budget{slo=\"launch\"})",
+          "legendFormat": "1d"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Launch p95 (goal < 10s)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(styx_launch_duration_seconds_bucket{outcome=\"ok\"}[5m])))",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Launch p50 (goal <= 5s)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(styx_launch_duration_seconds_bucket{outcome=\"ok\"}[5m])))",
+          "legendFormat": "p50"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Launch failures",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(styx_launch_failures_total[1h]))",
+          "legendFormat": "failures/h"
+        }
+      ]
+    }
+  ]
+}

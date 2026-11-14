@@ -38,3 +38,7 @@ Query parameters: `limit` (max 500), `offset`, `action`, `user_id`.
 ## Kubernetes alerts
 
 `deploy/k8s/prometheusrule.yaml` ships `StyxBackendDown` (critical), `StyxBackupFailed` and `StyxBackupStale`. See [Kubernetes](kubernetes.md#reliability).
+
+## Kubernetes monitoring stack
+
+Installing and verifying `kube-prometheus-stack` for the enterprise deployment is covered in the [monitoring runbook](../enterprise/runbooks/monitoring.md).

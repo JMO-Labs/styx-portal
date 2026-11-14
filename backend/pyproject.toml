@@ -39,6 +39,7 @@ dev = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+markers = ["pg: needs a real Postgres (TEST_PG_URL)"]
 testpaths = ["tests"]
 # Dump all stacks if one test runs >300 s, so CI hangs name the stuck test.
 faulthandler_timeout = 300

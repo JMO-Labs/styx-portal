@@ -1,0 +1,9 @@
+# DISABLED by default (an active probe against a host that does not exist fails forever
+# and drags the availability SLI, which counts every probe_success series).
+# Proxied services are dynamic, so there is no fixed list: for each service you actually
+# proxy, copy probe.yaml (rename metadata.name and the target URL), add it to `resources`,
+# then enable with `components: [components/probe-services]` in ../../kustomization.yaml.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - probe.yaml
