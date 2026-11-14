@@ -1,0 +1,44 @@
+global:
+  # Placeholder: replace with the real Harbor proxy project (re-signed images, Kyverno ADR-0029).
+  imageRegistry: harbor.example.invalid/proxy
+  imagePullSecrets:
+    - name: harbor-pull
+
+grafana:
+  plugins: []
+  admin:
+    # Secret provisioned via ExternalSecrets/OpenBao (ADR-0042); never inline credentials.
+    existingSecret: grafana-admin
+
+# Cilium kube-proxy replacement: no kube-proxy to scrape.
+kubeProxy:
+  enabled: false
+
+prometheus:
+  prometheusSpec:
+    replicas: 2
+    retention: 15d
+    retentionSize: 45GB
+    ruleSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          # Moves to Ceph RBD after #3.
+          storageClassName: longhorn-styx
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 50Gi
+
+alertmanager:
+  alertmanagerSpec:
+    replicas: 2
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: longhorn-styx
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi

@@ -12,6 +12,8 @@ from app.db_migrate import BACKUP_SUFFIX, migrate
 from app.models import ServicePreset, ServiceTemplate
 from app import models_ops  # noqa: F401 - registers ops tables
 
+logger = logging.getLogger("styx-portal")
+
 settings = Settings()
 # TODO(#24): behind the CNPG pooler (transaction mode) pass
 # connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0}.
