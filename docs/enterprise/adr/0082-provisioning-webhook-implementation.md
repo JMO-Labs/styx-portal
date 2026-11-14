@@ -7,7 +7,7 @@
 
 ## Context
 
-ADR-0019, 0020, 0051 and 0052 set the design (webhook, hardening, limited Keycloak client, immutable UID). The build tickets (#119-#122, #306) made the choices below. ADR-0062 (SCIM subset) already holds the payload shape, so this ADR is numbered 0082.
+ADR-0019, 0020, ADR-0051 and 0052 set the design (webhook, hardening, limited Keycloak client, immutable UID). The build tickets (#119-#122, #306) made the choices below. ADR-0062 (SCIM subset) already holds the payload shape, so this ADR is numbered 0082.
 
 ## Decision
 

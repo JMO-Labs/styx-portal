@@ -19,7 +19,7 @@ Scope the group permission to the ordinary groups only, never the admin groups.
 
 ## Denied
 
-- Role mapping: no `manage-realm`, no `map-roles` on users or groups, so it cannot grant a realm or client role.
+- No role mapping: no `manage-realm`, no `map-roles` on users or groups, so it cannot grant a realm or client role.
 - Admin groups: no membership permission on any group in `KEYCLOAK_ADMIN_GROUPS`. The client also refuses them in code (`add_to_group` raises), and the webhook returns 403.
 - Realm settings, clients, identity providers, authentication flows, keys: no `manage-realm`, `manage-clients`, `manage-identity-providers`.
 - Users in admin or break-glass groups: not covered by the users permission policy.
