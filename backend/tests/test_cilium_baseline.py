@@ -356,7 +356,7 @@ spec:
 
 
 def _check(manifest: str):
-    if not (shutil.which("kubeconform") or os.environ.get("REQUIRE_KUSTOMIZE") != "1"):
+    if not shutil.which("kubeconform") and os.environ.get("REQUIRE_KUBECONFORM") == "1":
         pytest.fail("kubeconform required but not installed")
     if not shutil.which("kubeconform"):
         pytest.skip("kubeconform not installed")
@@ -408,3 +408,15 @@ def test_schema_branches_not_closed(name):
     """Required-only anyOf/oneOf branches must not forbid sibling spec fields."""
     data = json.loads((SCHEMAS / name).read_text())
     assert list(_closed_branches(data)) == []
+
+
+def test_check_gates_on_kubeconform_flag(monkeypatch):
+    """Per-tool flag: REQUIRE_KUSTOMIZE alone must not demand kubeconform."""
+    monkeypatch.setattr(shutil, "which", lambda _t: None)
+    monkeypatch.setenv("REQUIRE_KUSTOMIZE", "1")
+    monkeypatch.delenv("REQUIRE_KUBECONFORM", raising=False)
+    with pytest.raises(pytest.skip.Exception):
+        _check(CNP)
+    monkeypatch.setenv("REQUIRE_KUBECONFORM", "1")
+    with pytest.raises(pytest.fail.Exception):
+        _check(CNP)
