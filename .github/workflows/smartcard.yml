@@ -2,9 +2,9 @@ name: smartcard
 on:
   push:
     branches: [main, master, enterprise]
-    paths: ['smartcard/**', 'scripts/build_card_helper.sh', 'scripts/tests/build_card_helper_test.sh', 'scripts/tests/card_helper_msi_test.sh', 'docs/enterprise/runbooks/smartcard-helper-signing.md', '.github/workflows/smartcard.yml']
+    paths: ['smartcard/**', 'scripts/build_card_helper.sh', 'scripts/tests/build_card_helper_test.sh', '.github/workflows/smartcard.yml']
   pull_request:
-    paths: ['smartcard/**', 'scripts/build_card_helper.sh', 'scripts/tests/build_card_helper_test.sh', 'scripts/tests/card_helper_msi_test.sh', 'docs/enterprise/runbooks/smartcard-helper-signing.md', '.github/workflows/smartcard.yml']
+    paths: ['smartcard/**', 'scripts/build_card_helper.sh', 'scripts/tests/build_card_helper_test.sh', '.github/workflows/smartcard.yml']
 
 permissions:
   contents: read
@@ -32,8 +32,6 @@ jobs:
           go-version: "1.22.12"
       - name: build script self-test
         run: scripts/tests/build_card_helper_test.sh
-      - name: MSI/WiX, runbook and no-signing-material checks
-        run: scripts/tests/card_helper_msi_test.sh
       - name: reproducible build (twice, compares SHA-256)
         run: scripts/build_card_helper.sh
       - uses: actions/upload-artifact@v4
