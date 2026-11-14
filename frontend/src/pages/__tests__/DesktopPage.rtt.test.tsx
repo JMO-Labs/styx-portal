@@ -7,6 +7,7 @@ vi.mock("@/api/client", () => ({ api: { reportRtt: (b: unknown) => reportRtt(b) 
 vi.mock("@/hooks/use-instances", () => ({
   useInstances: () => ({ data: [{ id: "i1", name: "My Desk", subdomain: "desk", status: "running" }], isPending: false }),
   useKeepalive: () => ({ mutate: vi.fn() }),
+  useTakeover: () => ({ data: undefined }),
 }));
 vi.mock("@/lib/activity", () => ({ startActivityHeartbeat: () => () => {} }));
 vi.mock("@/hooks/use-templates", () => ({ useTemplates: () => ({ data: [] }) }));
