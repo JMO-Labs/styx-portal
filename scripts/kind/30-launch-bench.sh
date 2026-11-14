@@ -28,6 +28,19 @@ retry() {
   return 1
 }
 
+# retry, feeding a manifest string on stdin each attempt (a process
+# substitution is consumed by the first attempt, so retries would get nothing).
+retry_stdin() {
+  local manifest=$1; shift
+  local a
+  for a in 1 2 3 4 5; do
+    printf '%s\n' "$manifest" | "$@" && return 0
+    echo "retry $a: $*" >&2
+    sleep 5
+  done
+  return 1
+}
+
 retry kubectl apply -f "$DIR/namespace.yaml" >&2
 retry kubectl apply -f "$DIR/prepull-daemonset.yaml" >&2
 kubectl -n "$NS" rollout status ds/prepull --timeout=300s >&2
@@ -35,14 +48,15 @@ kubectl -n "$NS" rollout status ds/prepull --timeout=300s >&2
 times=()
 for i in $(seq 1 "$N"); do
   name="bench-$i"
+  manifest=$(sed "s/__NAME__/$name/g" "$DIR/pod.yaml")
   start=$(date +%s.%N)
-  retry kubectl apply -f <(sed "s/__NAME__/$name/g" "$DIR/pod.yaml") >&2
+  retry_stdin "$manifest" kubectl apply -f - >&2
   kubectl -n "$NS" wait --for=condition=Ready "pod/$name" --timeout=120s >&2
   end=$(date +%s.%N)
   t=$(awk -v s="$start" -v e="$end" 'BEGIN{printf "%.3f", e-s}')
   echo "pod $name create->Ready ${t}s" >&2
   times+=("$t")
-  retry kubectl delete -f <(sed "s/__NAME__/$name/g" "$DIR/pod.yaml") \
+  retry_stdin "$manifest" kubectl delete -f - \
     --ignore-not-found --wait=true --timeout=120s >&2
 done
 
