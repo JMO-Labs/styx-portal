@@ -1,3 +1,6 @@
+import asyncio
+import types
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock
 
 import docker.errors
@@ -215,7 +218,10 @@ def _one_tick(monkeypatch):
         if len(calls) > 1:
             raise _StopLoop
 
-    monkeypatch.setattr(main.asyncio, "sleep", _sleep)
+    # Patch only this module's view of asyncio: a global asyncio.sleep patch leaks
+    # into the DB driver (asyncpg) and hangs the Postgres suite.
+    fake = types.SimpleNamespace(sleep=_sleep, to_thread=asyncio.to_thread)
+    monkeypatch.setattr(main, "asyncio", fake)
 
 
 @pytest.mark.asyncio
@@ -251,7 +257,12 @@ async def test_metrics_db_loop_records_host_rollup(monkeypatch, session):
 
     _one_tick(monkeypatch)
     rec = []
-    monkeypatch.setattr(main, "async_session", lambda: session)
+
+    @asynccontextmanager
+    async def _shared():
+        yield session  # don't let the loop close the per-test fixture session
+
+    monkeypatch.setattr(main, "async_session", _shared)
     monkeypatch.setattr(hm, "cpu_pct", lambda: 5.0)
     monkeypatch.setattr(hm, "ram", lambda: (40.0, 1))
     monkeypatch.setattr(ss, "sync_instances", AsyncMock())
