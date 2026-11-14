@@ -511,4 +511,6 @@ def test_placeholders_marked():
 def test_kustomization_lists_every_ccnp_file():
     comp = yaml.safe_load((COMPONENT / "kustomization.yaml").read_text())
     files = {f.name for f in COMPONENT.glob("ccnp-*.yaml")}
+    # Desktop-proxy policy + its parameter ConfigMap are listed too (#249).
+    files |= {"cnp-desktop-proxy.yaml", "proxy-params.yaml"}
     assert set(comp["resources"]) == files
