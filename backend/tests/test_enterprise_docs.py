@@ -147,7 +147,7 @@ def test_adr_0066_cephfs_homes():
 
 def test_adr_index_matches_files():
     index = (ADR / "README.md").read_text()
-    new = ("0062", "0063", "0065", "0066", "0067", "0068", "0069", "0070", "0071", "0072", "0073", "0074", "0075", "0076", "0077", "0078", "0079", "0080", "0081")
+    new = ("0062", "0063", "0065", "0066", "0067", "0068", "0069", "0070", "0071", "0072", "0073", "0074", "0075", "0076", "0077", "0078", "0079", "0080", "0081", "0082")
     older = [ln for ln in index.splitlines() if not any(f"({n}-" in ln for n in new)]
     assert "| Proposed |" not in "\n".join(older)
     assert f"accepted {DATE}" in index.lower()
