@@ -2,7 +2,7 @@
 
 Scope: the Styx portal web UI (routed pages, admin settings sections, Styx shell). The remote desktop stream content is out of scope; it shows whatever the user runs.
 
-Status: **draft**. The automated rows reflect the e2e scan. Manual rows stay as stated until the [checklist](accessibility-checklist.md) is completed; update this table with those results before the ATO package is submitted.
+Status: **draft**. The automated rows reflect the e2e scan. No manual check has been performed yet; every checklist row is Pending. Rows that depend on manual checks are rated Pending until the [checklist](accessibility-checklist.md) records Pass. Update this table before the ATO package is submitted.
 
 ## Method
 
@@ -20,28 +20,28 @@ Section 508 (2018 refresh) incorporates WCAG 2.0 A and AA for web content (E205.
 
 ## Summary (selected criteria)
 
-Levels: Supports, Partially Supports, Does not support. Currently no criterion is rated Does not support.
+Levels: Supports, Partially Supports, Does not support, Pending. Pending means the rating depends on a manual check that the checklist has not yet recorded as Pass; it is not a claim of support. No criterion is rated Does not support.
 
 | Criterion | Name | Level | Conformance | Remarks |
 |---|---|---|---|---|
 | 1.1.1 | Non-text Content | A | Supports | Icons carry names; decorative images hidden. Axe `image-alt`, `svg-img-alt`, `button-name`. |
-| 1.3.1 | Info and Relationships | A | Supports | Landmarks, headings, labels checked by axe; manual checklist covers reading order. |
+| 1.3.1 | Info and Relationships | A | Supports | Landmarks, headings, labels checked by axe; reading order is a pending manual check (see checklist). |
 | 1.3.5 | Identify Input Purpose | AA | Supports | Autocomplete tokens on login and setup fields (`autocomplete-valid`). |
 | 1.4.3 | Contrast (Minimum) | AA | Supports | `color-contrast` runs in the e2e scan; jsdom cannot compute it (ADR-0081). |
-| 1.4.4 | Resize Text | AA | Partially Supports | Layout holds to 200% in manual checks; not automated. |
+| 1.4.4 | Resize Text | AA | Pending | Pending manual check (see checklist); not automated. |
 | 1.4.10 | Reflow | AA | Partially Supports | Mobile audit e2e covers 320 px for routed pages; the remote desktop canvas does not reflow. |
-| 1.4.11 | Non-text Contrast | AA | Partially Supports | Focus rings and controls reviewed manually; axe does not test it. |
+| 1.4.11 | Non-text Contrast | AA | Pending | Pending manual check (see checklist); axe does not test it. |
 | 2.1.1 | Keyboard | A | Partially Supports | Portal is keyboard operable. Keys inside the remote desktop go to the remote session by design. |
-| 2.1.2 | No Keyboard Trap | A | Partially Supports | Portal chrome has no traps; the desktop stream captures keys while focused, with an escape shortcut documented in the checklist. |
+| 2.1.2 | No Keyboard Trap | A | Partially Supports | Portal chrome has no traps; the desktop stream captures keys while focused, by design. Leaving stream key capture is not yet documented or checked; pending manual check (see checklist). |
 | 2.4.1 | Bypass Blocks | A | Supports | `bypass`, `region` rules and landmarks. |
 | 2.4.2 | Page Titled | A | Supports | `document-title` rule. |
-| 2.4.3 | Focus Order | A | Supports | Manual tab-order check per page. |
-| 2.4.7 | Focus Visible | AA | Supports | Manual check per page. |
+| 2.4.3 | Focus Order | A | Pending | Pending manual check (see checklist). |
+| 2.4.7 | Focus Visible | AA | Pending | Pending manual check (see checklist). |
 | 3.1.1 | Language of Page | A | Supports | `html-has-lang`, `html-lang-valid`. |
-| 3.3.1 | Error Identification | A | Supports | Errors tied to fields; live region checks in checklist. |
+| 3.3.1 | Error Identification | A | Supports | Errors tied to fields; live region announcement is a pending manual check (see checklist). |
 | 3.3.2 | Labels or Instructions | A | Supports | `label` rule. |
-| 4.1.1 | Parsing | A | Supports | Obsolete in WCAG 2.2; duplicate ids caught by `duplicate-id*`. |
+| 4.1.1 | Parsing | A | Supports | Obsolete and always satisfied in WCAG 2.2. |
 | 4.1.2 | Name, Role, Value | A | Supports | `aria-*`, `button-name`, `link-name` rules. |
-| 4.1.3 | Status Messages | AA | Partially Supports | Toasts use live regions; confirmed manually with NVDA and Orca. |
+| 4.1.3 | Status Messages | AA | Pending | Pending manual check (see checklist); toasts use live regions. |
 
 Criteria not listed are not applicable (no audio, video, time limits or flashing content in the portal) or are covered by the rows above. The full criterion list is produced for the VPAT at submission.

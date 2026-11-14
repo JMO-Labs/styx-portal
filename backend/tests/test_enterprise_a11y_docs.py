@@ -43,3 +43,16 @@ def test_matrix_row_and_nav():
     nav = (ROOT / "zensical.toml").read_text()
     for p in PAGES:
         assert f"enterprise/{p}" in nav
+
+
+def test_conformance_claims_no_unrecorded_manual_results():
+    conf = (DOCS / PAGES[1]).read_text()
+    check = (DOCS / PAGES[0]).read_text()
+    if re.search(r"^\| .* \| Pending \|", check, re.M):
+        for bad in ("confirmed manually", "reviewed manually", "in manual checks", "escape shortcut"):
+            assert bad not in conf, bad
+        for crit in ("1.4.4", "1.4.11", "2.4.3", "2.4.7", "4.1.3"):
+            (row,) = re.findall(rf"^\| {re.escape(crit)} \|.*$", conf, re.M)
+            assert "Pending manual check (see checklist)" in row, crit
+            assert "| Supports |" not in row, crit
+    assert "duplicate-id" not in conf
