@@ -1,0 +1,74 @@
+# Backup alerts: CNPG (barman-cloud plugin), WAL, Velero, home snapshots.
+# Stale = older than 26h (93600s) or metric absent. Not filtered by cluster,
+# so any future CNPG cluster (e.g. Keycloak) is covered automatically.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: styx-backup
+  namespace: styx
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: styx-backup
+      rules:
+        - alert: CnpgBackupStale
+          expr: >-
+            (time() - max(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp) > 93600)
+            or absent(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp)
+          for: 30m
+          labels: {severity: warning}
+          annotations:
+            summary: No CNPG backup in the last 26h (or metric absent)
+        - alert: CnpgBackupFailed
+          expr: >-
+            max by (namespace, pod) (barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp)
+            > max by (namespace, pod) (barman_cloud_cloudnative_pg_io_last_available_backup_timestamp)
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: Most recent CNPG backup failed
+        - alert: CnpgWalArchivingFailing
+          expr: >-
+            cnpg_pg_stat_archiver_seconds_since_last_archival > 900
+            or increase(cnpg_pg_stat_archiver_failed_count[15m]) > 0
+          for: 5m
+          labels: {severity: critical}
+          annotations:
+            summary: CNPG WAL archiving is failing or stalled
+        - alert: VeleroBackupStale
+          expr: >-
+            (time() - max(velero_backup_last_successful_timestamp{schedule="daily"}) > 93600)
+            or absent(velero_backup_last_successful_timestamp{schedule="daily"})
+          for: 30m
+          labels: {severity: warning}
+          annotations:
+            summary: No successful Velero daily backup in 26h (or metric absent)
+        - alert: VeleroBackupFailed
+          expr: >-
+            increase(velero_backup_failure_total[1h]) > 0
+            or increase(velero_backup_partial_failure_total[1h]) > 0
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: Velero backup failed or partially failed
+        - alert: VeleroBslUnavailable
+          expr: velero_backup_location_status_gauge == 0
+          for: 10m
+          labels: {severity: critical}
+          annotations:
+            summary: Velero backup storage location is unavailable
+        - alert: HomeSnapshotsStale
+          expr: >-
+            (time() - max(kube_cronjob_status_last_successful_time{cronjob="styx-home-snapshots"}) > 93600)
+            or absent(kube_cronjob_status_last_successful_time{cronjob="styx-home-snapshots"})
+          for: 30m
+          labels: {severity: warning}
+          annotations:
+            summary: No successful home snapshot in 26h (or metric absent)
+        - alert: HomeSnapshotsFailed
+          expr: kube_job_failed{job_name=~"styx-home-snapshots.*"} > 0
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: Home snapshot job failed
