@@ -1,6 +1,7 @@
 """Static checks for the enterprise image CI workflow (ADR-0028/0057, #150).
 
-The file lives in wq-workflows/ until the owner promotes it to .github/workflows/.
+The file lives in wq-workflows/ until the owner promotes it to .github/workflows/;
+a pending wq-workflows/ copy is newer than the promoted one, so it wins.
 """
 import re
 from pathlib import Path
@@ -14,7 +15,7 @@ GOLDEN = ["base-office", "developer", "browser-only"]
 
 
 def _path():
-    for d in (".github/workflows", "wq-workflows"):
+    for d in ("wq-workflows", ".github/workflows"):
         p = REPO / d / NAME
         if p.exists():
             return p
@@ -32,7 +33,7 @@ def test_triggers_on_enterprise_image_paths(wf):
     on = doc.get("on", doc.get(True))
     for ev in ("push", "pull_request"):
         assert on[ev]["branches"] == ["enterprise"]
-        assert set(on[ev]["paths"]) >= {"images/enterprise-base/**", "images/golden/**"}
+        assert set(on[ev]["paths"]) >= {"images/enterprise-base/**", "images/golden/**", "smartcard/**"}
 
 
 def test_read_only_permissions_and_no_push(wf):

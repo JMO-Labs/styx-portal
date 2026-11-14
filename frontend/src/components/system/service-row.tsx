@@ -70,7 +70,7 @@ export function ServiceRow({ s, busy, onToggle, onEdit, onDelete }: {
         </TooltipTrigger>
         <TooltipContent>{label}, {ago(s.health_checked_at)}</TooltipContent>
       </Tooltip>
-      <div className={cn("min-w-0 flex-1", !s.enabled && "opacity-60")}>
+      <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-baseline gap-x-2">
           <ServiceIcon s={s} className="size-5 self-center" />
           <span className="max-w-full shrink-0 truncate font-medium">{s.name}</span>

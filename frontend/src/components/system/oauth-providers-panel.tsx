@@ -83,7 +83,7 @@ export function OAuthProvidersPanel() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <input type="checkbox" checked={p.enabled}
+                        <input type="checkbox" aria-label={`Enable ${p.name}`} checked={p.enabled}
                                onChange={(e) => toggle.mutate({ id: p.id, enabled: e.target.checked })}
                                className="h-4 w-4 rounded cursor-pointer" />
                       </td>

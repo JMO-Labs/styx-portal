@@ -7,12 +7,16 @@ on:
     branches: [enterprise]
     paths:
       - "images/enterprise-base/**"
+      - "patches/selkies/**"
+      - "scripts/apply_selkies_patches.sh"
       - "images/golden/**"
       - ".github/workflows/enterprise-images.yml"
   pull_request:
     branches: [enterprise]
     paths:
       - "images/enterprise-base/**"
+      - "patches/selkies/**"
+      - "scripts/apply_selkies_patches.sh"
       - "images/golden/**"
       - ".github/workflows/enterprise-images.yml"
 
@@ -48,7 +52,8 @@ jobs:
           set -euo pipefail
           docker build --pull \
             --build-arg UBUNTU_DIGEST=${{ steps.digest.outputs.value }} \
-            -t "$BASE_TAG" images/enterprise-base
+            -f images/enterprise-base/Dockerfile \
+            -t "$BASE_TAG" .
 
       - name: Build golden base-office
         run: docker build --build-arg BASE_IMAGE="$BASE_TAG" -t styx-golden-base-office:ci images/golden/base-office
