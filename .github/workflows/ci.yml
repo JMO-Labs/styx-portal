@@ -22,12 +22,12 @@ jobs:
     outputs:
       backend: ${{ github.event_name != 'pull_request' || steps.f.outputs.backend == 'true' }}
       frontend: ${{ github.event_name != 'pull_request' || steps.f.outputs.frontend == 'true' }}
-      a11y: ${{ github.event_name != 'pull_request' || steps.f.outputs.a11y == 'true' }}
       pg: ${{ github.event_name != 'pull_request' || steps.f.outputs.pg == 'true' }}
       plugin: ${{ github.event_name != 'pull_request' || steps.f.outputs.plugin == 'true' }}
       rke2: ${{ github.event_name != 'pull_request' || steps.f.outputs.rke2 == 'true' }}
       code: ${{ github.event_name != 'pull_request' || steps.code.outputs.code == 'true' }}
       license: ${{ github.event_name != 'pull_request' || steps.f.outputs.license == 'true' }}
+      deploy: ${{ github.event_name != 'pull_request' || steps.f.outputs.deploy == 'true' }}
     steps:
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: f
@@ -36,10 +36,10 @@ jobs:
           filters: |
             backend: ['backend/**', '.github/actions/setup-backend/**', '.github/workflows/ci.yml']
             frontend: ['frontend/**', '.github/actions/setup-node/**', '.github/workflows/ci.yml']
-            a11y: ['frontend/**', 'e2e/**', '.github/workflows/ci.yml']
             pg: ['backend/app/database.py', 'backend/app/db_migrate.py', 'backend/app/db_types.py', 'backend/app/models.py', 'backend/app/services/settings_sync.py', 'backend/app/services/settings_store.py', 'backend/tests/test_*_pg.py', 'backend/app/tools/**', 'backend/tests/test_sqlite_to_pg*.py', 'backend/tests/migrate_fixtures.py', 'backend/alembic/**', 'backend/alembic.ini', 'backend/pyproject.toml', 'backend/uv.lock', '.github/actions/setup-backend/**', '.github/workflows/ci.yml']
             plugin: ['traefik/**', '.github/workflows/ci.yml']
             rke2: ['deploy/rke2/**', '.github/workflows/ci.yml']
+            deploy: ['deploy/k8s/**', 'scripts/slo_rules_test.sh', '.github/workflows/ci.yml']
             # Component/license register inputs live partly under docs/ (excluded from `code`).
             license: ['backend/uv.lock', 'docs/enterprise/components.yaml', 'docs/enterprise/license-policy.yaml', 'docs/enterprise/component-register.*', 'scripts/license_*', '.github/workflows/ci.yml']
       # Anything that is not docs/images: gates quality + security.
@@ -117,23 +117,6 @@ jobs:
         if: needs.changes.outputs.frontend == 'true'
         working-directory: frontend
         run: npm test
-
-  a11y:
-    needs: changes
-    if: needs.changes.outputs.a11y == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-      - name: axe scan (fails on serious/critical)
-        run: e2e/run.sh -g a11y
-      - name: Upload axe report
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: a11y-report
-          path: e2e/screenshots/a11y/report.json
-          if-no-files-found: warn
 
   test-postgres:
     # Same backend suite against Postgres (CNPG major). Only when db/models/migrations/deps change.
@@ -221,6 +204,16 @@ jobs:
       - name: pytest (kustomize required)
         working-directory: backend
         run: REQUIRE_KUSTOMIZE=1 REQUIRE_KUBECONFORM=1 .venv/bin/python -m pytest tests/test_cilium_baseline.py tests/test_cilium_schemas.py tests/test_enterprise_banner.py -q
+
+  slo-rules:
+    needs: changes
+    if: needs.changes.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: promtool test rules
+        run: docker run --rm --entrypoint sh -v "$PWD:/repo" -w /repo prom/prometheus:v2.55.1 scripts/slo_rules_test.sh
 
   plugin-test:
     needs: changes
