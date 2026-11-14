@@ -110,6 +110,8 @@ class Settings(BaseSettings):
     # routable address. k8s: keeps an enrolled agent from aiming Traefik at in-cluster IPs.
     WORKSTATION_ALLOW_CIDRS: str = ""
     JWT_SECRET: str = ""
+    # Bearer token for the Alertmanager webhook (/internal/alerts/alertmanager); empty = disabled
+    ALERT_WEBHOOK_TOKEN: str = ""
     ACCESS_TTL: int = 900          # 15 minutes
     REFRESH_TTL: int = 604800      # 7 days
     SESSION_MAX_AGE: int = 2592000  # 30 days: absolute cap on a refresh family
