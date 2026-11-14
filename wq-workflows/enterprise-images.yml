@@ -7,6 +7,7 @@ on:
     branches: [enterprise]
     paths:
       - "images/enterprise-base/**"
+      - "agent/**"
       - "patches/selkies/**"
       - "scripts/apply_selkies_patches.sh"
       - "images/golden/**"
@@ -16,6 +17,7 @@ on:
     branches: [enterprise]
     paths:
       - "images/enterprise-base/**"
+      - "agent/**"
       - "patches/selkies/**"
       - "scripts/apply_selkies_patches.sh"
       - "images/golden/**"

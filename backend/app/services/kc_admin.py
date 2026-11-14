@@ -116,6 +116,13 @@ class KeycloakAdminClient:
     async def update_user(self, kc_user_id: str, fields: dict) -> None:
         await self._request("update_user", "PUT", f"/users/{_seg(kc_user_id)}", fields)
 
+    async def get_attributes(self, kc_user_id: str) -> dict[str, list[str]]:
+        """Current attribute map of the user ({} when disabled or none)."""
+        resp = await self._request("get_attributes", "GET", f"/users/{_seg(kc_user_id)}")
+        if resp is None:
+            return {}
+        return resp.json().get("attributes") or {}
+
     async def set_attributes(self, kc_user_id: str, attributes: dict[str, list[str]]) -> None:
         """PUT {attributes}. Keycloak replaces the whole attribute map: pass the full map."""
         await self._request(
@@ -180,6 +187,10 @@ async def create_user(username: str, email: str, first_name: str, last_name: str
 
 async def update_user(kc_user_id: str, fields: dict) -> None:
     await _client().update_user(kc_user_id, fields)
+
+
+async def get_attributes(kc_user_id: str) -> dict[str, list[str]]:
+    return await _client().get_attributes(kc_user_id)
 
 
 async def set_attributes(kc_user_id: str, attributes: dict[str, list[str]]) -> None:

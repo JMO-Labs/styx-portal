@@ -7,16 +7,14 @@ on:
     branches: [enterprise]
     paths:
       - "images/enterprise-base/**"
-      - "patches/selkies/**"
-      - "scripts/apply_selkies_patches.sh"
+      - "agent/**"
       - "images/golden/**"
       - ".github/workflows/enterprise-images.yml"
   pull_request:
     branches: [enterprise]
     paths:
       - "images/enterprise-base/**"
-      - "patches/selkies/**"
-      - "scripts/apply_selkies_patches.sh"
+      - "agent/**"
       - "images/golden/**"
       - ".github/workflows/enterprise-images.yml"
 

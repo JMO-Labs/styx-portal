@@ -51,7 +51,8 @@ RUN python3 -m venv /opt/selkies \
     && /opt/selkies/bin/pip install --no-cache-dir \
         "selkies==${SELKIES_VERSION}" \
         "pixelflux==${PIXELFLUX_VERSION}" \
-        "pcmflux==${PCMFLUX_VERSION}"
+        "pcmflux==${PCMFLUX_VERSION}" \
+        aiohttp yarl multidict
 
 # Build context is the repo root (docker build -f images/enterprise-base/Dockerfile .).
 # Fails the build if any patch in the series does not apply.
@@ -67,17 +68,26 @@ RUN userdel -r ubuntu 2>/dev/null || true \
     && useradd -u 1000 -g 1000 -m -d /home/styx -s /bin/bash styx
 
 # pcscd runs as 1000:1000; it needs a writable socket dir.
-RUN install -d -o 1000 -g 1000 /run/pcscd
+# /etc/styx is created 0755 up front: COPY --chmod would otherwise give the
+# auto-created dir 0644 and the relay (uid 1000) could not open the allowlist.
+RUN install -d -o 1000 -g 1000 /run/pcscd && install -d -m 0755 /etc/styx
 
 COPY --from=vpcd /out/ /
 COPY --from=relay /out/styx-card-relay /usr/local/bin/styx-card-relay
 COPY --chmod=0644 smartcard/apdu-allowlist.yaml /etc/styx/apdu-allowlist.yaml
+
+# Styx gateway (lock enforcement) and the agent modules it imports.
+COPY agent/gateway.py agent/gateway_dlp.py agent/gateway_html.py agent/gateway_idlelock.py \
+     agent/gateway_lock.py agent/gateway_report.py agent/gateway_webrtc.py agent/gateway_ws.py \
+     agent/favicon.py agent/refit.py agent/codecpref.py agent/gamemode.py agent/seat_scale.py \
+     agent/session_events.py agent/viewers.py agent/portal_api.py /opt/styx/
+
 COPY --chmod=0755 images/enterprise-base/root/usr/local/bin/styx-start /usr/local/bin/styx-start
 
-EXPOSE 8082
-# Health URL: http://localhost:8082/
+EXPOSE 8080
+# Gateway on 8080 proxies Selkies on loopback 8082.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD curl -fsS -o /dev/null http://127.0.0.1:8082/ || exit 1
+    CMD curl -s -o /dev/null http://127.0.0.1:8080/ || exit 1
 
 USER 1000:1000
 WORKDIR /home/styx
