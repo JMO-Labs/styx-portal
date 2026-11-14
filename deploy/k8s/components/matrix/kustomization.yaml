@@ -1,0 +1,31 @@
+# DISABLED by default. Enable: add `components: [components/matrix]` to ../../kustomization.yaml.
+# Stub: Alertmanager has no Matrix receiver; pages via matrix-alertmanager-receiver bridge.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+patches:
+  - target: {kind: AlertmanagerConfig, name: styx}
+    patch: |-
+      - op: add
+        path: /spec/receivers/-
+        value:
+          name: matrix
+          webhookConfigs:
+            - url: http://matrix-alertmanager-receiver.monitoring.svc:3000/alerts/CHANGE_ME_ROOM
+              sendResolved: true
+      - op: add
+        path: /spec/route/routes/0
+        value:
+          receiver: matrix
+          continue: true
+          matchers:
+            - {name: alertname, value: Watchdog, matchType: "!="}
+          activeTimeIntervals: [business-hours]
+      - op: add
+        path: /spec/muteTimeIntervals
+        value:
+          - name: business-hours
+            timeIntervals:
+              - weekdays: ["monday:friday"]
+                # UTC (v1alpha1 TimeInterval has no `location` field; verified upstream): 09:00-17:00 ET in winter (EST);
+                # shifts 1h in summer (EDT). Adjust or use the base config for DST.
+                times: [{startTime: "14:00", endTime: "22:00"}]

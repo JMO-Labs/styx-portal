@@ -1,0 +1,24 @@
+# DISABLED by default (D59). Enable: add `components: [components/smtp]` to ../../kustomization.yaml.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+patches:
+  - target: {kind: AlertmanagerConfig, name: styx}
+    patch: |-
+      - op: add
+        path: /spec/receivers/-
+        value:
+          name: smtp
+          emailConfigs:
+            - to: CHANGE_ME@example.com
+              from: alertmanager@example.com
+              smarthost: smtp.example.com:587
+              sendResolved: true
+              authUsername: CHANGE_ME
+              authPassword: {name: alertmanager-smtp, key: password}
+      - op: add
+        path: /spec/route/routes/0
+        value:
+          receiver: smtp
+          continue: true
+          matchers:
+            - {name: alertname, value: Watchdog, matchType: "!="}

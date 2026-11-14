@@ -13,6 +13,13 @@ PEER_KEYS = {"fromEndpoints", "toEndpoints", "fromEntities", "toEntities",
              "fromCIDR", "fromCIDRSet", "toCIDR", "toCIDRSet"}
 
 
+class _Loader(yaml.SafeLoader):
+    """Kustomize emits bare `=` (matchType), a YAML 1.1 'value' tag in PyYAML."""
+
+
+_Loader.add_constructor("tag:yaml.org,2002:value", lambda _loader, node: node.value)
+
+
 def _render(path):
     if shutil.which("kustomize"):
         cmd = ["kustomize", "build", str(path)]
@@ -23,7 +30,7 @@ def _render(path):
     else:
         pytest.skip("kustomize not installed")
     out = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
-    return [d for d in yaml.safe_load_all(out) if d]
+    return [d for d in yaml.load_all(out, Loader=_Loader) if d]
 
 
 def _load(path):
