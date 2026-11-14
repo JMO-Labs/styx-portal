@@ -19,11 +19,11 @@ jobs:
             backend: ['backend/**', '.github/workflows/wq-ci.yml']
   wq:
     needs: changes
-    if: needs.changes.outputs.backend == 'true'
     # Runner of these jobs is set inside JMO-Labs/wq-ci (v1 hardcodes ubuntu-latest, no input);
     # moving them to homelab needs a runs-on input upstream (styx-portal#101).
     uses: JMO-Labs/wq-ci/.github/workflows/wq-ci.yml@v1
     with:
+      run: ${{ needs.changes.outputs.backend == 'true' }}  # not a job-level if: that hides the required `wq / test` check
       reruns: 1  # one rerun separates a flake from a real failure; a deterministic failure costs 2 runs, not 3
       # The one backend run for PRs to dev (ci.yml skips its duplicate): no xdist: tests share setup state.
       test-cmd: >-
