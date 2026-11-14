@@ -1,11 +1,13 @@
 """Doc-lint for docs/enterprise: ADR acceptance and owner Rounds 1-5 amendments (issue #1)."""
 
 import re
+import tomllib
 from pathlib import Path
 
 import pytest
 
-DOCS = Path(__file__).resolve().parents[2] / "docs/enterprise"
+ROOT = Path(__file__).resolve().parents[2]
+DOCS = ROOT / "docs/enterprise"
 ADR = DOCS / "adr"
 DATE = "2026-11-09"
 TODO_R05 = "TODO (owner): issuer, date, scope"
@@ -404,3 +406,38 @@ def test_adr_0078_selkies_patch_set():
     series = (DOCS.parent.parent / "patches/selkies/series").read_text()
     for name in re.findall(r"^\d\w*-\S+\.patch$", series, re.M):
         assert name in up, name
+
+
+PAGE = ROOT / "docs/operate/backup-schedules.md"
+
+
+def _nav_values(node):
+    if isinstance(node, str):
+        yield node
+    elif isinstance(node, dict):
+        for v in node.values():
+            yield from _nav_values(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from _nav_values(v)
+
+
+def test_backup_schedules_page_exists_and_in_nav():
+    assert PAGE.is_file()
+    cfg = tomllib.loads((ROOT / "zensical.toml").read_text())
+    nav = cfg.get("project", cfg)["nav"]
+    assert "operate/backup-schedules.md" in _nav_values(nav)
+
+
+def test_backup_schedules_page_content():
+    t = PAGE.read_text()
+    assert "93600" in t and "26 h" in t
+    assert "04:30" in t
+    for s in ("01:00", "02:00", "03:00", "Object Lock", "cephx"):
+        assert s in t
+
+
+def test_backup_readme_exists():
+    assert "04:30" in (ROOT / "deploy/enterprise/backup/README.md").read_text()
+
+

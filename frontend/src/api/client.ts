@@ -368,6 +368,8 @@ export const api = {
     request<InstanceStatus>(`/instances/${id}/status`),
   takeover: (id: string) =>
     request<{ actor_name: string; mode: string; started_at: string } | null>(`/instances/${id}/takeover`),
+  reportRtt: (body: { transport: string; buckets: Record<string, number>; sum: number }) =>
+    request<void>("/stream/rtt", { method: "POST", body: JSON.stringify(body) }),
   keepalive: (id: string) =>
     request<Instance>(`/instances/${id}/keepalive`, { method: "POST" }),
   getInstanceStats: (id: string) =>

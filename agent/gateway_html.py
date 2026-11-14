@@ -139,12 +139,37 @@ setInterval(function(){if(!dirty&&Date.now()-Math.max(sent,rs)>=30000)send(false
 })();</script>"""
 
 
+# RTT reporter: every 5 s posts {type:'styx-rtt', rtt_ms, transport} to the parent
+# portal page (DesktopPage), targetOrigin = location.origin (never "*"). WebRTC RTT
+# is the selected ICE pair's currentRoundTripTime; websocket RTT is the selkies
+# stats rtt_ms. Same source as images/desktop/root/defaults/styx-rtt.js (ADR-0057;
+# test_rtt_shim_matches_image_file keeps them identical).
+RTT_JS = '<script id="styx-rtt">' + r"""(function(){
+var pcs=[],RP=window.RTCPeerConnection;
+if(RP){window.RTCPeerConnection=class extends RP{constructor(){super(...arguments);pcs.push(this)}}}
+async function webrtc(){
+for(var pc of pcs){try{var st=await pc.getStats(),cur=null,by={};
+st.forEach(function(r){by[r.id]=r;if(r.type==='transport'&&r.selectedCandidatePairId)cur=r.selectedCandidatePairId});
+var p=cur&&by[cur];if(p&&typeof p.currentRoundTripTime==='number')return p.currentRoundTripTime*1000}catch(e){}}
+return null}
+function ws(){var s=window.system_stats||window.webrtcStats||{};return typeof s.rtt_ms==='number'?s.rtt_ms:null}
+async function tick(){
+if(document.visibilityState==='hidden'||window.parent===window)return;
+var ms=await webrtc(),t='webrtc';
+if(ms===null){ms=ws();t='websocket'}
+if(typeof ms!=='number'||!isFinite(ms)||ms<0)return;
+try{window.parent.postMessage({type:'styx-rtt',rtt_ms:ms,transport:t},location.origin)}catch(e){}}
+setInterval(tick,5000);
+})();""" + "</script>"
+
+
 def inject_webrtc(html: str, enabled: bool) -> str:
     """Session tag, input beacons, refit posts (WEBRTC_JS); inert until a WebRTC
-    signaling socket opens, so WebSockets sessions are untouched."""
+    signaling socket opens, so WebSockets sessions are untouched. Also the RTT
+    reporter (RTT_JS), which serves both transports."""
     if not enabled or "</head>" not in html:
         return html
-    return html.replace("</head>", WEBRTC_JS + "</head>", 1)
+    return html.replace("</head>", WEBRTC_JS + RTT_JS + "</head>", 1)
 
 
 # Game mode (selkies posts gamingModeUpdate): pin the seat size, and go
