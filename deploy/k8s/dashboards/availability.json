@@ -1,0 +1,203 @@
+{
+  "uid": "styx-slo-availability",
+  "title": "Styx SLO: Availability",
+  "description": "Target 99.9% during business hours.",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "tags": [
+    "styx",
+    "slo"
+  ],
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "refresh": "5m",
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "label": "Datasource"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "SLI (30d)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1 - sum_over_time(styx:sli_bad{slo=\"availability\"}[30d]) / sum_over_time(styx:sli_total{slo=\"availability\"}[30d])"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Error budget remaining (30d)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1 - (sum_over_time(styx:sli_bad{slo=\"availability\"}[30d]) / sum_over_time(styx:sli_total{slo=\"availability\"}[30d])) / scalar(styx:slo_error_budget{slo=\"availability\"})"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Burn rate (1h)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "styx:sli_error_ratio{slo=\"availability\",window=\"1h\"} / scalar(styx:slo_error_budget{slo=\"availability\"})"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Burn rate by window",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "styx:sli_error_ratio{slo=\"availability\",window=\"5m\"} / scalar(styx:slo_error_budget{slo=\"availability\"})",
+          "legendFormat": "5m"
+        },
+        {
+          "refId": "B",
+          "expr": "styx:sli_error_ratio{slo=\"availability\",window=\"1h\"} / scalar(styx:slo_error_budget{slo=\"availability\"})",
+          "legendFormat": "1h"
+        },
+        {
+          "refId": "C",
+          "expr": "styx:sli_error_ratio{slo=\"availability\",window=\"6h\"} / scalar(styx:slo_error_budget{slo=\"availability\"})",
+          "legendFormat": "6h"
+        },
+        {
+          "refId": "D",
+          "expr": "styx:sli_error_ratio{slo=\"availability\",window=\"1d\"} / scalar(styx:slo_error_budget{slo=\"availability\"})",
+          "legendFormat": "1d"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Probe success",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(probe_success)",
+          "legendFormat": "success"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "In scope (business hours, no maintenance)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "styx:slo_in_scope",
+          "legendFormat": "in scope"
+        }
+      ]
+    }
+  ]
+}

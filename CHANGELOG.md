@@ -18,6 +18,7 @@
 * **enterprise:** OpenBao 2.7.2 HA (3 Raft nodes on control-plane local PVs) with `seal "static"` auto-unseal, offline bootstrap TLS, declarative stdout audit, idempotent `bao_configure.py`, seal-key Ansible playbook and nightly Raft snapshot CronJob (`deploy/enterprise/openbao/`, styx-portal#4)
 * **enterprise:** External Secrets Operator 2.14.0 with `ClusterSecretStore` `openbao` (Vault provider, Kubernetes auth, namespace-label gated) (`deploy/enterprise/external-secrets/`, styx-portal#4)
 * **backend:** SQLite to PostgreSQL migration tool (`python -m app.tools.sqlite_to_pg`) with dry-run, orphan handling, verify-or-rollback and an operator runbook (#22, #70)
+* **monitoring:** kube-prometheus-stack in `monitoring`, styx ServiceMonitor and alert rules, SLO recording rules and burn-rate alerts, launch metrics (#185, #46, #189)
 
 ### Bug Fixes
 
@@ -34,8 +35,7 @@
 * **operate:** offsite backup runbook (`docs/operate/offsite-backup.md`): bucket lifecycle rule prerequisite, escrow and one-page restore, key rotation with an explicit delete date and destruction of the old password, deleted-user data bound per whole pack, known issues (CI gap, sticky failed-job alert, byte-length password check, escaped orphan names); ADR-0037 consequences and CP-6/CP-9/SC-28 rows (styx-portal#13)
 * **enterprise:** GitLab protect runbook: Free/CE cannot PATCH protected-branch levels (re-protect by hand), runner tags have no access control (restrict project-runner creation); enterprise IaC layout and OpenBao `gitlab-protect` role (styx-portal#16)
 * **docs:** leader election runbook (who is leader, failover times, SQLite = one replica, ban cache staleness), settings, ADR-0056 follow-up note (#76)
-
-### Documentation
+* **docs:** monitoring runbook: install order, Harbor mirroring (ADR-0029), RKE2 bind addresses, storage class swap, verification, R05/ADR-0011 compliance debt (#35)
 
 * **docs:** enterprise Kubernetes guide, first-boot and rotation runbooks, full-site restore runbook with SSE-C note (#82)
 

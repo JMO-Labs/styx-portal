@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 from prometheus_client import REGISTRY
 
@@ -72,3 +74,64 @@ def test_template_prefers_effective_context_over_unprefixed_route():
         "fastapi": {"effective_route_context": NS(path_format="/api/instances/{instance_id}")},
     }
     assert _route_template(scope) == "/api/instances/{instance_id}"
+
+
+def _gauge(name, labels=None):
+    return REGISTRY.get_sample_value(name, labels or {})
+
+
+def _sync_url(tmp_path, monkeypatch):
+    from app.services import prom_collectors
+
+    url = f"sqlite:///{tmp_path}/g.db"
+    monkeypatch.setattr(prom_collectors, "_sync_url", lambda: url)
+    return url
+
+
+def _seed(url, instances=(), sessions=()):
+    from sqlalchemy import create_engine
+    from sqlmodel import Session, SQLModel
+
+    from app.models import Instance, StreamSession
+
+    eng = create_engine(url)
+    SQLModel.metadata.create_all(eng)
+    with Session(eng) as s:
+        for i, st in enumerate(instances):
+            s.add(Instance(template_id="t", name=f"n{i}", subdomain=f"s{i}", status=st))
+        for i, ended in enumerate(sessions):
+            s.add(StreamSession(target_kind="instance", target_id=f"x{i}",
+                                ended_at=datetime(2026, 1, 1) if ended else None))
+        s.commit()
+    eng.dispose()
+
+
+def test_instances_gauge_by_status(tmp_path, monkeypatch):
+    _seed(_sync_url(tmp_path, monkeypatch), instances=["running", "running", "stopped"])
+    assert _gauge("styx_instances", {"status": "running"}) == 2
+    assert _gauge("styx_instances", {"status": "stopped"}) == 1
+
+
+def test_stream_sessions_active_only(tmp_path, monkeypatch):
+    _seed(_sync_url(tmp_path, monkeypatch), sessions=[False, False, True])
+    assert _gauge("styx_stream_sessions_active") == 2
+
+
+def test_collector_db_error_yields_no_samples(monkeypatch):
+    from app.services import prom_collectors
+
+    monkeypatch.setattr(prom_collectors, "_sync_url", lambda: "sqlite:////nonexistent/dir/x.db")
+    assert _gauge("styx_instances", {"status": "running"}) is None
+    assert _gauge("styx_stream_sessions_active") is None
+
+
+def test_db_gauges_register_does_not_touch_db(monkeypatch):
+    from prometheus_client import CollectorRegistry
+
+    from app.services import prom_collectors
+
+    def boom(*a, **k):
+        raise AssertionError("create_engine called at register time")
+
+    monkeypatch.setattr(prom_collectors, "create_engine", boom)
+    CollectorRegistry(auto_describe=True).register(prom_collectors.DbGaugesCollector())
