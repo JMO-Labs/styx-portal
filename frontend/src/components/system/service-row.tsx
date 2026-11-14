@@ -80,7 +80,7 @@ export function ServiceRow({ s, busy, onToggle, onEdit, onDelete }: {
         <p className="truncate font-mono text-xs text-muted-foreground" title={target ?? undefined}>{target}</p>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {badges(s).map((b) => (
-            <Badge key={b.key} variant={b.cls ? "outline" : "secondary"} className={b.cls} title={b.title}>{b.label}</Badge>
+            <Badge key={b.key} variant={b.cls ? "outline" : "secondary"} className={b.cls ?? "text-foreground"} title={b.title}>{b.label}</Badge>
           ))}
           {chip && <Badge variant="outline" className={chip.cls}>{chip.label}</Badge>}
         </div>
