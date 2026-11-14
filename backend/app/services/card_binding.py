@@ -44,12 +44,13 @@ def _matches(row: ApprovedRequest, claims: dict) -> bool:
 
 def _same_user(row: ApprovedRequest, kc_user_id: str, account: dict) -> bool:
     """The request subject identifies the logged-in user: its kc_user_id when present,
-    else the account email or username (case-insensitive, never blank)."""
+    else the account username or *verified* email (case-insensitive, never blank)."""
     subj = row.subject or {}
     if subj.get("kc_user_id"):
         return subj["kc_user_id"] == kc_user_id
+    fields = ("email", "username") if account.get("emailVerified") else ("username",)
     return any(_norm(subj.get(f)) and _norm(subj.get(f)) == _norm(account.get(f))
-               for f in ("email", "username"))
+               for f in fields)
 
 
 async def _refusal(row: ApprovedRequest, kc_user_id: str, key: tuple[str, str]) -> tuple:

@@ -16,7 +16,8 @@ KC = "kc-user-1"
 @pytest.fixture
 def account():
     """Keycloak representation of the logged-in user (claims["sub"])."""
-    return {"id": KC, "username": "ada.l", "email": "Ada@Example.mil", "attributes": {}}
+    return {"id": KC, "username": "ada.l", "email": "Ada@Example.mil",
+            "emailVerified": True, "attributes": {}}
 
 
 @pytest.fixture
@@ -310,3 +311,10 @@ async def test_admin_only(member_client):
     assert (await member_client.get("/api/admin/card-reviews")).status_code == 403
     assert (await member_client.post("/api/admin/card-reviews/x/resolve",
                                      json={"decision": "reject"})).status_code == 403
+
+
+async def test_unverified_email_match_refused(session, kc, account):
+    account["emailVerified"] = False   # user-editable email must not prove ownership
+    r = await req(session)
+    assert await card_binding.bind_card(session, cac()) == "queued"
+    await assert_refused(session, kc, r, "subject_mismatch")
