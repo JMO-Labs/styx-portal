@@ -40,6 +40,12 @@ One section per alert. Definitions: [SLOs](slo.md). Rules: `deploy/k8s/slo-rules
 **First checks:** which templates slowed; recent image size changes; node pressure.
 **Escalate:** ticket only.
 
+## StyxLaunchP95High
+
+**Means:** launch p95 (successful launches, 5 min window) is 10 s or more for 15 min while in SLO scope (warning). See [SLO](slo.md#styxlaunchp95high).
+**First checks:** launch duration panel; image pre-pull status and pulls in progress; node load; Docker/Kubernetes scheduling latency.
+**Escalate:** ticket; page if it overlaps `StyxLaunchBurnRatePage`.
+
 ## StyxStreamRttBurnRatePage
 
 **Means:** too many stream RTT samples above 80 ms (>14.4x or >6x burn). RTT is network round trip, not input-to-photon.
