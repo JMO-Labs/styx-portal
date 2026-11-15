@@ -1,6 +1,7 @@
 # ADR-0056: Styx Postgres migration details
 
-- Status: Proposed
+- Status: Accepted
+- Accepted: 2026-11-09
 - Date: 2026-10-28
 - Decision ID: D56
 - Related controls: CP-9, CP-10, SC-5, IA-5
