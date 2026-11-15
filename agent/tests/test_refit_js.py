@@ -67,7 +67,7 @@ def test_tagger_runs_in_vm(tmp_path, nav):
 
 SUB_HARNESS = HARNESS.replace("hash: ''", "hash: process.argv[4]").replace(
     "store.styx_vid = 'old';",
-    "store.styx_vid = 'old';\nconst owner = process.argv[5] || process.argv[6];\nif (process.argv[5]) store.styx_owner = process.argv[5];\nconst LK = 'styx_owner:/p';\nif (process.argv[6]) lstore[LK] = process.argv[6];\n"
+    "store.styx_vid = 'old';\nconst owner = process.argv[6] || process.argv[5];\nif (process.argv[5]) store.styx_owner = process.argv[5];\nconst LK = 'styx_owner:/p';\nif (process.argv[6]) lstore[LK] = process.argv[6];\n"
     "const isSub = /^#display\\d/.test(process.argv[4]) && !!owner;\n"
     "const sfx = isSub ? '&styx_sub=' + encodeURIComponent(owner) : '';").replace(
     "const vid = store.styx_vid;",

@@ -106,7 +106,8 @@ def inject_idle_watchdog(html: str, timeout_s: int, lead_s: int,
 WEBRTC_JS = r"""<script id="styx-webrtc">(function(){
 var sid;try{sid=crypto.randomUUID()}catch(e){sid=Math.random().toString(36).slice(2)+Date.now().toString(36)}
 var rtc=false,pcs=[],RP=window.RTCPeerConnection,sub=false,owner='';
-try{if(/^#display\d/.test(location.hash)){try{owner=sessionStorage.getItem('styx_owner')||''}catch(e){}if(!owner)try{owner=localStorage.getItem('styx_owner:'+location.pathname)||''}catch(e){}sub=!!owner}}catch(e){}
+function own(){var o='';try{o=localStorage.getItem('styx_owner:'+location.pathname)||''}catch(e){}if(!o)try{o=sessionStorage.getItem('styx_owner')||''}catch(e){}return o}
+try{if(/^#display\d/.test(location.hash)){owner=own();sub=!!owner}}catch(e){}
 function claim(){if(sub)return;try{sessionStorage.setItem('styx_owner',sid)}catch(e){}try{localStorage.setItem('styx_owner:'+location.pathname,sid)}catch(e){}}
 if(RP){window.RTCPeerConnection=class extends RP{constructor(){super(...arguments);pcs.push(this)}}}
 function post(path,body){try{fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),keepalive:true}).catch(function(){})}catch(e){}}
@@ -116,6 +117,7 @@ var DC=window.RTCDataChannel;if(DC){var ds=DC.prototype.send;DC.prototype.send=f
 addEventListener('resize',refitSoon);document.addEventListener('fullscreenchange',refitSoon);
 var W=window.WebSocket;
 function SW(u,p){var s=String(u),sig=s.indexOf('/api/webrtc/signaling')>=0;
+if(sig&&sub)owner=own()||owner;
 if(sig)s+=(s.indexOf('?')<0?'?':'&')+'styx_vid='+encodeURIComponent(sid)+(sub?'&styx_sub='+encodeURIComponent(owner):'');
 var w=p===undefined?new W(s):new W(s,p);if(sig)w.addEventListener('open',function(){rtc=true;claim();refitSoon()});return w}
 SW.prototype=W.prototype;SW.CONNECTING=0;SW.OPEN=1;SW.CLOSING=2;SW.CLOSED=3;window.WebSocket=SW;

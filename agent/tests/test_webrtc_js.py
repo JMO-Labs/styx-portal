@@ -137,7 +137,7 @@ assert.strictEqual(ls[LK], localInit || undefined);      // no claim before the 
 assert.strictEqual(ss.styx_owner, ownerInit || undefined);
 socks[0].on.open();
 listeners.keydown[0]({});
-const ownerId = ownerInit || localInit;
+const ownerId = localInit || ownerInit;   // the latest claim wins: the owner reconnects with a new id
 const sub = /^#display\d/.test(hash) && !!ownerId;
 setTimeout(() => {
   if (sub) {
@@ -147,6 +147,9 @@ setTimeout(() => {
     assert.strictEqual(posts.filter(p => p[0] === 'styx/refit').length, 0);
     assert.deepStrictEqual(posts.filter(p => p[0] === 'styx/activity')[0],
       ['styx/activity', {sid: ownerId, sub: 'sid-1', relay_bytes: 0, active: true}]);
+    ls[LK] = 'NEW';                                        // the owner reconnected (agent restart)
+    new win.WebSocket('wss://h/w/x/api/webrtc/signaling/');
+    assert(socks[1].url.endsWith('&styx_sub=NEW'), socks[1].url);
   } else {
     assert(!socks[0].url.includes('styx_sub'));
     assert.strictEqual(ss.styx_owner, 'sid-1');
