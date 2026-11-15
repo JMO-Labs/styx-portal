@@ -153,6 +153,21 @@ restart on every size change of the second window, two screens hardcoded.
 Risks 1-3 are answered by step 1 of the order of work, before any polish; the fallbacks named
 under 1 and 2 are the plan if they fail.
 
+## Spike results (2026-11-15, from the GAME-01 spike and source reads)
+
+1. **Input reaches a virtual monitor from another session: yes.** In the spike, monitor 2 was a
+   `RecordVirtual` in its own unpaired ScreenCast session, and pixelflux's input (libei through
+   the primary's RemoteDesktop session) clicked and dragged on it correctly once arranged. The
+   grown display needs no input of its own.
+2. **In-place resize: yes, by reconnecting the consumer to the same node.** Reconnecting a
+   PipeWire consumer to a virtual monitor's node with new size caps resizes that monitor in place
+   in about 100 ms (`seat_portal.Monitor.resize`, used live for the primary). Only a *separate*
+   `RecordMonitor` stream of a resized monitor stalls. pixelflux consumes the grown display's
+   virtual stream directly, so it resizes by reconnecting its own consumer at the new size.
+3. **Stock GNOME consent:** `xdg-desktop-portal-gnome` lists "Virtual Monitor" in the share
+   dialog and serializes virtual sources into the restore token, so one dialog the first time,
+   none after. Our seat backend shows none.
+
 ## Designer's calls (settled without the user)
 
 - **Arrangement on Mutter is required, not optional.** Mutter leaves a new virtual monitor out of
