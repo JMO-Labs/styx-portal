@@ -58,6 +58,7 @@ Limits:
 - GNOME seats only, not mirror mode or the labwc seat.
 - Open the second window with **Add Screen** from the session's own tab. Copying its URL into another device does not work.
 
+## Quality and codecs
 
 The stream tries **AV1, then HEVC, then H.264** and uses the first codec your browser can decode and the workstation's GPU can encode. Over WebRTC the browser also prefers a codec it decodes in hardware, so a device without AV1 hardware decode (older laptops, many phones, some work PCs) gets HEVC instead of a software-decoded AV1 stream. See [Streaming tuning](../operate/streaming-tuning.md) for the details and when to prefer HEVC.
 
