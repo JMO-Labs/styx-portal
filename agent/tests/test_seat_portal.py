@@ -110,3 +110,17 @@ def test_monitor_hands_its_stream_over_and_takes_it_back(monkeypatch):
     m.w, m.h = 1024, 700
     m.hold()
     assert len(launched) == 2 and "width=1024,height=700" in launched[-1]
+
+
+def test_a_closing_session_lets_go_of_what_it_holds():
+    """The seat's RemoteDesktop session outlives each selkies, so a capture
+    killed mid-drag or with Ctrl held must release them on Close."""
+    sent = []
+
+    class RD:
+        def NotifyKeyboardKeycode(self, code, state): sent.append(("key", int(code), bool(state)))
+        def NotifyPointerButton(self, code, state): sent.append(("btn", int(code), bool(state)))
+    s = type("S", (), {"rd": RD(), "down": {("NotifyKeyboardKeycode", 29),
+                                            ("NotifyPointerButton", 272)}})()
+    seat_portal.release_held(s)
+    assert sorted(sent) == [("btn", 272, False), ("key", 29, False)] and not s.down

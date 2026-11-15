@@ -102,6 +102,8 @@ class Session(dbus.service.Object):
     @dbus.service.method(SESS_IFACE)
     def Close(self):
         log("Close", self.handle)
+        if self.borrowed:
+            release_held(self)
         if self.clip is not None:
             self.clip.stop()
         try:
@@ -322,6 +324,17 @@ def _ordered(s, name, code, down, send):
         send(code, False)
     else:
         s.early[key] = now
+
+
+def release_held(s):
+    """Release every key and button the session still holds: the seat's
+    RemoteDesktop session outlives each capture, so nothing else would."""
+    for name, code in list(s.down):
+        try:
+            getattr(s.rd, name)(code, False)
+        except dbus.DBusException as e:
+            log("release failed:", e)
+    s.down.clear()
 
 
 def _forward(name, conv):

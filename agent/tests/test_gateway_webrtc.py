@@ -528,6 +528,31 @@ async def test_sub_relay_credited_apart_from_owner(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_sub_relay_is_not_counted_twice_across_a_reconnect(tmp_path):
+    """A sub page's relay counter is cumulative for its life; its signaling
+    socket reconnects on every refit, which must not credit the total again."""
+    up, client, _ = await _pair(tmp_path)
+    try:
+        await _sig(client, "A")
+        b = await _sub(client, "B")
+        await asyncio.sleep(0.2)
+        await _beacon(client, "A", 0)
+        await _beacon(client, "A", 50, sub="B")
+        assert _state(tmp_path)["turn_bytes_total"] == 50
+        await b.close()
+        await asyncio.sleep(0.2)
+        await _sub(client, "B")                             # same page, new socket
+        await asyncio.sleep(0.2)
+        await _beacon(client, "A", 50, sub="B")
+        assert _state(tmp_path)["turn_bytes_total"] == 50
+        await _beacon(client, "A", 70, sub="B")
+        assert _state(tmp_path)["turn_bytes_total"] == 70
+    finally:
+        await client.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
 async def test_sub_refusal_and_close_are_logged(tmp_path, capsys):
     up, client, _ = await _pair(tmp_path)
     try:

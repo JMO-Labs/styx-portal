@@ -51,6 +51,8 @@ class WebRTCGateway:
         self.sessions: dict[str, Session] = {}
         self.subs: dict[str, set] = {}      # owner sid -> its sub-display sockets
         self.sub_track: dict[str, Session] = {}   # sub sid -> its own relay counter
+        self.sub_owner: dict[str, str] = {}       # sub sid -> owner sid: the counter lives
+        #                                           as long as the owner (a sub reconnects per refit)
         self.turn_bytes = 0
         self.viewers, self.seat = viewers, seat
         self.live_port, self.write_state, self.touch, self.kill_path = live_port, write_state, touch, kill_path
@@ -84,6 +86,9 @@ class WebRTCGateway:
         for sid, s in list(self.sessions.items()):
             if not s.socks and now - s.gone_at > GRACE_S:
                 del self.sessions[sid]
+                for sub in [k for k, o in self.sub_owner.items() if o == sid]:
+                    self.sub_owner.pop(sub, None)
+                    self.sub_track.pop(sub, None)
 
     def busy(self, sid: str, now: float) -> bool:
         return self.viewers.busy(sid, now, self.hold_s)
@@ -244,7 +249,8 @@ class WebRTCGateway:
                 return web.Response(status=502, text="stream backend unavailable")
             await down.prepare(request)
             self.subs.setdefault(owner, set()).add(down)
-            self.sub_track[sub_sid] = Session(sub_sid, time.time())
+            self.sub_track.setdefault(sub_sid, Session(sub_sid, time.time()))
+            self.sub_owner[sub_sid] = owner
             self.log(f"webrtc sub open owner={owner[:8]}")
             try:
                 await asyncio.gather(pump(down, up), pump(up, down), return_exceptions=True)
@@ -253,7 +259,6 @@ class WebRTCGateway:
                 self.subs.get(owner, set()).discard(down)
                 if not self.subs.get(owner):
                     self.subs.pop(owner, None)
-                self.sub_track.pop(sub_sid, None)
                 await up.close()
         return down
 

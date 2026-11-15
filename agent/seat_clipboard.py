@@ -142,6 +142,10 @@ class ClipboardServer:
         return True
 
     def stop(self):
+        try:    # the seat's session outlives this server: Mutter refuses a second Enable
+            self.rd.DisableClipboard()
+        except Exception:   # noqa: BLE001 - dbus or a fake; the session may be gone
+            pass
         GLib.source_remove(self.src)
         for r in self.rx:
             r.remove()
