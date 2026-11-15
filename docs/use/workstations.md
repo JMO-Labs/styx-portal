@@ -57,6 +57,8 @@ Limits:
 - One extra screen.
 - GNOME seats only, not mirror mode or the labwc seat.
 - Open the second window with **Add Screen** from the session's own tab. Copying its URL into another device does not work.
+- Only the session's own window counts: after the session reconnects (agent update, network drop), the second window follows it by itself. If it stays on "connecting", close it and press **Add Screen** again.
+- Resizing the first window still reconnects both windows for a moment.
 
 ## Quality and codecs
 
