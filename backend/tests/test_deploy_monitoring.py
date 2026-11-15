@@ -128,10 +128,11 @@ def test_metrics_networkpolicy_only_monitoring():
     assert deny["spec"] == {"podSelector": {}, "policyTypes": ["Ingress"]}
 
 
-
-
-def test_k8s_kustomization_lists_servicemonitor():
+def test_k8s_kustomization_lists_all_resources():
     res = _k8s_by_kind("kustomization.yaml", "Kustomization")["resources"]
     assert "servicemonitor.yaml" in res
+    assert "prometheusrule.yaml" in res
+    rule = _k8s_by_kind("prometheusrule.yaml", "PrometheusRule")
+    assert rule["metadata"]["labels"]["release"] == "kube-prometheus-stack"
     for r in res:
         assert (K8S / r).exists(), r

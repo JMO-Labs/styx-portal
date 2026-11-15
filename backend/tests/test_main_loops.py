@@ -1,3 +1,6 @@
+import asyncio
+import types
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock
 
 import docker.errors
@@ -102,6 +105,7 @@ async def _run_lifespan(monkeypatch, elector=None, k8s=False):
     import app.main as m
     import app.services.leader as leader_mod
     import app.services.route_writer as rw
+    import app.services.session_reaper as session_reaper
     import app.services.stream_sessions as stream_sessions
 
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -143,6 +147,10 @@ async def _run_lifespan(monkeypatch, elector=None, k8s=False):
 
     for attr in _ALL_LOOPS:
         monkeypatch.setattr(m, attr, fake(attr))
+    # k8s leader-only, imported lazily by lifespan; the real one calls get_elector()
+    # and pins a real elector in leader._elector, hanging later Postgres tests.
+    monkeypatch.setattr(session_reaper, "session_reaper_loop", fake("session_reaper_loop"))
+    monkeypatch.setattr(leader_mod, "_elector", leader_mod._elector)  # restored on teardown
     monkeypatch.setattr(m, "_reconcile_instances_at_boot", record("reconcile"))
     monkeypatch.setattr(m, "_log_portal_instances", record("log_instances"))
     monkeypatch.setattr(stream_sessions, "close_dangling", record("close_dangling"))
@@ -155,6 +163,7 @@ async def _run_lifespan(monkeypatch, elector=None, k8s=False):
         monkeypatch.setattr(leader_mod, "_elector", None)
     else:
         monkeypatch.setattr(m, "get_elector", lambda: elector)
+    monkeypatch.setattr(m, "start_metrics_server", lambda *a: None)
     monkeypatch.setattr(m._settings, "ROUTE_BACKEND", "k8s" if k8s else "file")
     monkeypatch.setattr(m._settings, "JWT_SECRET", "x" * 40, raising=False)
     async with m.lifespan(m.app):
@@ -199,3 +208,80 @@ async def test_lifespan_refreshes_routes_after_reconcile(monkeypatch):
     assert refreshes[0] < events.index("reconcile")  # per-replica initial routes
     assert refreshes[-1] > events.index("reconcile")  # leader re-writes after reconcile
     assert refreshes[-1] > events.index("close_dangling")
+
+
+class _StopLoop(BaseException):
+    pass
+
+
+def _one_tick(monkeypatch):
+    """Let the loop's first sleep pass, then stop it on the second."""
+    calls = []
+
+    async def _sleep(_s):
+        calls.append(1)
+        if len(calls) > 1:
+            raise _StopLoop
+
+    # Patch only this module's view of asyncio: a global asyncio.sleep patch leaks
+    # into the DB driver (asyncpg) and hangs the Postgres suite.
+    fake = types.SimpleNamespace(sleep=_sleep, to_thread=asyncio.to_thread)
+    monkeypatch.setattr(main, "asyncio", fake)
+
+
+@pytest.mark.asyncio
+async def test_lifespan_leader_k8s_skips_probe_cleanup(monkeypatch):
+    events = await _run_lifespan(monkeypatch, _FakeElector(True), k8s=True)
+    assert "probe_cleanup" not in events
+    assert "reconcile" in events
+    assert "session_reaper_loop" in events  # stubbed: the real one leaks a global elector
+
+
+@pytest.mark.asyncio
+async def test_lifespan_k8s_leader_does_not_leak_global_elector(monkeypatch):
+    import app.services.leader as leader_mod
+    before = leader_mod._elector
+    with pytest.MonkeyPatch.context() as mp:
+        await _run_lifespan(mp, _FakeElector(True), k8s=True)
+    assert leader_mod._elector is before
+
+
+@pytest.mark.asyncio
+async def test_metrics_sampler_logs_when_sample_fails(monkeypatch, caplog):
+    _one_tick(monkeypatch)
+    monkeypatch.setattr(main, "instance_runtime", lambda: object())
+
+    class _Boom:
+        async def __aenter__(self):
+            raise RuntimeError("db down")
+
+        async def __aexit__(self, *a):
+            return False
+
+    monkeypatch.setattr(main, "async_session", lambda: _Boom())
+    with caplog.at_level("WARNING"), pytest.raises(_StopLoop):
+        await main._metrics_sampler_loop()
+    assert "metrics sample failed" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_metrics_db_loop_records_host_rollup(monkeypatch, session):
+    import app.services.host_metrics as hm
+    import app.services.metric_rollup as mr
+    import app.services.stream_sessions as ss
+
+    _one_tick(monkeypatch)
+    rec = []
+
+    @asynccontextmanager
+    async def _shared():
+        yield session  # don't let the loop close the per-test fixture session
+
+    monkeypatch.setattr(main, "async_session", _shared)
+    monkeypatch.setattr(hm, "cpu_pct", lambda: 5.0)
+    monkeypatch.setattr(hm, "ram", lambda: (40.0, 1))
+    monkeypatch.setattr(ss, "sync_instances", AsyncMock())
+    monkeypatch.setattr(mr, "record_host", lambda *a: rec.append(a))
+    with pytest.raises(_StopLoop):
+        await main._metrics_db_loop()
+    assert rec and rec[0][0] == 5.0 and rec[0][1] == 40.0 and rec[0][3] == 0
