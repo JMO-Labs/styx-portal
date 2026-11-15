@@ -89,6 +89,8 @@ class Session(dbus.service.Object):
         self.rd = self.rd_path = self.stream_path = self.clip = self.sc = None
         self.devices = 3
         self.want_screen = True
+        self.virtual = False            # SelectSources asked for a virtual monitor (types & 4)
+        self.paths = {}                 # PipeWire node id -> Mutter stream object path
         self.scale = _seat_scale()      # fixed per session: a scale change restarts selkies
         self.down, self.early = set(), {}   # _ordered: held keys/buttons, early releases
 
@@ -100,6 +102,8 @@ class Session(dbus.service.Object):
         try:
             if self.rd is not None:
                 self.rd.Stop()
+            if self.virtual and self.sc is not None:
+                self.sc.Stop()
         except dbus.DBusException as e:
             log("stop failed:", e)
         sessions.pop(self.handle, None)
@@ -139,14 +143,47 @@ class Portal(dbus.service.Object):
     @dbus.service.method(dbus.PROPERTIES_IFACE, in_signature="s", out_signature="a{sv}")
     def GetAll(self, iface):
         if iface == SC_IFACE:
-            return {"AvailableSourceTypes": dbus.UInt32(1),
+            return {"AvailableSourceTypes": dbus.UInt32(5),
                     "AvailableCursorModes": dbus.UInt32(7), "version": dbus.UInt32(5)}
         if iface == RD_IFACE:
             return {"AvailableDeviceTypes": dbus.UInt32(3), "version": dbus.UInt32(2)}
         return {}
 
+    def _start_virtual(self, s, ok):
+        """A second screen: a plain Mutter ScreenCast session (no RemoteDesktop,
+        no input of its own) on a new virtual monitor; pointer input reaches it
+        through the primary session via Seat paths (_abs)."""
+        if s.sc is not None:
+            return
+        scp = _mutter("ScreenCast", "/org/gnome/Mutter/ScreenCast",
+                      "ScreenCast").CreateSession(dbus.Dictionary({}, signature="sv"))
+        sc = s.sc = _mutter("ScreenCast", scp, "ScreenCast.Session")
+        bus.add_signal_receiver(lambda: s.lost(), "Closed", M + "ScreenCast.Session", path=scp)
+        s.stream_path = sc.RecordVirtual(dbus.Dictionary(
+            {"cursor-mode": dbus.UInt32(CURSOR_MODE), "is-platform": dbus.Boolean(True)},
+            signature="sv"))
+        sobj = bus.get_object(M + "ScreenCast", s.stream_path)
+
+        def added(node):
+            params = dbus.Interface(sobj, dbus.PROPERTIES_IFACE).Get(
+                M + "ScreenCast.Stream", "Parameters")
+            log("virtual stream node", int(node))
+            s.paths[int(node)] = str(s.stream_path)
+            stream = (dbus.UInt32(int(node)), dbus.Dictionary({
+                "position": params.get("position", dbus.Struct((0, 0), signature="ii")),
+                "size": params.get("size", dbus.Struct((0, 0), signature="ii")),
+                "source_type": dbus.UInt32(4)}, signature="sv"))
+            ok(dbus.UInt32(0), dbus.Dictionary({
+                "streams": dbus.Array([stream], signature="(ua{sv})"),
+                "devices": dbus.UInt32(0)}, signature="sv"))
+        bus.add_signal_receiver(added, "PipeWireStreamAdded",
+                                M + "ScreenCast.Stream", path=s.stream_path)
+        sc.Start()
+
     def _start(self, s, ok):
         try:
+            if s.virtual:
+                return self._start_virtual(s, ok)
             if s.rd is None:
                 s.rd_path = _mutter("RemoteDesktop", "/org/gnome/Mutter/RemoteDesktop",
                                     "RemoteDesktop").CreateSession()
@@ -172,6 +209,7 @@ class Portal(dbus.service.Object):
                     params = dbus.Interface(sobj, dbus.PROPERTIES_IFACE).Get(
                         M + "ScreenCast.Stream", "Parameters")
                     log("stream node", int(node))
+                    s.paths[int(node)] = str(s.stream_path)
                     stream = (dbus.UInt32(int(node)), dbus.Dictionary({
                         "position": params.get("position", dbus.Struct((0, 0), signature="ii")),
                         "size": params.get("size", dbus.Struct((0, 0), signature="ii")),
@@ -229,8 +267,15 @@ def rd_start(self, handle, session_handle, app_id, parent_window, options, ok, e
     self._start(sessions[str(session_handle)], ok)
 
 
+def source_types(options) -> int:
+    """Mutter source type to serve: 4 (virtual) when the client asked for it, else 1."""
+    return 4 if int(options.get("types", 1)) & 4 else 1
+
+
 def sc_select(self, handle, session_handle, app_id, options):
-    sessions[str(session_handle)].want_screen = True   # cursor_mode ignored: always metadata
+    s = sessions[str(session_handle)]
+    s.virtual = source_types(options) == 4
+    s.want_screen = True   # cursor_mode ignored: always metadata
     return dbus.UInt32(0), dbus.Dictionary({}, signature="sv")
 
 
@@ -299,7 +344,7 @@ def _motion(s, o, dx, dy):
 def _abs(s, o, stream, x, y):
     # pixelflux divides by its (= the seat's) scale and Mutter divides again:
     # undo pixelflux's, so the pointer lands where the browser's is.
-    return s.stream_path, x * s.scale, y * s.scale
+    return s.paths.get(int(stream), s.stream_path), x * s.scale, y * s.scale
 
 
 def _button(s, o, b, st):

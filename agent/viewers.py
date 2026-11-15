@@ -19,6 +19,13 @@ def split_vid(raw_qs: str, fallback: str):
     return "&".join(keep), vid or fallback
 
 
+def split_sub(raw_qs: str) -> tuple[str, bool]:
+    """Return (query string without styx_sub=1, whether it was present): a
+    sub-display window (Selkies' Add Screen page) beside the owner tab."""
+    parts = raw_qs.split("&")
+    return "&".join(p for p in parts if p and p != "styx_sub=1"), "styx_sub=1" in parts
+
+
 @dataclass
 class Viewer:
     vid: str = ""

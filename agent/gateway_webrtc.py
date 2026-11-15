@@ -18,7 +18,7 @@ import aiohttp
 import refit
 from aiohttp import web
 from gateway_ws import pump, same_origin
-from viewers import split_vid
+from viewers import split_sub, split_vid
 
 FINAL_CODE = 4001       # idle/age cut; the client must not reconnect
 GRACE_S = 60.0          # a session keeps its age/idle clocks across a signaling reconnect
@@ -49,6 +49,7 @@ class WebRTCGateway:
         self.idle_s = idle_s if idle_enabled and idle_s > 0 else 0
         self.max_s, self.hold_s = max_session_s, hold_s
         self.sessions: dict[str, Session] = {}
+        self.subs: set = set()      # sub-display sockets: live only while an owner socket is
         self.turn_bytes = 0
         self.viewers, self.seat = viewers, seat
         self.live_port, self.write_state, self.touch, self.kill_path = live_port, write_state, touch, kill_path
@@ -169,6 +170,9 @@ class WebRTCGateway:
             self.log("webrtc refused: TURN budget reached, WebSockets only")
             return web.Response(status=409, text="WebRTC is paused (TURN budget reached)")
         qs, sid = split_vid(request.rel_url.raw_query_string, f"wr{uuid.uuid4().hex}")
+        qs, sub = split_sub(qs)
+        if sub:
+            return await self._sub_signaling(request, qs)
         now = time.time()
         self._purge(now)
         s = self.sessions.get(sid)
@@ -205,8 +209,36 @@ class WebRTCGateway:
                 s.socks.discard(down)
                 s.gone_at = time.time()
                 self.detach(sid, down, rec)
+                if not any(x.socks for x in self.sessions.values()):
+                    for w in list(self.subs):       # the second window dies with its owner
+                        await w.close(code=refit.BUSY_CODE, message=b"owner closed")
                 self.write_state()
                 self.log(f"webrtc close sid={sid[:8]} (n={self.n})")
+                await up.close()
+        return down
+
+    async def _sub_signaling(self, request, qs):
+        """Sub-display window: proxied beside the owner, with no viewer record,
+        busy check, idle clock or session of its own."""
+        down = web.WebSocketResponse(max_msg_size=0, heartbeat=HEARTBEAT_S)
+        if not any(x.socks for x in self.sessions.values()):
+            await down.prepare(request)
+            await down.close(code=refit.BUSY_CODE, message=b"no owner session")
+            return down
+        async with aiohttp.ClientSession() as session:
+            try:
+                up = await session.ws_connect(
+                    f"ws://127.0.0.1:{self.live_port()}/api/webrtc/signaling/"
+                    + (f"?{qs}" if qs else ""), max_msg_size=0)
+            except aiohttp.ClientError:
+                return web.Response(status=502, text="stream backend unavailable")
+            await down.prepare(request)
+            self.subs.add(down)
+            self.log("webrtc sub open")
+            try:
+                await asyncio.gather(pump(down, up), pump(up, down), return_exceptions=True)
+            finally:
+                self.subs.discard(down)
                 await up.close()
         return down
 

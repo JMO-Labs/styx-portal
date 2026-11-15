@@ -56,3 +56,16 @@ def test_main_argv_fps_flag():
 
 def test_max_fps_as_last_arg_falls_back():
     assert seat_portal.parse_args(["p", "800x600", "--max-fps"]) == (800, 600, 60)
+
+
+def test_source_types():
+    assert seat_portal.source_types({}) == 1
+    assert seat_portal.source_types({"types": 1}) == 1
+    assert seat_portal.source_types({"types": 4}) == 4
+    assert seat_portal.source_types({"types": 5}) == 4
+
+
+def test_abs_routes_by_node():
+    s = type("S", (), {"paths": {7: "/p/stream7"}, "stream_path": "/p/primary", "scale": 2.0})()
+    assert seat_portal._abs(s, {}, 7, 10.0, 20.0) == ("/p/stream7", 20.0, 40.0)
+    assert seat_portal._abs(s, {}, 9, 10.0, 20.0) == ("/p/primary", 20.0, 40.0)

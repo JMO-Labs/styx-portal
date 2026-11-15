@@ -63,3 +63,16 @@ def test_tagger_runs_in_vm(tmp_path, nav):
     js.write_text(HARNESS)
     r = subprocess.run(["node", str(js), refit.RELOAD_JS, nav], capture_output=True, text=True, timeout=30)
     assert r.returncode == 0, r.stderr
+
+
+SUB_HARNESS = HARNESS.replace("hash: ''", "hash: process.argv[4]").replace(
+    "store.styx_vid = 'old';", "store.styx_vid = 'old';\nconst sfx = /^#display\\d/.test(process.argv[4]) ? '&styx_sub=1' : '';").replace(
+    "+ vid);", "+ vid + sfx);")
+
+
+@pytest.mark.parametrize("hash_", ["#display2-top", "", "#other"])
+def test_shim_tags_display_pages(tmp_path, hash_):
+    js = tmp_path / "page.js"
+    js.write_text(SUB_HARNESS)
+    r = subprocess.run(["node", str(js), refit.RELOAD_JS, "navigate", hash_], capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr

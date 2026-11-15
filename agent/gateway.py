@@ -31,7 +31,7 @@ from aiohttp import web
 from multidict import CIMultiDict
 from gateway_webrtc import KILL_SUFFIX, WebRTCGateway
 from gateway_ws import same_origin
-from viewers import StallClock, Viewers, split_vid  # noqa: F401
+from viewers import StallClock, Viewers, split_sub, split_vid  # noqa: F401
 from gateway_html import (  # noqa: F401  (re-exported for tests)
     CURSOR_HIDE_CSS,
     VIS_GRACE_MS,
@@ -142,6 +142,7 @@ def create_app(user: str, password: str,
     scale_file = os.path.join(seat_dir, "seat-scale") if seat_dir else ""
     size_owner = refit.SizeOwner()
     viewers = Viewers()     # per styx_vid: sockets, last size/dpi, timers
+    subs = set()            # sub-display sockets: live only while an owner socket is
 
     scale_restart = {"timer": None, "ts": 0.0}
 
@@ -318,14 +319,53 @@ def create_app(user: str, password: str,
                 status=401, headers={"WWW-Authenticate": 'Basic realm="styx"'})
         return await handler(request)
 
+    async def sub_proxy(request, qs):
+        """Sub-display window (Add Screen): proxied beside the owner, with no
+        viewer record, busy check, idle clock or connection count of its own."""
+        ws_server = web.WebSocketResponse(max_msg_size=0, compress=False,
+                                          heartbeat=WS_HEARTBEAT_S)
+        if not viewers.live():
+            await ws_server.prepare(request)
+            await ws_server.close(code=BUSY_CODE, message=b"no owner session")
+            return ws_server
+        async with aiohttp.ClientSession() as session:
+            try:
+                ws_client = await session.ws_connect(
+                    f"ws://127.0.0.1:{live_port()}/api/websockets"
+                    + (f"?{qs}" if qs else ""), max_msg_size=0)
+            except aiohttp.ClientError:
+                return web.Response(status=502, text="stream backend unavailable")
+            await ws_server.prepare(request)
+            subs.add(ws_server)
+
+            async def pump_sub(src, dst):
+                async for msg in src:
+                    if msg.type == aiohttp.WSMsgType.TEXT:
+                        await dst.send_str(msg.data)
+                    elif msg.type == aiohttp.WSMsgType.BINARY:
+                        await dst.send_bytes(msg.data)
+                    else:
+                        break
+                await dst.close()
+            try:
+                await asyncio.gather(pump_sub(ws_server, ws_client),
+                                     pump_sub(ws_client, ws_server), return_exceptions=True)
+            finally:
+                subs.discard(ws_server)
+                await ws_client.close()
+        return ws_server
+
     async def ws_proxy(request):
         qs, vid = split_vid(request.rel_url.raw_query_string, f"ws{uuid.uuid4().hex}")
+        qs, sub = split_sub(qs)
         if request.headers.get("Upgrade", "").lower() != "websocket":
             # 2.0 client probes api/websockets over plain HTTP (409 = mode flip)
             return await forward(request, "/api/websockets" + (f"?{qs}" if qs else ""))
         if not same_origin(request):
             log(f"ws reject: origin {request.headers.get('Origin')!r} != host {request.host!r}")
             return web.Response(status=403, text="forbidden origin")
+        if sub:
+            return await sub_proxy(request, qs)
         t0 = time.monotonic()
         while refit_file and refit.pending(refit_file) and time.monotonic() - t0 < REFIT_WAIT_S:
             await asyncio.sleep(REFIT_POLL_S)
@@ -467,6 +507,9 @@ def create_app(user: str, password: str,
                         f"after {int(time.time() - opened)}s (n={conns['n']})")
                 transports.pop(ws_server, None)
                 detach(vid, ws_server, rec)
+                if not viewers.live():
+                    for w in list(subs):        # the second window dies with its owner
+                        await w.close(code=BUSY_CODE, message=b"owner closed")
                 _write_state()
                 await ws_client.close()
         return ws_server

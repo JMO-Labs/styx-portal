@@ -357,3 +357,81 @@ async def test_gamemode_shim_injected_in_both_transports(tmp_path):
         await c.close()
         assert "gamingModeUpdate" in html and "requestFullscreen" in html and "styx/gamemode" in html
     await up.close()
+
+
+async def _sub(client, sid):
+    return await client.ws_connect(f"/api/webrtc/signaling/?styx_vid={sid}&styx_sub=1&x=1",
+                                   headers=HDR)
+
+
+@pytest.mark.asyncio
+async def test_sub_joins_beside_owner(tmp_path):
+    up, client, seen = await _pair(tmp_path, idle_timeout_s=300, idle_enabled=True)
+    try:
+        a = await _sig(client, "A")
+        assert (await _beacon(client, "A")).status == 204
+        b = await _sub(client, "B")
+        await _until(lambda: len(seen) == 2)
+        assert seen == ["x=1", "x=1"]                      # neither styx_vid nor styx_sub upstream
+        await asyncio.sleep(0.2)
+        assert not a.closed and not b.closed
+    finally:
+        await client.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
+async def test_sub_refused_without_owner(tmp_path):
+    up, client, seen = await _pair(tmp_path)
+    try:
+        b = await _sub(client, "B")
+        msg = await asyncio.wait_for(b.receive(), 3)
+        assert msg.type == aiohttp.WSMsgType.CLOSE and b.close_code == gateway.BUSY_CODE
+        assert seen == []
+    finally:
+        await client.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
+async def test_sub_closes_with_owner(tmp_path):
+    up, client, _ = await _pair(tmp_path)
+    try:
+        a = await _sig(client, "A")
+        b = await _sub(client, "B")
+        await asyncio.sleep(0.2)
+        assert not b.closed
+        await a.close()
+        msg = await asyncio.wait_for(b.receive(), 2)
+        assert msg.type == aiohttp.WSMsgType.CLOSE
+    finally:
+        await client.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
+async def test_sub_no_refit_no_idle(tmp_path, monkeypatch):
+    connected = []
+    orig = gateway.Viewers.connect
+    monkeypatch.setattr(gateway.Viewers, "connect",
+                        lambda self, vid, ws: connected.append(vid) or orig(self, vid, ws))
+    up, client, seen = await _pair(tmp_path, idle_timeout_s=300, idle_enabled=True)
+    try:
+        a = await _sig(client, "A")
+        await _until(lambda: _state(tmp_path)["active_connections"] == 1)
+        b = await _sub(client, "B")
+        await _until(lambda: len(seen) == 2)
+        await asyncio.sleep(0.2)
+        assert connected == ["A"]                              # sub never a viewer
+        assert _state(tmp_path)["active_connections"] == 1     # sub not counted
+        assert not a.closed and not b.closed
+    finally:
+        await client.close()
+        await up.close()
+
+
+def test_split_sub():
+    from viewers import split_sub
+    assert split_sub("x=1&styx_sub=1&y=2") == ("x=1&y=2", True)
+    assert split_sub("x=1") == ("x=1", False)
+    assert split_sub("") == ("", False)
