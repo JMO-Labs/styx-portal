@@ -41,9 +41,23 @@ Admin changes apply as soon as nobody is connected (within about a second of the
 | **Clipboard** | Automatic two-way sync in Chromium-based browsers once you allow the site's **Clipboard** permission (lock icon → Site settings → Clipboard → Allow). Firefox blocks programmatic clipboard reads, so local-to-remote paste goes through the sidebar's clipboard panel. |
 | **Files** | Sidebar **Files** section. Uploads land in `~/Downloads` on the workstation; the download popup lists the same directory. |
 | **Microphone, webcam, gamepad, printing** | Off in current agents. |
-| **Second screen** | Disabled (upstream limitation). |
+| **Second screen** | GNOME seats only; see [Two screens](#two-screens). Off elsewhere. |
 
-## Quality and codecs
+## Two screens
+
+On a GNOME seat you can extend the remote desktop onto a second monitor.
+
+1. Open the sidebar's screen settings and press **Add Screen**, then pick a side.
+2. A second browser window opens and the remote desktop extends onto it. Drag it to your second physical monitor.
+3. Resizing that window resizes the second screen.
+4. Closing it removes the second screen; GNOME moves its windows back to the first.
+
+Limits:
+
+- One extra screen.
+- GNOME seats only, not mirror mode or the labwc seat.
+- Open the second window with **Add Screen** from the session's own tab. Copying its URL into another device does not work.
+
 
 The stream tries **AV1, then HEVC, then H.264** and uses the first codec your browser can decode and the workstation's GPU can encode. Over WebRTC the browser also prefers a codec it decodes in hardware, so a device without AV1 hardware decode (older laptops, many phones, some work PCs) gets HEVC instead of a software-decoded AV1 stream. See [Streaming tuning](../operate/streaming-tuning.md) for the details and when to prefer HEVC.
 

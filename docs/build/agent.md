@@ -143,7 +143,7 @@ The gateway rewrites selkies' HTML to add:
 `build_selkies_cmd(cfg, internal_port, seat)` returns `(argv, env)`. Secrets travel
 by env, never argv. Highlights:
 
-* `--mode=websockets`, `--enable-basic-auth=false` (gateway owns auth), `--second-screen=false`; printing, microphone, webcam, gamepad and 10-bit are disabled and locked.
+* `--mode=websockets`, `--enable-basic-auth=false` (gateway owns auth), `--second-screen=false` (`true` only for the GNOME seat, see [Two screens](#two-screens-gnome-seat)); printing, microphone, webcam, gamepad and 10-bit are disabled and locked.
 * **Encoder list**: `--encoder=<hw encoders...>,h264enc`. selkies tries them in order and steps down to the first the browser can decode: AV1 -> HEVC -> H.264.
 * **Probe** (`hw_encoders`, cached per render node): `vainfo --display drm --device <node>` lists VA-API encode profiles (`VAProfileAV1` -> `av1enc`, `VAProfileHEVC` -> `h265enc`). If VA-API shows neither, NVIDIA is probed by `nvidia-smi --query-gpu=compute_cap`: AV1 from compute capability 8.9 (Ada), HEVC from 5.2 (Maxwell 2). With no GPU node only H.264 is offered; software AV1/HEVC are never advertised because they would pin the CPU.
 * DRI node flags and `SELKIES_USE_CPU=false|locked` keep the GPU encoder on.
@@ -176,6 +176,12 @@ Mutter 50 starts Xwayland **on demand** whenever `sd_pid_get_user_unit()` succee
 * **Clipboard**: Mutter has no wlr/ext data-control, so `seat_clipboard.py` serves the seat clipboard (all flavours, capped 64 MiB each) from the RemoteDesktop session over a unix socket; `engine` points selkies' clipboard calls there.
 * **Thumbnails** (`seat_thumb.py` + `seat_thumb_grab.py`): once a minute a long-lived system-python helper grabs one frame via Mutter ScreenCast/PipeWire, and the agent uploads a 1280-wide JPEG to `/api/agent/thumbnail`. The ScreenCast session is never stopped per grab because ending one froze gnome-shell 25-75 s on GNOME 50. The agent gives up (logged once) if the helper keeps failing.
 * The seat needs GNOME Shell 46 or newer, `xdg-desktop-portal(-gnome)`, `dbus-run-session`, `gdbus`; `enroll.sh` does not install them. If missing the agent falls back to labwc.
+
+### Two screens (GNOME seat)
+
+* **Virtual source** (`seat_portal.py`): the ScreenCast portal serves the virtual source type (`AvailableSourceTypes` 5). A session selecting types bit 4 gets a Mutter `RecordVirtual` monitor in its own plain ScreenCast session (no RemoteDesktop). `NotifyPointerMotionAbsolute` is routed per stream node.
+* **Sub-display windows** (gateway): a page whose fragment starts `#display` reads the owner tab's id from sessionStorage key `styx_owner` (copied into the `window.open`ed window) and tags its socket `styx_sub=<owner>`. The gateway admits it only beside that live owner session: WebRTC, live (not dead or expired); WebSockets, a live controller (not a shared viewer). A sub has no seat hold, viewer record or idle clock of its own, and its input counts as the owner's activity. On WebSockets, sub frames have DPI rewritten to the seat's and `r,` is swallowed under game-mode pin. WebRTC sub relay bytes are metered separately. Subs close with their owner.
+* **Engine**: `--second-screen=true` is passed only for the GNOME seat.
 
 ### labwc seat (fallback)
 
