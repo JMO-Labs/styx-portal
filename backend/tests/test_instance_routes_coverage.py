@@ -1,4 +1,5 @@
 """Coverage for instance_info / instance_ops / instance_build / instance_deps (#353)."""
+import uuid
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
@@ -33,7 +34,7 @@ async def _inst(session, tmpl_id, owner="admin", **kw):
         owner = (await session.exec(select(User).where(User.username == "admin"))).first().id
     kw.setdefault("status", "running")
     kw.setdefault("container_id", "cid")
-    i = Instance(template_id=tmpl_id, owner_id=owner, name="n", subdomain=f"s{id(kw)}", **kw)
+    i = Instance(template_id=tmpl_id, owner_id=owner, name="n", subdomain=f"s{uuid.uuid4().hex[:12]}", **kw)
     session.add(i)
     await session.commit()
     await session.refresh(i)
