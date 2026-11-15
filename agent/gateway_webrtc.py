@@ -49,7 +49,8 @@ class WebRTCGateway:
         self.idle_s = idle_s if idle_enabled and idle_s > 0 else 0
         self.max_s, self.hold_s = max_session_s, hold_s
         self.sessions: dict[str, Session] = {}
-        self.subs: set = set()      # sub-display sockets: live only while an owner socket is
+        self.subs: dict[str, set] = {}      # owner sid -> its sub-display sockets
+        self.sub_track: dict[str, Session] = {}   # sub sid -> its own relay counter
         self.turn_bytes = 0
         self.viewers, self.seat = viewers, seat
         self.live_port, self.write_state, self.touch, self.kill_path = live_port, write_state, touch, kill_path
@@ -131,7 +132,13 @@ class WebRTCGateway:
             self.touch(now)
         r = d.get("relay_bytes")
         if isinstance(r, int) and not isinstance(r, bool) and 0 <= r <= MAX_RELAY:
-            self.credit(s, r)
+            sub = d.get("sub")
+            if isinstance(sub, str):        # a second window's own cumulative counter
+                st = self.sub_track.get(sub)
+                if st is not None:
+                    self.credit(st, r)
+            else:
+                self.credit(s, r)
         self.write_state()
         return web.Response(status=204)
 
@@ -170,9 +177,9 @@ class WebRTCGateway:
             self.log("webrtc refused: TURN budget reached, WebSockets only")
             return web.Response(status=409, text="WebRTC is paused (TURN budget reached)")
         qs, sid = split_vid(request.rel_url.raw_query_string, f"wr{uuid.uuid4().hex}")
-        qs, sub = split_sub(qs)
-        if sub:
-            return await self._sub_signaling(request, qs)
+        qs, owner = split_sub(qs)
+        if owner is not None:
+            return await self._sub_signaling(request, qs, owner, sid)
         now = time.time()
         self._purge(now)
         s = self.sessions.get(sid)
@@ -209,19 +216,21 @@ class WebRTCGateway:
                 s.socks.discard(down)
                 s.gone_at = time.time()
                 self.detach(sid, down, rec)
-                if not any(x.socks for x in self.sessions.values()):
-                    for w in list(self.subs):       # the second window dies with its owner
+                if not s.socks:
+                    for w in list(self.subs.get(sid, ())):   # its second windows die with it
                         await w.close(code=refit.BUSY_CODE, message=b"owner closed")
                 self.write_state()
                 self.log(f"webrtc close sid={sid[:8]} (n={self.n})")
                 await up.close()
         return down
 
-    async def _sub_signaling(self, request, qs):
-        """Sub-display window: proxied beside the owner, with no viewer record,
-        busy check, idle clock or session of its own."""
+    async def _sub_signaling(self, request, qs, owner, sub_sid):
+        """Sub-display window bound to the owner session it names: proxied
+        beside it, with no viewer record, busy check, idle clock or session of
+        its own; closed when that owner's last socket closes."""
         down = web.WebSocketResponse(max_msg_size=0, heartbeat=HEARTBEAT_S)
-        if not any(x.socks for x in self.sessions.values()):
+        o = self.sessions.get(owner)
+        if o is None or o.dead or not o.socks or self.expired(o, time.time()):
             await down.prepare(request)
             await down.close(code=refit.BUSY_CODE, message=b"no owner session")
             return down
@@ -233,12 +242,16 @@ class WebRTCGateway:
             except aiohttp.ClientError:
                 return web.Response(status=502, text="stream backend unavailable")
             await down.prepare(request)
-            self.subs.add(down)
-            self.log("webrtc sub open")
+            self.subs.setdefault(owner, set()).add(down)
+            self.sub_track[sub_sid] = Session(sub_sid, time.time())
+            self.log(f"webrtc sub open owner={owner[:8]}")
             try:
                 await asyncio.gather(pump(down, up), pump(up, down), return_exceptions=True)
             finally:
-                self.subs.discard(down)
+                self.subs.get(owner, set()).discard(down)
+                if not self.subs.get(owner):
+                    self.subs.pop(owner, None)
+                self.sub_track.pop(sub_sid, None)
                 await up.close()
         return down
 

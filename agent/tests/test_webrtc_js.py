@@ -112,14 +112,18 @@ def test_webrtc_shim_reports_dpi_from_data_channel():
 SUB_HARNESS = r"""
 const assert = require('assert'), vm = require('vm');
 const html = process.argv[process.argv.length - 1];
+const [hash, ownerInit] = process.argv.slice(1, 3);
 const body = html.slice(html.indexOf('>') + 1, html.lastIndexOf('</script>'));
-const posts = [], socks = [];
+const posts = [], socks = [], listeners = {}, ss = {};
+if (ownerInit) ss.styx_owner = ownerInit;
 class FakeWS { constructor(u) { this.url = String(u); this.on = {}; socks.push(this) } addEventListener(e, f) { this.on[e] = f } }
 const win = {
-  WebSocket: FakeWS, crypto: {randomUUID: () => 'sid-1'}, location: {hash: process.argv[1]},
+  WebSocket: FakeWS, crypto: {randomUUID: () => 'sid-1'}, location: {hash},
+  sessionStorage: {getItem: k => ss[k] ?? null, setItem: (k, v) => { ss[k] = v }},
   document: {visibilityState: 'visible', addEventListener() {}}, navigator: {getGamepads: () => []},
   innerWidth: 1100, innerHeight: 603, devicePixelRatio: 1, encodeURIComponent, console, Date, Math, JSON,
-  addEventListener() {}, fetch: (u, o) => { posts.push([u, JSON.parse(o.body)]); return Promise.resolve() },
+  addEventListener: (e, f) => { (listeners[e] = listeners[e] || []).push(f) },
+  fetch: (u, o) => { posts.push([u, JSON.parse(o.body)]); return Promise.resolve() },
   setTimeout, clearTimeout, setInterval: () => 0, String, Promise, parseFloat,
 };
 win.window = win; win.self = win;
@@ -127,18 +131,31 @@ vm.createContext(win);
 vm.runInContext(body, win);
 new win.WebSocket('wss://h/w/x/api/webrtc/signaling/?a=1');
 socks[0].on.open();
+listeners.keydown[0]({});
+const sub = /^#display\d/.test(hash) && !!ownerInit;
 setTimeout(() => {
-  const sub = process.argv[1].startsWith('#display');
-  assert.strictEqual(socks[0].url.includes('styx_sub=1'), sub);
-  assert.strictEqual(posts.filter(p => p[0] === 'styx/refit').length, sub ? 0 : 1);
+  if (sub) {
+    assert.strictEqual(socks[0].url, 'wss://h/w/x/api/webrtc/signaling/?a=1&styx_vid=sid-1&styx_sub=' + encodeURIComponent(ownerInit));
+    assert.strictEqual(ss.styx_owner, ownerInit);          // a sub page never claims ownership
+    assert.strictEqual(posts.filter(p => p[0] === 'styx/refit').length, 0);
+    assert.deepStrictEqual(posts.filter(p => p[0] === 'styx/activity')[0],
+      ['styx/activity', {sid: ownerInit, sub: 'sid-1', relay_bytes: 0, active: true}]);
+  } else {
+    assert(!socks[0].url.includes('styx_sub'));
+    assert.strictEqual(ss.styx_owner, 'sid-1');
+    assert.strictEqual(posts.filter(p => p[0] === 'styx/refit').length, 1);
+    assert.deepStrictEqual(posts.filter(p => p[0] === 'styx/activity')[0],
+      ['styx/activity', {sid: 'sid-1', relay_bytes: 0, active: true}]);
+  }
   console.log('ok'); process.exit(0);
 }, 400);
 """
 
 
-@pytest.mark.parametrize("hash_", ["#display2-top", "#display2", "", "#other"])
-def test_shim_tags_display_pages(hash_):
+@pytest.mark.parametrize("hash_,owner", [("#display2-top", "OWN"), ("#display2", "O W"),
+                                         ("#display2-top", ""), ("", ""), ("#other", "OWN")])
+def test_shim_tags_display_pages(hash_, owner):
     html = gateway_html.inject_webrtc("<head></head>", True)
     script = html[html.index("<script"):html.index("</head>")]
-    r = subprocess.run(["node", "-e", SUB_HARNESS, hash_, script], capture_output=True, text=True, timeout=20)
+    r = subprocess.run(["node", "-e", SUB_HARNESS, hash_, owner, script], capture_output=True, text=True, timeout=20)
     assert r.returncode == 0 and "ok" in r.stdout, r.stderr

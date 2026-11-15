@@ -995,8 +995,8 @@ async def _sub_pair():
     return up, gw, seen, {"Authorization": _basic("styx", "pw")}
 
 
-def _sub_url(vid):
-    return f"/api/websockets?styx_vid={vid}&styx_sub=1&x=1"
+def _sub_url(vid, owner="A"):
+    return f"/api/websockets?styx_vid={vid}&styx_sub={owner}&x=1"
 
 
 @pytest.mark.asyncio
@@ -1042,6 +1042,46 @@ async def test_ws_sub_closes_with_owner():
         await a.close()
         msg = await asyncio.wait_for(b.receive(), 2)
         assert msg.type == aiohttp.WSMsgType.CLOSE
+    finally:
+        await gw.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
+async def test_ws_sub_unknown_empty_or_shared_owner_refused():
+    import asyncio
+    import aiohttp
+    up, gw, seen, h = await _sub_pair()
+    try:
+        a = await gw.ws_connect("/api/websockets?styx_vid=A&x=1", headers=h)
+        v = await gw.ws_connect("/api/websockets?styx_vid=V&role=viewer&x=1", headers=h)
+        for owner in ("Z", "", "V"):        # unknown, none named, a read-only viewer
+            b = await gw.ws_connect(_sub_url("B", owner), headers=h)
+            msg = await asyncio.wait_for(b.receive(), 3)
+            assert msg.type == aiohttp.WSMsgType.CLOSE and b.close_code == gateway.BUSY_CODE
+        assert not a.closed and not v.closed
+        assert len(seen) == 2               # nothing proxied for the refused subs
+    finally:
+        await gw.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
+async def test_ws_sub_closes_only_with_its_own_owner():
+    import asyncio
+    import aiohttp
+    up, gw, seen, h = await _sub_pair()
+    try:
+        a = await gw.ws_connect("/api/websockets?styx_vid=A&x=1", headers=h)
+        c = await gw.ws_connect("/api/websockets?styx_vid=C&x=1", headers=h)
+        b = await gw.ws_connect(_sub_url("B", "A"), headers=h)
+        d = await gw.ws_connect(_sub_url("D", "C"), headers=h)
+        await asyncio.sleep(0.2)
+        await a.close()
+        msg = await asyncio.wait_for(b.receive(), 2)
+        assert msg.type == aiohttp.WSMsgType.CLOSE
+        await asyncio.sleep(0.3)
+        assert not d.closed and not c.closed
     finally:
         await gw.close()
         await up.close()

@@ -105,7 +105,8 @@ def inject_idle_watchdog(html: str, timeout_s: int, lead_s: int,
 # SETTINGS messages ride the data channel, which the gateway cannot see). Relative URLs: pages live under /w/<sub>/.
 WEBRTC_JS = r"""<script id="styx-webrtc">(function(){
 var sid;try{sid=crypto.randomUUID()}catch(e){sid=Math.random().toString(36).slice(2)+Date.now().toString(36)}
-var rtc=false,pcs=[],RP=window.RTCPeerConnection,sub=false;try{sub=/^#display\d/.test(location.hash)}catch(e){}
+var rtc=false,pcs=[],RP=window.RTCPeerConnection,sub=false,owner='';
+try{if(/^#display\d/.test(location.hash)){owner=sessionStorage.getItem('styx_owner')||'';sub=!!owner}if(!sub)sessionStorage.setItem('styx_owner',sid)}catch(e){}
 if(RP){window.RTCPeerConnection=class extends RP{constructor(){super(...arguments);pcs.push(this)}}}
 function post(path,body){try{fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),keepalive:true}).catch(function(){})}catch(e){}}
 var dpi;function refit(){if(rtc&&!sub)post('styx/refit',{sid:sid,w:innerWidth,h:innerHeight,dpr:devicePixelRatio||1,dpi:dpi})}
@@ -114,7 +115,7 @@ var DC=window.RTCDataChannel;if(DC){var ds=DC.prototype.send;DC.prototype.send=f
 addEventListener('resize',refitSoon);document.addEventListener('fullscreenchange',refitSoon);
 var W=window.WebSocket;
 function SW(u,p){var s=String(u),sig=s.indexOf('/api/webrtc/signaling')>=0;
-if(sig)s+=(s.indexOf('?')<0?'?':'&')+'styx_vid='+encodeURIComponent(sid)+(sub?'&styx_sub=1':'');
+if(sig)s+=(s.indexOf('?')<0?'?':'&')+'styx_vid='+encodeURIComponent(sid)+(sub?'&styx_sub='+encodeURIComponent(owner):'');
 var w=p===undefined?new W(s):new W(s,p);if(sig)w.addEventListener('open',function(){rtc=true;refitSoon()});return w}
 SW.prototype=W.prototype;SW.CONNECTING=0;SW.OPEN=1;SW.CLOSING=2;SW.CLOSED=3;window.WebSocket=SW;
 async function relay(){var tot=0;
@@ -128,7 +129,7 @@ for(var k in sel)tot+=sel[k]}
 return tot}
 var T=15000,sent=0,rs=0,dirty=false,tm=null;
 function send(active){if(!rtc)return;if(active){sent=Date.now();dirty=false}else rs=Date.now();
-relay().then(function(rb){post('styx/activity',{sid:sid,relay_bytes:rb,active:active})})}
+relay().then(function(rb){post('styx/activity',sub?{sid:owner,sub:sid,relay_bytes:rb,active:active}:{sid:sid,relay_bytes:rb,active:active})})}
 function act(){if(document.visibilityState!=='visible')return;dirty=true;
 var wait=sent+T-Date.now();if(wait<=0)send(true);
 else if(!tm)tm=setTimeout(function(){tm=null;if(dirty)send(true)},wait)}

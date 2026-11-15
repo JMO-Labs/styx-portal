@@ -66,13 +66,20 @@ def test_tagger_runs_in_vm(tmp_path, nav):
 
 
 SUB_HARNESS = HARNESS.replace("hash: ''", "hash: process.argv[4]").replace(
-    "store.styx_vid = 'old';", "store.styx_vid = 'old';\nconst sfx = /^#display\\d/.test(process.argv[4]) ? '&styx_sub=1' : '';").replace(
+    "store.styx_vid = 'old';",
+    "store.styx_vid = 'old';\nconst owner = process.argv[5];\nif (owner) store.styx_owner = owner;\n"
+    "const isSub = /^#display\\d/.test(process.argv[4]) && !!owner;\n"
+    "const sfx = isSub ? '&styx_sub=' + encodeURIComponent(owner) : '';").replace(
+    "const vid = store.styx_vid;",
+    "const vid = store.styx_vid;\nassert.strictEqual(store.styx_owner, isSub ? owner : vid);").replace(
     "+ vid);", "+ vid + sfx);")
 
 
-@pytest.mark.parametrize("hash_", ["#display2-top", "", "#other"])
-def test_shim_tags_display_pages(tmp_path, hash_):
+@pytest.mark.parametrize("hash_,owner", [("#display2-top", "OWN"), ("#display2", "O W"),
+                                         ("#display2-top", ""), ("", ""), ("#other", "OWN")])
+def test_shim_tags_display_pages(tmp_path, hash_, owner):
     js = tmp_path / "page.js"
     js.write_text(SUB_HARNESS)
-    r = subprocess.run(["node", str(js), refit.RELOAD_JS, "navigate", hash_], capture_output=True, text=True, timeout=30)
+    r = subprocess.run(["node", str(js), refit.RELOAD_JS, "navigate", hash_, owner],
+                       capture_output=True, text=True, timeout=30)
     assert r.returncode == 0, r.stderr

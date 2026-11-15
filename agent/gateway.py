@@ -142,7 +142,7 @@ def create_app(user: str, password: str,
     scale_file = os.path.join(seat_dir, "seat-scale") if seat_dir else ""
     size_owner = refit.SizeOwner()
     viewers = Viewers()     # per styx_vid: sockets, last size/dpi, timers
-    subs = set()            # sub-display sockets: live only while an owner socket is
+    subs = {}               # owner vid -> its sub-display sockets
 
     scale_restart = {"timer": None, "ts": 0.0}
 
@@ -319,12 +319,35 @@ def create_app(user: str, password: str,
                 status=401, headers={"WWW-Authenticate": 'Basic realm="styx"'})
         return await handler(request)
 
-    async def sub_proxy(request, qs):
-        """Sub-display window (Add Screen): proxied beside the owner, with no
-        viewer record, busy check, idle clock or connection count of its own."""
+    def sub_filter(data, owner):
+        """Sub client frame -> frame for selkies, or True to swallow. Every
+        frame is the owner's activity; DPI is the seat's but never recorded on
+        the owner; `r,` sizes display 2 (selkies) unless game mode pins."""
+        mark_input(data, owner)
+        if not isinstance(data, str):
+            return data
+        if seat_dir and data.startswith("s,"):
+            return ",".join(["s", str(seat_dpi())] + data.split(",")[2:])
+        if seat_dir and data.startswith("SETTINGS,"):
+            try:
+                settings = json.loads(data[9:])
+            except ValueError:
+                return data
+            if isinstance(settings, dict) and settings.get("scaling_dpi") is not None:
+                return "SETTINGS," + json.dumps({**settings, "scaling_dpi": seat_dpi()})
+            return data
+        if gm.pin and refit.parse_resize(data):
+            return True
+        return data
+
+    async def sub_proxy(request, qs, owner_vid):
+        """Sub-display window (Add Screen) bound to the owner tab it names:
+        proxied beside it, with no viewer record, busy check, idle clock or
+        connection count of its own; closed when the owner's last socket is."""
         ws_server = web.WebSocketResponse(max_msg_size=0, compress=False,
                                           heartbeat=WS_HEARTBEAT_S)
-        if not viewers.live():
+        owner = viewers.by_vid.get(owner_vid)
+        if owner is None or owner.shared or not owner.socks:
             await ws_server.prepare(request)
             await ws_server.close(code=BUSY_CODE, message=b"no owner session")
             return ws_server
@@ -336,36 +359,43 @@ def create_app(user: str, password: str,
             except aiohttp.ClientError:
                 return web.Response(status=502, text="stream backend unavailable")
             await ws_server.prepare(request)
-            subs.add(ws_server)
+            subs.setdefault(owner_vid, set()).add(ws_server)
 
-            async def pump_sub(src, dst):
+            async def pump_sub(src, dst, filt=None):
                 async for msg in src:
                     if msg.type == aiohttp.WSMsgType.TEXT:
-                        await dst.send_str(msg.data)
+                        out = filt(msg.data, owner) if filt else msg.data
+                        if out is True:
+                            continue
+                        await dst.send_str(out)
                     elif msg.type == aiohttp.WSMsgType.BINARY:
+                        if filt:
+                            filt(msg.data, owner)
                         await dst.send_bytes(msg.data)
                     else:
                         break
                 await dst.close()
             try:
-                await asyncio.gather(pump_sub(ws_server, ws_client),
+                await asyncio.gather(pump_sub(ws_server, ws_client, sub_filter),
                                      pump_sub(ws_client, ws_server), return_exceptions=True)
             finally:
-                subs.discard(ws_server)
+                subs.get(owner_vid, set()).discard(ws_server)
+                if not subs.get(owner_vid):
+                    subs.pop(owner_vid, None)
                 await ws_client.close()
         return ws_server
 
     async def ws_proxy(request):
         qs, vid = split_vid(request.rel_url.raw_query_string, f"ws{uuid.uuid4().hex}")
-        qs, sub = split_sub(qs)
+        qs, owner_vid = split_sub(qs)
         if request.headers.get("Upgrade", "").lower() != "websocket":
             # 2.0 client probes api/websockets over plain HTTP (409 = mode flip)
             return await forward(request, "/api/websockets" + (f"?{qs}" if qs else ""))
         if not same_origin(request):
             log(f"ws reject: origin {request.headers.get('Origin')!r} != host {request.host!r}")
             return web.Response(status=403, text="forbidden origin")
-        if sub:
-            return await sub_proxy(request, qs)
+        if owner_vid is not None:
+            return await sub_proxy(request, qs, owner_vid)
         t0 = time.monotonic()
         while refit_file and refit.pending(refit_file) and time.monotonic() - t0 < REFIT_WAIT_S:
             await asyncio.sleep(REFIT_POLL_S)
@@ -507,8 +537,8 @@ def create_app(user: str, password: str,
                         f"after {int(time.time() - opened)}s (n={conns['n']})")
                 transports.pop(ws_server, None)
                 detach(vid, ws_server, rec)
-                if not viewers.live():
-                    for w in list(subs):        # the second window dies with its owner
+                if not (viewers.by_vid.get(vid) and viewers.by_vid[vid].socks):
+                    for w in list(subs.get(vid, ())):   # its second windows die with it
                         await w.close(code=BUSY_CODE, message=b"owner closed")
                 _write_state()
                 await ws_client.close()
