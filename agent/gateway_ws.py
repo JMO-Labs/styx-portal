@@ -5,6 +5,8 @@ http_proxy cannot upgrade, so without this the client gets a 204 and retries
 forever. No tracking here: gateway_webrtc.py wraps this for the signaling path.
 """
 import asyncio
+import base64
+import hmac
 
 import aiohttp
 import yarl
@@ -60,3 +62,14 @@ async def raw_ws_proxy(request, upstream_url: str, policy=None, reporter=None):
                              pump(up, down, "out", policy, reporter), return_exceptions=True)
         await up.close()
         return down
+
+
+def check_auth(header: str, user: str, password: str) -> bool:
+    if not header or not header.startswith("Basic "):
+        return False
+    try:
+        got = base64.b64decode(header[6:], validate=True).decode()
+    except Exception:
+        return False
+    expected = f"{user}:{password}"
+    return hmac.compare_digest(got.encode(), expected.encode())
