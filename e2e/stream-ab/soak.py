@@ -38,9 +38,8 @@ def main() -> None:
         sys.exit(soak_fleet.run(a, client=soak_fleet.portal_client(a.portal, user, pw)))
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(1))   # stop -> finally restores selkies
     user, pw = ab.creds()
-    if a.variant:
-        ab.OVERRIDE.write_text(json.dumps({"args": ab.VARIANTS[a.variant]}))
-        ab.restart_selkies(user, pw)
+    ab.OVERRIDE.write_text(json.dumps({"args": ab.VARIANTS[a.variant] if a.variant else [], "cc_trace": True}))
+    ab.restart_selkies(user, pw)
     since, end = time.strftime("%Y-%m-%d %H:%M:%S"), time.time() + a.minutes * 60
     trend, rows, firefox = probes.Sampler(every=10), [], ab.open_workload()
     trend.start()
@@ -56,9 +55,8 @@ def main() -> None:
     finally:
         summary = trend.stop()
         firefox.terminate()
-        if a.variant:
-            ab.OVERRIDE.unlink(missing_ok=True)
-            ab.restart_selkies(user, pw)
+        ab.OVERRIDE.unlink(missing_ok=True)
+        ab.restart_selkies(user, pw)
     journal = ab.journal_since(since)
     summary |= {"minutes": round(a.minutes), "cycles": len(rows), "crashes": crashes(journal),
                 "watchdog": ab.watchdog_restarts(journal),

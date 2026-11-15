@@ -135,3 +135,23 @@ def test_db_gauges_register_does_not_touch_db(monkeypatch):
 
     monkeypatch.setattr(prom_collectors, "create_engine", boom)
     CollectorRegistry(auto_describe=True).register(prom_collectors.DbGaugesCollector())
+
+
+def test_template_scan_skips_routes_whose_match_raises():
+    from types import SimpleNamespace as NS
+
+    from app.services.prom_metrics import UNMATCHED, _route_template
+
+    class Boom:
+        def matches(self, scope):
+            raise RuntimeError("bad route")
+
+    class Hit:
+        path = "/ok/{id}"
+
+        def matches(self, scope):
+            from starlette.routing import Match
+            return Match.FULL, {}
+
+    assert _route_template({"app": NS(routes=[Boom(), Hit()])}) == "/ok/{id}"
+    assert _route_template({"app": NS(routes=[Boom()])}) == UNMATCHED

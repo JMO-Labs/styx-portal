@@ -149,8 +149,8 @@ by env, never argv. Highlights:
 * DRI node flags and `SELKIES_USE_CPU=false|locked` keep the GPU encoder on.
 * **Bitrate**: `--video-bitrate=<kbps>,<lo>-<kbps>`; the admin value is default and ceiling (default 30 Mbps, floor 1 Mbps). Rate control is CBR; paint-over re-sharpens text when the screen settles. 4:4:4 chroma is opt-in.
 * **Audio**: the seat uses a null sink `styx-seat` so seat audio never reaches host speakers; its monitor is the capture device.
-* **Stream override hook**: `apply_stream_override()` appends flags from `<install>/stream-override.json` (`{"args": [...]}`) to selkies' argv; argparse keeps the last value. The A/B harness uses it to swap encoder and bitrate without touching the seat. Dev only; production settings still come from the portal.
-* `seat_selkies_main()` (`python engine.py <selkies args>`) wraps selkies for the GNOME seat: routes clipboard calls to `seat_clipboard`, and installs the `shallow_pipe` patches (owner lag gate, congestion tracing) when `selkies.__version__` is the one they were written for.
+* **Stream override hook**: `apply_stream_override()` appends flags from `<install>/stream-override.json` (`{"args": [...]}`) to selkies' argv; argparse keeps the last value. The A/B harness uses it to swap encoder and bitrate without touching the seat. Dev only; production settings still come from the portal. The same file takes `"cc_trace": true` (default off): `shallow_pipe.trace_steer` then logs one `STYX-CC` line per measured congestion tick to `selkies.log`, which `cc_report.py` reads. The harness sets it; the `styx_q_ms` hand-off to the steer is always on.
+* `seat_selkies_main()` (`python engine.py <selkies args>`) wraps selkies for the GNOME seat: routes clipboard calls to `seat_clipboard`, and installs the `shallow_pipe` patches (owner lag gate, congestion steer hand-off) when `selkies.__version__` is the one they were written for.
 
 ## Seats
 
