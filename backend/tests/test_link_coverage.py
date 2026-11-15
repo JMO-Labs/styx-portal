@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import AsyncMock, patch
 from sqlmodel import select
 
-from app.models import FederatedIdentity, OAuthProvider, User
+from app.models import FederatedIdentity, User
 from app.schemas import OAuthIdentity
 from app.security import oauth
 from app.services import federation
