@@ -182,3 +182,40 @@ under 1 and 2 are the plan if they fail.
 Module layout inside pixelflux (a `mutterclient.rs` beside `kdeclient.rs` is the natural shape);
 test strategy for portal/D-Bus pieces (fake portal on a private bus, as upstream's portal tests
 do); exact gateway test cases; debounce of rapid second-window resizes if renegotiation is costly.
+
+## Addendum B: capture screen 1 from its own virtual stream (2026-11-15, user-approved direction)
+
+**Problem found live.** Screen 1 was captured with a `RecordMonitor` stream. Mutter 50.1 closes a
+`RecordMonitor` stream whenever its monitor's rectangle changes, position included
+(`meta-screen-cast-monitor-stream.c` `update_monitor`). Placing screen 2 above or left must move
+screen 1 (Mutter refuses negative positions: "Invalid logical monitor position"), so screen 1
+froze. In a RemoteDesktop-paired session the closed stream does not close the session, so nobody
+noticed. A virtual monitor's own stream survives moves.
+
+**Decision (user: "B is the right call").** Screen 1 is captured from the seat's virtual monitor's
+own stream. No `RecordMonitor` anywhere.
+
+**Spike facts (GAME-01).**
+- A second reader on a virtual stream takes over the monitor's size if its caps differ (800x600 ->
+  1280x720). With caps at exactly the current size, the size holds and the stream survives moves.
+- The agent kills selkies before every resize (`styx_agent` refit loop), so pixelflux is never
+  attached while the size changes. The agent's sizing consumer stays the size owner.
+
+**Design.**
+1. `seat_portal.Monitor` creates the seat's RemoteDesktop session, a ScreenCast session paired to
+   it, and the virtual monitor (`RecordVirtual`) inside it, for the seat's life. Its fakesink
+   consumer keeps sizing the monitor exactly as today (resize request file, ready file).
+2. Portal sessions borrow that Mutter session; they never create or stop one:
+   - Primary Start returns the monitor's existing node (source type virtual) with position/size.
+   - A virtual (screen 2) Start records `RecordVirtual` in that same ScreenCast session; Close
+     stops just that stream (as now).
+   - `ConnectToEIS`, `Notify*`, and the clipboard use the seat's RemoteDesktop session. EIS regions
+     then cover screen 1 and screen 2.
+   - Mutter closing the seat session still ends the helper (heal path, unchanged).
+3. pixelflux: a host-capture portal stream that is not a grown display is consumed at exactly the
+   size the portal announced (`exact_size`), so it never resizes the host's monitor.
+
+**Unchanged.** Agent refit chain, HiDPI scale path, gateway, Selkies.
+
+**Costs if wrong.** If Mutter refuses a second `ConnectToEIS` on one RemoteDesktop session after a
+selkies restart, input dies after the first restart: verify live by restarting selkies twice.
