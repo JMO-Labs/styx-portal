@@ -75,8 +75,19 @@ def test_stream_entry_names_node_geometry_and_source_type():
     node, d = seat_portal.stream_entry(76, {"position": (0, 1318), "size": (2556, 1302)}, 4)
     assert int(node) == 76 and int(d["source_type"]) == 4
     assert tuple(d["position"]) == (0, 1318) and tuple(d["size"]) == (2556, 1302)
-    _, d = seat_portal.stream_entry(5, {}, 1)
-    assert tuple(d["position"]) == (0, 0) and int(d["source_type"]) == 1
+    _, d = seat_portal.stream_entry(5, {"mapping-id": "x"}, 1)
+    assert "position" not in d and "size" not in d   # unknown stays unknown, never 0x0
+    assert int(d["source_type"]) == 1
+
+
+def test_monitor_names_its_logical_geometry():
+    """Mutter's virtual stream Parameters carry only a mapping-id; the seat
+    monitor supplies its logical size (pixels over the seat scale)."""
+    assert seat_portal.logical_geometry({"mapping-id": "x"}, 2556, 1302, 1.0) == {
+        "mapping-id": "x", "position": (0, 0), "size": (2556, 1302)}
+    assert seat_portal.logical_geometry({}, 2556, 1302, 2.0)["size"] == (1278, 651)
+    kept = {"position": (0, 1318), "size": (10, 10)}
+    assert seat_portal.logical_geometry(kept, 2556, 1302, 1.0) == kept
 
 
 def test_monitor_hands_its_stream_over_and_takes_it_back(monkeypatch):

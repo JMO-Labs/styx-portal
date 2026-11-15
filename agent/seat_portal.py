@@ -223,11 +223,21 @@ class Portal(dbus.service.Object):
 
 
 def stream_entry(node, params, source_type):
-    """One `(ua{sv})` stream of a Start reply: node, logical geometry, source type."""
-    return (dbus.UInt32(int(node)), dbus.Dictionary({
-        "position": params.get("position", dbus.Struct((0, 0), signature="ii")),
-        "size": params.get("size", dbus.Struct((0, 0), signature="ii")),
-        "source_type": dbus.UInt32(source_type)}, signature="sv"))
+    """One `(ua{sv})` stream of a Start reply: node, the logical geometry Mutter
+    gave (a missing one stays missing: a 0x0 size maps every point to 0,0),
+    source type."""
+    d = {k: dbus.Struct(params[k], signature="ii") for k in ("position", "size") if k in params}
+    d["source_type"] = dbus.UInt32(source_type)
+    return (dbus.UInt32(int(node)), dbus.Dictionary(d, signature="sv"))
+
+
+def logical_geometry(params, w, h, scale):
+    """A virtual stream's Parameters carry only a mapping-id: add the monitor's
+    logical size (pixels over the seat scale) and its origin where missing."""
+    out = dict(params)
+    out.setdefault("position", (0, 0))
+    out.setdefault("size", (round(w / scale), round(h / scale)))
+    return out
 
 
 def _m(iface, member, sig, out="ua{sv}", **kw):
@@ -415,9 +425,10 @@ class Monitor:
         self.rd.Start()
 
     def params(self):
-        """The monitor stream's Mutter Parameters (logical position and size)."""
-        return dbus.Interface(bus.get_object(M + "ScreenCast", self.stream_path),
-                              dbus.PROPERTIES_IFACE).Get(M + "ScreenCast.Stream", "Parameters")
+        """The monitor stream's logical geometry for a Start reply."""
+        got = dbus.Interface(bus.get_object(M + "ScreenCast", self.stream_path),
+                             dbus.PROPERTIES_IFACE).Get(M + "ScreenCast.Stream", "Parameters")
+        return logical_geometry(got, self.w, self.h, _seat_scale())
 
     def _added(self, node):
         self.node = int(node)
