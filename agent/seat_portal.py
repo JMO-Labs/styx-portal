@@ -5,8 +5,9 @@ and GStreamer's pipewiresrc). Only ever run on the seat's private session bus.
    RemoteDesktop implemented on Mutter's own D-Bus APIs, so there is no consent
    dialog. The cursor travels as metadata and the browser draws it (no lag).
 2. Holds the seat's virtual monitor at WxH (argv[1]) via Mutter RecordVirtual
-   plus a fakesink consumer whose caps fix the size. A new size means a new
-   process: renegotiating caps in place stalls frames.
+   plus a fakesink consumer whose caps fix the size, inside the seat's one
+   RemoteDesktop+ScreenCast session. Portal sessions borrow it: screen 1 is
+   that monitor's own stream (a RecordMonitor dies whenever its monitor moves).
 3. Once Mutter reports that monitor current, starts xdg-desktop-portal
    --replace (it reads XDG_DESKTOP_PORTAL_DIR) and writes WxH to
    $STYX_PORTAL_READY.
@@ -43,6 +44,7 @@ FRONTENDS = ("/usr/libexec/xdg-desktop-portal", "/usr/lib/xdg-desktop-portal")
 LIVE_TRIES = 50         # x 200 ms = 10 s for the monitor to come up
 
 bus = None              # set in main(); classes only touch it at call time
+monitor = None          # the seat's Monitor, set in main()
 sessions = {}
 
 
@@ -87,6 +89,7 @@ class Session(dbus.service.Object):
         super().__init__(bus, handle)
         self.handle = str(handle)
         self.rd = self.rd_path = self.stream_path = self.clip = self.sc = None
+        self.borrowed = False           # rd is the seat's (Monitor): never stopped here
         self.devices = 3
         self.want_screen = True
         self.virtual = False            # SelectSources asked for a virtual monitor (types & 4)
@@ -101,7 +104,7 @@ class Session(dbus.service.Object):
         if self.clip is not None:
             self.clip.stop()
         try:
-            if self.rd is not None:
+            if self.rd is not None and not self.borrowed:
                 self.rd.Stop()
             if self.vstream is not None:
                 self.vstream.Stop()
@@ -123,7 +126,7 @@ class Session(dbus.service.Object):
         log("session lost (Mutter closed it)", self.handle)
         if self.clip is not None:
             self.clip.stop()
-        for m in (self.vstream, self.sc, self.rd):  # tear the Mutter side down: its PipeWire
+        for m in (self.vstream, self.sc, None if self.borrowed else self.rd):  # tear the Mutter side down: its PipeWire
             try:                          # node must die, not just pause
                 if m is not None:
                     m.Stop()
@@ -153,28 +156,17 @@ class Portal(dbus.service.Object):
         return {}
 
     def _start_virtual(self, s, ok):
-        """A second screen on a new virtual monitor. Recorded inside the input
-        session's own Mutter ScreenCast session when one is live: Mutter maps
-        libei input onto that session's streams, so only then does the pointer
-        reach the new monitor; the stream alone is stopped on Close. Without
-        one, a plain ScreenCast session of its own."""
-        if s.sc is not None or s.vstream is not None:
+        """A second screen on a new virtual monitor, recorded inside the seat's
+        input session: Mutter maps libei input onto that session's streams, so
+        the pointer reaches it. Close stops just this stream."""
+        if s.vstream is not None:
             return
         props = dbus.Dictionary(
             {"cursor-mode": dbus.UInt32(CURSOR_MODE), "is-platform": dbus.Boolean(True)},
             signature="sv")
-        host = paired_screencast(sessions.values())
-        if host is not None:
-            s.stream_path = host.RecordVirtual(props)
-            s.vstream = dbus.Interface(bus.get_object(M + "ScreenCast", s.stream_path),
-                                       M + "ScreenCast.Stream")
-        else:
-            scp = _mutter("ScreenCast", "/org/gnome/Mutter/ScreenCast",
-                          "ScreenCast").CreateSession(dbus.Dictionary({}, signature="sv"))
-            sc = s.sc = _mutter("ScreenCast", scp, "ScreenCast.Session")
-            bus.add_signal_receiver(lambda: s.lost(), "Closed", M + "ScreenCast.Session",
-                                    path=scp)
-            s.stream_path = sc.RecordVirtual(props)
+        s.stream_path = monitor.sc.RecordVirtual(props)
+        s.vstream = dbus.Interface(bus.get_object(M + "ScreenCast", s.stream_path),
+                                   M + "ScreenCast.Stream")
         sobj = bus.get_object(M + "ScreenCast", s.stream_path)
 
         def added(node):
@@ -182,59 +174,21 @@ class Portal(dbus.service.Object):
                 M + "ScreenCast.Stream", "Parameters")
             log("virtual stream node", int(node))
             s.paths[int(node)] = str(s.stream_path)
-            stream = (dbus.UInt32(int(node)), dbus.Dictionary({
-                "position": params.get("position", dbus.Struct((0, 0), signature="ii")),
-                "size": params.get("size", dbus.Struct((0, 0), signature="ii")),
-                "source_type": dbus.UInt32(4)}, signature="sv"))
             ok(dbus.UInt32(0), dbus.Dictionary({
-                "streams": dbus.Array([stream], signature="(ua{sv})"),
+                "streams": dbus.Array([stream_entry(node, params, 4)], signature="(ua{sv})"),
                 "devices": dbus.UInt32(0)}, signature="sv"))
         bus.add_signal_receiver(added, "PipeWireStreamAdded",
                                 M + "ScreenCast.Stream", path=s.stream_path)
-        (s.vstream if s.vstream is not None else s.sc).Start()
+        s.vstream.Start()
 
     def _start(self, s, ok):
+        """Every portal session borrows the seat's one Mutter input session
+        (Monitor): screen 1 is its virtual monitor's own stream, which, unlike
+        a RecordMonitor, survives the monitor moving or resizing."""
         try:
             if s.virtual:
                 return self._start_virtual(s, ok)
-            if s.rd is None:
-                s.rd_path = _mutter("RemoteDesktop", "/org/gnome/Mutter/RemoteDesktop",
-                                    "RemoteDesktop").CreateSession()
-                s.rd = _mutter("RemoteDesktop", s.rd_path, "RemoteDesktop.Session")
-                # Mutter closes the monitor stream (and with it this session) when
-                # the monitor changes resolution. Relay that to the portal client so
-                # pixelflux drops the dead stream and re-creates its session.
-                bus.add_signal_receiver(lambda: s.lost(), "Closed",
-                                        M + "RemoteDesktop.Session", path=s.rd_path)
-            if s.want_screen:
-                sid = dbus.Interface(bus.get_object(M + "RemoteDesktop", s.rd_path),
-                                     dbus.PROPERTIES_IFACE).Get(
-                    M + "RemoteDesktop.Session", "SessionId")
-                scp = _mutter("ScreenCast", "/org/gnome/Mutter/ScreenCast",
-                              "ScreenCast").CreateSession({"remote-desktop-session-id": sid})
-                sc = s.sc = _mutter("ScreenCast", scp, "ScreenCast.Session")
-                bus.add_signal_receiver(lambda: s.lost(), "Closed",
-                                        M + "ScreenCast.Session", path=scp)
-                s.stream_path = sc.RecordMonitor("", {"cursor-mode": dbus.UInt32(CURSOR_MODE)})
-                sobj = bus.get_object(M + "ScreenCast", s.stream_path)
-
-                def added(node):
-                    params = dbus.Interface(sobj, dbus.PROPERTIES_IFACE).Get(
-                        M + "ScreenCast.Stream", "Parameters")
-                    log("stream node", int(node))
-                    s.paths[int(node)] = str(s.stream_path)
-                    stream = (dbus.UInt32(int(node)), dbus.Dictionary({
-                        "position": params.get("position", dbus.Struct((0, 0), signature="ii")),
-                        "size": params.get("size", dbus.Struct((0, 0), signature="ii")),
-                        "source_type": dbus.UInt32(1)}, signature="sv"))
-                    ok(dbus.UInt32(0), dbus.Dictionary({
-                        "streams": dbus.Array([stream], signature="(ua{sv})"),
-                        "devices": dbus.UInt32(s.devices),
-                        "clipboard_enabled": dbus.Boolean(s.clip is not None)},
-                        signature="sv"))
-                bus.add_signal_receiver(added, "PipeWireStreamAdded",
-                                        M + "ScreenCast.Stream", path=s.stream_path)
-            s.rd.Start()
+            s.rd, s.rd_path, s.borrowed = monitor.rd, monitor.rd_path, True
             if s.clip is None:
                 try:
                     s.clip = ClipboardServer(s.rd, lambda fn, member, p=s.rd_path:
@@ -243,19 +197,26 @@ class Portal(dbus.service.Object):
                                                  path=p))
                 except (RuntimeError, OSError, dbus.DBusException) as e:
                     log("clipboard off:", e)   # streaming still works
-            if not s.want_screen:
-                ok(dbus.UInt32(0), dbus.Dictionary({"devices": dbus.UInt32(s.devices)},
-                                                   signature="sv"))
+            reply = {"devices": dbus.UInt32(s.devices),
+                     "clipboard_enabled": dbus.Boolean(s.clip is not None)}
+            if s.want_screen:
+                s.stream_path = monitor.stream_path
+                s.paths[monitor.node] = str(monitor.stream_path)
+                log("stream node", monitor.node)
+                reply["streams"] = dbus.Array(
+                    [stream_entry(monitor.node, monitor.params(), 4)], signature="(ua{sv})")
+            ok(dbus.UInt32(0), dbus.Dictionary(reply, signature="sv"))
         except dbus.DBusException as e:
             log("start failed:", e)
             ok(dbus.UInt32(2), dbus.Dictionary({}, signature="sv"))
 
 
-def paired_screencast(live):
-    """The Mutter ScreenCast session paired with a live RemoteDesktop (input)
-    session, or None."""
-    return next((s.sc for s in live if not s.virtual and s.rd is not None and s.sc is not None),
-                None)
+def stream_entry(node, params, source_type):
+    """One `(ua{sv})` stream of a Start reply: node, logical geometry, source type."""
+    return (dbus.UInt32(int(node)), dbus.Dictionary({
+        "position": params.get("position", dbus.Struct((0, 0), signature="ii")),
+        "size": params.get("size", dbus.Struct((0, 0), signature="ii")),
+        "source_type": dbus.UInt32(source_type)}, signature="sv"))
 
 
 def _m(iface, member, sig, out="ua{sv}", **kw):
@@ -419,20 +380,33 @@ class Monitor:
     spike at 1440p60); drop it if a box's CPU budget ever says otherwise."""
     def __init__(self, w, h, on_closed, fps=60):
         self.fps = fps
-        self.w, self.h, self.pipe, self.playing = w, h, None, False
+        self.w, self.h, self.pipe, self.playing, self.node = w, h, None, False, 0
+        # The seat's one input session: RemoteDesktop plus the ScreenCast session
+        # paired with it, alive as long as the seat. Every portal session borrows
+        # it; its streams (this monitor, a second screen) are libei's regions.
+        self.rd_path = _mutter("RemoteDesktop", "/org/gnome/Mutter/RemoteDesktop",
+                               "RemoteDesktop").CreateSession()
+        self.rd = _mutter("RemoteDesktop", self.rd_path, "RemoteDesktop.Session")
+        sid = dbus.Interface(bus.get_object(M + "RemoteDesktop", self.rd_path),
+                             dbus.PROPERTIES_IFACE).Get(M + "RemoteDesktop.Session", "SessionId")
         path = _mutter("ScreenCast", "/org/gnome/Mutter/ScreenCast",
-                       "ScreenCast").CreateSession(dbus.Dictionary({}, signature="sv"))
-        self.sess = _mutter("ScreenCast", path, "ScreenCast.Session")
-        # GNOME's screen-share "Stop" closes this session: the monitor is gone,
+                       "ScreenCast").CreateSession({"remote-desktop-session-id": sid})
+        self.sc = _mutter("ScreenCast", path, "ScreenCast.Session")
+        # GNOME's screen-share "Stop" closes these sessions: the monitor is gone,
         # so exit and let the agent restart us (seat_gnome heal path).
         bus.add_signal_receiver(lambda *a: on_closed(), "Closed",
-                                M + "ScreenCast.Session", path=path)
-        stream = self.sess.RecordVirtual(dbus.Dictionary(
+                                M + "RemoteDesktop.Session", path=self.rd_path)
+        self.stream_path = self.sc.RecordVirtual(dbus.Dictionary(
             {"cursor-mode": dbus.UInt32(CURSOR_MODE), "is-platform": dbus.Boolean(True)},
             signature="sv"))
         bus.add_signal_receiver(self._added, "PipeWireStreamAdded",
-                                M + "ScreenCast.Stream", path=stream)
-        self.sess.Start()
+                                M + "ScreenCast.Stream", path=self.stream_path)
+        self.rd.Start()
+
+    def params(self):
+        """The monitor stream's Mutter Parameters (logical position and size)."""
+        return dbus.Interface(bus.get_object(M + "ScreenCast", self.stream_path),
+                              dbus.PROPERTIES_IFACE).Get(M + "ScreenCast.Stream", "Parameters")
 
     def _added(self, node):
         self.node = int(node)
@@ -449,8 +423,8 @@ class Monitor:
         a fresh consumer on the same node makes Mutter renegotiate
         (notify_params_updated -> meta_virtual_monitor_set_mode) and resize the
         SAME virtual monitor (~100 ms, windows reflow, no monitor removal).
-        Mutter then closes every RecordMonitor stream of the old size, which
-        pixelflux never recovers from: the agent restarts selkies."""
+        The agent stops selkies first, so its reader (which asks for the old
+        size exactly) is never attached while the size changes."""
         self.w, self.h = w, h
         self.pipe.set_state(Gst.State.NULL)
         self.pipe = Gst.parse_launch(
@@ -470,7 +444,7 @@ class Monitor:
         if self.pipe is not None:
             self.pipe.set_state(Gst.State.NULL)
         try:
-            self.sess.Stop()
+            self.rd.Stop()
         except dbus.DBusException:
             pass
 
@@ -518,7 +492,8 @@ def main(argv) -> int:
         st["rc"] = 1
         loop.quit()
 
-    mon = Monitor(w, h, on_closed, fps)
+    global monitor
+    mon = monitor = Monitor(w, h, on_closed, fps)
 
     def poll():
         if mon.playing and mon.is_current():

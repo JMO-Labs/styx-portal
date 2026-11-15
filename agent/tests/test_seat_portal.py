@@ -71,10 +71,9 @@ def test_abs_routes_by_node():
     assert seat_portal._abs(s, {}, 9, 10.0, 20.0) == ("/p/primary", 20.0, 40.0)
 
 
-def test_paired_screencast_picks_the_live_input_session():
-    class S:
-        def __init__(self, rd, sc, virtual=False):
-            self.rd, self.sc, self.virtual = rd, sc, virtual
-    assert seat_portal.paired_screencast([]) is None
-    assert seat_portal.paired_screencast([S(None, "sc0"), S("rd", None)]) is None
-    assert seat_portal.paired_screencast([S("rd", "vsc", virtual=True), S("rd", "sc1")]) == "sc1"
+def test_stream_entry_names_node_geometry_and_source_type():
+    node, d = seat_portal.stream_entry(76, {"position": (0, 1318), "size": (2556, 1302)}, 4)
+    assert int(node) == 76 and int(d["source_type"]) == 4
+    assert tuple(d["position"]) == (0, 1318) and tuple(d["size"]) == (2556, 1302)
+    _, d = seat_portal.stream_entry(5, {}, 1)
+    assert tuple(d["position"]) == (0, 0) and int(d["source_type"]) == 1
