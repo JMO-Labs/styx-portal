@@ -90,6 +90,7 @@ class Session(dbus.service.Object):
         self.handle = str(handle)
         self.rd = self.rd_path = self.stream_path = self.clip = self.sc = None
         self.borrowed = False           # rd is the seat's (Monitor): never stopped here
+        self.reads_monitor = False      # the capture reads the seat monitor: Monitor let go
         self.devices = 3
         self.want_screen = True
         self.virtual = False            # SelectSources asked for a virtual monitor (types & 4)
@@ -113,7 +114,13 @@ class Session(dbus.service.Object):
         except dbus.DBusException as e:
             log("stop failed:", e)
         sessions.pop(self.handle, None)
+        self.give_back()
         self.remove_from_connection()
+
+    def give_back(self):
+        """The capture stopped reading the seat monitor: Monitor holds it again."""
+        if self.reads_monitor and not any(s.reads_monitor for s in sessions.values()):
+            monitor.hold()
 
     @dbus.service.signal(SESS_IFACE)
     def Closed(self):
@@ -134,6 +141,7 @@ class Session(dbus.service.Object):
                 log("stop failed:", e)
         self.vstream = self.sc = self.rd = None
         sessions.pop(self.handle, None)
+        self.give_back()
         self.Closed()
         self.remove_from_connection()
 
@@ -206,6 +214,9 @@ class Portal(dbus.service.Object):
                 reply["streams"] = dbus.Array(
                     [stream_entry(monitor.node, monitor.params(), 4)], signature="(ua{sv})")
             ok(dbus.UInt32(0), dbus.Dictionary(reply, signature="sv"))
+            if s.want_screen:
+                s.reads_monitor = True
+                monitor.release()
         except dbus.DBusException as e:
             log("start failed:", e)
             ok(dbus.UInt32(2), dbus.Dictionary({}, signature="sv"))
@@ -410,28 +421,37 @@ class Monitor:
 
     def _added(self, node):
         self.node = int(node)
+        self.hold()
+        self.playing = True
+        log("virtual monitor stream", int(node), f"{self.w}x{self.h}")
+
+    def hold(self):
+        """Read the monitor at w x h: a virtual monitor takes its readers' size."""
+        if self.pipe is not None:
+            return
         self.pipe = Gst.parse_launch(
-            f"pipewiresrc path={int(node)} always-copy=true ! "
+            f"pipewiresrc path={self.node} always-copy=true ! "
             f"capsfilter name=cf caps={caps(self.w, self.h, self.fps)} ! "
             "fakesink sync=false")
         self.pipe.set_state(Gst.State.PLAYING)
-        self.playing = True
-        log("virtual monitor stream", int(node), f"{self.w}x{self.h}")
+
+    def release(self):
+        """Let go while the capture reads the monitor: a second reader renegotiates
+        its buffers (dmabuf) and this one cannot follow, which fails both. The
+        capture asks for exactly the current size, so the size holds."""
+        if self.pipe is not None:
+            self.pipe.set_state(Gst.State.NULL)
+            self.pipe = None
 
     def resize(self, w, h):
         """In-place resize: pipewiresrc negotiates its format only at connect, so
         a fresh consumer on the same node makes Mutter renegotiate
         (notify_params_updated -> meta_virtual_monitor_set_mode) and resize the
         SAME virtual monitor (~100 ms, windows reflow, no monitor removal).
-        The agent stops selkies first, so its reader (which asks for the old
-        size exactly) is never attached while the size changes."""
+        The agent stops selkies first, so the capture is not reading it."""
         self.w, self.h = w, h
-        self.pipe.set_state(Gst.State.NULL)
-        self.pipe = Gst.parse_launch(
-            f"pipewiresrc path={self.node} always-copy=true ! "
-            f"capsfilter name=cf caps={caps(w, h, self.fps)} ! "
-            "fakesink sync=false")
-        self.pipe.set_state(Gst.State.PLAYING)
+        self.release()
+        self.hold()
         log("resize: reconnected consumer at", f"{w}x{h}")
 
     def is_current(self) -> bool:

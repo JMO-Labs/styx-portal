@@ -77,3 +77,25 @@ def test_stream_entry_names_node_geometry_and_source_type():
     assert tuple(d["position"]) == (0, 1318) and tuple(d["size"]) == (2556, 1302)
     _, d = seat_portal.stream_entry(5, {}, 1)
     assert tuple(d["position"]) == (0, 0) and int(d["source_type"]) == 1
+
+
+def test_monitor_hands_its_stream_over_and_takes_it_back(monkeypatch):
+    """Two readers of a virtual monitor fight over its format: the size holder
+    lets go while the capture reads it, and holds it again after."""
+    class Pipe:
+        def set_state(self, s):
+            self.state = s
+    launched = []
+    monkeypatch.setattr(seat_portal.Gst, "parse_launch", lambda d: launched.append(d) or Pipe())
+    m = object.__new__(seat_portal.Monitor)
+    m.w, m.h, m.fps, m.node, m.pipe, m.playing = 800, 600, 60, 7, None, False
+    m.hold()
+    assert m.pipe is not None and "path=7" in launched[-1] and "width=800,height=600" in launched[-1]
+    m.hold()
+    assert len(launched) == 1                      # already holding: no second reader
+    m.release()
+    assert m.pipe is None
+    m.release()
+    m.w, m.h = 1024, 700
+    m.hold()
+    assert len(launched) == 2 and "width=1024,height=700" in launched[-1]
