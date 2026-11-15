@@ -105,6 +105,7 @@ async def _run_lifespan(monkeypatch, elector=None, k8s=False):
     import app.main as m
     import app.services.leader as leader_mod
     import app.services.route_writer as rw
+    import app.services.session_reaper as session_reaper
     import app.services.stream_sessions as stream_sessions
 
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -146,6 +147,10 @@ async def _run_lifespan(monkeypatch, elector=None, k8s=False):
 
     for attr in _ALL_LOOPS:
         monkeypatch.setattr(m, attr, fake(attr))
+    # k8s leader-only, imported lazily by lifespan; the real one calls get_elector()
+    # and pins a real elector in leader._elector, hanging later Postgres tests.
+    monkeypatch.setattr(session_reaper, "session_reaper_loop", fake("session_reaper_loop"))
+    monkeypatch.setattr(leader_mod, "_elector", leader_mod._elector)  # restored on teardown
     monkeypatch.setattr(m, "_reconcile_instances_at_boot", record("reconcile"))
     monkeypatch.setattr(m, "_log_portal_instances", record("log_instances"))
     monkeypatch.setattr(stream_sessions, "close_dangling", record("close_dangling"))
@@ -229,6 +234,16 @@ async def test_lifespan_leader_k8s_skips_probe_cleanup(monkeypatch):
     events = await _run_lifespan(monkeypatch, _FakeElector(True), k8s=True)
     assert "probe_cleanup" not in events
     assert "reconcile" in events
+    assert "session_reaper_loop" in events  # stubbed: the real one leaks a global elector
+
+
+@pytest.mark.asyncio
+async def test_lifespan_k8s_leader_does_not_leak_global_elector(monkeypatch):
+    import app.services.leader as leader_mod
+    before = leader_mod._elector
+    with pytest.MonkeyPatch.context() as mp:
+        await _run_lifespan(mp, _FakeElector(True), k8s=True)
+    assert leader_mod._elector is before
 
 
 @pytest.mark.asyncio
