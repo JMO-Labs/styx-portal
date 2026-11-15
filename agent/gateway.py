@@ -9,28 +9,22 @@ Usage: venv/bin/python gateway.py <listen_port> <upstream_port>
 Credentials via env: STYX_GW_USER / STYX_GW_PASSWORD (argv is world-readable).
 """
 import asyncio
-import base64
-import hmac
 import json
 import os
-import posixpath
 import socket
 import sys
 import time
 import uuid
-from pathlib import Path
 
 import aiohttp
-import favicon
 import refit
-from codecpref import inject_codecpref
 from gamemode import GameMode
 import seat_scale
-import yarl
 from aiohttp import web
-from multidict import CIMultiDict
 from gateway_webrtc import KILL_SUFFIX, WebRTCGateway
-from gateway_ws import same_origin
+from gateway_http import make_favicon, make_files, make_index, make_proxy
+from gateway_cfg import parse_env
+from gateway_ws import check_auth, same_origin  # noqa: F401  (check_auth re-exported)
 from viewers import StallClock, Viewers, split_vid  # noqa: F401
 from gateway_html import (  # noqa: F401  (re-exported for tests)
     CURSOR_HIDE_CSS,
@@ -87,17 +81,6 @@ def log(msg: str) -> None:
 PROXY_TIMEOUT = aiohttp.ClientTimeout(total=None, sock_connect=10)
 
 
-def check_auth(header: str, user: str, password: str) -> bool:
-    if not header or not header.startswith("Basic "):
-        return False
-    try:
-        got = base64.b64decode(header[6:], validate=True).decode()
-    except Exception:
-        return False
-    expected = f"{user}:{password}"
-    return hmac.compare_digest(got.encode(), expected.encode())
-
-
 def create_app(user: str, password: str,
                upstream_port: int, files_dir: str = "",
                state_file: str = "", idle_timeout_s: int = 0,
@@ -117,8 +100,6 @@ def create_app(user: str, password: str,
 
     def upstream() -> str:
         return f"http://127.0.0.1:{live_port()}"
-    HOP = {"host", "connection", "keep-alive", "transfer-encoding", "upgrade",
-           "authorization", "origin", "content-length", "accept-encoding"}
 
     # Live stream-websocket count, mirrored to a state file the supervisor
     # reads each heartbeat — the portal uses it for occupancy ("in use by").
@@ -471,145 +452,11 @@ def create_app(user: str, password: str,
                 await ws_client.close()
         return ws_server
 
-    async def index(_request):
-        hold = web.Response(text=refit.HOLD_HTML, content_type="text/html",
-                            headers={"Cache-Control": "no-store", "X-Styx-Hold": "1"})
-        if refit_file and refit.pending(refit_file):
-            return hold
-        try:
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as s, \
-                    s.get(upstream() + "/", allow_redirects=False) as r:
-                if r.status != 200:
-                    hdr = {"Location": r.headers["Location"]} if "Location" in r.headers else {}
-                    return web.Response(status=r.status, body=await r.read(), headers=hdr)
-                html = await r.text()
-        except aiohttp.ClientError:
-            if seat_dir:            # GNOME seat: selkies restarting after a refit
-                return hold
-            return web.Response(status=502, text="stream backend unavailable")
-        except asyncio.TimeoutError:
-            return web.Response(status=504, text="stream backend timed out")
-        html = inject_title(html, socket.gethostname())
-        icon = favicon.read(Path(icon_dir)) if icon_dir else None
-        if icon:
-            html = inject_favicon(html, icon[2])
-        html = inject_idle_watchdog(html, idle_timeout_s, idle_lead_s, idle_enabled)
-        html = inject_webrtc(html, True)   # sidebar may pick WebRTC: shim arms on signaling open
-        html = inject_gamemode(html)
-        html = inject_codecpref(html)
-        html = inject_cursor_hide(html, bool(seat_dir))
-        html = inject_touch_scroll(html)
-        html = refit.inject_reload(html, bool(seat_dir))
-        return web.Response(text=html, content_type="text/html")
-
-    async def styx_favicon(_request):
-        icon = favicon.read(Path(icon_dir)) if icon_dir else None
-        if not icon:
-            return web.Response(status=404)
-        return web.Response(body=icon[0], content_type=icon[1], headers={
-            "Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff",
-            "Content-Security-Policy":
-                "default-src 'none'; style-src 'unsafe-inline'; sandbox"})
-
-    def _relative_location(request, loc):
-        """Absolute-path redirects would escape a /w/<slug> prefix; make them
-        relative to the request path."""
-        if not loc.startswith("/") or loc.startswith("//"):
-            return loc
-        path, sep, query = loc.partition("?")
-        rel = posixpath.relpath(path, posixpath.dirname(request.path) or "/")
-        if path.endswith("/") and not rel.endswith("/"):
-            rel += "/"
-        return rel + sep + query
-
-    async def forward(request, raw_path_qs):
-        """Stream request to selkies and its response back, as-is."""
-        headers = CIMultiDict()
-        headers.extend((k, v) for k, v in request.headers.items()
-                       if k.lower() not in HOP)
-        body = await request.read() if request.body_exists else None
-        url = yarl.URL(upstream() + raw_path_qs, encoded=True)
-        resp = None
-        try:
-            async with aiohttp.ClientSession(
-                    auto_decompress=False, timeout=PROXY_TIMEOUT) as s, s.request(
-                    request.method, url, headers=headers, data=body,
-                    allow_redirects=False) as r:
-                out = CIMultiDict()
-                out.extend((k, v) for k, v in r.headers.items()
-                           if k.lower() not in HOP)
-                if "Location" in out:
-                    out["Location"] = _relative_location(request, out["Location"])
-                resp = web.StreamResponse(status=r.status, headers=out)
-                await resp.prepare(request)
-                async for chunk in r.content.iter_chunked(64 * 1024):
-                    await resp.write(chunk)
-                await resp.write_eof()
-                return resp
-        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-            if resp is not None and resp.prepared:
-                # headers already sent: drop the connection, never append a 2nd response
-                resp.force_close()
-                if request.transport:
-                    request.transport.close()
-                raise
-            if isinstance(e, asyncio.TimeoutError):
-                return web.Response(status=504, text="stream backend timed out")
-            return web.Response(status=502, text="stream backend unavailable")
-
-    async def http_proxy(request):
-        """Everything else (client assets, /api/* REST) goes to selkies as-is."""
-        resp = await forward(request, request.rel_url.raw_path_qs)
-        if request.method == "POST" and request.path.endswith("/api/switch") and 200 <= resp.status < 300:
-            await _remember_mode(request)
-        return resp
-
-    async def _remember_mode(request):
-        """Keep the sidebar's transport pick so a restarted/promoted selkies starts in it."""
-        try:
-            mode = (await request.json()).get("mode")
-        except Exception:
-            return
-        if mode not in ("webrtc", "websockets") or not state_file:
-            return
-        path = os.path.join(os.path.dirname(state_file), "stream-mode")  # = health.STREAM_MODE_NAME
-        with open(path + ".tmp", "w") as f:
-            f.write(mode)
-        os.replace(path + ".tmp", path)
-        log(f"viewer switched transport to {mode} (kept for restarts)")
-
-    async def files(request):
-        # Hand-rolled index: aiohttp's show_index emits ABSOLUTE hrefs
-        # (/files/x), which escape the portal's /w/{sub} prefix and land on
-        # the SPA (X-Frame-Options: DENY -> blocked iframe). Relative links
-        # survive any prefix.
-        import html as _html
-        from pathlib import Path
-        from urllib.parse import quote
-        base = Path(files_dir).resolve()
-        rel = request.match_info.get("path", "")
-        target = (base / rel).resolve() if rel else base
-        if not (target == base or target.is_relative_to(base)):
-            raise web.HTTPForbidden()
-        if target.is_file():
-            return web.FileResponse(target)
-        if not target.is_dir():
-            raise web.HTTPNotFound()
-        if not request.path.endswith("/"):
-            # relative redirect keeps the reverse-proxy prefix intact
-            raise web.HTTPMovedPermanently(quote(target.name) + "/")
-        items = sorted(target.iterdir(),
-                       key=lambda p: (not p.is_dir(), p.name.lower()))
-        rows = "".join(
-            f'<li><a href="{quote(p.name)}{"/" if p.is_dir() else ""}">'
-            f'{_html.escape(p.name)}{"/" if p.is_dir() else ""}</a></li>'
-            for p in items) or "<li><em>empty</em></li>"
-        up = '<li><a href="../">../</a></li>' if target != base else ""
-        body = (f"<!doctype html><meta charset='utf-8'><title>Files</title>"
-                f"<style>body{{font:14px sans-serif;background:#fff;"
-                f"color:#222;padding:1.5em}}li{{margin:.25em 0}}</style>"
-                f"<h2>{_html.escape(str(target))}</h2><ul>{up}{rows}</ul>")
-        return web.Response(text=body, content_type="text/html")
+    index = make_index(upstream, refit_file, seat_dir, icon_dir,
+                       idle_timeout_s, idle_lead_s, idle_enabled)
+    styx_favicon = make_favicon(icon_dir)
+    http_proxy, forward = make_proxy(upstream, state_file, log, lambda: PROXY_TIMEOUT)
+    files = make_files(files_dir)
 
     wrtc = WebRTCGateway(
         transport=transport, idle_s=idle_timeout_s, idle_enabled=idle_enabled,
@@ -636,26 +483,8 @@ def create_app(user: str, password: str,
 
 
 def main() -> None:
-    listen_port, upstream_port = int(sys.argv[1]), int(sys.argv[2])
-    user = os.environ["STYX_GW_USER"]
-    password = os.environ["STYX_GW_PASSWORD"]
-    files_dir = os.path.expanduser(
-        os.environ.get("STYX_FILES_DIR", "~/Downloads"))
-    state_file = os.environ.get("STYX_GW_STATE", "")
-    idle_timeout_s = int(os.environ.get("STYX_GW_IDLE_TIMEOUT_S", "0") or "0")
-    idle_lead_s = int(os.environ.get("STYX_GW_IDLE_WARN_S", "60") or "60")
-    idle_enabled = os.environ.get("STYX_GW_IDLE_ENABLED", "") == "1"
-    seat_dir = os.environ.get("STYX_GW_SEAT_DIR", "")
-    icon_dir = os.environ.get("STYX_GW_ICON_DIR", "")
-    transport = os.environ.get("STYX_GW_TRANSPORT", "")
-    max_session_s = int(os.environ.get("STYX_GW_MAX_SESSION_S", "0") or "0")
-    webrtc_off = os.environ.get("STYX_GW_WEBRTC_OFF", "") == "1"
-    web.run_app(create_app(user, password, upstream_port, files_dir,
-                           state_file=state_file, idle_timeout_s=idle_timeout_s,
-                           idle_lead_s=idle_lead_s, idle_enabled=idle_enabled,
-                           seat_dir=seat_dir, icon_dir=icon_dir,
-                           transport=transport, max_session_s=max_session_s,
-                           webrtc_off=webrtc_off),
+    listen_port, upstream_port, user, password, kw = parse_env(sys.argv)
+    web.run_app(create_app(user, password, upstream_port, **kw),
                 host="0.0.0.0", port=listen_port)
 
 
