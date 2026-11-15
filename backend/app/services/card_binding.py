@@ -3,6 +3,10 @@
 Exact key match only: CAC EDIPI == request EDIPI; PIV/PIV-I cert email == request email
 (case-insensitive). Anything else (none, partial, name-only, several) goes to the admin
 review queue. EDIPI and card UUID are never logged or put in audit detail.
+
+A match is bound only to the request's own user (styx-portal#350): the request subject
+must identify the logged-in Keycloak user, the card must not already sit on another
+account, and an existing different card on the account is never overwritten.
 """
 from sqlmodel import select
 
@@ -38,13 +42,39 @@ def _matches(row: ApprovedRequest, claims: dict) -> bool:
         and _norm(subj.get("email")) == _norm(claims["cert_email"])
 
 
+def _same_user(row: ApprovedRequest, kc_user_id: str, account: dict) -> bool:
+    """The request subject identifies the logged-in user: its kc_user_id when present,
+    else the account username or *verified* email (case-insensitive, never blank)."""
+    subj = row.subject or {}
+    if subj.get("kc_user_id"):
+        return subj["kc_user_id"] == kc_user_id
+    fields = ("email", "username") if account.get("emailVerified") else ("username",)
+    return any(_norm(subj.get(f)) and _norm(subj.get(f)) == _norm(account.get(f))
+               for f in fields)
+
+
+async def _refusal(row: ApprovedRequest, kc_user_id: str, key: tuple[str, str]) -> tuple:
+    """(reason or None, current attributes) for binding `key` to kc_user_id."""
+    account = await kc_admin.get_user(kc_user_id)
+    attrs = account.get("attributes") or {}
+    if not _same_user(row, kc_user_id, account):
+        return "subject_mismatch", attrs
+    if any(i != kc_user_id for i in await kc_admin.find_user_ids_by_attribute(*key)):
+        return "card_in_use", attrs
+    if attrs.get(key[0]) and attrs[key[0]] != [key[1]]:
+        return "card_conflict", attrs
+    return None, attrs
+
+
 async def bind(session, kc_user_id: str, row: ApprovedRequest, claims: dict,
                action: str = "card.bound", actor: str | None = None,
-               commit: bool = True) -> None:
+               commit: bool = True, attrs: dict | None = None) -> None:
     """Bind the card to the user. Keycloak replaces the whole attribute map on PUT,
-    so merge into the current map. commit=False lets the caller commit once."""
+    so merge into the current map (fetched unless given). commit=False lets the
+    caller commit once."""
     key = card_key(claims)
-    attrs = await kc_admin.get_attributes(kc_user_id)
+    if attrs is None:
+        attrs = await kc_admin.get_attributes(kc_user_id)
     await kc_admin.set_attributes(kc_user_id, {**attrs, key[0]: [key[1]]})
     row.status = "bound"
     session.add(row)
@@ -68,8 +98,11 @@ async def bind_card(session, claims: dict) -> str:
         if len(matches) > 1:
             reason = "multiple_matches"
     if len(matches) == 1:
-        await bind(session, kc_user_id, matches[0], claims)
-        return "bound"
+        refusal, attrs = await _refusal(matches[0], kc_user_id, card_key(claims))
+        if refusal is None:
+            await bind(session, kc_user_id, matches[0], claims, attrs=attrs)
+            return "bound"
+        reason = refusal
     keep = {k: claims[k] for k in ("edipi", "cert_email", "card_id") if claims.get(k)}
     item = CardReview(kc_user_id=kc_user_id, card_type=str(claims.get("card_type")),
                       claims=keep, reason=reason)
