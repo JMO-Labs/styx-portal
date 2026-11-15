@@ -231,6 +231,7 @@ class WebRTCGateway:
         down = web.WebSocketResponse(max_msg_size=0, heartbeat=HEARTBEAT_S)
         o = self.sessions.get(owner)
         if o is None or o.dead or not o.socks or self.expired(o, time.time()):
+            self.log(f"webrtc sub refused owner={owner[:8]}: no live owner session")
             await down.prepare(request)
             await down.close(code=refit.BUSY_CODE, message=b"no owner session")
             return down
@@ -248,6 +249,7 @@ class WebRTCGateway:
             try:
                 await asyncio.gather(pump(down, up), pump(up, down), return_exceptions=True)
             finally:
+                self.log(f"webrtc sub close owner={owner[:8]}")
                 self.subs.get(owner, set()).discard(down)
                 if not self.subs.get(owner):
                     self.subs.pop(owner, None)

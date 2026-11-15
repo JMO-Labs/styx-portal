@@ -348,6 +348,7 @@ def create_app(user: str, password: str,
                                           heartbeat=WS_HEARTBEAT_S)
         owner = viewers.by_vid.get(owner_vid)
         if owner is None or owner.shared or not owner.socks:
+            log(f"ws sub refused owner={owner_vid[:8]}: no live owner tab")
             await ws_server.prepare(request)
             await ws_server.close(code=BUSY_CODE, message=b"no owner session")
             return ws_server
@@ -379,6 +380,7 @@ def create_app(user: str, password: str,
                 await asyncio.gather(pump_sub(ws_server, ws_client, sub_filter),
                                      pump_sub(ws_client, ws_server), return_exceptions=True)
             finally:
+                log(f"ws sub close owner={owner_vid[:8]}")
                 subs.get(owner_vid, set()).discard(ws_server)
                 if not subs.get(owner_vid):
                     subs.pop(owner_vid, None)

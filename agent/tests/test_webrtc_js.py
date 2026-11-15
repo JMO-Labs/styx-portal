@@ -112,13 +112,16 @@ def test_webrtc_shim_reports_dpi_from_data_channel():
 SUB_HARNESS = r"""
 const assert = require('assert'), vm = require('vm');
 const html = process.argv[process.argv.length - 1];
-const [hash, ownerInit] = process.argv.slice(1, 3);
+const [hash, ownerInit, localInit] = process.argv.slice(1, 4);
+const LK = 'styx_owner:/p', ls = {};
+if (localInit) ls[LK] = localInit;
 const body = html.slice(html.indexOf('>') + 1, html.lastIndexOf('</script>'));
 const posts = [], socks = [], listeners = {}, ss = {};
 if (ownerInit) ss.styx_owner = ownerInit;
 class FakeWS { constructor(u) { this.url = String(u); this.on = {}; socks.push(this) } addEventListener(e, f) { this.on[e] = f } }
 const win = {
-  WebSocket: FakeWS, crypto: {randomUUID: () => 'sid-1'}, location: {hash},
+  WebSocket: FakeWS, crypto: {randomUUID: () => 'sid-1'}, location: {hash, pathname: '/p'},
+  localStorage: {getItem: k => ls[k] ?? null, setItem: (k, v) => { ls[k] = v }},
   sessionStorage: {getItem: k => ss[k] ?? null, setItem: (k, v) => { ss[k] = v }},
   document: {visibilityState: 'visible', addEventListener() {}}, navigator: {getGamepads: () => []},
   innerWidth: 1100, innerHeight: 603, devicePixelRatio: 1, encodeURIComponent, console, Date, Math, JSON,
@@ -132,17 +135,20 @@ vm.runInContext(body, win);
 new win.WebSocket('wss://h/w/x/api/webrtc/signaling/?a=1');
 socks[0].on.open();
 listeners.keydown[0]({});
-const sub = /^#display\d/.test(hash) && !!ownerInit;
+const ownerId = ownerInit || localInit;
+const sub = /^#display\d/.test(hash) && !!ownerId;
 setTimeout(() => {
   if (sub) {
-    assert.strictEqual(socks[0].url, 'wss://h/w/x/api/webrtc/signaling/?a=1&styx_vid=sid-1&styx_sub=' + encodeURIComponent(ownerInit));
-    assert.strictEqual(ss.styx_owner, ownerInit);          // a sub page never claims ownership
+    assert.strictEqual(socks[0].url, 'wss://h/w/x/api/webrtc/signaling/?a=1&styx_vid=sid-1&styx_sub=' + encodeURIComponent(ownerId));
+    assert.strictEqual(ss.styx_owner, ownerInit || undefined);
+    assert.strictEqual(ls[LK], localInit || undefined);   // a sub page writes neither key          // a sub page never claims ownership
     assert.strictEqual(posts.filter(p => p[0] === 'styx/refit').length, 0);
     assert.deepStrictEqual(posts.filter(p => p[0] === 'styx/activity')[0],
-      ['styx/activity', {sid: ownerInit, sub: 'sid-1', relay_bytes: 0, active: true}]);
+      ['styx/activity', {sid: ownerId, sub: 'sid-1', relay_bytes: 0, active: true}]);
   } else {
     assert(!socks[0].url.includes('styx_sub'));
     assert.strictEqual(ss.styx_owner, 'sid-1');
+    assert.strictEqual(ls[LK], 'sid-1');                   // path-scoped copy for a window with no sessionStorage
     assert.strictEqual(posts.filter(p => p[0] === 'styx/refit').length, 1);
     assert.deepStrictEqual(posts.filter(p => p[0] === 'styx/activity')[0],
       ['styx/activity', {sid: 'sid-1', relay_bytes: 0, active: true}]);
@@ -152,10 +158,11 @@ setTimeout(() => {
 """
 
 
-@pytest.mark.parametrize("hash_,owner", [("#display2-top", "OWN"), ("#display2", "O W"),
-                                         ("#display2-top", ""), ("", ""), ("#other", "OWN")])
-def test_shim_tags_display_pages(hash_, owner):
+@pytest.mark.parametrize("hash_,owner,local", [("#display2-top", "OWN", ""), ("#display2", "O W", ""),
+                                               ("#display2-top", "", ""), ("", "", ""), ("#other", "OWN", ""),
+                                               ("#display2-top", "", "LOC"), ("#display2", "OWN", "LOC")])
+def test_shim_tags_display_pages(hash_, owner, local):
     html = gateway_html.inject_webrtc("<head></head>", True)
     script = html[html.index("<script"):html.index("</head>")]
-    r = subprocess.run(["node", "-e", SUB_HARNESS, hash_, owner, script], capture_output=True, text=True, timeout=20)
+    r = subprocess.run(["node", "-e", SUB_HARNESS, hash_, owner, local, script], capture_output=True, text=True, timeout=20)
     assert r.returncode == 0 and "ok" in r.stdout, r.stderr

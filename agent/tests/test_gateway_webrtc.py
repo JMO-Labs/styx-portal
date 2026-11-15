@@ -525,3 +525,22 @@ async def test_sub_relay_credited_apart_from_owner(tmp_path):
     finally:
         await client.close()
         await up.close()
+
+
+@pytest.mark.asyncio
+async def test_sub_refusal_and_close_are_logged(tmp_path, capsys):
+    up, client, _ = await _pair(tmp_path)
+    try:
+        b = await _sub(client, "B", "ownerid12345")
+        assert await _closed(b) == gateway.BUSY_CODE
+        assert "webrtc sub refused owner=ownerid1: no live owner session" in capsys.readouterr().out
+        a = await _sig(client, "ownerid12345")
+        c = await _sub(client, "C", "ownerid12345")
+        await asyncio.sleep(0.2)
+        await a.close()
+        await _closed(c, 2)
+        await asyncio.sleep(0.2)
+        assert "webrtc sub close owner=ownerid1" in capsys.readouterr().out
+    finally:
+        await client.close()
+        await up.close()

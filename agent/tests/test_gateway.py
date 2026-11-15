@@ -1085,3 +1085,23 @@ async def test_ws_sub_closes_only_with_its_own_owner():
     finally:
         await gw.close()
         await up.close()
+
+
+@pytest.mark.asyncio
+async def test_ws_sub_refusal_and_close_are_logged(capsys):
+    import asyncio
+    up, gw, seen, h = await _sub_pair()
+    try:
+        b = await gw.ws_connect(_sub_url("B", "ownerid12345"), headers=h)
+        await asyncio.wait_for(b.receive(), 3)
+        assert "ws sub refused owner=ownerid1: no live owner tab" in capsys.readouterr().out
+        a = await gw.ws_connect("/api/websockets?styx_vid=ownerid12345&x=1", headers=h)
+        c = await gw.ws_connect(_sub_url("C", "ownerid12345"), headers=h)
+        await asyncio.sleep(0.2)
+        await a.close()
+        await asyncio.wait_for(c.receive(), 2)
+        await asyncio.sleep(0.2)
+        assert "ws sub close owner=ownerid1" in capsys.readouterr().out
+    finally:
+        await gw.close()
+        await up.close()
