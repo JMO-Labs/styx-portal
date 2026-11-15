@@ -7,10 +7,13 @@ export const OUTSIDER = { username: "bob", password: "Styx-e2e-Outsider-Cobalt-M
 export const STYX_COOKIES = ["access_token", "refresh_token", "styx_proxy", "csrf_token", "styx_svc"];
 export const SHOTS = "screenshots";
 
-/** First-run setup code, read from the backend's data volume (POST /api/auth/setup needs it). */
+/** First-run setup code: the backend logs it at boot (it lives in the DB, not a file). */
 export function setupCode(): string {
-  return execFileSync("docker", ["compose", "-p", "styx-e2e", "exec", "-T", "backend", "cat", "/app/data/setup-token"],
-    { stdio: "pipe" }).toString().trim();
+  const logs = execFileSync("docker", ["compose", "-p", "styx-e2e", "logs", "--no-color", "backend"],
+    { stdio: "pipe", maxBuffer: 32 * 1024 * 1024 }).toString();
+  const m = [...logs.matchAll(/Styx setup code: (\S+)/g)].pop();
+  if (!m) throw new Error("setup code not found in backend logs");
+  return m[1];
 }
 
 /** traefik/whoami echoes the request line and headers as plain text. */
