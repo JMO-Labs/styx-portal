@@ -147,3 +147,26 @@ async def test_me_exposes_must_change_pw(member_client, session):
     await session.commit()
     r = await member_client.get("/api/auth/me")
     assert r.status_code == 200 and r.json()["must_change_pw"] is True
+
+
+@pytest.mark.asyncio
+async def test_setup_adopts_ownerless_instances_and_templates(client, session):
+    from app.models import Instance, ServiceTemplate, User
+    from sqlmodel import select
+    tpl = ServiceTemplate(name="orphan-tpl", display_name="Orphan", image="img:latest")
+    session.add(tpl)
+    await session.flush()
+    session.add(Instance(template_id=tpl.id, name="orphan", subdomain="orphan"))
+    await session.commit()
+
+    r = await client.post("/api/auth/setup", json={**st(),
+        "username": "admin", "password": "correct horse battery staple"})
+    assert r.status_code == 201, r.text
+
+    admin = (await session.exec(select(User).where(User.username == "admin"))).one()
+    admin_id = admin.id
+    session.expire_all()
+    inst = (await session.exec(select(Instance).where(Instance.name == "orphan"))).one()
+    tpl = (await session.exec(select(ServiceTemplate).where(ServiceTemplate.name == "orphan-tpl"))).one()
+    assert inst.owner_id == admin_id
+    assert tpl.owner_id == admin_id

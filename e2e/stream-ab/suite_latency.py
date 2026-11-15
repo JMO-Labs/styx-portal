@@ -90,7 +90,7 @@ def run(ab, variants: list, profiles: list, repeats: int = 1, n: int = 100) -> N
         firefox = ab.open_workload()
         time.sleep(5)
         for v in variants:
-            ab.OVERRIDE.write_text(json.dumps({"args": ab.VARIANTS[v]}))
+            ab.OVERRIDE.write_text(json.dumps({"args": ab.VARIANTS[v], "cc_trace": True}))
             ab.restart_selkies(user, pw)
             ab.warm_up(user, pw, script="latency.mjs", extra=WARMUP_ARGS, timeout=CELL_TIMEOUT)
             for p in [p for p in profiles for _ in range(repeats)]:

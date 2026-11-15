@@ -43,15 +43,25 @@ def test_queue_ms_none_without_acks_or_floor():
 
 def test_trace_tolerates_empty_state(caplog):
     cls = _server()
-    shallow_pipe.trace_steer(cls, _wm([]), _Steer)
+    shallow_pipe.trace_steer(cls, _wm([]), _Steer, log_cc=True)
     with caplog.at_level(logging.INFO, logger="ws"):
         cls()._steer_bitrate_to_link("primary", {}, 1.0)
     assert not [r for r in caplog.records if "STYX-CC" in r.getMessage()]
 
 
-def test_trace_logs_line(caplog):
+def test_trace_off_logs_nothing_but_sets_q(caplog):
     cls = _server()
     shallow_pipe.trace_steer(cls, _wm([100, 90, 120]), _Steer)
+    state = _state()
+    with caplog.at_level(logging.INFO, logger="ws"):
+        cls()._steer_bitrate_to_link("primary", state, 5.0)
+    assert not [r for r in caplog.records if "STYX-CC" in r.getMessage()]
+    assert state["link_steer"].styx_q_ms == 30
+
+
+def test_trace_logs_line(caplog):
+    cls = _server()
+    shallow_pipe.trace_steer(cls, _wm([100, 90, 120]), _Steer, log_cc=True)
     with caplog.at_level(logging.INFO, logger="ws"):
         cls()._steer_bitrate_to_link("primary", _state(), 5.0)
     msgs = [r.getMessage() for r in caplog.records if "STYX-CC" in r.getMessage()]

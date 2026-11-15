@@ -436,3 +436,14 @@ def test_packaged_web_root_points_into_the_package(tmp_path, monkeypatch):
     monkeypatch.syspath_prepend(str(tmp_path))
     monkeypatch.delitem(sys.modules, "selkies", raising=False)
     assert engine.packaged_web_root() == str(web)
+
+
+def test_cc_trace_enabled(tmp_path):
+    f = tmp_path / "o.json"
+    assert engine.cc_trace_enabled(f) is False            # no file
+    f.write_text('{"args": []}')
+    assert engine.cc_trace_enabled(f) is False            # off by default
+    f.write_text('{"cc_trace": true}')
+    assert engine.cc_trace_enabled(f) is True
+    f.write_text("nope")
+    assert engine.cc_trace_enabled(f) is False
