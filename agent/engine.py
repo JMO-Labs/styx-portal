@@ -414,7 +414,8 @@ def build_selkies_cmd(cfg: dict, internal_port: int,
         "--enable-basic-auth=false",        # gateway owns auth
         f"--mode={transport}",
         f"--framerate={s.get('framerate', 60)}",
-        "--second-screen=false",
+        # GNOME seat: pixelflux grows a second display on a portal virtual monitor.
+        f"--second-screen={'true' if seat else 'false'}",
         # Off until their phase ships (spec §6): devices, printing.
         "--printing-enabled=false|locked", "--microphone-enabled=false|locked",
         "--webcam-enabled=false|locked", "--gamepad-enabled=false|locked",

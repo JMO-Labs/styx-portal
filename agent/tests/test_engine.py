@@ -436,3 +436,21 @@ def test_packaged_web_root_points_into_the_package(tmp_path, monkeypatch):
     monkeypatch.syspath_prepend(str(tmp_path))
     monkeypatch.delitem(sys.modules, "selkies", raising=False)
     assert engine.packaged_web_root() == str(web)
+
+
+def test_second_screen_on_for_gnome_seat(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path, mode="seat", display="")
+    _stub(monkeypatch)
+    cmd, _ = engine.build_selkies_cmd(cfg, 18444, {"socket": "wayland-70", "bus": "unix:path=/b"})
+    assert "--second-screen=true" in cmd and "--second-screen=false" not in cmd
+
+
+def test_second_screen_off_for_mirror_and_labwc(tmp_path, monkeypatch):
+    _stub(monkeypatch)
+    monkeypatch.setattr(engine, "_find_xauthority", lambda c: "/tmp/xa")
+    monkeypatch.setattr(engine, "query_display_geometry", lambda d, x: (2560, 1440))
+    (tmp_path / "m").mkdir()
+    (tmp_path / "l").mkdir()
+    mirror, _ = engine.build_selkies_cmd(_cfg(tmp_path / "m"), 18444)
+    labwc, _ = engine.build_selkies_cmd(_cfg(tmp_path / "l", mode="seat", display=""), 18444)
+    assert "--second-screen=false" in mirror and "--second-screen=false" in labwc
