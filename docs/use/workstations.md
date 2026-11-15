@@ -55,6 +55,7 @@ On a GNOME seat you can extend the remote desktop onto a second monitor.
 Limits:
 
 - One extra screen.
+- Not on a scaled seat (HiDPI, GNOME scale above 100%): **Add Screen** does not appear there yet.
 - GNOME seats only, not mirror mode or the labwc seat.
 - Open the second window with **Add Screen** from the session's own tab. Copying its URL into another device does not work.
 - Only the session's own window counts: after the session reconnects (agent update, network drop), the second window follows it by itself. If it stays on "connecting", close it and press **Add Screen** again.
