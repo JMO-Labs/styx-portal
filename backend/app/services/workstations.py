@@ -160,6 +160,7 @@ AGENT_UPDATE_FILES = [
     ("stream_override.py", "stream_override.py"),
     ("viewers.py", "viewers.py"),
     ("seat_portal.py", "seat_portal.py"),
+    ("seat_input.py", "seat_input.py"),
     ("seat_clipboard.py", "seat_clipboard.py"),
     ("portal_api.py", "portal_api.py"),
     ("clipboard_bridge.py", "clipboard_bridge.py"),

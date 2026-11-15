@@ -28,6 +28,9 @@ gi.require_version("Gst", "1.0")
 from gi.repository import GLib, Gst  # noqa: E402
 
 from seat_clipboard import ClipboardServer  # noqa: E402
+from seat_input import (  # noqa: E402, F401
+    PAIRED, REORDER_S, _abs, _axis, _button, _discrete, _forward, _key, _motion, _ordered, sessions,
+)
 from seat_scale import apply_scale, live_path, read_scale  # noqa: E402
 import seat_systemd  # noqa: E402
 from seat_systemd import SD_NAME, SystemdStub, snap_scope_props  # noqa: E402, F401
@@ -43,7 +46,6 @@ FRONTENDS = ("/usr/libexec/xdg-desktop-portal", "/usr/lib/xdg-desktop-portal")
 LIVE_TRIES = 50         # x 200 ms = 10 s for the monitor to come up
 
 bus = None              # set in main(); classes only touch it at call time
-sessions = {}
 
 
 def log(*a):
@@ -253,69 +255,6 @@ def rd_eis(self, session_handle, app_id, options):
     # stream's logical region (pixelflux#55), so a scaled seat no longer needs
     # the Notify fallback. Notify still gets its x scale in _abs below.
     return sessions[str(session_handle)].rd.ConnectToEIS(dbus.Dictionary({}, signature="sv"))
-
-
-REORDER_S = 0.05
-PAIRED = ("NotifyPointerButton", "NotifyKeyboardKeycode", "NotifyKeyboardKeysym")
-
-
-def _ordered(s, name, code, down, send):
-    """xdg-desktop-portal can swap a press and release sent back to back (seen
-    on stream stutter: release, press -> Mutter keeps the key down, autorepeat).
-    A release for something not down waits up to REORDER_S for its press."""
-    key, now = (name, code), time.monotonic()
-    if down:
-        s.down.add(key)
-        send(code, True)
-        if now - s.early.pop(key, -REORDER_S - 1) <= REORDER_S:
-            s.down.discard(key)
-            send(code, False)
-    elif key in s.down:
-        s.down.discard(key)
-        send(code, False)
-    else:
-        s.early[key] = now
-
-
-def _forward(name, conv):
-    """Notify* passthrough with the fixed arity dbus-python needs."""
-    def fn2(self, sh, o, a1, a2):
-        s = sessions[str(sh)]
-        if name in PAIRED:
-            _ordered(s, name, *conv(s, o, a1, a2), send=getattr(s.rd, name))
-        else:
-            getattr(s.rd, name)(*conv(s, o, a1, a2))
-
-    def fn3(self, sh, o, a1, a2, a3):
-        s = sessions[str(sh)]
-        getattr(s.rd, name)(*conv(s, o, a1, a2, a3))
-    return fn3 if name == "NotifyPointerMotionAbsolute" else fn2
-
-
-def _motion(s, o, dx, dy):
-    return dx, dy
-
-
-def _abs(s, o, stream, x, y):
-    # pixelflux divides by its (= the seat's) scale and Mutter divides again:
-    # undo pixelflux's, so the pointer lands where the browser's is.
-    return s.stream_path, x * s.scale, y * s.scale
-
-
-def _button(s, o, b, st):
-    return b, bool(st)
-
-
-def _axis(s, o, dx, dy):
-    return dx, dy, dbus.UInt32(1 if o.get("finish") else 0)
-
-
-def _discrete(s, o, axis, n):
-    return axis, n
-
-
-def _key(s, o, k, st):
-    return dbus.UInt32(k), bool(st)
 
 
 SC_METHODS = {
