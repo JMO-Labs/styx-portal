@@ -69,3 +69,12 @@ def test_abs_routes_by_node():
     s = type("S", (), {"paths": {7: "/p/stream7"}, "stream_path": "/p/primary", "scale": 2.0})()
     assert seat_portal._abs(s, {}, 7, 10.0, 20.0) == ("/p/stream7", 20.0, 40.0)
     assert seat_portal._abs(s, {}, 9, 10.0, 20.0) == ("/p/primary", 20.0, 40.0)
+
+
+def test_paired_screencast_picks_the_live_input_session():
+    class S:
+        def __init__(self, rd, sc, virtual=False):
+            self.rd, self.sc, self.virtual = rd, sc, virtual
+    assert seat_portal.paired_screencast([]) is None
+    assert seat_portal.paired_screencast([S(None, "sc0"), S("rd", None)]) is None
+    assert seat_portal.paired_screencast([S("rd", "vsc", virtual=True), S("rd", "sc1")]) == "sc1"
