@@ -133,6 +133,8 @@ win.window = win; win.self = win;
 vm.createContext(win);
 vm.runInContext(body, win);
 new win.WebSocket('wss://h/w/x/api/webrtc/signaling/?a=1');
+assert.strictEqual(ls[LK], localInit || undefined);      // no claim before the stream connects
+assert.strictEqual(ss.styx_owner, ownerInit || undefined);
 socks[0].on.open();
 listeners.keydown[0]({});
 const ownerId = ownerInit || localInit;

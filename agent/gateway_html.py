@@ -107,7 +107,7 @@ WEBRTC_JS = r"""<script id="styx-webrtc">(function(){
 var sid;try{sid=crypto.randomUUID()}catch(e){sid=Math.random().toString(36).slice(2)+Date.now().toString(36)}
 var rtc=false,pcs=[],RP=window.RTCPeerConnection,sub=false,owner='';
 try{if(/^#display\d/.test(location.hash)){try{owner=sessionStorage.getItem('styx_owner')||''}catch(e){}if(!owner)try{owner=localStorage.getItem('styx_owner:'+location.pathname)||''}catch(e){}sub=!!owner}}catch(e){}
-if(!sub){try{sessionStorage.setItem('styx_owner',sid)}catch(e){}try{localStorage.setItem('styx_owner:'+location.pathname,sid)}catch(e){}}
+function claim(){if(sub)return;try{sessionStorage.setItem('styx_owner',sid)}catch(e){}try{localStorage.setItem('styx_owner:'+location.pathname,sid)}catch(e){}}
 if(RP){window.RTCPeerConnection=class extends RP{constructor(){super(...arguments);pcs.push(this)}}}
 function post(path,body){try{fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),keepalive:true}).catch(function(){})}catch(e){}}
 var dpi;function refit(){if(rtc&&!sub)post('styx/refit',{sid:sid,w:innerWidth,h:innerHeight,dpr:devicePixelRatio||1,dpi:dpi})}
@@ -117,7 +117,7 @@ addEventListener('resize',refitSoon);document.addEventListener('fullscreenchange
 var W=window.WebSocket;
 function SW(u,p){var s=String(u),sig=s.indexOf('/api/webrtc/signaling')>=0;
 if(sig)s+=(s.indexOf('?')<0?'?':'&')+'styx_vid='+encodeURIComponent(sid)+(sub?'&styx_sub='+encodeURIComponent(owner):'');
-var w=p===undefined?new W(s):new W(s,p);if(sig)w.addEventListener('open',function(){rtc=true;refitSoon()});return w}
+var w=p===undefined?new W(s):new W(s,p);if(sig)w.addEventListener('open',function(){rtc=true;claim();refitSoon()});return w}
 SW.prototype=W.prototype;SW.CONNECTING=0;SW.OPEN=1;SW.CLOSING=2;SW.CLOSED=3;window.WebSocket=SW;
 async function relay(){var tot=0;
 for(var pc of pcs){var sel=pc.__styxSel||(pc.__styxSel={});
