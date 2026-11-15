@@ -150,6 +150,7 @@ AGENT_UPDATE_FILES = [
     ("gateway_cfg.py", "gateway_cfg.py"),
     ("gateway_webrtc.py", "gateway_webrtc.py"),
     ("agent_procs.py", "agent_procs.py"),
+    ("agent_doctor.py", "agent_doctor.py"),
     ("seat_systemd.py", "seat_systemd.py"),
     ("seat_gnome.py", "seat_gnome.py"),
     ("xwl_eager.py", "xwl_eager.py"),
