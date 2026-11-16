@@ -77,8 +77,9 @@ COPY --from=relay /out/styx-card-relay /usr/local/bin/styx-card-relay
 COPY --chmod=0644 smartcard/apdu-allowlist.yaml /etc/styx/apdu-allowlist.yaml
 
 # Styx gateway (lock enforcement) and the agent modules it imports.
-COPY agent/gateway.py agent/gateway_dlp.py agent/gateway_html.py agent/gateway_idlelock.py \
-     agent/gateway_lock.py agent/gateway_report.py agent/gateway_webrtc.py agent/gateway_ws.py \
+COPY agent/gateway.py agent/gateway_cfg.py agent/gateway_dlp.py agent/gateway_html.py \
+     agent/gateway_http.py agent/gateway_idlelock.py agent/gateway_lock.py agent/gateway_report.py \
+     agent/gateway_webrtc.py agent/gateway_ws.py \
      agent/favicon.py agent/refit.py agent/codecpref.py agent/gamemode.py agent/seat_scale.py \
      agent/session_events.py agent/viewers.py agent/portal_api.py /opt/styx/
 
