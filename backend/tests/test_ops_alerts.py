@@ -88,3 +88,37 @@ async def test_ops_alerts_monitoring_silent_after_10min(admin_client, session):
 
 async def test_ops_alerts_admin_only(member_client):
     assert (await member_client.get("/api/admin/ops-alerts")).status_code == 403
+
+
+@pytest.mark.parametrize("body", [
+    {"alerts": "nope"},
+    {"no": "alerts"},
+    [],
+])
+async def test_webhook_rejects_invalid_payload(client, body):
+    r = await client.post(URL, json=body, headers=_auth())
+    assert r.status_code == 422
+
+
+async def test_webhook_rejects_non_json_body(client):
+    r = await client.post(URL, content=b"not json", headers=_auth())
+    assert r.status_code == 422
+
+
+async def test_webhook_skips_alert_without_fingerprint(client, session):
+    bad = _alert()
+    del bad["fingerprint"]
+    r = await client.post(URL, json=_payload(bad, _alert("ok")), headers=_auth())
+    assert r.status_code == 200 and r.json() == {"received": 2}
+    rows = (await session.exec(select(OpsAlert))).all()
+    assert [x.fingerprint for x in rows] == ["ok"]
+
+
+async def test_webhook_tolerates_missing_and_bad_timestamps(client, session):
+    a = _alert("t1")
+    del a["startsAt"]
+    a["endsAt"] = "not-a-date"
+    r = await client.post(URL, json=_payload(a), headers=_auth())
+    assert r.status_code == 200
+    row = (await session.exec(select(OpsAlert))).one()
+    assert row.starts_at is None and row.ends_at is None

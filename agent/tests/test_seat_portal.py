@@ -56,3 +56,9 @@ def test_main_argv_fps_flag():
 
 def test_max_fps_as_last_arg_falls_back():
     assert seat_portal.parse_args(["p", "800x600", "--max-fps"]) == (800, 600, 60)
+
+
+def test_input_helpers_importable_from_seat_input():
+    import seat_input
+    assert seat_portal._ordered is seat_input._ordered
+    assert seat_portal.sessions is seat_input.sessions

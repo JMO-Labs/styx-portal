@@ -50,7 +50,7 @@ async def test_kwargs_k8s_resolves_owner_mode():
     rt = K8sInstanceRuntime(client=MagicMock())
     session = MagicMock()
     session.get = AsyncMock(return_value=SimpleNamespace(id="u1"))
-    with patch("app.routers.instances.resolve_egress_mode",
+    with patch("app.services.instance_build.resolve_egress_mode",
                AsyncMock(return_value="allowlist")):
         out = await instances._egress_kwargs(rt, session, SimpleNamespace(owner_id="u1"))
     assert out == {"egress_mode": "allowlist"}

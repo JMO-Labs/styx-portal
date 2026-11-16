@@ -6,26 +6,26 @@ from pathlib import Path
 from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from fastapi.responses import RedirectResponse
 from sqlmodel import col, select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import Settings
 from app.database import get_session
-from app.models import User, Invite, RefreshToken, Instance, ServiceTemplate, OAuthProvider, FederatedIdentity, Workstation
-from app.schemas import SetupRequest, LoginRequest, AcceptInviteRequest, UserOut, ConnectedIdentity, ChangePasswordRequest, OpenPreferences
-from app.security import tokens, oauth, setup_token
+from app.models import User, Invite, RefreshToken, Instance, ServiceTemplate, Workstation
+from app.schemas import SetupRequest, LoginRequest, AcceptInviteRequest, UserOut, ChangePasswordRequest, OpenPreferences
+from app.security import tokens, setup_token
 from app.security.passwords import hash_password, verify_password, validate_password, current_policy
-from app.security.cookies import (DEVICE_COOKIE, TX_PATH, clear_auth_cookies, set_auth_cookies,
+from app.security.cookies import (DEVICE_COOKIE, clear_auth_cookies, set_auth_cookies,
                                   set_device_cookie)
 from app.security.csrf import new_csrf_token, CSRF_COOKIE
 from app.security.deps import can_takeover, get_current_user
 from app.security.setup_gate import users_exist
-from app.services import federation, login_flow, single_use, stream_sessions
+from app.services import login_flow, single_use, stream_sessions
 from app.services.audit import audit_request
 from app.services.gpu_access import user_may_use_gpu
 from app.middleware.rate_limit import client_ip_from_headers, client_ip_resolved
 from app.services.abuse import ban_cache
+from app.routers import auth_link
 
 router = APIRouter()
 logger = logging.getLogger("styx-portal")
@@ -436,82 +436,4 @@ async def accept_invite(body: AcceptInviteRequest, request: Request, response: R
     return {"id": user.id, "username": user.username, "role": user.role}
 
 
-@router.get("/link/providers", response_model=list[ConnectedIdentity])
-async def linked_providers(user: User = Depends(get_current_user),
-                           session: AsyncSession = Depends(get_session)):
-    rows = (await session.exec(select(FederatedIdentity).where(
-        FederatedIdentity.user_id == user.id))).all()
-    return [ConnectedIdentity(provider=r.provider, email=r.email,
-                              created_at=r.created_at.isoformat()) for r in rows]
-
-
-@router.get("/link/{name}/start")
-async def link_start(name: str, user: User = Depends(get_current_user),
-                     session: AsyncSession = Depends(get_session)):
-    provider = (await session.exec(select(OAuthProvider).where(
-        OAuthProvider.name == name, OAuthProvider.enabled == True))).first()  # noqa: E712
-    if not provider:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown provider")
-    url, state, verifier = await oauth.build_authorize(provider, mode="link")
-    resp = RedirectResponse(url, status_code=status.HTTP_302_FOUND)
-    resp.set_cookie(oauth.TX_COOKIE, oauth.pack_tx(name, state, verifier, "link", user.id),
-                    max_age=oauth.TX_TTL, httponly=True,
-                    secure=_settings.COOKIE_SECURE, samesite="lax", path=TX_PATH)
-    return resp
-
-
-def _link_redirect(code: str) -> RedirectResponse:
-    resp = RedirectResponse(f"/?link={code}", status_code=302)
-    resp.delete_cookie(oauth.TX_COOKIE, path=TX_PATH)
-    return resp
-
-
-@router.get("/link/{name}/callback")
-async def link_callback(name: str, request: Request,
-                        user: User = Depends(get_current_user),
-                        session: AsyncSession = Depends(get_session)):
-    tx_raw = request.cookies.get(oauth.TX_COOKIE)
-    if not tx_raw:
-        return _link_redirect("missing_state")
-    try:
-        tx = oauth.unpack_tx(tx_raw)
-    except Exception:
-        return _link_redirect("bad_state")
-    if tx["provider"] != name or tx["mode"] != "link" or \
-            request.query_params.get("state") != tx["state"]:
-        return _link_redirect("bad_state")
-    if tx["uid"] != user.id:
-        return _link_redirect("error")
-    provider = (await session.exec(select(OAuthProvider).where(
-        OAuthProvider.name == name))).first()
-    if not provider:
-        return _link_redirect("error")
-    try:
-        identity = await oauth.fetch_identity(provider, "link", str(request.url), tx["verifier"])
-        await federation.link_identity(session, user, name, identity)
-        await audit_request(session, request, "sso.link", user_id=user.id,
-                            resource=name, detail={"email": identity.email})
-        await session.commit()
-    except federation.FederationError:
-        return _link_redirect("conflict")
-    except Exception:
-        return _link_redirect("error")
-    return _link_redirect("ok")
-
-
-@router.delete("/link/{name}")
-async def unlink_provider(name: str, request: Request, user: User = Depends(get_current_user),
-                          session: AsyncSession = Depends(get_session)):
-    rows = (await session.exec(select(FederatedIdentity).where(
-        FederatedIdentity.user_id == user.id))).all()
-    target = next((r for r in rows if r.provider == name), None)
-    if not target:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "not linked")
-    has_password = user.password_hash and not user.password_hash.startswith("!")
-    if not has_password and len(rows) <= 1:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST,
-                            "cannot unlink the only login method")
-    await session.delete(target)
-    await audit_request(session, request, "sso.unlink", user_id=user.id, resource=name)
-    await session.commit()
-    return {"ok": True}
+router.include_router(auth_link.router)

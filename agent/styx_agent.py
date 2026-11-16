@@ -29,6 +29,7 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import agent_doctor  # noqa: E402
 import agent_update  # noqa: E402
 import favicon  # noqa: E402
 import seat_thumb  # noqa: E402
@@ -37,10 +38,10 @@ import refit  # noqa: E402
 import engine  # noqa: E402  (installed next to this file by enroll.sh)
 import seat_gnome  # noqa: E402
 import seat_labwc  # noqa: E402
-from portal_api import api, check_pin  # noqa: E402
+from portal_api import api  # noqa: E402
 from health import (  # noqa: E402
     active_connections, host_tuning_checks, idle_seconds, transport, turn_bytes,
-    rollback, seat_advisories, stream_starving_seconds)
+    rollback, stream_starving_seconds)
 from health import gw_state_path  # noqa: E402, F401
 from seat_gnome import Escalation, pick_seat_shell  # noqa: E402
 from agent_procs import (  # noqa: E402
@@ -446,40 +447,7 @@ def run(cfg: dict) -> int:
 
 # --- Diagnostics -----------------------------------------------------------
 def doctor(cfg: dict) -> int:
-    print("styx-agent doctor:")
-    ok = True
-    ok &= _check("config readable", True, str(CONFIG_PATH))
-    install = Path(cfg["install_dir"])
-    ok &= _check("venv present", (install / "venv/bin/python").exists())
-    ok &= _check("selkies 2.x installed", (install / "venv/bin/selkies").exists())
-    ok &= _check(f"mode: {cfg.get('mode', 'mirror')}", True)
-    if cfg.get("mode") == "mirror":
-        xa = engine._find_xauthority(cfg)
-        ok &= _check("XAUTHORITY found", xa is not None, xa or "none")
-    dri = engine.pick_dri_node()
-    _check("GPU render node", bool(dri), dri or "CPU encode")
-    mon = engine.resolve_monitor_source()
-    ok &= _check("audio monitor source", bool(mon), mon or "no pulse/pipewire")
-    svc = subprocess.run(["systemctl", "--user", "is-active", "styx-agent"],
-                         capture_output=True, text=True)
-    ok &= _check("service active", svc.stdout.strip() == "active",
-                 svc.stdout.strip())
-    port_busy = socket.socket().connect_ex(("127.0.0.1", cfg["port"])) == 0
-    ok &= _check(f"gateway listening :{cfg['port']}", port_busy,
-                 "" if port_busy else "nothing listening — see logs/gateway.log")
-    if cfg.get("ca_pin"):
-        ok &= _check("TLS pin matches",
-                     check_pin(cfg.get("server_cert", ""), cfg["ca_pin"]))
-    try:
-        api(cfg, "/api/agent/heartbeat", {"status": "online"})
-        ok &= _check("server reachable + token valid", True)
-    except Exception as e:
-        ok &= _check("server reachable + token valid", False, str(e))
-    seat = cfg.get("mode") == "seat" and seat_advisories(seat_gnome.gnome_available())
-    for label, good, detail in host_tuning_checks() + (seat or []):
-        _check(label, good, detail)   # advisory: not folded into `ok`
-    print("All checks passed." if ok else f"Some checks failed. Logs: {LOG_DIR}")
-    return 0 if ok else 1
+    return agent_doctor.doctor(cfg, api, host_tuning_checks, CONFIG_PATH, LOG_DIR)
 
 
 def status(cfg: dict) -> int:

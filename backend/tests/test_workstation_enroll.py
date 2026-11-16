@@ -244,7 +244,7 @@ async def test_agent_file_endpoints_routed(client):
 
 
 NEW_FILES = ("seat_gnome.py", "seat_labwc.py", "health.py", "refit.py", "seat_portal.py", "portal_api.py",
-             "seat_clipboard.py")
+             "seat_clipboard.py", "seat_input.py")
 
 
 def test_agent_files_for_0_5():
