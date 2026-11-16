@@ -12,6 +12,13 @@ OVERLAY=test/kind/squid-egress
 PROXY=http://squid.egress-proxy.svc.cluster.local.:3128
 FAILED=0
 
+cleanup() { # drop baseline policies + squid so later scripts on the shared cluster are unaffected
+  set +e
+  kubectl -n styx-instances delete pod desktop-test --ignore-not-found --wait=false
+  [ -s /tmp/squid-egress.yaml ] && kubectl delete -f /tmp/squid-egress.yaml --ignore-not-found --timeout=120s
+}
+trap cleanup EXIT
+
 retry() { # transient kyverno webhook errors (broken pipe, closed connection)
   local a
   for a in 1 2 3 4 5; do
