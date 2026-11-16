@@ -11,11 +11,13 @@ OVERLAY=test/kind/squid-egress
 # answers REFUSED and musl aborts instead of falling through to the real name.
 PROXY=http://squid.egress-proxy.svc.cluster.local.:3128
 FAILED=0
+MANIFEST=$(mktemp /tmp/squid-egress.XXXXXX.yaml)
 
 cleanup() { # drop baseline policies + squid so later scripts on the shared cluster are unaffected
   set +e
   kubectl -n styx-instances delete pod desktop-test --ignore-not-found --wait=false
-  [ -s /tmp/squid-egress.yaml ] && kubectl delete -f /tmp/squid-egress.yaml --ignore-not-found --timeout=120s
+  [ -s "$MANIFEST" ] && kubectl delete -f "$MANIFEST" --ignore-not-found --timeout=120s
+  rm -f "$MANIFEST"
 }
 trap cleanup EXIT
 
@@ -62,8 +64,8 @@ kubectl -n kube-system rollout restart deploy/coredns
 kubectl -n kube-system rollout status deploy/coredns --timeout=420s
 
 echo "== apply baseline + squid"
-kubectl kustomize "$OVERLAY" > /tmp/squid-egress.yaml
-retry kubectl apply -f /tmp/squid-egress.yaml
+kubectl kustomize "$OVERLAY" > "$MANIFEST"
+retry kubectl apply -f "$MANIFEST"
 kubectl -n egress-proxy rollout status deploy/squid --timeout=300s
 
 echo "== test pod (labelled as a desktop)"
