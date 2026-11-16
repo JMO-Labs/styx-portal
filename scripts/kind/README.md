@@ -10,6 +10,7 @@ Agents have no Docker. Push scripts here; the `kind-spike` workflow
 - A cluster named `spike` already exists; `kubectl` context points at it. Do not create/delete it.
 - Optional cluster config: `test/kind/cluster.yaml` (kind `Cluster` config; used if present).
   Helper files/manifests go in `test/kind/`.
+- All scripts share one cluster: remove cluster-wide state you install (webhooks, policies, CRD-backed controllers) in an `EXIT` trap.
 - cwd is the repo root. Each script has a 20 min timeout; whole job 45 min. Keep runs < 30 min.
 
 ## Tools on PATH

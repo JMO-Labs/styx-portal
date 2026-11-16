@@ -7,7 +7,18 @@ KYVERNO_CHART=3.5.2
 COSIGN_VERSION=v2.5.3
 REG=registry.registry.svc.cluster.local:5000
 WORK=$(mktemp -d)
-trap 'kill ${PF_PID:-0} 2>/dev/null || true; rm -rf "$WORK"' EXIT
+
+cleanup() { # leave no fail-closed webhooks behind: later scripts share this cluster
+  set +e
+  kill ${PF_PID:-0} 2>/dev/null
+  kubectl delete clusterpolicy --all --ignore-not-found --timeout=60s
+  helm uninstall kyverno -n kyverno --timeout 3m
+  kubectl delete validatingwebhookconfiguration,mutatingwebhookconfiguration \
+    -l webhook.kyverno.io/managed-by=kyverno --ignore-not-found
+  kubectl delete ns desktop-test kyverno registry --ignore-not-found --timeout=120s
+  rm -rf "$WORK"
+}
+trap cleanup EXIT
 
 echo "== cosign $COSIGN_VERSION"
 curl -fsSL -o "$WORK/cosign" \
