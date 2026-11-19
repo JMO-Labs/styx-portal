@@ -63,3 +63,27 @@ def test_tagger_runs_in_vm(tmp_path, nav):
     js.write_text(HARNESS)
     r = subprocess.run(["node", str(js), refit.RELOAD_JS, nav], capture_output=True, text=True, timeout=30)
     assert r.returncode == 0, r.stderr
+
+
+SUB_HARNESS = HARNESS.replace("hash: ''", "hash: process.argv[4]").replace(
+    "store.styx_vid = 'old';",
+    "store.styx_vid = 'old';\nconst owner = process.argv[6] || process.argv[5];\nif (process.argv[5]) store.styx_owner = process.argv[5];\nconst LK = 'styx_owner:/p';\nif (process.argv[6]) lstore[LK] = process.argv[6];\n"
+    "const isSub = /^#display\\d/.test(process.argv[4]) && !!owner;\n"
+    "const sfx = isSub ? '&styx_sub=' + encodeURIComponent(owner) : '';").replace(
+    "const vid = store.styx_vid;",
+    "const vid = store.styx_vid;\nassert.strictEqual(store.styx_owner, isSub ? (process.argv[5] || undefined) : vid);\n"
+    "assert.strictEqual(lstore[LK], isSub ? (process.argv[6] || undefined) : vid);").replace(
+    "+ vid);", "+ vid + sfx);").replace(
+    "const store = {}", "const lstore = {}, store = {}").replace(
+    "history: {replaceState() {}}", "localStorage: {getItem: k => lstore[k] ?? null, setItem: (k, v) => { lstore[k] = v }},\n  history: {replaceState() {}}")
+
+
+@pytest.mark.parametrize("hash_,owner,local", [("#display2-top", "OWN", ""), ("#display2", "O W", ""),
+                                               ("#display2-top", "", ""), ("", "", ""), ("#other", "OWN", ""),
+                                               ("#display2-top", "", "LOC"), ("#display2", "OWN", "LOC")])
+def test_shim_tags_display_pages(tmp_path, hash_, owner, local):
+    js = tmp_path / "page.js"
+    js.write_text(SUB_HARNESS)
+    r = subprocess.run(["node", str(js), refit.RELOAD_JS, "navigate", hash_, owner, local],
+                       capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr

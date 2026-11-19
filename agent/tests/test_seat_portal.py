@@ -56,3 +56,71 @@ def test_main_argv_fps_flag():
 
 def test_max_fps_as_last_arg_falls_back():
     assert seat_portal.parse_args(["p", "800x600", "--max-fps"]) == (800, 600, 60)
+
+
+def test_source_types():
+    assert seat_portal.source_types({}) == 1
+    assert seat_portal.source_types({"types": 1}) == 1
+    assert seat_portal.source_types({"types": 4}) == 4
+    assert seat_portal.source_types({"types": 5}) == 4
+
+
+def test_abs_routes_by_node():
+    s = type("S", (), {"paths": {7: "/p/stream7"}, "stream_path": "/p/primary", "scale": 2.0})()
+    assert seat_portal._abs(s, {}, 7, 10.0, 20.0) == ("/p/stream7", 20.0, 40.0)
+    assert seat_portal._abs(s, {}, 9, 10.0, 20.0) == ("/p/primary", 20.0, 40.0)
+
+
+def test_stream_entry_names_node_geometry_and_source_type():
+    node, d = seat_portal.stream_entry(76, {"position": (0, 1318), "size": (2556, 1302)}, 4)
+    assert int(node) == 76 and int(d["source_type"]) == 4
+    assert tuple(d["position"]) == (0, 1318) and tuple(d["size"]) == (2556, 1302)
+    _, d = seat_portal.stream_entry(5, {"mapping-id": "x"}, 1)
+    assert "position" not in d and "size" not in d   # unknown stays unknown, never 0x0
+    assert int(d["source_type"]) == 1
+
+
+def test_monitor_names_its_logical_geometry():
+    """Mutter's virtual stream Parameters carry only a mapping-id; the seat
+    monitor supplies its logical size (pixels over the seat scale)."""
+    assert seat_portal.logical_geometry({"mapping-id": "x"}, 2556, 1302, 1.0) == {
+        "mapping-id": "x", "position": (0, 0), "size": (2556, 1302)}
+    assert seat_portal.logical_geometry({}, 2556, 1302, 2.0)["size"] == (1278, 651)
+    kept = {"position": (0, 1318), "size": (10, 10)}
+    assert seat_portal.logical_geometry(kept, 2556, 1302, 1.0) == kept
+
+
+def test_monitor_hands_its_stream_over_and_takes_it_back(monkeypatch):
+    """Two readers of a virtual monitor fight over its format: the size holder
+    lets go while the capture reads it, and holds it again after."""
+    class Pipe:
+        def set_state(self, s):
+            self.state = s
+    launched = []
+    monkeypatch.setattr(seat_portal.Gst, "parse_launch", lambda d: launched.append(d) or Pipe())
+    m = object.__new__(seat_portal.Monitor)
+    m.w, m.h, m.fps, m.node, m.pipe, m.playing = 800, 600, 60, 7, None, False
+    m.hold()
+    assert m.pipe is not None and "path=7" in launched[-1] and "width=800,height=600" in launched[-1]
+    m.hold()
+    assert len(launched) == 1                      # already holding: no second reader
+    m.release()
+    assert m.pipe is None
+    m.release()
+    m.w, m.h = 1024, 700
+    m.hold()
+    assert len(launched) == 2 and "width=1024,height=700" in launched[-1]
+
+
+def test_a_closing_session_lets_go_of_what_it_holds():
+    """The seat's RemoteDesktop session outlives each selkies, so a capture
+    killed mid-drag or with Ctrl held must release them on Close."""
+    sent = []
+
+    class RD:
+        def NotifyKeyboardKeycode(self, code, state): sent.append(("key", int(code), bool(state)))
+        def NotifyPointerButton(self, code, state): sent.append(("btn", int(code), bool(state)))
+    s = type("S", (), {"rd": RD(), "down": {("NotifyKeyboardKeycode", 29),
+                                            ("NotifyPointerButton", 272)}})()
+    seat_portal.release_held(s)
+    assert sorted(sent) == [("btn", 272, False), ("key", 29, False)] and not s.down

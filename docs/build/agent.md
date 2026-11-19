@@ -143,7 +143,7 @@ The gateway rewrites selkies' HTML to add:
 `build_selkies_cmd(cfg, internal_port, seat)` returns `(argv, env)`. Secrets travel
 by env, never argv. Highlights:
 
-* `--mode=websockets`, `--enable-basic-auth=false` (gateway owns auth), `--second-screen=false`; printing, microphone, webcam, gamepad and 10-bit are disabled and locked.
+* `--mode=websockets`, `--enable-basic-auth=false` (gateway owns auth), `--second-screen=false` (`true` only for the GNOME seat, see [Two screens](#two-screens-gnome-seat)); printing, microphone, webcam, gamepad and 10-bit are disabled and locked.
 * **Encoder list**: `--encoder=<hw encoders...>,h264enc`. selkies tries them in order and steps down to the first the browser can decode: AV1 -> HEVC -> H.264.
 * **Probe** (`hw_encoders`, cached per render node): `vainfo --display drm --device <node>` lists VA-API encode profiles (`VAProfileAV1` -> `av1enc`, `VAProfileHEVC` -> `h265enc`). If VA-API shows neither, NVIDIA is probed by `nvidia-smi --query-gpu=compute_cap`: AV1 from compute capability 8.9 (Ada), HEVC from 5.2 (Maxwell 2). With no GPU node only H.264 is offered; software AV1/HEVC are never advertised because they would pin the CPU.
 * DRI node flags and `SELKIES_USE_CPU=false|locked` keep the GPU encoder on.
@@ -171,11 +171,23 @@ Mutter 50 starts Xwayland **on demand** whenever `sd_pid_get_user_unit()` succee
 ![Seat stack from browser through selkies, xdg-desktop-portal and Mutter to headless GNOME and Wayland apps](../assets/diagrams/build-agent-4-dark.svg#only-dark)
 
 * `seat_gnome.GnomeSeat` runs `dbus-run-session -- gnome-seat.sh`, starting `gnome-shell --headless` on socket `wayland-70` (snap AppArmor only allows `wayland-[0-9]*`) with a private session bus. `ready()` waits for the bus file, the socket and a D-Bus Ping.
-* `seat_portal.py` runs under the **system** python (needs dbus-python, PyGObject, GStreamer `pipewiresrc`). It implements a portal backend `org.freedesktop.impl.portal.desktop.styx` for ScreenCast and RemoteDesktop on Mutter's own APIs, so **no consent dialog** appears. The cursor travels as metadata and the browser draws it. It also holds the seat's virtual monitor at WxH; a new size means a new helper process (renegotiating caps in place stalls frames).
+* `seat_portal.py` runs under the **system** python (needs dbus-python, PyGObject, GStreamer `pipewiresrc`). It implements a portal backend `org.freedesktop.impl.portal.desktop.styx` for ScreenCast and RemoteDesktop on Mutter's own APIs, so **no consent dialog** appears. The cursor travels as metadata and the browser draws it. It also holds the seat's virtual monitor at WxH inside one RemoteDesktop + paired ScreenCast session that lives as long as the seat (`Monitor`). Every portal session borrows that session: screen 1 is the virtual monitor's **own** stream (source type virtual), and input (libei or Notify) and clipboard use its RemoteDesktop half. A size change reconnects the size-holding consumer with new caps (Mutter resizes the same monitor in ~100 ms).
+  * Why not `RecordMonitor`: Mutter closes a monitor recording whenever the monitor's rectangle changes, position included, and keeps a RemoteDesktop session open around the dead stream, so the capture froze silently.
+  * Two readers of one virtual stream fight over its format and size, so the size holder lets go while a portal session reads the monitor and holds it again when that session closes. The capture reads it at exactly the current mode (pixelflux `consume_size`), and the agent stops selkies before every resize.
+  * Mutter's virtual stream `Parameters` carry only a `mapping-id`; the helper adds the logical size (pixels / seat scale). A 0x0 size would map every pointer point to 0,0 (the Activities hot corner).
 * `seat_systemd.py` answers `org.freedesktop.systemd1` for gnome-shell and relays `snap.*.scope` units only.
 * **Clipboard**: Mutter has no wlr/ext data-control, so `seat_clipboard.py` serves the seat clipboard (all flavours, capped 64 MiB each) from the RemoteDesktop session over a unix socket; `engine` points selkies' clipboard calls there.
 * **Thumbnails** (`seat_thumb.py` + `seat_thumb_grab.py`): once a minute a long-lived system-python helper grabs one frame via Mutter ScreenCast/PipeWire, and the agent uploads a 1280-wide JPEG to `/api/agent/thumbnail`. The ScreenCast session is never stopped per grab because ending one froze gnome-shell 25-75 s on GNOME 50. The agent gives up (logged once) if the helper keeps failing.
 * The seat needs GNOME Shell 46 or newer, `xdg-desktop-portal(-gnome)`, `dbus-run-session`, `gdbus`; `enroll.sh` does not install them. If missing the agent falls back to labwc.
+
+### Two screens (GNOME seat)
+
+* **Virtual source** (`seat_portal.py`): the ScreenCast portal serves the virtual source type (`AvailableSourceTypes` 5). A session selecting types bit 4 gets a Mutter `RecordVirtual` monitor recorded inside the seat's ScreenCast session, so Mutter gives it an EIS input region; Close stops just that stream and GNOME moves its windows back. `NotifyPointerMotionAbsolute` is routed per stream node.
+* **pixelflux side** (`2.2.2+styx7`): offers one extra display when the portal serves virtual sources and Mutter's `DisplayConfig` is on the bus, grows it on a virtual portal session, and arranges Mutter's monitors where Selkies laid the displays out (temporary config; an unchanged layout is not re-applied, since every apply pauses the streams). Mutter gives each stream its own EIS absolute device, so pointer motion goes to the device whose region holds the point, aimed by each output's live position.
+* **Scaled seats**: pixelflux offers no extra display when any host output's scale is above 1 (the arranger places a new monitor at scale 1, and a grown display's pointer goes by union-layout points). Follow-up work.
+* **Placement**: a screen above or left moves screen 1 (Mutter refuses negative positions); screen 1 survives because it is captured from its own virtual stream.
+* **Sub-display windows** (gateway): a page whose fragment starts `#display` reads the owner tab's id from sessionStorage key `styx_owner` (copied into the `window.open`ed window) and tags its socket `styx_sub=<owner>`. The gateway admits it only beside that live owner session: WebRTC, live (not dead or expired); WebSockets, a live controller (not a shared viewer). A sub has no seat hold, viewer record or idle clock of its own, and its input counts as the owner's activity. On WebSockets, sub frames have DPI rewritten to the seat's and `r,` is swallowed under game-mode pin. WebRTC sub relay bytes are metered separately. Subs close with their owner.
+* **Engine**: `--second-screen=true` is passed only for the GNOME seat.
 
 ### labwc seat (fallback)
 

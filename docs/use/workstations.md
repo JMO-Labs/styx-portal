@@ -41,7 +41,25 @@ Admin changes apply as soon as nobody is connected (within about a second of the
 | **Clipboard** | Automatic two-way sync in Chromium-based browsers once you allow the site's **Clipboard** permission (lock icon → Site settings → Clipboard → Allow). Firefox blocks programmatic clipboard reads, so local-to-remote paste goes through the sidebar's clipboard panel. |
 | **Files** | Sidebar **Files** section. Uploads land in `~/Downloads` on the workstation; the download popup lists the same directory. |
 | **Microphone, webcam, gamepad, printing** | Off in current agents. |
-| **Second screen** | Disabled (upstream limitation). |
+| **Second screen** | GNOME seats only; see [Two screens](#two-screens). Off elsewhere. |
+
+## Two screens
+
+On a GNOME seat you can extend the remote desktop onto a second monitor.
+
+1. Open the sidebar's screen settings and press **Add Screen**, then pick a side.
+2. A second browser window opens and the remote desktop extends onto it. Drag it to your second physical monitor.
+3. Resizing that window resizes the second screen.
+4. Closing it removes the second screen; GNOME moves its windows back to the first.
+
+Limits:
+
+- One extra screen.
+- Not on a scaled seat (HiDPI, GNOME scale above 100%): **Add Screen** does not appear there yet.
+- GNOME seats only, not mirror mode or the labwc seat.
+- Open the second window with **Add Screen** from the session's own tab. Copying its URL into another device does not work.
+- Only the session's own window counts: after the session reconnects (agent update, network drop), the second window follows it by itself. If it stays on "connecting", close it and press **Add Screen** again.
+- Resizing the first window still reconnects both windows for a moment.
 
 ## Quality and codecs
 

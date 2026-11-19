@@ -357,3 +357,215 @@ async def test_gamemode_shim_injected_in_both_transports(tmp_path):
         await c.close()
         assert "gamingModeUpdate" in html and "requestFullscreen" in html and "styx/gamemode" in html
     await up.close()
+
+
+async def _sub(client, sid, owner="A"):
+    return await client.ws_connect(f"/api/webrtc/signaling/?styx_vid={sid}&styx_sub={owner}&x=1",
+                                   headers=HDR)
+
+
+@pytest.mark.asyncio
+async def test_sub_joins_beside_owner(tmp_path):
+    up, client, seen = await _pair(tmp_path, idle_timeout_s=300, idle_enabled=True)
+    try:
+        a = await _sig(client, "A")
+        assert (await _beacon(client, "A")).status == 204
+        b = await _sub(client, "B")
+        await _until(lambda: len(seen) == 2)
+        assert seen == ["x=1", "x=1"]                      # neither styx_vid nor styx_sub upstream
+        await asyncio.sleep(0.2)
+        assert not a.closed and not b.closed
+    finally:
+        await client.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
+async def test_sub_refused_without_owner(tmp_path):
+    up, client, seen = await _pair(tmp_path)
+    try:
+        b = await _sub(client, "B")
+        msg = await asyncio.wait_for(b.receive(), 3)
+        assert msg.type == aiohttp.WSMsgType.CLOSE and b.close_code == gateway.BUSY_CODE
+        assert seen == []
+    finally:
+        await client.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
+async def test_sub_closes_with_owner(tmp_path):
+    up, client, _ = await _pair(tmp_path)
+    try:
+        a = await _sig(client, "A")
+        b = await _sub(client, "B")
+        await asyncio.sleep(0.2)
+        assert not b.closed
+        await a.close()
+        msg = await asyncio.wait_for(b.receive(), 2)
+        assert msg.type == aiohttp.WSMsgType.CLOSE
+    finally:
+        await client.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
+async def test_sub_no_refit_no_idle(tmp_path, monkeypatch):
+    connected = []
+    orig = gateway.Viewers.connect
+    monkeypatch.setattr(gateway.Viewers, "connect",
+                        lambda self, vid, ws: connected.append(vid) or orig(self, vid, ws))
+    up, client, seen = await _pair(tmp_path, idle_timeout_s=300, idle_enabled=True)
+    try:
+        a = await _sig(client, "A")
+        await _until(lambda: _state(tmp_path)["active_connections"] == 1)
+        b = await _sub(client, "B")
+        await _until(lambda: len(seen) == 2)
+        await asyncio.sleep(0.2)
+        assert connected == ["A"]                              # sub never a viewer
+        assert _state(tmp_path)["active_connections"] == 1     # sub not counted
+        assert not a.closed and not b.closed
+    finally:
+        await client.close()
+        await up.close()
+
+
+def test_split_sub():
+    from viewers import split_sub
+    assert split_sub("x=1&styx_sub=A%201&y=2") == ("x=1&y=2", "A 1")
+    assert split_sub("x=1") == ("x=1", None)
+    assert split_sub("") == ("", None)
+    assert split_sub("styx_sub=") == ("", "")
+    assert len(split_sub("styx_sub=" + "z" * 500)[1]) == 64
+
+
+async def _closed(ws, t=3):
+    msg = await asyncio.wait_for(ws.receive(), t)
+    assert msg.type == aiohttp.WSMsgType.CLOSE
+    return ws.close_code
+
+
+@pytest.mark.asyncio
+async def test_sub_unknown_or_empty_owner_refused(tmp_path):
+    up, client, seen = await _pair(tmp_path)
+    try:
+        a = await _sig(client, "A")
+        for owner in ("Z", ""):
+            b = await _sub(client, "B", owner)
+            assert await _closed(b) == gateway.BUSY_CODE
+        assert not a.closed and seen == ["x=1"]
+    finally:
+        await client.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
+async def test_sub_refused_after_owner_session_cut(tmp_path):
+    up, client, _ = await _pair(tmp_path, idle_timeout_s=1, idle_enabled=True)
+    try:
+        a = await _sig(client, "A")
+        assert await _closed(a, 4) == 4001                  # idle: session dead
+        b = await _sub(client, "B")
+        assert await _closed(b) == gateway.BUSY_CODE
+    finally:
+        await client.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
+async def test_sub_closes_only_with_its_own_owner(tmp_path):
+    up, client, _ = await _pair(tmp_path)
+    try:
+        a = await _sig(client, "A")
+        c = await _sig(client, "C")
+        b = await _sub(client, "B", "A")
+        d = await _sub(client, "D", "C")
+        await asyncio.sleep(0.2)
+        await a.close()
+        await _closed(b, 2)
+        await asyncio.sleep(0.3)
+        assert not d.closed and not c.closed
+    finally:
+        await client.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
+async def test_sub_beacon_keeps_owner_from_idling(tmp_path):
+    up, client, _ = await _pair(tmp_path, idle_timeout_s=2, idle_enabled=True)
+    try:
+        a = await _sig(client, "A")
+        b = await _sub(client, "B")
+        for _ in range(4):
+            await asyncio.sleep(0.7)
+            assert (await _beacon(client, "A", sub="B")).status == 204
+        assert not a.closed and not b.closed
+        assert not (tmp_path / "gw_state.json.kill").exists()
+    finally:
+        await client.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
+async def test_sub_relay_credited_apart_from_owner(tmp_path):
+    up, client, _ = await _pair(tmp_path)
+    try:
+        await _sig(client, "A")
+        await _sub(client, "B")
+        await asyncio.sleep(0.2)
+        await _beacon(client, "A", 100)
+        await _beacon(client, "A", 50, sub="B")
+        assert _state(tmp_path)["turn_bytes_total"] == 150
+        await _beacon(client, "A", 120)                     # owner's own counter: +20 only
+        assert _state(tmp_path)["turn_bytes_total"] == 170
+        await _beacon(client, "A", 80, sub="B")
+        assert _state(tmp_path)["turn_bytes_total"] == 200
+        await _beacon(client, "Z", 999, sub="B")            # unknown owner: ignored
+        assert _state(tmp_path)["turn_bytes_total"] == 200
+    finally:
+        await client.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
+async def test_sub_relay_is_not_counted_twice_across_a_reconnect(tmp_path):
+    """A sub page's relay counter is cumulative for its life; its signaling
+    socket reconnects on every refit, which must not credit the total again."""
+    up, client, _ = await _pair(tmp_path)
+    try:
+        await _sig(client, "A")
+        b = await _sub(client, "B")
+        await asyncio.sleep(0.2)
+        await _beacon(client, "A", 0)
+        await _beacon(client, "A", 50, sub="B")
+        assert _state(tmp_path)["turn_bytes_total"] == 50
+        await b.close()
+        await asyncio.sleep(0.2)
+        await _sub(client, "B")                             # same page, new socket
+        await asyncio.sleep(0.2)
+        await _beacon(client, "A", 50, sub="B")
+        assert _state(tmp_path)["turn_bytes_total"] == 50
+        await _beacon(client, "A", 70, sub="B")
+        assert _state(tmp_path)["turn_bytes_total"] == 70
+    finally:
+        await client.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
+async def test_sub_refusal_and_close_are_logged(tmp_path, capsys):
+    up, client, _ = await _pair(tmp_path)
+    try:
+        b = await _sub(client, "B", "ownerid12345")
+        assert await _closed(b) == gateway.BUSY_CODE
+        assert "webrtc sub refused owner=ownerid1: no live owner session" in capsys.readouterr().out
+        a = await _sig(client, "ownerid12345")
+        c = await _sub(client, "C", "ownerid12345")
+        await asyncio.sleep(0.2)
+        await a.close()
+        await _closed(c, 2)
+        await asyncio.sleep(0.2)
+        assert "webrtc sub close owner=ownerid1" in capsys.readouterr().out
+    finally:
+        await client.close()
+        await up.close()

@@ -95,3 +95,24 @@ def test_round_trip_all_flavours(tmp_path):
     assert not os.path.exists(path)
     with pytest.raises(OSError):
         socket.socket(socket.AF_UNIX).connect(path)
+
+
+def test_a_restarted_capture_gets_the_clipboard_back(tmp_path):
+    """The seat's RemoteDesktop session outlives each selkies: Mutter refuses a
+    second EnableClipboard ("Already enabled"), so stop() must disable it."""
+    class Strict(FakeRD):
+        enabled = False
+
+        def EnableClipboard(self, _o):
+            if self.enabled:
+                raise RuntimeError("Already enabled")
+            self.enabled = True
+
+        def DisableClipboard(self):
+            self.enabled = False
+    rd, path = Strict(), str(tmp_path / "clip.sock")
+    seat_clipboard.ClipboardServer(rd, lambda fn, m: Match(), path).stop()
+    again = seat_clipboard.ClipboardServer(rd, lambda fn, m: Match(), path)
+    assert rd.enabled
+    again.stop()
+    assert not rd.enabled

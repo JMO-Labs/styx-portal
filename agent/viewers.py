@@ -3,6 +3,7 @@
 A viewer is one browser tab, keyed by its stable `styx_vid` (it survives refit
 reconnects); it may briefly hold several sockets while reconnecting."""
 from dataclasses import dataclass, field
+from urllib.parse import unquote
 
 MAX_VID = 64
 STALL_LOG_S = 1.0       # client silent this long while video is on -> log it
@@ -17,6 +18,19 @@ def split_vid(raw_qs: str, fallback: str):
         elif part:
             keep.append(part)
     return "&".join(keep), vid or fallback
+
+
+def split_sub(raw_qs: str) -> tuple[str, str | None]:
+    """Return (query string without styx_sub, owner id or None). A sub-display
+    window (Selkies' Add Screen page) names the owner tab it was opened from;
+    "" means it named none. The id never reaches selkies."""
+    owner, keep = None, []
+    for part in raw_qs.split("&"):
+        if part.startswith("styx_sub="):
+            owner = unquote(part[9:])[:MAX_VID]
+        elif part:
+            keep.append(part)
+    return "&".join(keep), owner
 
 
 @dataclass

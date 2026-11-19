@@ -330,3 +330,70 @@ async def test_gamemode_pin_cleared_when_last_viewer_leaves(tmp_path, monkeypatc
     finally:
         await client.close()
         await up.close()
+
+
+async def _sub_ws(client, vid, owner, hdr):
+    return await client.ws_connect(f"/websocket?styx_vid={vid}&styx_sub={owner}&x=1", headers=hdr)
+
+
+@pytest.mark.asyncio
+async def test_ws_sub_dpi_follows_seat_without_touching_owner_scale(tmp_path):
+    import json
+    (tmp_path / "seat-scale").write_text("1.5")
+    received = []
+    up, client = await _refit_pair(tmp_path, received, str(tmp_path))
+    hdr = {"Authorization": _basic("styx", "pw")}
+    try:
+        await _vid_ws(client, "A", hdr)
+        b = await _sub_ws(client, "B", "A", hdr)
+        await b.send_str("s,96,display2")
+        await b.send_str('SETTINGS,{"scaling_dpi": 192, "h264_crf": 25}')
+        await b.send_str("m2,1,1,0,0")
+        await _until(lambda: "m2,1,1,0,0" in received)
+        assert [m for m in received if m.startswith("s,")] == ["s,144,display2"]
+        sets = [json.loads(m[9:]) for m in received if m.startswith("SETTINGS,")]
+        assert sets == [{"scaling_dpi": 144, "h264_crf": 25}]
+        assert (tmp_path / "seat-scale").read_text() == "1.5"      # publish_scale not run
+    finally:
+        await client.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
+async def test_ws_sub_resize_forwarded_and_swallowed_under_pin(tmp_path):
+    (tmp_path / "seat-size").write_text("2556x1440")
+    received = []
+    up, client = await _refit_pair(tmp_path, received, str(tmp_path))
+    hdr = {"Authorization": _basic("styx", "pw")}
+    try:
+        await _vid_ws(client, "A", hdr)
+        b = await _sub_ws(client, "B", "A", hdr)
+        await b.send_str("r,1278x720,display2")
+        await _until(lambda: "r,1278x720,display2" in received)
+        r = await client.post("/styx/gamemode", json={"active": True, "w": 2560, "h": 1440}, headers=hdr)
+        assert r.status == 204
+        await b.send_str("r,600x400,display2")
+        await b.send_str("m2,2,2,0,0")
+        await _until(lambda: "m2,2,2,0,0" in received)
+        assert "r,600x400,display2" not in received
+    finally:
+        await client.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
+async def test_ws_sub_input_marks_owner_active(tmp_path):
+    received = []
+    up, client = await _refit_pair(tmp_path, received, str(tmp_path))
+    hdr = {"Authorization": _basic("styx", "pw")}
+    try:
+        await _vid_ws(client, "A", hdr)
+        b = await _sub_ws(client, "B", "A", hdr)
+        await b.send_str("m2,5,5,0,0")
+        await _until(lambda: "m2,5,5,0,0" in received)
+        c = await _vid_ws(client, "C", hdr)             # owner just worked on screen 2: seat held
+        msg = await asyncio.wait_for(c.receive(), 3)
+        assert msg.type == aiohttp.WSMsgType.CLOSE and c.close_code == gateway.BUSY_CODE
+    finally:
+        await client.close()
+        await up.close()

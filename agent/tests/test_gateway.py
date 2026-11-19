@@ -972,3 +972,136 @@ def test_same_origin_guard():
     assert same_origin(req("http://127.0.0.1:18444", "127.0.0.1:18444"))
     assert not same_origin(req("https://evil.example", "g.example"))
     assert not same_origin(req("http://127.0.0.1:9999", "127.0.0.1:18444"))
+
+
+async def _sub_pair():
+    from aiohttp import web
+    from aiohttp.test_utils import TestClient, TestServer
+    seen = []
+
+    async def ws(r):
+        seen.append(r.query_string)
+        w = web.WebSocketResponse()
+        await w.prepare(r)
+        async for _ in w:
+            pass
+        return w
+    app = web.Application()
+    app.router.add_get("/api/websockets", ws)
+    up = TestClient(TestServer(app))
+    await up.start_server()
+    gw = TestClient(TestServer(gateway.create_app("styx", "pw", upstream_port=up.server.port)))
+    await gw.start_server()
+    return up, gw, seen, {"Authorization": _basic("styx", "pw")}
+
+
+def _sub_url(vid, owner="A"):
+    return f"/api/websockets?styx_vid={vid}&styx_sub={owner}&x=1"
+
+
+@pytest.mark.asyncio
+async def test_ws_sub_joins_beside_owner():
+    import asyncio
+    up, gw, seen, h = await _sub_pair()
+    try:
+        a = await gw.ws_connect("/api/websockets?styx_vid=A&x=1", headers=h)
+        b = await gw.ws_connect(_sub_url("B"), headers=h)
+        await asyncio.sleep(0.3)
+        assert seen == ["x=1", "x=1"]               # neither styx_vid nor styx_sub upstream
+        assert not a.closed and not b.closed
+    finally:
+        await gw.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
+async def test_ws_sub_refused_without_owner():
+    import asyncio
+    import aiohttp
+    up, gw, seen, h = await _sub_pair()
+    try:
+        b = await gw.ws_connect(_sub_url("B"), headers=h)
+        msg = await asyncio.wait_for(b.receive(), 3)
+        assert msg.type == aiohttp.WSMsgType.CLOSE and b.close_code == gateway.BUSY_CODE
+        assert seen == []
+    finally:
+        await gw.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
+async def test_ws_sub_closes_with_owner():
+    import asyncio
+    import aiohttp
+    up, gw, seen, h = await _sub_pair()
+    try:
+        a = await gw.ws_connect("/api/websockets?styx_vid=A&x=1", headers=h)
+        b = await gw.ws_connect(_sub_url("B"), headers=h)
+        await asyncio.sleep(0.2)
+        assert not b.closed
+        await a.close()
+        msg = await asyncio.wait_for(b.receive(), 2)
+        assert msg.type == aiohttp.WSMsgType.CLOSE
+    finally:
+        await gw.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
+async def test_ws_sub_unknown_empty_or_shared_owner_refused():
+    import asyncio
+    import aiohttp
+    up, gw, seen, h = await _sub_pair()
+    try:
+        a = await gw.ws_connect("/api/websockets?styx_vid=A&x=1", headers=h)
+        v = await gw.ws_connect("/api/websockets?styx_vid=V&role=viewer&x=1", headers=h)
+        for owner in ("Z", "", "V"):        # unknown, none named, a read-only viewer
+            b = await gw.ws_connect(_sub_url("B", owner), headers=h)
+            msg = await asyncio.wait_for(b.receive(), 3)
+            assert msg.type == aiohttp.WSMsgType.CLOSE and b.close_code == gateway.BUSY_CODE
+        assert not a.closed and not v.closed
+        assert len(seen) == 2               # nothing proxied for the refused subs
+    finally:
+        await gw.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
+async def test_ws_sub_closes_only_with_its_own_owner():
+    import asyncio
+    import aiohttp
+    up, gw, seen, h = await _sub_pair()
+    try:
+        a = await gw.ws_connect("/api/websockets?styx_vid=A&x=1", headers=h)
+        c = await gw.ws_connect("/api/websockets?styx_vid=C&x=1", headers=h)
+        b = await gw.ws_connect(_sub_url("B", "A"), headers=h)
+        d = await gw.ws_connect(_sub_url("D", "C"), headers=h)
+        await asyncio.sleep(0.2)
+        await a.close()
+        msg = await asyncio.wait_for(b.receive(), 2)
+        assert msg.type == aiohttp.WSMsgType.CLOSE
+        await asyncio.sleep(0.3)
+        assert not d.closed and not c.closed
+    finally:
+        await gw.close()
+        await up.close()
+
+
+@pytest.mark.asyncio
+async def test_ws_sub_refusal_and_close_are_logged(capsys):
+    import asyncio
+    up, gw, seen, h = await _sub_pair()
+    try:
+        b = await gw.ws_connect(_sub_url("B", "ownerid12345"), headers=h)
+        await asyncio.wait_for(b.receive(), 3)
+        assert "ws sub refused owner=ownerid1: no live owner tab" in capsys.readouterr().out
+        a = await gw.ws_connect("/api/websockets?styx_vid=ownerid12345&x=1", headers=h)
+        c = await gw.ws_connect(_sub_url("C", "ownerid12345"), headers=h)
+        await asyncio.sleep(0.2)
+        await a.close()
+        await asyncio.wait_for(c.receive(), 2)
+        await asyncio.sleep(0.2)
+        assert "ws sub close owner=ownerid1" in capsys.readouterr().out
+    finally:
+        await gw.close()
+        await up.close()

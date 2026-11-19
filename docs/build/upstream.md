@@ -21,7 +21,10 @@ without a patched wheel fall back to PyPI's. Fork: `JMO-Labs/pixelflux`.
 
 * `2.2.1+styx4` (branch `styx/2.2.1`, superseded by `2.2.2+styx5`): offers the cursor metadata size GNOME/mutter 50 uses (384x384; pixelflux capped at 256x256, so no cursor meta arrived) and makes `pointer_location()` return the host cursor. Feeds the pointer echo behind the locked-pointer cursor ([Agent](agent.md#page-shims-and-webrtc)).
 
-* `2.2.2+styx5` (current, agent 0.10.0): pixelflux 2.2.2 plus pixelflux#61 (host pointer echo under portal capture) until a release carries it. Upstream merged the rest of our work, so those carriers are gone:
+* `2.2.3+styx8` (current, agent 0.11.0; branch `styx/multi-display` on JMO-Labs/pixelflux, rebased on upstream main past 2.2.3, which carries pixelflux#61 and selkies#612): growing one display on a portal virtual monitor, arranging Mutter hosts through DisplayConfig, picking the EIS device whose region holds a point, aiming by live output positions, and reading a host's own virtual monitor at its current mode (being offered upstream). Feeds [two-screen GNOME seats](agent.md#two-screens-gnome-seat).
+* `2.2.2+styx7` (superseded by `2.2.3+styx8`): the same work on 2.2.2 plus pixelflux#61 and selkies#612 before upstream took them.
+
+* `2.2.2+styx5` (superseded by `2.2.2+styx7`, agent 0.11.0; was current in agent 0.10.0): pixelflux 2.2.2 plus pixelflux#61 (host pointer echo under portal capture) until a release carries it. Upstream merged the rest of our work, so those carriers are gone:
 
     * 02a: merged as pixelflux#58, in 2.2.2.
     * 02b: merged as selkies#496, in 2.2.0; `bundle_patch.py` deleted.

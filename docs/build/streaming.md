@@ -16,8 +16,8 @@ The streaming engine is the [Selkies Project](../acknowledgements.md) (selkies, 
 | **selkies 2.2** | Python server + web client: sessions, congestion control, input, clipboard, file transfer, the browser bundle |
 | **Styx gateway** | Auth, idle, busy gate, size ownership, injected shims (see [Agent](agent.md)) |
 
-Versions are pinned in `agent/enroll.sh` (selkies 2.2.0, pixelflux 2.2.2, pcmflux 2.2.1) and the wheelhouse built by
-`scripts/build_agent_artifacts.sh`. The wheelhouse currently carries the patched `pixelflux 2.2.2+styx5` (2.2.2 plus pixelflux#61), which pip prefers over PyPI's 2.2.2 through `EXTRA_WHEELS` ([Upstream](upstream.md#patched-wheels-extra_wheels)).
+Versions are pinned in `agent/enroll.sh` (selkies 2.2.1, pixelflux 2.2.3, pcmflux 2.2.1) and the wheelhouse built by
+`scripts/build_agent_artifacts.sh`. The wheelhouse currently carries the patched `pixelflux 2.2.3+styx8` (upstream main past 2.2.3 plus the two-screen work), which pip prefers over PyPI's 2.2.3 through `EXTRA_WHEELS` ([Upstream](upstream.md#patched-wheels-extra_wheels)).
 
 ## Codec choice
 
