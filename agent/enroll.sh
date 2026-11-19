@@ -290,7 +290,7 @@ python3 -m venv "$INSTALL_DIR/venv" \
   || fail E01 "venv creation failed — check python3-venv is installed and $HOME has free space."
 "$INSTALL_DIR/venv/bin/pip" -q install --no-index \
   --find-links "$INSTALL_DIR/wheelhouse" \
-  selkies==2.2.0 pixelflux==2.2.2 pcmflux==2.2.1 setuptools aiohttp pulsectl \
+  selkies==2.2.1 pixelflux==2.2.3 pcmflux==2.2.1 setuptools aiohttp pulsectl \
   || fail E03 "Wheel install failed — likely an unsupported python version ($(python3 -V)). The wheelhouse covers python 3.10–3.14; rebuild it on the server (scripts/build_agent_artifacts.sh) if your python is newer."
 
 # Seat-only, OPTIONAL: nwg-drawer (app grid) + nwg-dock binaries, server-built
