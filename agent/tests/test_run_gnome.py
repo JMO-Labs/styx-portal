@@ -112,6 +112,8 @@ class Harness:
         monkeypatch.setattr(eng, "pick_dri_node", lambda: "")
         monkeypatch.setattr(eng, "build_selkies_cmd", lambda cfg, port, seat=None:
                             ([str(tmp_path / "venv/bin/selkies")], {}))
+        monkeypatch.setattr(styx_agent.seat_scopes, "protect_agent", lambda: None)
+        monkeypatch.setattr(styx_agent.seat_scopes, "sweep", lambda: None)
         monkeypatch.setattr(styx_agent, "LOG_DIR", tmp_path / "logs")
         monkeypatch.setattr(styx_agent, "CONFIG_PATH", tmp_path / "config.json")
         monkeypatch.setattr(styx_agent, "STATE_PATH", tmp_path / "state.json")
